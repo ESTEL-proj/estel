@@ -1,0 +1,191 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "estel"
+version = "0.0.0"
+description = "ESTEL — Estel is a Scattering Transform Exquisite Library. The successor of STL."
+readme = "AGENTS.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.11"
+authors = [{ name = "Erwan Allys" }, { name = "Jean-Marc Delouis" }, { name = "Pablo Richard" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+]
+# Minimum versions: Part I, §1.6. Upper bounds only for dependencies that often break their API.
+dependencies = [
+    "numpy>=2.0",
+    "torch>=2.6,<3",
+    "array-api-compat>=1.11",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "hypothesis>=6",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "import-linter>=2.1",
+    "towncrier>=24.8",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/estel"]
+
+# CI and local installs take the CPU-only PyTorch wheels on Linux, which keeps tier 0 small.
+# This affects uv-managed environments only, not the published package metadata.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+# ---------------------------------------------------------------- lint and types
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tools", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "N", "PT"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = ["src", "tools"]
+files = ["src", "tools", "tests"]
+explicit_package_bases = true
+
+# ---------------------------------------------------------------- tests
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tools"]
+addopts = ["--strict-markers", "--strict-config", "-ra"]
+markers = [
+    "maths(*ids): the docs/maths.md IDs (M-...) this test checks; read by tools/check_maths_ids.py",
+]
+
+# ---------------------------------------------------------------- import rules (Part I, §2.4)
+#
+# Contracts name only modules that exist in every phase (the root package and its
+# descendants, through wildcards), so they hold on the empty package of P0 and keep holding
+# as the layers are filled in.
+
+[tool.importlinter]
+root_packages = ["estel"]
+include_external_packages = true
+contract_types = [
+    "optional_forbidden: import_contracts.OptionalForbiddenContract",
+    "allowlist: import_contracts.AllowlistContract",
+]
+
+[[tool.importlinter.contracts]]
+id = "backend-purity"
+name = "torch, jax and optax are imported only under estel.backend"
+type = "forbidden"
+source_modules = ["estel"]
+forbidden_modules = ["torch", "jax", "jaxlib", "optax"]
+ignore_imports = [
+    "estel.backend -> torch",
+    "estel.backend.** -> torch",
+    "estel.backend -> jax",
+    "estel.backend.** -> jax",
+    "estel.backend -> jaxlib",
+    "estel.backend.** -> jaxlib",
+    "estel.backend -> optax",
+    "estel.backend.** -> optax",
+]
+unmatched_ignore_imports_alerting = "none"
+broken_contract_guidance = "Move the backend call into a primitive of src/estel/backend/ and call it through the L0 protocol."
+
+[[tool.importlinter.contracts]]
+id = "rust-engine-purity"
+name = "estel_rust is imported only under estel.engines"
+type = "forbidden"
+source_modules = ["estel"]
+forbidden_modules = ["estel_rust"]
+ignore_imports = [
+    "estel.engines -> estel_rust",
+    "estel.engines.** -> estel_rust",
+]
+unmatched_ignore_imports_alerting = "none"
+broken_contract_guidance = "Only the engine adapter in src/estel/engines/ may talk to the Rust wheel."
+
+[[tool.importlinter.contracts]]
+id = "engines-not-backend"
+name = "The engine layer never imports a backend directly"
+type = "optional_forbidden"
+source_modules = ["estel.engines"]
+forbidden_modules = ["estel.backend"]
+allow_indirect_imports = true
+broken_contract_guidance = "An engine runs L2; go through estel.functional or estel.scattering instead."
+
+[[tool.importlinter.contracts]]
+id = "l2-mother-class-only"
+name = "L2 talks to the DataClass mother class, never to a subclass"
+type = "optional_forbidden"
+source_modules = [
+    "estel.scattering",
+    "estel.statistics",
+    "estel.synthesis",
+    "estel.functional",
+]
+forbidden_modules = [
+    "estel.data.planar",
+    "estel.data.healpix",
+    "estel.data.tensor_prod",
+]
+allow_indirect_imports = true
+broken_contract_guidance = "Use the DataClass interface of estel.data._base; add a geometry hook there if L2 needs something new."
+
+[[tool.importlinter.contracts]]
+id = "layers"
+name = "Layer order: engines, then L2, then L1, then L0; nothing imports upwards"
+type = "layers"
+containers = ["estel"]
+layers = [
+    "(engines)",
+    "(scattering) | (statistics) | (synthesis) | (functional)",
+    "(data) | (wavelets)",
+    "(backend)",
+]
+
+[[tool.importlinter.contracts]]
+id = "oracle-independence"
+name = "estel._spec imports NumPy only, and nothing from estel"
+type = "allowlist"
+source_module = "estel._spec"
+allowed_external = ["numpy"]
+
+# ---------------------------------------------------------------- news fragments (towncrier)
+
+[tool.towncrier]
+directory = "changes"
+filename = "CHANGELOG.md"
+name = "ESTEL"
+package = "estel"
+package_dir = "src"
+title_format = "## {name} {version} ({project_date})"
+issue_format = "#{issue}"
+
+[[tool.towncrier.type]]
+directory = "major"
+name = "Breaking changes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "minor"
+name = "Features"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "patch"
+name = "Fixes and maintenance"
+showcontent = true
