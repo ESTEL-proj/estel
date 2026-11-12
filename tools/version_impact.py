@@ -54,9 +54,7 @@ class Impact:
 
 
 def git(root: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args], cwd=root, capture_output=True, text=True, check=False
-    )
+    result = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         raise SystemExit(
             f"version_impact: `git {' '.join(args)}` failed: {result.stderr.strip()}. "

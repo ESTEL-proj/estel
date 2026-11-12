@@ -1,0 +1,44 @@
+# Tier 0 (Part I, §6.1): GitHub-hosted CPU, every push and pull request, at most 15 minutes.
+name: tier0
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tier0-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: make check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # version_impact.py diffs against the base branch
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.8"
+          enable-cache: true
+
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: make check
+        run: make check
+
+      - name: Version impact (pull requests only)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: >
+          uv run --locked python tools/version_impact.py
+          --base "origin/$BASE_REF" --pr "$PR_NUMBER" --labels "$PR_LABELS"

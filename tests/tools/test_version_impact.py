@@ -13,7 +13,7 @@ from .conftest import run_tool, write
 API = {"estel.f": {"kind": "function", "signature": "(x)"}}
 
 
-def manifest(public: dict[str, object]) -> str:
+def manifest(public: dict[str, dict[str, str]]) -> str:
     return json.dumps({"schema": 1, "public": public})
 
 

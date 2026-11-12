@@ -90,8 +90,10 @@ def test_consistent_repository_passes_with_coverage(tmp_path: Path) -> None:
             id="spec-cites-undefined-id",
         ),
         pytest.param(
-            {"tests/test_x.py": 'import pytest\n@pytest.mark.maths("M-S3")\ndef test_x():\n'
-             "    pass\n"},
+            {
+                "tests/test_x.py": 'import pytest\n@pytest.mark.maths("M-S3")\ndef test_x():\n'
+                "    pass\n"
+            },
             "marks M-S3, which docs/maths.md does not define",
             ("--allow-unimplemented",),
             id="test-cites-undefined-id",

@@ -246,12 +246,12 @@ def load_manifest_text(text: str, origin: str) -> Manifest:
     data: Any = json.loads(text)
     if not isinstance(data, dict) or data.get("schema") != SCHEMA:
         raise SystemExit(
-            f"{origin}: expected a JSON object with \"schema\": {SCHEMA} and a \"public\" "
-            "object. Restore the file from main, then add your entries to \"public\"."
+            f'{origin}: expected a JSON object with "schema": {SCHEMA} and a "public" '
+            'object. Restore the file from main, then add your entries to "public".'
         )
     public = data.get("public", {})
     if not isinstance(public, dict):
-        raise SystemExit(f"{origin}: \"public\" must be an object mapping names to entries.")
+        raise SystemExit(f'{origin}: "public" must be an object mapping names to entries.')
     return public
 
 
@@ -271,7 +271,7 @@ def check(root: Path) -> list[str]:
         errors.append(
             f"{name} is public but not in {MANIFEST}. Make it private (leading underscore, or "
             f"move it to a private module) or, if it is meant to be public, propose the entry "
-            f"`\"{name}\": {json.dumps(actual[name])}` in {MANIFEST} (a minor change; the "
+            f'`"{name}": {json.dumps(actual[name])}` in {MANIFEST} (a minor change; the '
             "file needs CODEOWNER approval)."
         )
     for name in diff.removed:

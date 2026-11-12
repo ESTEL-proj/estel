@@ -34,7 +34,7 @@ MANIFEST = {
 }
 
 
-def make_repo(tmp_path: Path, manifest: dict[str, object], extra: dict[str, str]) -> Path:
+def make_repo(tmp_path: Path, manifest: dict[str, dict[str, str]], extra: dict[str, str]) -> Path:
     files = {**PACKAGE, **extra}
     files["api/manifest.json"] = json.dumps({"schema": 1, "public": manifest})
     write(tmp_path, files)
@@ -74,14 +74,20 @@ def test_print_reproduces_the_manifest(tmp_path: Path) -> None:
             id="public-method-of-public-class",
         ),
         pytest.param(
-            {"src/estel/__init__.py": "from ._config import set_backend\nSTATISTICS_REFERENCE = 0\n"},
+            {
+                "src/estel/__init__.py": (
+                    "from ._config import set_backend\nSTATISTICS_REFERENCE = 0\n"
+                )
+            },
             MANIFEST,
             "estel.STATISTICS_REFERENCE is public but not in api/manifest.json",
             id="public-constant",
         ),
         pytest.param(
-            {"src/estel/__init__.py": "from .spectra._estimators import fft_estimator\n"
-             "from ._config import set_backend\n"},
+            {
+                "src/estel/__init__.py": "from .spectra._estimators import fft_estimator\n"
+                "from ._config import set_backend\n"
+            },
             MANIFEST,
             "estel.fft_estimator is public but not in api/manifest.json",
             id="private-function-re-exported",
@@ -93,8 +99,10 @@ def test_print_reproduces_the_manifest(tmp_path: Path) -> None:
             id="removed-name",
         ),
         pytest.param(
-            {"src/estel/_config.py": "def set_backend(name: str, strict: bool) -> None:\n"
-             "    pass\n"},
+            {
+                "src/estel/_config.py": "def set_backend(name: str, strict: bool) -> None:\n"
+                "    pass\n"
+            },
             MANIFEST,
             "estel.set_backend changed",
             id="changed-signature",
@@ -102,7 +110,7 @@ def test_print_reproduces_the_manifest(tmp_path: Path) -> None:
     ],
 )
 def test_crafted_violation_fails(
-    tmp_path: Path, extra: dict[str, str], manifest: dict[str, object], message: str
+    tmp_path: Path, extra: dict[str, str], manifest: dict[str, dict[str, str]], message: str
 ) -> None:
     root = make_repo(tmp_path, manifest, extra)
     result = run_tool("api_manifest.py", "--check", "--root", str(root))
