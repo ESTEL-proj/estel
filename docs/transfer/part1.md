@@ -133,8 +133,8 @@ At construction, an operator builds a `ScatteringPlan` in NumPy: scale and orien
 
 | Stage | Engines (`engine=`) | Backends of the Python engine (`set_backend()`) | Precision |
 | --- | --- | --- | --- |
-| Step 1 (1.0.0) | Python engine only; engine layer and protocol reserved | PyTorch | float32 default, float64 path |
-| Step 2 | + Rust engine: the `estel-rust` wheel, built from `rust/` in the same repository; CPU and GPU, with MPI (Part III, §18) | + JAX (Part III, §17) | Rust engine: float64 default, float32 opt-in |
+| Step 1 (1.0.0) | Python engine only; engine layer and protocol reserved | PyTorch; JAX experimental: every L0 primitive, tested on every PR, selectable with a warning, not covered by the 1.0.0 guarantees; syntheses on JAX later | float32 default, float64 path |
+| Step 2 | + Rust engine: the `estel-rust` wheel, built from `rust/` in the same repository; CPU and GPU, with MPI (Part III, §18) | JAX stable, with its synthesis optimiser (Part III, §17) | Rust engine: float64 default, float32 opt-in |
 | Later | any engine that passes the parity tests | any backend that passes the conformance suite | — |
 
 ### 2.3 Object model
@@ -174,7 +174,7 @@ Each rule is enforced by a mechanical check — `import-linter` contracts and a 
 
 ### 3.1 Functional, JAX-ready style
 
-These rules apply to L1 and L2 from the first commit of step 1, although the JAX backend only arrives in step 2. Rules that are not tested drift, so from phase P1 the CI also traces the L2 code on small inputs with a minimal, unreleased JAX implementation of L0. That test makes no numerical claim; it only proves the code is traceable. The rules are copied into `docs/agents/jax_rules.md`.
+These rules apply to L1 and L2 from the first commit of step 1. From phase P1, ESTEL also has an experimental JAX backend for L0, in `src/estel/backend/jax/`, which passes the same conformance suite as PyTorch, and CI runs the whole test suite on both backends, in two parallel jobs. Any PyTorch idiom that settles into L1 or L2 therefore fails at once. JAX is opt-in and experimental in 1.0.0 (§2.2.5). The rules are copied into `docs/agents/jax_rules.md`.
 
 1. **Functional code only.** Build per-level results in Python lists (§3.1.1), then `concat` or `stack` them. No preallocation filled by index, no `out=`, no `inplace=`. This applies to the code that computes the statistics; the NumPy code that builds the static plan, run once at construction, may write in place (§2.4).
 2. **Static shapes.** Everything shape-related — index sets, crop widths, stencils, bins — lives in the `ScatteringPlan`, built in NumPy and passed as a static argument.

@@ -132,7 +132,7 @@ These apply in `rust/`, whose local `AGENTS.md` repeats them:
   test, and the reverse.
 - **X7. Version impact.** The declared bump matches the change (Part I, §7.2).
 - **X8. Actionable errors.** Every error message says what to do next.
-- **X9. Step discipline.** Before 1.0.0, no capability that STL lacks, except synthesis checkpoints; STL is
-  reproduced as it is, and where it fails ESTEL raises a clear error (Part II, §9.2).
+- **X9. Step discipline.** Before 1.0.0, no capability that STL lacks, except synthesis checkpoints and the
+  experimental JAX backend; STL is reproduced as it is, and where it fails ESTEL raises a clear error (Part II, §9.2).
 - **X10. Public or internal.** New names are either in `api/manifest.json` or private: in a private module, or
   with a leading underscore (Part I, §2.4).

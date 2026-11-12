@@ -29,7 +29,7 @@ Backends and engines: nothing the user sees, everything the code is built on.
 
 | ID | Feature | Why | Builds on (reserved in 1.0.0) | Changes reference values | Version impact | Details | Source |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| LF1 | JAX backend | `jit`, `vmap`, TPU and GPU, functional ecosystem | L0 protocol, functional rules | no | minor (opt-in backend) | §17 | Q9, Q10 |
+| LF1 | JAX backend | `jit`, `vmap`, TPU and GPU, functional ecosystem | L0 protocol, functional rules | no | minor (JAX made stable; experimental since 1.0.0) | §17 | Q9, Q10 |
 | LF2 | HEALPix on JAX | HEALPix on every backend | `gather_weighted`, `segment_sum`, the NumPy tables ported in step 1 | no | minor | §17.4 | C9 |
 | LF3 | Rust engine (`estel-rust`, built from `rust/` in the ESTEL repository; CPU and GPU) | about 10× faster and 9× lighter in memory at nside 128 | `engine=` argument, engine protocol | no | minor; default for a configuration = benchmark-gated minor | §18 | Q14, Q20, C11, C12, C16 |
 | LF4 | MPI in process | nside 1024–2048 and beyond | `partition`, `allreduce` hook | no | minor | §18.3 | Q16 |

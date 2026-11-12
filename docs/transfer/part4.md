@@ -151,6 +151,7 @@ Every point of the review list (C: critical before the start, S: needed during s
 | OP-26, OP-27 | Masks: NaN filling in STL, weights in ESTEL | Parity cases with masks from phase P2 | Part II, §15.2, T2.4 |
 | OP-5 | iso and angular\_ft on complex coefficients | Reproduced in 1.0.0; a problem to fix afterwards | Part III, LF32 |
 | — | Philosophy of step 1 | Reproduce STL with its problems, then fix most of them as traced changes | Part II, §9.2 |
+| — | JAX in step 1 | An experimental JAX backend from P1: every L0 primitive, the conformance suite and the whole test suite on both backends; not covered by the 1.0.0 guarantees; syntheses on JAX and stability in step 2 (LF1). Replaces the minimal trace-only JAX L0 | Part I, §2.2.5, §3.1; Part II, §15.2, T1.3 |
 
 ## 23. Open questions
 
