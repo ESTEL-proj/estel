@@ -341,6 +341,7 @@ Calibration, written in `TOLERANCES.md`: run every backend, device and dtype on 
 
 - **CODEOWNERS** makes human review mandatory on the protected paths:
   - reference data and tolerances: `tests/reference/**`, `tests/tolerances.toml`;
+  - the reference counters: `src/estel/_reference.py`;
   - the transfer specification: `docs/transfer/**` and, during the review, `docs/maths.md`, read-only exports of this document, updated only by exporting it again;
   - the oracle and the mathematics: `src/estel/_spec/**`, `docs/maths.md`;
   - policy and API: `docs/policy/**`, `api/manifest.json`;
@@ -418,6 +419,12 @@ How the two steps map onto versions:
 - `api/manifest.json`: an entry removed or changed → major, an entry added → minor;
 - the geometry registry changed → major;
 - the `bench` label → minor.
+
+**How CI sees a bump of a reference counter.** `STATISTICS_REFERENCE` and `SYNTHESIS_REFERENCE` are integer constants in `src/estel/_reference.py`, a protected file (§5.3), exported by `estel/__init__.py`. `tools/version_impact.py` reads them on the base branch and on the PR:
+
+- a PR that changes `tests/reference/` must increase `STATISTICS_REFERENCE` by exactly one, and a PR that changes `STATISTICS_REFERENCE` must change `tests/reference/`; before 1.0.0 a mismatch is only reported, from 1.0.0 it fails;
+- `SYNTHESIS_REFERENCE` follows the same rule for the synthesis references, once they exist (after 1.0.0);
+- no label is involved: the bump is in the code, visible in the diff, and approved through CODEOWNERS.
 
 Each PR adds a news fragment `changes/<PR>.<major|minor|patch>.md` (towncrier). CI fails if the declared bump is below the required one.
 

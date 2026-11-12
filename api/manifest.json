@@ -1,4 +1,11 @@
 {
   "schema": 1,
-  "public": {}
+  "public": {
+    "estel.STATISTICS_REFERENCE": {
+      "kind": "constant"
+    },
+    "estel.SYNTHESIS_REFERENCE": {
+      "kind": "constant"
+    }
+  }
 }

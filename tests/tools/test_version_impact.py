@@ -1,4 +1,5 @@
-"""tools/version_impact.py fails when the declared bump is below the required one."""
+"""tools/version_impact.py fails when the declared bump is below the required one, and when the
+reference counters and the references do not move together (Part I, §7.2)."""
 
 from __future__ import annotations
 
@@ -11,6 +12,11 @@ import pytest
 from .conftest import run_tool, write
 
 API = {"estel.f": {"kind": "function", "signature": "(x)"}}
+COUNTERS_FILE = "src/estel/_reference.py"
+
+
+def counters(statistics: int | str = 3, synthesis: int | str = 1) -> str:
+    return f"STATISTICS_REFERENCE = {statistics}\nSYNTHESIS_REFERENCE = {synthesis}\n"
 
 
 def manifest(public: dict[str, dict[str, str]]) -> str:
@@ -33,6 +39,7 @@ def repo(tmp_path: Path) -> Path:
             "pyproject.toml": '[project]\nname = "estel"\nversion = "1.2.0"\n',
             "api/manifest.json": manifest(API),
             "tests/reference/s2.npz": "v1",
+            COUNTERS_FILE: counters(),
             "changes/.gitkeep": "",
             "README.md": "x",
         },
@@ -114,8 +121,54 @@ def test_added_entry_with_minor_fragment_passes(repo: Path) -> None:
         pytest.param(
             {"tests/reference/s2.npz": "v2", "changes/7.patch.md": "Oops."},
             ("--pr", "7"),
-            "tests/reference/ changed",
-            id="reference-changed-without-major-label",
+            "but STATISTICS_REFERENCE went from 3 to 3; it must increase by exactly one, to 4",
+            id="reference-changed-without-bump",
+        ),
+        pytest.param(
+            {"tests/reference/s2.npz": "v2", "changes/7.patch.md": "Oops."},
+            ("--pr", "7", "--labels", "major"),
+            "but STATISTICS_REFERENCE went from 3 to 3; it must increase by exactly one, to 4",
+            id="major-label-does-not-replace-bump",
+        ),
+        pytest.param(
+            {
+                "tests/reference/s2.npz": "v2",
+                COUNTERS_FILE: counters(statistics=5),
+                "changes/7.patch.md": "Jump.",
+            },
+            ("--pr", "7"),
+            "but STATISTICS_REFERENCE went from 3 to 5; it must increase by exactly one, to 4",
+            id="reference-changed-bump-by-two",
+        ),
+        pytest.param(
+            {COUNTERS_FILE: counters(statistics=4), "changes/7.patch.md": "Bump."},
+            ("--pr", "7"),
+            "STATISTICS_REFERENCE changed from 3 to 4, but tests/reference/ did not change",
+            id="bump-without-reference-change",
+        ),
+        pytest.param(
+            {COUNTERS_FILE: counters(statistics=2), "changes/7.patch.md": "Down."},
+            ("--pr", "7"),
+            "STATISTICS_REFERENCE changed from 3 to 2, but tests/reference/ did not change",
+            id="counter-decreased",
+        ),
+        pytest.param(
+            {COUNTERS_FILE: counters(synthesis=2), "changes/7.patch.md": "Bump."},
+            ("--pr", "7"),
+            "SYNTHESIS_REFERENCE changed from 1 to 2, but SYNTHESIS_REFERENCE has no references",
+            id="synthesis-bump-without-references",
+        ),
+        pytest.param(
+            {COUNTERS_FILE: counters(statistics="3 + 1"), "changes/7.patch.md": "Expr."},
+            ("--pr", "7"),
+            "STATISTICS_REFERENCE = 3 + 1 is not an integer literal",
+            id="counter-not-a-literal",
+        ),
+        pytest.param(
+            {COUNTERS_FILE: "SYNTHESIS_REFERENCE = 1\n", "changes/7.patch.md": "Drop."},
+            ("--pr", "7"),
+            "STATISTICS_REFERENCE is missing",
+            id="counter-missing",
         ),
         pytest.param(
             {"README.md": "y", "changes/fix.patch.md": "Docs."},
@@ -140,21 +193,65 @@ def test_crafted_violation_fails(
     assert message in result.stderr
 
 
-def test_reference_change_passes_with_major_label(repo: Path) -> None:
-    commit(repo, {"tests/reference/s2.npz": "v2", "changes/7.patch.md": "New references."})
-    result = impact(repo, "--pr", "7", "--labels", "major")
+def test_counter_file_deleted_fails(repo: Path) -> None:
+    git(repo, "rm", "-q", COUNTERS_FILE)
+    commit(repo, {"changes/7.patch.md": "Drop counters."})
+    result = impact(repo, "--pr", "7")
+    assert result.returncode == 1
+    assert f"{COUNTERS_FILE} is missing. Restore it from main." in result.stderr
+
+
+def test_reference_change_with_bump_by_one_passes(repo: Path) -> None:
+    commit(
+        repo,
+        {
+            "tests/reference/s2.npz": "v2",
+            COUNTERS_FILE: counters(statistics=4),
+            "changes/7.patch.md": "New references.",
+        },
+    )
+    result = impact(repo, "--pr", "7")
     assert result.returncode == 0, result.stderr
+    assert "STATISTICS_REFERENCE bumped from 3 to 4" in result.stdout
 
 
-def test_reference_change_is_only_reported_before_1_0(repo: Path) -> None:
+@pytest.mark.parametrize(
+    "files",
+    [
+        pytest.param({"tests/reference/s2.npz": "v2"}, id="reference-changed-without-bump"),
+        pytest.param({COUNTERS_FILE: counters(statistics=4)}, id="bump-without-reference"),
+    ],
+)
+def test_mismatch_is_only_reported_before_1_0(repo: Path, files: dict[str, str]) -> None:
     commit(
         repo,
         {
             "pyproject.toml": '[project]\nname = "estel"\nversion = "0.3.0"\n',
-            "tests/reference/s2.npz": "v2",
+            **files,
             "changes/7.patch.md": "Draft references.",
         },
     )
     result = impact(repo, "--pr", "7")
     assert result.returncode == 0, result.stderr
-    assert "Before 1.0.0 reference values gate nothing" in result.stdout
+    assert "Before 1.0.0 this is only reported." in result.stdout
+
+
+def test_counters_absent_on_base_count_as_zero(tmp_path: Path) -> None:
+    git(tmp_path, "init", "-q", "-b", "main")
+    git(tmp_path, "config", "user.email", "ci@example.invalid")
+    git(tmp_path, "config", "user.name", "CI")
+    write(
+        tmp_path,
+        {
+            "pyproject.toml": '[project]\nname = "estel"\nversion = "1.0.0"\n',
+            "tests/reference/s2.npz": "v1",
+            "changes/.gitkeep": "",
+        },
+    )
+    git(tmp_path, "add", "-A")
+    git(tmp_path, "commit", "-q", "-m", "base")
+    git(tmp_path, "checkout", "-q", "-b", "feature")
+    commit(tmp_path, {COUNTERS_FILE: counters(0, 0), "changes/7.patch.md": "Add counters."})
+    result = impact(tmp_path, "--pr", "7")
+    assert result.returncode == 0, result.stderr
+    assert "REFERENCE" not in result.stdout + result.stderr
