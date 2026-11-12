@@ -12,6 +12,9 @@ concurrency:
   group: tier0-${{ github.ref }}
   cancel-in-progress: true
 
+# Two parallel jobs, one per backend (Part I, §3.1 and §6.1). The PyTorch job keeps the name
+# "make check", which the main ruleset requires; the JAX job runs the whole test suite on the
+# experimental JAX backend.
 jobs:
   check:
     name: make check
@@ -31,7 +34,7 @@ jobs:
         run: uv sync --locked
 
       - name: make check
-        run: make check
+        run: make check TEST_BACKENDS=torch
 
       - name: Version impact (pull requests only)
         if: github.event_name == 'pull_request'
@@ -42,3 +45,21 @@ jobs:
         run: >
           uv run --locked python tools/version_impact.py
           --base "origin/$BASE_REF" --pr "$PR_NUMBER" --labels "$PR_LABELS"
+
+  check-jax:
+    name: make check (jax)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.8"
+          enable-cache: true
+
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: Tests on JAX, float32 and float64
+        run: make test TEST_BACKENDS=jax

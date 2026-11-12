@@ -125,7 +125,10 @@ class Backend(Protocol):
             ``np_array`` must be a ``numpy.ndarray``; anything else raises ``TypeError``
             (convert backend arrays at the DataClass boundary instead). Casting towards a
             narrower kind (complex to float, float to int, anything to bool) raises
-            ``TypeError``, since it would drop information silently.
+            ``TypeError``, since it would drop information silently. On the JAX backend,
+            float64, complex128 and int64 need JAX's process-wide 64-bit mode
+            (``jax_enable_x64``), which the backend never switches itself; without it they
+            raise ``TypeError``, as does ``random_normal`` in float64.
         """
         ...
 
@@ -532,7 +535,8 @@ class Backend(Protocol):
         """Minimise ``fun`` with the backend's built-in L-BFGS.
 
         ``torch.optim.LBFGS(line_search_fn="strong_wolfe")`` in PyTorch; ``optax.lbfgs`` in
-        step 2; the Rust L-BFGS when the Rust engine is selected (Part III, §18.2).
+        step 2 (LF1), until which the experimental JAX backend raises ``NotImplementedError``;
+        the Rust L-BFGS when the Rust engine is selected (Part III, §18.2).
 
         Shapes:
             ``fun(x)`` is 0-d, ``x`` with the shape of ``x0``. See :class:`LbfgsResult`.
@@ -567,10 +571,13 @@ class Backend(Protocol):
             When on, repeated runs on the same device and software give bitwise-identical
             results, and an operation without a deterministic implementation raises an error.
             ``torch.use_deterministic_algorithms`` in PyTorch;
-            ``XLA_FLAGS=--xla_gpu_deterministic_ops=true`` in step 2. On in tests.
+            ``--xla_gpu_deterministic_ops=true`` in ``XLA_FLAGS`` in the JAX backend. On in
+            tests.
         Gradients:
             Not applicable.
         Edge cases:
-            Process-wide state: call it at set-up, never inside the computation.
+            Process-wide state: call it at set-up, never inside the computation. XLA reads
+            ``XLA_FLAGS`` only when JAX starts, so on the JAX backend a call that would change
+            the setting after the first JAX array is created raises ``RuntimeError``.
         """
         ...

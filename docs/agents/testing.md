@@ -17,7 +17,7 @@ Summary of [Part I, §5 — Tests, reference values, tolerances](../transfer/par
 | Reserved interfaces | each step-2 interface exercised through its trivial implementation |
 | STL parity | ESTEL vs STL in float64 (`make parity`, step 1 only) |
 
-Every test runs in float32 and float64 (`ESTEL_TEST_DTYPE`; `make check` runs both).
+Every test runs in float32 and float64 (`ESTEL_TEST_DTYPE`), on PyTorch and on the experimental JAX backend (`ESTEL_TEST_BACKEND=torch|jax`, the `backend` fixture; `tests/_backends.py`). `make check` runs every combination; tier 0 runs one backend per job. `tests/backend/test_torch.py` and `test_jax.py` run only on their own backend.
 
 ## Reference values
 

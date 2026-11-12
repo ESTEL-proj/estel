@@ -214,7 +214,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `jit(fn, static_argnames)` | P | Identity in PyTorch; `jax.jit` in the JAX backend | new |
 | `value_and_grad(fn)`, `vjp`, `jvp`, `hvp` | P | Synthesis and the differentiation tests; `torch.func` / `jax` | `loss.backward()` |
 | `lbfgs(...)` | P | The built-in L-BFGS of each backend: `torch.optim.LBFGS(line_search_fn="strong_wolfe")`; `optax.lbfgs` in step 2; the Rust L-BFGS (`impl="rust"`) when the Rust engine is selected (Part III, §18.2) | `optimize_lbfgs` |
-| `deterministic(enabled)` | P | `torch.use_deterministic_algorithms`; in step 2 `XLA_FLAGS=--xla_gpu_deterministic_ops=true`. On in tests | new |
+| `deterministic(enabled)` | P | `torch.use_deterministic_algorithms`; on JAX, `XLA_FLAGS=--xla_gpu_deterministic_ops=true`, set before JAX starts. On in tests | new |
 
 ### 12.4 DataClasses
 
