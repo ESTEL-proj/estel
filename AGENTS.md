@@ -46,17 +46,20 @@ The static plan (`ScatteringPlan`) is built in NumPy when an operator is constru
 
 ## Protected paths (CODEOWNER approval)
 
-`tests/reference/**`, `tests/tolerances.toml`, `src/estel/_spec/**`, `docs/maths.md`, `docs/policy/**`, `api/manifest.json`, `AGENTS.md`, `CLAUDE.md` and their mirrors, `docs/agents/review_rules.md`, `.github/**`, `tools/make_reference.py`, `bench/thresholds.toml`; in step 2, the Rust binding and the capability schema.
+`tests/reference/**`, `tests/tolerances.toml`, `docs/transfer/**`, `src/estel/_spec/**`, `docs/maths.md`, `docs/policy/**`, `api/manifest.json`, `AGENTS.md`, `CLAUDE.md` and their mirrors, `docs/agents/review_rules.md`, `.github/**`, `tools/make_reference.py`, `bench/thresholds.toml`; in step 2, the Rust binding and the capability schema.
 
 ## Commands
 
 | Command | What |
 |---|---|
 | `make check` | tier 0 locally: lint, types, layer checks, manifest, mirrors, maths IDs, all CPU tests in float32 and float64 |
+| `make mirrors-fix` | regenerate `.github/copilot-instructions.md` after changing `AGENTS.md` |
 | `make test-spec` | spec parity against the oracle |
 | `make parity` | STL parity (step 1 only; needs the parity container) |
 | `make bench` | benchmark cases (tier 2; humans trigger it in CI) |
 
 ## More context
+
+Before editing in `src/estel/backend/`, `src/estel/engines/`, `src/estel/_spec/`, `tests/reference/` or `rust/`, read the `AGENTS.md` of that directory: it holds the local rules.
 
 `docs/agents/architecture.md` (and its "do not copy from STL" section), `jax_rules.md`, `differentiation.md`, `testing.md`, `review_rules.md`, `storage.md`; `docs/maths.md`; `docs/policy/`.

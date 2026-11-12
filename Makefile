@@ -3,7 +3,7 @@
 
 RUN := uv run --locked
 
-.PHONY: check lint types lint-imports layers manifest mirrors maths-ids test test-float32 \
+.PHONY: check lint types lint-imports layers manifest mirrors mirrors-fix maths-ids test test-float32 \
         test-float64 version-impact
 
 check: lint types lint-imports layers manifest mirrors maths-ids test
@@ -28,9 +28,12 @@ layers:
 manifest:
 	$(RUN) python tools/api_manifest.py --check
 
-# --allow-missing-mirror until task T0.3 generates .github/copilot-instructions.md.
+# Regenerate the Copilot mirror after changing AGENTS.md: make mirrors-fix
 mirrors:
-	$(RUN) python tools/check_agent_mirrors.py --allow-missing-mirror
+	$(RUN) python tools/check_agent_mirrors.py
+
+mirrors-fix:
+	$(RUN) python tools/check_agent_mirrors.py --fix
 
 # --allow-unimplemented until task T2.6 writes the oracle for planar data.
 maths-ids:

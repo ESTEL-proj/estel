@@ -1,0 +1,36 @@
+# Tests, reference values, tolerances
+
+Summary of [Part I, §5 — Tests, reference values, tolerances](../transfer/part1.md#5-tests-reference-values-tolerances). The transfer document is authoritative.
+
+## Test families ([§5.1](../transfer/part1.md#51-test-families))
+
+| Family | What |
+| --- | --- |
+| Backend conformance | each L0 primitive vs NumPy float64, values and gradients |
+| Spec parity | ESTEL vs the `_spec` oracle, float64, small inputs, every combination (`make test-spec`) |
+| Reference values | seeded inputs and stored outputs in `tests/reference/*.npz`, including normalisation references; every backend and dtype |
+| Invariances | rotations, time reversal, scaling, constant shift, batch/channel/block permutations, all-valid mask = no mask, single-block tensor product = plain geometry |
+| Differentiation | the table of [differentiation.md](differentiation.md), float64 |
+| Synthesis | step 1: the API only (runs, checkpoints, resumes) |
+| maths ↔ spec ↔ tests | every `M-` ID has a `_spec` function and a test, and vice versa (`tools/check_maths_ids.py`) |
+| API | manifest up to date, public vs internal, actionable error messages |
+| Reserved interfaces | each step-2 interface exercised through its trivial implementation |
+| STL parity | ESTEL vs STL in float64 (`make parity`, step 1 only) |
+
+Every test runs in float32 and float64 (`ESTEL_TEST_DTYPE`; `make check` runs both).
+
+## Reference values
+
+- Produced by `tools/make_reference.py` from `_spec` in float64, **never from ESTEL**, and only by a human.
+- If a reference test fails: do not regenerate, do not loosen tolerances. Report the failing coefficients in an issue.
+- A change that alters a reference value needs a `STATISTICS_REFERENCE` bump and a human decision.
+
+## Tolerances ([§5.2](../transfer/part1.md#52-tolerances))
+
+`tests/tolerances.toml` (protected) has one entry per dtype, device class and family. Comparisons use **normalised** coefficients (divided by the reference S2 scale). Starting values: float64 CPU rtol 1e-10 / atol 1e-12; float64 GPU 1e-9 / 1e-11; float32 1e-4 / 1e-6. A test with an explicit tolerance must cite this table.
+
+## Protection ([§5.3](../transfer/part1.md#53-protection-of-reference-values))
+
+- CODEOWNERS protects reference data and tolerances, the transfer specification (`docs/transfer/**`), the oracle and `docs/maths.md`, policy and API, context files, and infrastructure (full list in the root `AGENTS.md`).
+- `tests/reference/MANIFEST.sha256` is checked in CI; changing a reference file needs the `major` label.
+- CI fails if the number of tests drops, or if a new `skip`/`xfail` appears without the `test-change` label. Never weaken, skip or delete a test to make CI pass.

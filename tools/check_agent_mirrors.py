@@ -2,13 +2,12 @@
 
 * Every ``CLAUDE.md`` starts with the line ``@AGENTS.md`` and has an ``AGENTS.md`` beside it;
   every ``AGENTS.md`` has a ``CLAUDE.md`` beside it (the root and the nested directories).
-* ``.github/copilot-instructions.md`` is exactly the copy generated from the root
-  ``AGENTS.md`` by ``--write``.
+* ``.github/copilot-instructions.md`` exists and is exactly the copy generated from the root
+  ``AGENTS.md``.
 
-``--allow-missing-mirror`` accepts an absent Copilot mirror (a mirror that exists must still
-match). ``make check`` passes it until task T0.3 creates the mirror; removing it then is part
-of that task. ``--write`` regenerates the mirror; ``.github/`` is protected, so commit the
-result only in a PR meant for CODEOWNER review.
+``--fix`` regenerates the Copilot mirror from ``AGENTS.md``, then runs the checks.
+``AGENTS.md`` and ``.github/`` are protected: commit the result only in a PR meant for
+CODEOWNER review.
 """
 
 from __future__ import annotations
@@ -22,7 +21,7 @@ COPILOT = Path(".github/copilot-instructions.md")
 IMPORT_LINE = "@AGENTS.md"
 SKIP_DIRS = {".git", ".venv", "node_modules", "target", "build", "dist"}
 BANNER = (
-    "<!-- GENERATED from AGENTS.md by `python tools/check_agent_mirrors.py --write`. "
+    "<!-- GENERATED from AGENTS.md by `python tools/check_agent_mirrors.py --fix`. "
     "Do not edit: change AGENTS.md (protected) and regenerate. -->\n\n"
 )
 
@@ -41,7 +40,7 @@ def _context_files(root: Path, name: str) -> list[Path]:
     return sorted(found)
 
 
-def check(root: Path, allow_missing_mirror: bool) -> list[str]:
+def check(root: Path) -> list[str]:
     errors = []
     agents = root / "AGENTS.md"
     if not agents.exists():
@@ -70,15 +69,13 @@ def check(root: Path, allow_missing_mirror: bool) -> list[str]:
 
     mirror = root / COPILOT
     if not mirror.exists():
-        if not allow_missing_mirror:
-            errors.append(
-                f"{COPILOT} is missing. Generate it with "
-                "`python tools/check_agent_mirrors.py --write`."
-            )
+        errors.append(
+            f"{COPILOT} is missing. Generate it with `python tools/check_agent_mirrors.py --fix`."
+        )
     elif mirror.read_text() != copilot_mirror(agents.read_text()):
         errors.append(
             f"{COPILOT} differs from AGENTS.md. Do not edit it by hand: change AGENTS.md and "
-            "run `python tools/check_agent_mirrors.py --write`."
+            "run `python tools/check_agent_mirrors.py --fix`."
         )
     return errors
 
@@ -86,30 +83,28 @@ def check(root: Path, allow_missing_mirror: bool) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", type=Path, default=REPO, help="repository root")
-    parser.add_argument("--write", action="store_true", help="regenerate the Copilot mirror")
     parser.add_argument(
-        "--allow-missing-mirror",
+        "--fix",
         action="store_true",
-        help=f"accept an absent {COPILOT} (until task T0.3)",
+        help=f"regenerate {COPILOT} from AGENTS.md, then check",
     )
     args = parser.parse_args(argv)
     root: Path = args.root
 
-    if args.write:
+    agents = root / "AGENTS.md"
+    if args.fix and agents.exists():
         target = root / COPILOT
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(copilot_mirror((root / "AGENTS.md").read_text()))
-        print(f"check_agent_mirrors: wrote {COPILOT}.")
-        return 0
+        expected = copilot_mirror(agents.read_text())
+        if not target.exists() or target.read_text() != expected:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(expected)
+            print(f"check_agent_mirrors: wrote {COPILOT}.")
 
-    errors = check(root, args.allow_missing_mirror)
+    errors = check(root)
     for error in errors:
         print(f"check_agent_mirrors: {error}", file=sys.stderr)
     if not errors:
-        note = ""
-        if args.allow_missing_mirror and not (root / COPILOT).exists():
-            note = f" ({COPILOT} absent, accepted with --allow-missing-mirror)"
-        print(f"check_agent_mirrors: OK{note}.")
+        print("check_agent_mirrors: OK.")
     return 1 if errors else 0
 
 

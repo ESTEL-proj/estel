@@ -22,7 +22,7 @@ def good_repo(tmp_path: Path) -> Path:
             "src/estel/backend/CLAUDE.md": "@AGENTS.md\n",
         },
     )
-    assert run_tool("check_agent_mirrors.py", "--root", str(tmp_path), "--write").returncode == 0
+    assert run_tool("check_agent_mirrors.py", "--root", str(tmp_path), "--fix").returncode == 0
     return tmp_path
 
 
@@ -32,7 +32,7 @@ def check(root: Path, *flags: str) -> tuple[int, str]:
 
 
 def test_repository_passes() -> None:
-    code, err = check(REPO, "--allow-missing-mirror")
+    code, err = check(REPO)
     assert code == 0, err
 
 
@@ -74,15 +74,38 @@ def test_consistent_repository_passes(tmp_path: Path) -> None:
 def test_crafted_violation_fails(tmp_path: Path, change: dict[str, str], message: str) -> None:
     root = good_repo(tmp_path)
     write(root, change)
-    code, err = check(root, "--allow-missing-mirror")
+    code, err = check(root)
     assert code == 1
     assert message in err
 
 
-def test_missing_mirror_fails_unless_allowed(tmp_path: Path) -> None:
+def test_missing_mirror_fails(tmp_path: Path) -> None:
     root = good_repo(tmp_path)
     (root / ".github/copilot-instructions.md").unlink()
     code, err = check(root)
     assert code == 1
     assert "copilot-instructions.md is missing" in err
-    assert check(root, "--allow-missing-mirror")[0] == 0
+
+
+@pytest.mark.parametrize("state", ["missing", "stale", "edited"])
+def test_fix_regenerates_mirror(tmp_path: Path, state: str) -> None:
+    root = good_repo(tmp_path)
+    mirror = root / ".github/copilot-instructions.md"
+    if state == "missing":
+        mirror.unlink()
+    elif state == "stale":
+        write(root, {"AGENTS.md": AGENTS + "Rule 2.\n"})
+    else:
+        write(root, {".github/copilot-instructions.md": "hand-edited\n"})
+    code, err = check(root, "--fix")
+    assert code == 0, err
+    assert mirror.read_text().endswith((root / "AGENTS.md").read_text())
+    assert check(root)[0] == 0
+
+
+def test_fix_does_not_hide_other_violations(tmp_path: Path) -> None:
+    root = good_repo(tmp_path)
+    write(root, {"CLAUDE.md": "## Notes\n@AGENTS.md\n"})
+    code, err = check(root, "--fix")
+    assert code == 1
+    assert "CLAUDE.md must start with the line `@AGENTS.md`" in err
