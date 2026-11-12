@@ -16,18 +16,24 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import importlib.metadata
+import json
 import sys
+import traceback
 from collections.abc import Callable, Iterator
 from typing import Any
 
 import numpy as np
 import torch
+import torch.backends.nnpack
 
 COMMITS = {
     "master": "8eaf7691d55f3c3441cde9b95f1f80eb17aa8014",
     "2d1d": "8f51143c5f8ebc259328830f246894d7031acae5",
     "healpix": "90eb1a954e71abb7af621b10e70b0456e8a86b4e",
 }
+HEALPIX_ANALYSE_COMMIT = "aac5e2673e53209e2a8188715c033663d0dcfd5b"
+HEALPIX_ANALYSE_VERSION = "2026.10.2"
 FLOAT64_DTYPES = (torch.float64, torch.complex128)
 STATISTICS_FIELDS = ("mean", "var", "S1", "S2", "S3", "S4", "PS")
 J = 3
@@ -72,8 +78,8 @@ def _check(label: str, output: Any) -> list[str]:
     return errors
 
 
-def _scattering(data: Any) -> Any:
-    return data.get_ST_op(J=J).apply(data)
+def _scattering(data: Any, j: int | list[int] = J) -> Any:
+    return data.get_ST_op(J=j).apply(data)
 
 
 def _planar_2d() -> Any:
@@ -95,7 +101,9 @@ def _tensor_product() -> Any:
         data_structure=[data_2d, data_1d],
         pbc=[False, False],
     )
-    return _scattering(data)
+    # In a tensor product, STL takes J and the other wavelet arguments as lists, one entry per
+    # block (Wavelet_Operator_TensorProd_Kernel_Torch at 8f51143); L defaults per block.
+    return _scattering(data, j=[J, J])
 
 
 def _healpix() -> Any:
@@ -139,28 +147,56 @@ def _environment(env: str) -> list[str]:
     backend = importlib.import_module("STL_main.torch_backend")
     print(f"  STL {stl.__version__} at {COMMITS[env][:7]}, from {stl.__file__}")
     print(f"  torch {torch.__version__}, numpy {np.__version__}, python {sys.version.split()[0]}")
-    if env == "healpix":
-        analyse = importlib.import_module("healpix_analyse")
-        print(f"  healpix-analyse {getattr(analyse, '__version__', '?')}")
+    errors = _healpix_analyse() if env == "healpix" else []
     default_dtype = backend._DEFAULT_DTYPE
     if default_dtype is not torch.float64:
-        return [
+        errors.append(
             f"STL's default dtype is {default_dtype} on {backend._DEFAULT_DEVICE}, "
             "expected torch.float64: run the container on CPU."
-        ]
-    return []
+        )
+    return errors
+
+
+def _healpix_analyse() -> list[str]:
+    # healpix-analyse has no __version__: read the installed distribution. Its commit is the one
+    # uv records for a Git install (direct_url.json, PEP 610).
+    dist = importlib.metadata.distribution("healpix-analyse")
+    direct_url = json.loads(dist.read_text("direct_url.json") or "{}")
+    commit = direct_url.get("vcs_info", {}).get("commit_id", "unknown")
+    print(f"  healpix-analyse {dist.version} at {commit[:7]}, from {direct_url.get('url', '?')}")
+    errors = []
+    if commit != HEALPIX_ANALYSE_COMMIT:
+        errors.append(
+            f"healpix-analyse is installed at commit {commit}, expected {HEALPIX_ANALYSE_COMMIT} "
+            "(Part II, §9.1): check its line in requirements/healpix.txt and rebuild the image."
+        )
+    if dist.version != HEALPIX_ANALYSE_VERSION:
+        errors.append(
+            f"healpix-analyse reports version {dist.version}, expected {HEALPIX_ANALYSE_VERSION} "
+            f"(tag v{HEALPIX_ANALYSE_VERSION} of commit {HEALPIX_ANALYSE_COMMIT[:7]}). "
+            "If the commit check passed, the code is right but its build (setuptools-scm) did "
+            "not see the tag: check how the Dockerfile installs healpix-analyse."
+        )
+    return errors
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check that STL runs in float64.")
     parser.add_argument("env", choices=sorted(CASES), help="STL environment of the image")
     env = parser.parse_args().env
+    # NNPACK fails to initialise under linux/amd64 emulation (Apple Silicon) and PyTorch's C++
+    # side then prints "Unsupported hardware" warnings, which Python's warnings filters cannot
+    # catch. Disabling it skips the initialisation. NNPACK only handles float32, so the float64
+    # results are unchanged.
+    torch.backends.nnpack.set_flags(False)  # type: ignore[no-untyped-call]  # unannotated in torch
     errors = _environment(env)
     for label, case in CASES[env].items():
         print(f"- {label}")
         try:
             errors += _check(label, case())
         except Exception as exc:
+            print(f"  STL raised {type(exc).__name__} in '{label}':", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
             errors.append(f"{label}: STL raised {type(exc).__name__}: {exc}")
     for error in errors:
         print(f"FAIL {error}", file=sys.stderr)

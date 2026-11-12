@@ -54,7 +54,9 @@ make parity
 `make parity-image` builds the image `estel-stl-parity`. `make parity` runs it: for now, the smoke
 check [`smoke.py`](smoke.py) in each environment, which runs STL on small float64 inputs (statistics
 in every geometry, and the four 2D cross-spectrum estimators on `master`) and fails unless every
-output is float64 or complex128 with finite values.
+output is float64 or complex128 with finite values. In the `healpix` environment it also fails
+unless healpix-analyse is installed at commit `aac5e26` with version `2026.10.2`. It prints the
+traceback of any case that raises.
 
 To archive the image with the parity report:
 
