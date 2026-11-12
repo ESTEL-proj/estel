@@ -4,7 +4,7 @@
 RUN := uv run --locked
 
 .PHONY: check lint types lint-imports layers manifest mirrors mirrors-fix maths-ids test test-float32 \
-        test-float64 version-impact
+        test-float64 version-impact parity-image parity container-runtime
 
 check: lint types lint-imports layers manifest mirrors maths-ids test
 	@echo "make check: tier 0 passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, tests float32 + float64)"
@@ -46,6 +46,20 @@ test-float32:
 
 test-float64:
 	ESTEL_TEST_DTYPE=float64 $(RUN) pytest
+
+# STL parity harness (Part II, §14; tools/stl_parity/README.md). Step 1 only, not in tier 0.
+CONTAINER ?= docker
+PARITY_IMAGE ?= estel-stl-parity
+
+parity-image: container-runtime
+	$(CONTAINER) build --platform linux/amd64 -t $(PARITY_IMAGE) tools/stl_parity
+
+parity: container-runtime
+	$(CONTAINER) run --rm --platform linux/amd64 $(PARITY_IMAGE)
+
+container-runtime:
+	@command -v $(CONTAINER) >/dev/null 2>&1 || { \
+		echo "'$(CONTAINER)' not found: install Docker, or run with CONTAINER=podman."; exit 1; }
 
 # Runs in CI on pull requests; locally: make version-impact BASE=origin/main PR=12
 BASE ?= origin/main

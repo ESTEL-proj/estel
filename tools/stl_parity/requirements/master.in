@@ -1,0 +1,6 @@
+# STL-Dev `master` at 8eaf769 (v1.6.0): 2D cross spectra (Part II, §9.1, §14.2).
+# STL declares no versions; the pins of master.txt are the parity environment.
+torch==2.15.0+cpu
+numpy
+scipy
+matplotlib

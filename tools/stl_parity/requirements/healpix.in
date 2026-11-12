@@ -1,0 +1,9 @@
+# STL-Dev `HealpixUpdate` at 90eb1a9: HEALPix statistics (Part II, §9.1, §14.2).
+# STL declares no versions; the pins of healpix.txt are the parity environment.
+torch==2.15.0+cpu
+numpy
+scipy
+matplotlib
+healpy
+# healpix-analyse aac5e26 (tag v2026.10.2), test-only (Part II, §9.3).
+healpix-analyse @ git+https://github.com/EOPF-DGGS/healpix-analyse@aac5e2673e53209e2a8188715c033663d0dcfd5b

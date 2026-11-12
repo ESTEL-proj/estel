@@ -1,0 +1,6 @@
+# STL-Dev `2D+1D` at 8f51143: 1D, 2D and tensor-product statistics (Part II, §9.1, §14.2).
+# STL declares no versions; the pins of 2d1d.txt are the parity environment.
+torch==2.15.0+cpu
+numpy
+scipy
+matplotlib
