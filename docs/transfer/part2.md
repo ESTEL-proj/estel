@@ -6,18 +6,18 @@ Back to Overview.
 
 ## Contents of this part
 
-- [9. Sources and scope of the transfer](#mfw6gh3ctmx.107920)
-  - [9.1 Sources](#mfw6gh3ctmx.107957) · [9.2 The transfer rule](#mfw6gh3ctmx.109487) · [9.3 Scope of ESTEL 1.0.0](#mfw6gh3ctmx.110492) · [9.4 Interfaces reserved for step 2](#mfw6gh3ctmx.112540)
-- [10. What is not transferred](#mfw6gh3ctmx.113486)
-- [11. Package tree](#mfw6gh3ctmx.114701)
-- [12. Function inventory per module](#mfw6gh3ctmx.118193)
-  - [12.1 Tags](#mfw6gh3ctmx.118227) · [12.2 Namespace](#mfw6gh3ctmx.118890) · [12.3 L0 primitives](#mfw6gh3ctmx.119682) · [12.4 DataClasses](#mfw6gh3ctmx.121870) · [12.5 Wavelets](#mfw6gh3ctmx.124551) · [12.6 Scattering](#mfw6gh3ctmx.125872) · [12.7 Statistics](#mfw6gh3ctmx.127780) · [12.8 Spectra](#mfw6gh3ctmx.128932) · [12.9 Synthesis](#mfw6gh3ctmx.130024) · [12.10 Utilities](#mfw6gh3ctmx.130916) · [12.11 The oracle](#mfw6gh3ctmx.131540)
-- [13. Mathematics extracted from STL, and open points](#mfw6gh3ctmx.209770)
-  - [13.1 Principle](#mfw6gh3ctmx.131942) · [13.2 Open points in STL's mathematics](#mfw6gh3ctmx.209822)
-- [14. Parity protocol with STL](#mfw6gh3ctmx.134756)
-  - [14.1 Principle](#mfw6gh3ctmx.134785) · [14.2 The harness](#mfw6gh3ctmx.135030) · [14.3 Comparison](#mfw6gh3ctmx.135785) · [14.4 Coverage](#mfw6gh3ctmx.136591) · [14.5 From parity to reference values](#mfw6gh3ctmx.136966)
-- [15. Roadmap to 1.0.0](#mfw6gh3ctmx.137327)
-  - [15.1 Phases](#mfw6gh3ctmx.215695) · [15.2 Work breakdown of step 1](#mfw6gh3ctmx.217716)
+- [9. Sources and scope of the transfer](#9-sources-and-scope-of-the-transfer)
+  - [9.1 Sources](#91-sources) · [9.2 The transfer rule](#92-the-transfer-rule) · [9.3 Scope of ESTEL 1.0.0](#93-scope-of-estel-100) · [9.4 Interfaces reserved for step 2](#94-interfaces-reserved-in-100-for-step-2)
+- [10. What is not transferred](#10-what-is-not-transferred)
+- [11. Package tree](#11-package-tree)
+- [12. Function inventory per module](#12-function-inventory-per-module)
+  - [12.1 Tags](#121-tags) · [12.2 Namespace](#122-public-namespace-and-configuration) · [12.3 L0 primitives](#123-l0-primitives) · [12.4 DataClasses](#124-dataclasses) · [12.5 Wavelets](#125-wavelets) · [12.6 Scattering](#126-scattering) · [12.7 Statistics](#127-statistics) · [12.8 Spectra](#128-spectra) · [12.9 Synthesis](#129-synthesis) · [12.10 Utilities](#1210-utilities) · [12.11 The oracle](#1211-the-oracle)
+- [13. Mathematics extracted from STL, and open points](#13-mathematics-extracted-from-stl-and-open-points)
+  - [13.1 Principle](#131-principle) · [13.2 Open points in STL's mathematics](#132-open-points-in-stls-mathematics)
+- [14. Parity protocol with STL](#14-parity-protocol-with-stl)
+  - [14.1 Principle](#141-principle) · [14.2 The harness](#142-the-harness) · [14.3 Comparison](#143-comparison) · [14.4 Coverage](#144-coverage) · [14.5 From parity to reference values](#145-from-parity-to-reference-values)
+- [15. Roadmap to 1.0.0](#15-roadmap-to-100)
+  - [15.1 Phases](#151-phases) · [15.2 Work breakdown of step 1](#152-work-breakdown-of-step-1)
 
 ## 9. Sources and scope of the transfer
 

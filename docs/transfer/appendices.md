@@ -4,9 +4,9 @@ Back to Overview.
 
 ## Contents of this tab
 
-- [Appendix A — Glossary](#mfw6gh3ctmx.22)
-- [Appendix B — References](#mfw6gh3ctmx.2994)
-- [Appendix C — Version notes](#mfw6gh3ctmx.3766)
+- [Appendix A — Glossary](#appendix-a--glossary)
+- [Appendix B — References](#appendix-b--references)
+- [Appendix C — Version notes](#appendix-c--version-notes)
 
 ## Appendix A — Glossary
 

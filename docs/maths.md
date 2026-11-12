@@ -4,7 +4,7 @@ Back to Overview.
 
 **Status:** first draft, 12 November 2026. Extracted from the STL code by reading it; **not yet checked numerically**.
 
-**Role of this tab.** During the review, this tab is the reference version of `maths.md`: comments go here, and changes are recorded in the version notes. Once the review is complete, the file `docs/maths.md` of the repository is exported from it.
+**Role of this tab.** During the review, this tab is the reference version of `maths.md`: comments go here, and changes are recorded in the version notes. This file is the reference version of the mathematics of step 1; it changes only through pull requests that a maintainer requests and merges.
 
 **Scope.** Step 1 (transfer). This version covers planar 2D data. 1D, tensor products, HEALPix and syntheses will follow as further sections of this tab.
 
@@ -17,23 +17,23 @@ Back to Overview.
 
 ## Contents of this tab
 
-- [1. Planar 2D](#mfw6gh3ctmx.23605)
-  - [1.0 Notation](#mfw6gh3ctmx.23618)
-  - [1.1 Data](#mfw6gh3ctmx.23639)
-  - [1.2 Wavelets](#mfw6gh3ctmx.23660): [M-CONV-2D](#mfw6gh3ctmx.2879) · [M-WAV-2D](#mfw6gh3ctmx.3826)
-  - [1.3 Downsampling](#mfw6gh3ctmx.23673): [M-H](#mfw6gh3ctmx.6029) · [M-DOWN](#mfw6gh3ctmx.6634) · [M-DOWN-MASK](#mfw6gh3ctmx.7239)
-  - [1.4 Masks of the scattering layers](#mfw6gh3ctmx.23690)
-  - [1.5 Borders](#mfw6gh3ctmx.23734)
-  - [1.6 Moments and first layer](#mfw6gh3ctmx.23757): [M-MEAN](#mfw6gh3ctmx.10083) · [M-MOM](#mfw6gh3ctmx.10332) · [M-W1](#mfw6gh3ctmx.10968)
-  - [1.7 Scattering statistics](#mfw6gh3ctmx.23785): [M-S1](#mfw6gh3ctmx.11406) · [M-S2](#mfw6gh3ctmx.11891) · [M-S3](#mfw6gh3ctmx.12011) · [M-S4](#mfw6gh3ctmx.12467) · [M-CHAN](#mfw6gh3ctmx.12710)
-  - [1.8 Normalisation and reductions](#mfw6gh3ctmx.23829): [M-NORM](#mfw6gh3ctmx.13156) · [M-RED-ISO](#mfw6gh3ctmx.14431) · [M-RED-ANG](#mfw6gh3ctmx.15215) · [M-RED-SCALE](#mfw6gh3ctmx.15594) · [M-FLAT](#mfw6gh3ctmx.16080)
-  - [1.9 Power spectrum](#mfw6gh3ctmx.23862): [Frequencies and bins](#mfw6gh3ctmx.16405) · [Estimators](#mfw6gh3ctmx.17550) · [Choice of estimator](#mfw6gh3ctmx.19064)
-  - [1.10 Defaults](#mfw6gh3ctmx.23913)
-  - [1.11 Open points](#mfw6gh3ctmx.23935): [A. Values and correctness](#mfw6gh3ctmx.20208) · [B. Conventions](#mfw6gh3ctmx.21478) · [C. Transfer and API](#mfw6gh3ctmx.22512)
-- [2. 1D](#mfw6gh3ctmx.23973) — not started
-- [3. Tensor products](#mfw6gh3ctmx.23979) — not started
-- [4. HEALPix](#mfw6gh3ctmx.23998) — not started
-- [5. Syntheses](#mfw6gh3ctmx.24009) — not started
+- [1. Planar 2D](#1-planar-2d)
+  - [1.0 Notation](#10-notation--m-not)
+  - [1.1 Data](#11-data--m-data-2d)
+  - [1.2 Wavelets](#12-wavelets): [M-CONV-2D](#m-conv-2d--convolution-is-a-correlation) · [M-WAV-2D](#m-wav-2d--bump-steerable-wavelets)
+  - [1.3 Downsampling](#13-downsampling): [M-H](#m-h--anti-aliasing-kernel) · [M-DOWN](#m-down--downsampling-without-mask) · [M-DOWN-MASK](#m-down-mask--downsampling-with-missing-data)
+  - [1.4 Masks of the scattering layers](#14-masks-of-the-scattering-layers--m-mask)
+  - [1.5 Borders](#15-borders--m-border)
+  - [1.6 Moments and first layer](#16-moments-and-first-layer): [M-MEAN](#m-mean--masked-mean) · [M-MOM](#m-mom--mean-and-var) · [M-W1](#m-w1--first-layer)
+  - [1.7 Scattering statistics](#17-scattering-statistics--vanilla-scatcov): [M-S1](#m-s1) · [M-S2](#m-s2) · [M-S3](#m-s3) · [M-S4](#m-s4) · [M-CHAN](#m-chan--storage-of-channel-pairs)
+  - [1.8 Normalisation and reductions](#18-normalisation-and-reductions): [M-NORM](#m-norm) · [M-RED-ISO](#m-red-iso--isotropy) · [M-RED-ANG](#m-red-ang--angular-fourier-transform) · [M-RED-SCALE](#m-red-scale--scale-cosine-transform) · [M-FLAT](#m-flat--flattening)
+  - [1.9 Power spectrum](#19-power-spectrum--m-ps-2d-from-master-v160): [Frequencies and bins](#frequencies-and-bins) · [Estimators](#estimators) · [Choice of estimator](#choice-of-estimator)
+  - [1.10 Defaults](#110-defaults--m-def)
+  - [1.11 Open points](#111-open-points-found-in-the-2d-code): [A. Values and correctness](#a-values-and-correctness) · [B. Conventions](#b-conventions-to-document) · [C. Transfer and API](#c-transfer-and-api)
+- [2. 1D](#2-1d) — not started
+- [3. Tensor products](#3-tensor-products) — not started
+- [4. HEALPix](#4-healpix) — not started
+- [5. Syntheses](#5-syntheses) — not started
 
 ## 1. Planar 2D
 
