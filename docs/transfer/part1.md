@@ -347,8 +347,8 @@ Calibration, written in `TOLERANCES.md`: run every backend, device and dtype on 
   - context files: `AGENTS.md`, `CLAUDE.md`, their mirrors, `docs/agents/review_rules.md`;
   - infrastructure: `.github/**`, `tools/make_reference.py`, `bench/thresholds.toml`;
   - in step 2, the engine ABI header and capability schema.
-- **Every protected file starts with a banner**, for example: `AGENTS: DO NOT EDIT. Changing this file changes the major version. Read docs/policy/VERSIONING.md.`
-- **`tests/reference/MANIFEST.sha256`** is checked in CI. A PR that changes any reference file without the `major` label fails.
+- **Every protected file starts with a banner**, for example: `AGENTS: DO NOT EDIT. Changing this file needs CODEOWNER approval. Read docs/policy/VERSIONING.md.`
+- **`tests/reference/MANIFEST.sha256`** is checked in CI. From 1.0.0, a PR that changes any reference file without bumping `STATISTICS_REFERENCE`, with CODEOWNER approval, fails; before 1.0.0 the change is only reported.
 - **CI fails if the number of tests drops**, or if a new `skip` or `xfail` appears without the `test-change` label. These are the usual ways an agent "fixes" a red test.
 - **Nightly mutation testing** (`mutmut`) on L2 measures how strong the tests are.
 
