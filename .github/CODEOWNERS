@@ -1,0 +1,14 @@
+# Protected paths need approval from one of the maintainers.
+# Maintainers: Erwan Allys (@Eralys), Jean-Marc Delouis (@jmdelouis), Pablo Richard (@pablo-richard).
+tests/reference/**            @Eralys @jmdelouis @pablo-richard
+tests/tolerances.toml         @Eralys @jmdelouis @pablo-richard
+src/estel/_spec/**            @Eralys @jmdelouis @pablo-richard
+docs/maths.md                 @Eralys @jmdelouis @pablo-richard
+docs/policy/**                @Eralys @jmdelouis @pablo-richard
+api/manifest.json             @Eralys @jmdelouis @pablo-richard
+AGENTS.md                     @Eralys @jmdelouis @pablo-richard
+CLAUDE.md                     @Eralys @jmdelouis @pablo-richard
+docs/agents/review_rules.md   @Eralys @jmdelouis @pablo-richard
+.github/**                    @Eralys @jmdelouis @pablo-richard
+tools/make_reference.py       @Eralys @jmdelouis @pablo-richard
+bench/thresholds.toml         @Eralys @jmdelouis @pablo-richard
