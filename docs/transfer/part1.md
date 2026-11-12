@@ -63,7 +63,7 @@ These rules hold for every version of ESTEL, from the first commit of step 1 onw
 
 ### 1.6 Supported versions and dependencies
 
-- **Minimum versions**, confirmed on 12 November 2026: Python 3.11, NumPy 2.0, PyTorch 2.6 and array-api-compat 1.11; in step 2, JAX 0.5 and optax 0.2.4. All were released in 2025 or earlier, so the 2025 versions of the scientific Python stack are supported.
+- **Minimum versions**, confirmed on 12 November 2026: Python 3.11, NumPy 2.0, PyTorch 2.6 and array-api-compat 1.11; JAX 0.5 for the experimental backend, as an optional extra (`estel[jax]`), and optax 0.2.4 in step 2. All were released in 2025 or earlier, so the 2025 versions of the scientific Python stack are supported.
 - **Ranges and a lock file.** `pyproject.toml` declares minimum versions, with an upper bound only for dependencies that often break their API (for example `torch>=2.6,<3`). A lock file pins exact versions for CI and for generating reference values. Updating it is a PR like any other, and must leave reference values unchanged.
 - **As few dependencies as possible, and none on young research code.** What ESTEL needs from small research packages is ported into ESTEL, with attribution, rather than imported. Such packages may only appear as pinned, test-only dependencies, used to prove parity. healpix-analyse is the first case (Part II, §9.3).
 
@@ -80,7 +80,7 @@ The engine layer hands each computation to one engine. Inside the Python engine,
 - **Python engine** (`engine="python"`, the only one in step 1), made of three layers:
   - **L2, skeleton.** The scattering loop, statistics, reductions and synthesis driver, in plain Python, backend-neutral.
   - **L1, geometry.** Written once on top of L0. Each DataClass provides a small set of geometry hooks; the mother class holds everything else.
-  - **L0, primitives.** About twenty functions in fourteen groups (Part II, §12.3), the only code that imports a backend: PyTorch in step 1, JAX in step 2, chosen with `set_backend()`.
+  - **L0, primitives.** About twenty functions in fourteen groups (Part II, §12.3), the only code that imports a backend: PyTorch, and JAX as an experimental backend from P1, chosen with `set_backend()`.
 - **Rust engine** (`engine="rust"`, step 2). The Rust code of STL-Dev-MPI, moved into the ESTEL repository, runs the whole computation by itself, for the configurations it declares (Part III, §18). It has no L2, L1 or L0, and uses neither PyTorch nor JAX operations. It is an engine rather than a backend on purpose (§2.2.4).
 - **Static plan.** Everything that depends only on shapes and parameters, built once in NumPy when an operator is constructed, and used by both engines. Masks of missing data and their reweighting maps are part of it (§2.3).
 - **The oracle `_spec`.** A naive, slow, float64 NumPy transcription of `maths.md`, independent of the library. Reference values come from it (§4.2).
@@ -105,7 +105,7 @@ The primitives are written against the Python Array API standard, through `array
 | `_protocol.py` | A `typing.Protocol` listing every primitive, with its shapes, dtypes and edge cases in the docstring. This file is the contract | 1 |
 | `_registry.py` | `get_backend()`, `set_backend()`, and the lookup from an array to its backend, to detect mixing | 1 |
 | `torch/` | PyTorch implementation, including the HEALPix operations of step 1 (Part II, §9.3) and the `torch.optim.LBFGS` wrapper | 1 |
-| `jax/` | JAX implementation, with `optax.lbfgs` | 2 |
+| `jax/` | JAX implementation (experimental from P1); `optax.lbfgs` in step 2 | 1 |
 
 `tests/backend/` holds a **conformance suite**. Each primitive is compared with a NumPy float64 implementation on random inputs, every padding mode, real and complex values, odd sizes, and gradients. Adding a backend means passing this suite; the rest of the library needs no change.
 
@@ -133,8 +133,8 @@ At construction, an operator builds a `ScatteringPlan` in NumPy: scale and orien
 
 | Stage | Engines (`engine=`) | Backends of the Python engine (`set_backend()`) | Precision |
 | --- | --- | --- | --- |
-| Step 1 (1.0.0) | Python engine only; engine layer and protocol reserved | PyTorch | float32 default, float64 path |
-| Step 2 | + Rust engine: the `estel-rust` wheel, built from `rust/` in the same repository; CPU and GPU, with MPI (Part III, §18) | + JAX (Part III, §17) | Rust engine: float64 default, float32 opt-in |
+| Step 1 (1.0.0) | Python engine only; engine layer and protocol reserved | PyTorch; JAX experimental: every L0 primitive, tested on every PR, selectable with a warning, not covered by the 1.0.0 guarantees; syntheses on JAX later | float32 default, float64 path |
+| Step 2 | + Rust engine: the `estel-rust` wheel, built from `rust/` in the same repository; CPU and GPU, with MPI (Part III, §18) | JAX stable, with its synthesis optimiser (Part III, §17) | Rust engine: float64 default, float32 opt-in |
 | Later | any engine that passes the parity tests | any backend that passes the conformance suite | — |
 
 ### 2.3 Object model
@@ -174,7 +174,7 @@ Each rule is enforced by a mechanical check — `import-linter` contracts and a 
 
 ### 3.1 Functional, JAX-ready style
 
-These rules apply to L1 and L2 from the first commit of step 1, although the JAX backend only arrives in step 2. Rules that are not tested drift, so from phase P1 the CI also traces the L2 code on small inputs with a minimal, unreleased JAX implementation of L0. That test makes no numerical claim; it only proves the code is traceable. The rules are copied into `docs/agents/jax_rules.md`.
+These rules apply to L1 and L2 from the first commit of step 1. From phase P1, ESTEL also has an experimental JAX backend for L0, in `src/estel/backend/jax/`, which passes the same conformance suite as PyTorch, and CI runs the whole test suite on both backends, in two parallel jobs. Any PyTorch idiom that settles into L1 or L2 therefore fails at once. JAX is opt-in and experimental in 1.0.0 (§2.2.5). The rules are copied into `docs/agents/jax_rules.md`.
 
 1. **Functional code only.** Build per-level results in Python lists (§3.1.1), then `concat` or `stack` them. No preallocation filled by index, no `out=`, no `inplace=`. This applies to the code that computes the statistics; the NumPy code that builds the static plan, run once at construction, may write in place (§2.4).
 2. **Static shapes.** Everything shape-related — index sets, crop widths, stencils, bins — lives in the `ScatteringPlan`, built in NumPy and passed as a static argument.
@@ -215,7 +215,7 @@ x_coarse = geometry.downsample(x, level)           # a new object; x is untouche
 
 The cost is negligible. Under `jax.jit`, the compiler reuses memory itself; in PyTorch, stacking costs one copy at the end, small beside the convolutions. In step 2, computing the second-layer means by contraction instead of building the full product first lowers the memory peak further (Part III, §19.3, LF31).
 
-This style is required from step 1, although JAX only arrives in step 2: it is also what keeps second-order derivatives correct in PyTorch, and what makes results independent of the order of calls.
+This style is required from step 1, and JAX runs it from P1: it is also what keeps second-order derivatives correct in PyTorch, and what makes results independent of the order of calls.
 
 ### 3.2 Differentiation contract
 
@@ -233,7 +233,7 @@ Computing this requires products of the Hessian — the matrix of second derivat
 
 #### 3.2.2 Guarantees
 
-| Guarantee | PyTorch (step 1) | JAX (step 2) | Test |
+| Guarantee | PyTorch (step 1) | JAX (experimental from P1) | Test |
 | --- | --- | --- | --- |
 | VJP (reverse mode) of `scattering`, `cross_spectrum`, `loss` | autograd | `jax.vjp` | `gradcheck`, `check_grads(order=1)` |
 | JVP (forward mode) | `torch.func.jvp` | `jax.jvp` | `check_grads(modes=("fwd",))` |
@@ -334,7 +334,7 @@ In step 1, `maths.md` records the mathematics of STL **as it is**, including cho
 | float64 CPU vs reference | 1e-10 | 1e-12 |
 | float64 GPU vs reference | 1e-9 | 1e-11 |
 | float32 CPU or GPU vs reference | 1e-4 | 1e-6 |
-| PyTorch vs JAX, same dtype and device (step 2) | 1e-12 (f64), 1e-5 (f32) | idem |
+| PyTorch vs JAX, same dtype and device | 1e-12 (f64), 1e-5 (f32) | idem |
 | Rust engine, float64 (step 2) | its own row; bit-identical between runs for a fixed thread count, block size and device | — |
 
 Calibration, written in `TOLERANCES.md`: run every backend, device and dtype on every reference input; take the largest error observed; multiply it by 10; record the hardware and the date. Explicit tolerances in tests cite this table, which is how review rule C10 allows non-default tolerances.
@@ -361,7 +361,7 @@ Calibration, written in `TOLERANCES.md`: run every backend, device and dtype on 
 
 | Tier | Trigger | Where | Budget | Content |
 | --- | --- | --- | --- | --- |
-| 0 | every push and PR | GitHub-hosted CPU | ≤ 15 min | ruff, type check, §2.4 checks (including public vs internal), manifest, mirrors, maths IDs, all tests on CPU in float32 and float64, differentiation, the JAX trace test (§3.1). In step 2: JAX backend, and CPU build of the Rust wheels |
+| 0 | every push and PR | GitHub-hosted CPU | ≤ 15 min | ruff, type check, §2.4 checks (including public vs internal), manifest, mirrors, maths IDs, all tests on CPU in float32 and float64, differentiation, the whole suite also on JAX, in a parallel job (§3.1). In step 2: CPU build of the Rust wheels |
 | 1 | PR, after tier 0 passes. **Set up after 1.0.0** (Part IV, §24.1) | HPC GPU, constrained (§6.2) | ≤ 20 min wall time, 1 GPU | `pytest -m gpu`: reference values on GPU, determinism (two runs bit-identical), GPU syntheses, benchmark smoke test. In step 2: GPU build of the Rust wheels |
 | 2 | `bench` label set by humans; release candidates | dedicated, pinned GPU node, outside CI | hours | full benchmark; results committed by a bot to `bench/results/` with a hardware fingerprint |
 
@@ -384,7 +384,7 @@ Tier 1 is set up after 1.0.0. The scheduler, the container runtime and the netwo
 
 ### 6.3 Benchmarks
 
-- **Cases** (`bench/cases.toml`), public and defined together with the maintainers: one per geometry at a small and a medium size; the 2D+1D cases of the STOC deliverable at reduced sizes; JAX compile time (step 2); peak memory; synthesis time per iteration; in step 2, the Rust engine against the Python engine.
+- **Cases** (`bench/cases.toml`), public and defined together with the maintainers: one per geometry at a small and a medium size; the 2D+1D cases of the STOC deliverable at reduced sizes; JAX compile time; peak memory; synthesis time per iteration; in step 2, the Rust engine against the Python engine.
 - **Thresholds.** `bench/thresholds.toml` (protected) holds the "significant change" threshold of each metric, chosen by humans. To begin with, a factor 2 in speed or in peak memory; it may be refined later.
 - **Correctness.** Every benchmark run also asserts the correctness of its results, so that no gain can come from a wrong computation.
 

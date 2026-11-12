@@ -2,7 +2,7 @@
 
 Summary of [Part I, §3.1 — Functional, JAX-ready style](../transfer/part1.md#31-functional-jax-ready-style). The transfer document is authoritative.
 
-These rules apply to L1 and L2 from the first commit of step 1, although JAX arrives in step 2. From phase P1, tier 0 traces L2 with a minimal JAX L0 to prove the code stays traceable.
+These rules apply to L1 and L2 from the first commit of step 1. From phase P1, ESTEL also has an experimental JAX backend for L0, in `src/estel/backend/jax/`, which passes the same conformance suite as PyTorch, and CI runs the whole test suite on both backends, in two parallel jobs. Any PyTorch idiom that settles into L1 or L2 therefore fails at once. JAX is opt-in and experimental in 1.0.0 (§2.2.5).
 
 ## Rules
 

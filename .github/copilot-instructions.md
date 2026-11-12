@@ -20,7 +20,7 @@ ESTEL computes scattering-transform statistics and simple syntheses. Most change
 8. Error messages say what to do next: agents read them.
 9. Before opening a PR, run `make check` (tier 0, locally).
 10. When the specification is ambiguous, ask in an issue. Do not choose.
-11. **Step discipline.** Before 1.0.0, never add a capability STL does not have, except synthesis checkpoints. After 1.0.0, a new capability enters as an opt-in feature described in the register of later features of `docs/reference.md`.
+11. **Step discipline.** Before 1.0.0, never add a capability STL does not have, except synthesis checkpoints and the experimental JAX backend. After 1.0.0, a new capability enters as an opt-in feature described in the register of later features of `docs/reference.md`.
 12. **Public or internal.** Only names listed in `api/manifest.json` are public. Anything else lives in a private module (`_name.py`) or starts with an underscore.
 
 ## Layer map
@@ -31,7 +31,7 @@ ESTEL computes scattering-transform statistics and simple syntheses. Most change
 | Engine layer | `src/estel/engines/` | engines, never a backend directly |
 | L2 skeleton | `src/estel/scattering/`, `statistics/`, `synthesis/`, `functional/` | L1, L0 protocol |
 | L1 geometry | `src/estel/data/`, `wavelets/` | L0 protocol |
-| L0 primitives | `src/estel/backend/` | `torch` (step 1), `jax` (step 2) |
+| L0 primitives | `src/estel/backend/` | `torch`, and `jax` (experimental from P1) |
 | Oracle | `src/estel/_spec/` | NumPy only, nothing from `estel` |
 | Rust engine (step 2) | `rust/` | — (local rules in `rust/AGENTS.md`) |
 

@@ -63,19 +63,19 @@ ESTEL is a Python library for **scattering-transform statistics**. These statist
 **Two steps.**
 
 - **Step 1 — transfer (ESTEL 1.0.0).** Import only what STL already does, and reproduce its results exactly, in a framework where ESTEL and STL can be compared number by number. Nothing new enters the mathematics.
-- **Step 2 — extension (ESTEL 1.x and beyond).** Add new capabilities: a JAX backend, the Rust engine, with GPU and MPI support, a compact storage of the coefficients, and new mathematics. Each one first lands as an opt-in feature, and becomes a default only through the versioning rules.
+- **Step 2 — extension (ESTEL 1.x and beyond).** Add new capabilities: a stable JAX backend (experimental from step 1), the Rust engine, with GPU and MPI support, a compact storage of the coefficients, and new mathematics. Each one first lands as an opt-in feature, and becomes a default only through the versioning rules.
 
 &#91;embedded content: ESTEL development · from the STL sources to the reference document\]
 
 The structure is designed **now** for step 2, even though step 1 implements only the results of STL. Every interface that step 2 needs is reserved in 1.0.0: the backend layer, the engine interface, the arguments for distributed data, and an access to the statistics that does not depend on how they are stored. Step 2 can then add code without breaking any user's program.
 
-**The multi-backend strategy.** Running one library on several computing backends — PyTorch today, JAX and a Rust engine tomorrow — is the most critical design point of ESTEL. It rests on three mechanisms:
+**The multi-backend strategy.** Running one library on several computing backends — PyTorch and an experimental JAX backend today, a stable JAX backend and a Rust engine tomorrow — is the most critical design point of ESTEL. It rests on three mechanisms:
 
 1. **One thin primitive layer.** Only about twenty low-level functions touch a backend: convolution along chosen axes, padding, weighted gathers, sums by segment, random numbers, differentiation helpers. Everything above them — geometry, scattering loop, statistics, synthesis — is written once, in plain Python. Supporting a new backend means implementing these functions and passing their conformance tests.
 2. **Static plans.** Everything that depends only on sizes and parameters is computed once, in NumPy, when an operator is built: wavelet kernels, border masks, index tables, stencils on the sphere. The backend then only runs arithmetic. This is what lets JAX compile the computation, and what keeps the code identical across backends.
 3. **Two interchangeable engines.** The whole computation is run by an *engine*, chosen with `engine=`. The **Python engine** runs the code described above, on PyTorch or JAX (chosen with `set_backend()`); it is the readable reference and covers everything. The **Rust engine** is the Rust code of STL-Dev-MPI, with GPU and MPI support; it runs the whole computation by itself, for the configurations it declares. Both sit behind the same public interface and must reproduce the same reference values.
 
-Step 1 implements PyTorch only, but follows from its first line of code the rules that make JAX and engines possible (Part I, §3.1).
+Step 1 implements PyTorch, and JAX as an experimental backend from P1, and follows from its first line of code the rules that make JAX and engines possible (Part I, §3.1).
 
 **Safeguards.** Five devices keep an agent-maintained library trustworthy:
 

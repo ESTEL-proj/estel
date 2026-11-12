@@ -1,9 +1,9 @@
 """The L0 contract: every primitive a backend provides (Part I, §2.2.1; Part II, §12.3).
 
-This file is the contract of the primitive layer. Each backend (``torch/`` in step 1, ``jax/``
-in step 2) implements :class:`Backend`, and the conformance suite of ``tests/backend/``
-checks every implementation against NumPy float64. L1 and L2 reach a backend only through
-this protocol, never by importing ``torch`` or ``jax``.
+This file is the contract of the primitive layer. Each backend (``torch/``, and ``jax/`` as an
+experimental backend from P1) implements :class:`Backend`, and the conformance suite of
+``tests/backend/`` checks every implementation against NumPy float64. L1 and L2 reach a backend
+only through this protocol, never by importing ``torch`` or ``jax``.
 
 Every primitive documents, in this order:
 
@@ -40,7 +40,7 @@ from types import ModuleType
 from typing import Any, Literal, NamedTuple, Protocol, TypeAlias
 
 Array: TypeAlias = Any
-"""An array of the backend: ``torch.Tensor`` in step 1, ``jax.Array`` in step 2."""
+"""An array of the backend: ``torch.Tensor`` in step 1, ``jax.Array`` in the JAX backend."""
 
 Key: TypeAlias = Any
 """An opaque, immutable random key, made by :meth:`Backend.make_key`."""
@@ -468,7 +468,7 @@ class Backend(Protocol):
             Unchanged.
         Values:
             Identical to ``fn`` up to the backend's rounding for fused operations. The
-            identity in PyTorch (returns ``fn``); ``jax.jit`` in step 2.
+            identity in PyTorch (returns ``fn``); ``jax.jit`` in the JAX backend.
         Gradients:
             Unchanged.
         Edge cases:
