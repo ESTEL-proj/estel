@@ -98,7 +98,7 @@ The whole Python engine — L1, L2, synthesis, utilities — runs on JAX, with `
 
 ### 17.2 What step 1 already guarantees
 
-- The functional rules of Part I, §3.1, checked by AST rules and by the JAX trace test from phase P1.
+- The functional rules of Part I, §3.1, checked by AST rules and by running the whole test suite on the experimental JAX backend from phase P1.
 - Static plans built in NumPy (Part I, §2.2.2).
 - DataClasses and statistics registered as pytrees.
 - No backend import outside L0 (Part I, §2.4).

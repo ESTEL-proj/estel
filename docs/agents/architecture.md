@@ -10,10 +10,10 @@ Summary of [Part I, §2 — Architecture](../transfer/part1.md#2-architecture). 
 | Engine layer | `src/estel/engines/` | chooses the engine that runs the whole computation | engines, never a backend directly |
 | L2 skeleton | `scattering/`, `statistics/`, `synthesis/`, `functional/` | scattering loop, statistics, reductions, synthesis driver; backend-neutral | L1, L0 protocol |
 | L1 geometry | `data/`, `wavelets/` | geometry written once on L0; DataClasses provide a few hooks | L0 protocol |
-| L0 primitives | `src/estel/backend/` | ~20 primitives, the only code importing a backend | `torch` (step 1), `jax` (step 2) |
+| L0 primitives | `src/estel/backend/` | ~20 primitives, the only code importing a backend | `torch`, and `jax` (experimental from P1) |
 | Oracle | `src/estel/_spec/` | naive float64 NumPy transcription of `docs/maths.md` | NumPy only |
 
-Two independent choices: the **engine** (`engine=`: `"python"`, later `"rust"`) decides who runs the whole computation; the **backend** (`set_backend()`: `"torch"`, later `"jax"`) decides who runs the elementary operations of the Python engine.
+Two independent choices: the **engine** (`engine=`: `"python"`, later `"rust"`) decides who runs the whole computation; the **backend** (`set_backend()`: `"torch"`, and `"jax"` (experimental from P1)) decides who runs the elementary operations of the Python engine.
 
 ## Multi-backend strategy ([§2.2](../transfer/part1.md#22-multi-backend-strategy))
 

@@ -130,7 +130,7 @@ estel/                             # one repository for Python and Rust (Part IV
 │   ├── backend/                   # L0: the only code importing torch / jax
 │   │   ├── _protocol.py  _registry.py
 │   │   ├── torch/                 # primitives, optim.py
-│   │   └── jax/                   # (step 2, LF1) primitives, optim.py (optax)
+│   │   └── jax/                   # primitives (experimental from P1); optim.py (optax) in step 2, LF1
 │   ├── engines/                   # _protocol.py, _registry.py (reserved);
 │   │   │                          # python.py: the Python engine
 │   │   └── rust.py                # (step 2, LF3) adapter to the estel-rust wheel
@@ -197,7 +197,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 
 ### 12.3 L0 primitives
 
-`estel/backend/`. Implemented for PyTorch in 1.0.0, and for JAX in step 2 with the same contract. The contracts that affect values — padding modes, correlation rather than convolution, strides — are specified in the maths tab (M-CONV-2D and following); the docstrings of `_protocol.py` cite them.
+`estel/backend/`. Implemented for PyTorch and, experimental, for JAX in 1.0.0, with the same contract. The contracts that affect values — padding modes, correlation rather than convolution, strides — are specified in the maths tab (M-CONV-2D and following); the docstrings of `_protocol.py` cite them.
 
 | Function | Tag | Contract | Origin |
 | --- | --- | --- | --- |
@@ -211,7 +211,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `complex_to_real_pairs(z)` / `real_pairs_to_complex(r)` | P | Complex values as trailing (re, im) floats, and back | new |
 | `stop_gradient(x)` | P | `x.detach()` / `jax.lax.stop_gradient` | `.detach()` calls |
 | `random_normal(key, shape, dtype)`, `make_key(seed)` | P | Explicit keys on every backend | `torch.randn` in `Synthesis.py` |
-| `jit(fn, static_argnames)` | P | Identity in PyTorch; `jax.jit` in step 2 | new |
+| `jit(fn, static_argnames)` | P | Identity in PyTorch; `jax.jit` in the JAX backend | new |
 | `value_and_grad(fn)`, `vjp`, `jvp`, `hvp` | P | Synthesis and the differentiation tests; `torch.func` / `jax` | `loss.backward()` |
 | `lbfgs(...)` | P | The built-in L-BFGS of each backend: `torch.optim.LBFGS(line_search_fn="strong_wolfe")`; `optax.lbfgs` in step 2; the Rust L-BFGS (`impl="rust"`) when the Rust engine is selected (Part III, §18.2) | `optimize_lbfgs` |
 | `deterministic(enabled)` | P | `torch.use_deterministic_algorithms`; in step 2 `XLA_FLAGS=--xla_gpu_deterministic_ops=true`. On in tests | new |
@@ -458,7 +458,7 @@ Each task becomes a GitHub issue, to be picked by an agent. A task names its inp
 | T1.2 | P1 | PyTorch primitives | §12.3 | conformance suite green in float32 and float64 |
 | T1.3 | P1 | Experimental JAX backend: every L0 primitive, registered with a warning; tier 0 runs the whole test suite on both backends, in parallel jobs | Part I, §3.1 | conformance suite green on JAX in float32 and float64; all tests run on both backends |
 | T1.4 | P1 | Reserved interfaces: engine registry, storage accessors, `allreduce`, `partition`, `io` schema | §9.4 | reserved tests green |
-| T1.5 | P1 | Backend registry and global configuration: `_registry.py`, `_config.py`; public `set_backend`, `get_backend`, `set_default_dtype`, `set_default_device`, listed in the manifest; mixing backends raises `BackendMismatchError` | §12.2; Part I, §2.2.3, §3.1 rule 7 | functions public and tested; "jax" accepted as a reserved name with a clear error |
+| T1.5 | P1 | Backend registry and global configuration: `_registry.py`, `_config.py`; public `set_backend`, `get_backend`, `set_default_dtype`, `set_default_device`, listed in the manifest; mixing backends raises `BackendMismatchError` | §12.2; Part I, §2.2.3, §3.1 rule 7 | functions public and tested; "jax" selectable as an experimental backend, with a warning |
 | T2.0 | P2 | Write the 1D section of the maths tab, from the STL code at the frozen commits, and add it to `docs/maths.md` | STL `2D+1D`; maths tab | reviewed by a maintainer before T2.4 checks 1D parity |
 | T2.1 | P2 | `DataClass`, `Data1D`, `Data2D`, static masks and reweighting maps | §12.4; Part I, §2.3; maths M-DOWN-MASK, M-MASK | unit tests; masks equal STL's |
 | T2.2 | P2 | Wavelet banks (port of `bump_steerable_bank`) and H | maths M-WAV-2D, M-H | kernels equal STL's to rounding; Littlewood–Paley CI test |

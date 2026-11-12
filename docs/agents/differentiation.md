@@ -8,7 +8,7 @@ Synthesis needs only gradients. Downstream implicit differentiation (dθ\*/dφ =
 
 ## Guarantees ([§3.2.2](../transfer/part1.md#322-guarantees))
 
-| Guarantee | PyTorch (step 1) | JAX (step 2) | Test |
+| Guarantee | PyTorch (step 1) | JAX (experimental from P1) | Test |
 | --- | --- | --- | --- |
 | VJP of `scattering`, `cross_spectrum`, `loss` | autograd | `jax.vjp` | `gradcheck`, `check_grads(order=1)` |
 | JVP | `torch.func.jvp` | `jax.jvp` | `check_grads(modes=("fwd",))` |

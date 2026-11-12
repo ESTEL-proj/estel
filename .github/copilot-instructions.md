@@ -31,7 +31,7 @@ ESTEL computes scattering-transform statistics and simple syntheses. Most change
 | Engine layer | `src/estel/engines/` | engines, never a backend directly |
 | L2 skeleton | `src/estel/scattering/`, `statistics/`, `synthesis/`, `functional/` | L1, L0 protocol |
 | L1 geometry | `src/estel/data/`, `wavelets/` | L0 protocol |
-| L0 primitives | `src/estel/backend/` | `torch` (step 1), `jax` (step 2) |
+| L0 primitives | `src/estel/backend/` | `torch`, and `jax` (experimental from P1) |
 | Oracle | `src/estel/_spec/` | NumPy only, nothing from `estel` |
 | Rust engine (step 2) | `rust/` | — (local rules in `rust/AGENTS.md`) |
 

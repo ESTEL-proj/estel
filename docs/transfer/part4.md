@@ -22,7 +22,7 @@ The plan is sound in its core: a frozen skeleton, versions tied to reference val
 | F3 | **Quality drifts under advisory review** | Rules that are not mechanised become optional in practice: naming, "claims match what is implemented" (D4), "right for the reason it claims" (B10) | Mechanise what can be (Part I, §2.4); a human audit of a sample of merged PRs at each minor release; track the AI reviewer's findings to decide when it may block | open |
 | F4 | **Benchmark gaming** | Minor versions are earned by benchmark gains, so an agent can specialise on the benchmark sizes | Public cases defined with the maintainers; thresholds chosen by humans (a factor 2 to begin with); correctness asserted in every run (Part I, §6.3) | mitigated |
 | F5 | **The two scattering loops diverge** | In STL they are already two loops (\~190 and \~700 lines). Overriding the mother loop invites copy-paste | `STOperatorTensorProd` overrides only a fixed set of hooks (Part II, §12.6); a line budget on its file; the single-block invariance test | mitigated |
-| F6 | **Backend neutrality on paper only** | Step 1 has no JAX backend, so PyTorch idioms can settle into L1 and L2 unnoticed, and the JAX port becomes a rewrite | AST checks (Part I, §2.4) and the JAX trace test from phase P1 (Part I, §3.1) | **the main risk of step 1** |
+| F6 | **Backend neutrality on paper only** | If step 1 ran only on PyTorch, PyTorch idioms could settle into L1 and L2 unnoticed, and the JAX port would become a rewrite | AST checks (Part I, §2.4) and the experimental JAX backend, which runs the whole test suite from phase P1 (Part I, §3.1) | largely mitigated |
 | F7 | **The memory wall** | The compact layout shrinks outputs, but the largest tensor products fail on intermediates (about 34 GB for the first layer of 2D+1D+1D) | `estimate_memory`; a budget error; the Rust engine bounds memory by block for HEALPix and 2D; contraction of the second-layer means (LF31); streaming later (LF19) | partly mitigated in step 2 |
 | F8 | **Fragile second-order derivatives** | The modulus at zero, NaN gradients through `where`, the regularised division, in-place operations | The rules of Part I, §3.2.3 and their float64 tests | mitigated |
 | F9 | **Major-version churn** | Many mathematical changes are queued (Part III, §20); if each changed default were its own major, versions would climb fast and downstream pins break | Opt-in first; `STATISTICS_REFERENCE` separates value changes from interface changes, and whether a value change is a major is decided case by case (Part I, §7.1) | mitigated |
@@ -63,7 +63,7 @@ Decisions taken from 4 to 12 November 2026. Tables 22.1 to 22.3 record the decis
 | Topic | Decision | Ref. |
 | --- | --- | --- |
 | Classes | A simple mother class, overridden for tensor products; explicit 1D and 2D classes; one `STOperator`, one `STOperatorTensorProd`, one `STStatistics`, one generic `WaveletOperator` branching on `ndim`; class names in CapWords | Q3, Q4, Q17, N20, A9 |
-| Backends | PyTorch in step 1; JAX in step 2; L0 and JAX-ready rules from the first commit | Q9, Q10, round 4 |
+| Backends | PyTorch in step 1, with JAX experimental from P1; JAX stable in step 2; L0 and JAX-ready rules from the first commit | Q9, Q10, round 4 |
 | Selection | Global default, fixed when an operator is built; float32 default; float64 path for tests | Q12, N11, N14 |
 | Primitive layer | `array-api-compat` as the base of L0 | N12 |
 | HEALPix | From `HealpixUpdate`, ported into ESTEL (no healpix-analyse at run time); on JAX after 1.0.0 | N1, Q3, C9 |
@@ -93,7 +93,7 @@ Every point of the review list (C: critical before the start, S: needed during s
 | ID | Point | Decision | Where |
 | --- | --- | --- | --- |
 | C1 | Licence | Apache-2.0, as set out by Pablo in Part I, §1.5 | §23, R5 and R11 |
-| C2 | Minimum versions | Python 3.11, NumPy 2.0, PyTorch 2.6, array-api-compat 1.11 (JAX 0.5 and optax 0.2.4 in step 2), compatible with the 2025 versions; confirmed | Part I, §1.6; §23, R13 |
+| C2 | Minimum versions | Python 3.11, NumPy 2.0, PyTorch 2.6, array-api-compat 1.11 (JAX 0.5 for the experimental backend; optax 0.2.4 in step 2), compatible with the 2025 versions; confirmed | Part I, §1.6; §23, R13 |
 | C3 | STL sources | Frozen at the commits of Part II, §9.1 | Part II, §9.1, §9.2 |
 | C4 | Humans in the loop | CODEOWNERS: Erwan Allys (`Eralys`), Jean-Marc Delouis (`jmdelouis`) and Pablo Richard (`pablo-richard`), who review step 1 at its end | Part I, §7.1; §23, R12 |
 | C5 | Public API | The current document holds; where it is silent, STL is the default, and doubts are raised with the maintainers | Part II, §12.1 |
@@ -115,7 +115,7 @@ Every point of the review list (C: critical before the start, S: needed during s
 | C21 | Versioning | Three numbers plus two reference counters; majors for value changes decided case by case | Part I, §7; §24.2 |
 | C22 | Cross-spectrum conflict | 1.0.0: 2D spectra as in `master` only; 1D, tensor-product and HEALPix spectra later | Part II, §9; Part III, LF23, LF24 |
 | C23 | Second order | For PyTorch and JAX now; for Rust later | Part I, §3.2.4; Part III, LF15 |
-| S1 | JAX trace test | Yes, from P1 | Part I, §3.1 |
+| S1 | JAX trace test | Yes, from P1; superseded by the experimental JAX backend (row 'JAX in step 1') | Part I, §3.1 |
 | S2 | Contracts of the L0 primitives | Those that affect values are in `maths.md` | Part II, §12.3 |
 | S3 | Parity cases | Scattering statistics first; synthesis tests after 1.0.0 | Part I, §5.1; §24.1 |
 | S4 | Reference inputs | No SST crop; STL's data are public | Part I, §5.1 |
@@ -168,10 +168,10 @@ The questions of draft 0.2 with their answers, and the questions raised on 12 No
 | R7 | **Parity precision** | answered: STL runs in float64 | Part II, §14.3 |
 | R8 | **Single-block tensor products** | answered: to check in P3; the plain geometry is the reference | Part I, §5.1 |
 | R9 | **The ESTEL reference document** | answered: written with 1.0.0, in `docs/reference.md`, with the register of later features | Part II, §11, §15 |
-| R10 | **JAX trace test in step 1** | answered: yes | Part I, §3.1 |
+| R10 | **JAX trace test in step 1** | answered: yes; superseded by the experimental JAX backend (row 'JAX in step 1') | Part I, §3.1 |
 | R11 | **Licence text.** Part I, §1.5, added on 12 November 2026 in another editing session, states Apache-2.0, with conditions on STL's authors and on the Rust code. The review answer C1 leaves the choice to the creation of the repository. Answered: §1.5, written by Pablo, is what we want. Status: answered. | answered: Apache-2.0 | Part I, §1.5 |
 | R12 | **CODEOWNERS.** GitHub handles of Jean-Marc Delouis and Pablo Richard. Answered: `jmdelouis` and `pablo-richard` | answered | Part I, §7.1 |
-| R13 | **Minimum versions.** Confirm Python 3.11, NumPy 2.0, PyTorch 2.6 and array-api-compat 1.11 (and JAX 0.5, optax 0.2.4 for step 2). Answered: confirmed | answered: confirmed | Part I, §1.6 |
+| R13 | **Minimum versions.** Confirm Python 3.11, NumPy 2.0, PyTorch 2.6 and array-api-compat 1.11 (JAX 0.5 for the experimental backend; optax 0.2.4 in step 2). Answered: confirmed | answered: confirmed | Part I, §1.6 |
 
 ## 24. Deferred work and points to discuss later
 
