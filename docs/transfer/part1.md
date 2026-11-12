@@ -1,6 +1,8 @@
 # Part I — ESTEL general rules
 
-Back to Overview. These rules hold for every version of ESTEL, from the first commit of step 1 onwards. They will move, almost unchanged, into the ESTEL reference document.
+[Back to the overview](overview.md)
+
+These rules hold for every version of ESTEL, from the first commit of step 1 onwards. They will move, almost unchanged, into the ESTEL reference document.
 
 ## Contents of this part
 
@@ -8,14 +10,14 @@ Back to Overview. These rules hold for every version of ESTEL, from the first co
   - [1.1 Purpose and scope](#11-purpose-and-scope) · [1.2 A library maintained by agents](#12-a-library-maintained-by-agents) · [1.3 Two-step development](#13-two-step-development) · [1.4 Design for what comes next](#14-design-for-what-comes-next) · [1.5 Licensing](#15-licensing) · [1.6 Supported versions and dependencies](#16-supported-versions-and-dependencies)
 - [2. Architecture](#2-architecture)
   - [2.1 Layers](#21-layers)
-  - [2.2 Multi-backend strategy](#22-multi-backend-strategy): [2.2.1 The primitive layer](#221-the-primitive-layer-l0) · [2.2.2 Static plans](#222-static-plans) · [2.2.3 Backend selection](#223-backend-selection) · [2.2.4 Engines](#224-engines) · [2.2.5 Roll-out](#225-roll-out)
+  - [2.2 Multi-backend strategy](#22-multi-backend-strategy): [2.2.1 The primitive layer (L0)](#221-the-primitive-layer-l0) · [2.2.2 Static plans](#222-static-plans) · [2.2.3 Backend selection](#223-backend-selection) · [2.2.4 Engines](#224-engines) · [2.2.5 Roll-out](#225-roll-out)
   - [2.3 Object model](#23-object-model)
   - [2.4 Code rules enforced in CI](#24-code-rules-enforced-in-ci)
 - [3. Numerical coding rules](#3-numerical-coding-rules)
   - [3.1 Functional, JAX-ready style](#31-functional-jax-ready-style): [3.1.1 The scattering loop without in-place updates](#311-the-scattering-loop-without-in-place-updates)
   - [3.2 Differentiation contract](#32-differentiation-contract): [3.2.1 Why second order](#321-why-second-order) · [3.2.2 Guarantees](#322-guarantees) · [3.2.3 Implementation rules](#323-implementation-rules) · [3.2.4 Engines and differentiation order](#324-engines-and-differentiation-order)
 - [4. Mathematics](#4-mathematics)
-  - [4.1 maths.md as an executable specification](#41-mathsmd-as-an-executable-specification) · [4.2 The oracle](#42-the-oracle-_spec) · [4.3 Outline of maths.md](#43-outline-of-mathsmd)
+  - [4.1 `maths.md` as an executable specification](#41-mathsmd-as-an-executable-specification) · [4.2 The oracle `_spec`](#42-the-oracle-_spec) · [4.3 Outline of `maths.md`](#43-outline-of-mathsmd)
 - [5. Tests, reference values, tolerances](#5-tests-reference-values-tolerances)
   - [5.1 Test families](#51-test-families) · [5.2 Tolerances](#52-tolerances) · [5.3 Protection of reference values](#53-protection-of-reference-values)
 - [6. CI, GPU access, benchmarks](#6-ci-gpu-access-benchmarks)
@@ -342,7 +344,7 @@ Calibration, written in `TOLERANCES.md`: run every backend, device and dtype on 
 - **CODEOWNERS** makes human review mandatory on the protected paths:
   - reference data and tolerances: `tests/reference/**`, `tests/tolerances.toml`;
   - the reference counters: `src/estel/_reference.py`;
-  - the transfer specification: `docs/transfer/**` and, during the review, `docs/maths.md`, the specification itself, changed only through pull requests that a maintainer requests and merges;
+  - the specification: `docs/transfer/**` and `docs/maths.md`, changed only through pull requests that a maintainer requests and merges;
   - the oracle and the mathematics: `src/estel/_spec/**`, `docs/maths.md`;
   - policy and API: `docs/policy/**`, `api/manifest.json`;
   - context files: `AGENTS.md`, `CLAUDE.md`, their mirrors, `docs/agents/review_rules.md`;

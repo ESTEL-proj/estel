@@ -1,10 +1,10 @@
 # maths.md — Mathematics of step 1
 
-Back to Overview.
+[Back to the overview](transfer/overview.md)
 
 **Status:** first draft, 12 November 2026. Extracted from the STL code by reading it; **not yet checked numerically**.
 
-**Role of this tab.** During the review, this tab is the reference version of `maths.md`: comments go here, and changes are recorded in the version notes. This file is the reference version of the mathematics of step 1; it changes only through pull requests that a maintainer requests and merges.
+**Role of this file.** This file is the reference version of the mathematics of step 1; it changes only through pull requests that a maintainer requests and merges.
 
 **Scope.** Step 1 (transfer). This version covers planar 2D data. 1D, tensor products, HEALPix and syntheses will follow as further sections of this tab.
 
@@ -18,18 +18,18 @@ Back to Overview.
 ## Contents of this tab
 
 - [1. Planar 2D](#1-planar-2d)
-  - [1.0 Notation](#10-notation--m-not)
-  - [1.1 Data](#11-data--m-data-2d)
-  - [1.2 Wavelets](#12-wavelets): [M-CONV-2D](#m-conv-2d--convolution-is-a-correlation) · [M-WAV-2D](#m-wav-2d--bump-steerable-wavelets)
-  - [1.3 Downsampling](#13-downsampling): [M-H](#m-h--anti-aliasing-kernel) · [M-DOWN](#m-down--downsampling-without-mask) · [M-DOWN-MASK](#m-down-mask--downsampling-with-missing-data)
-  - [1.4 Masks of the scattering layers](#14-masks-of-the-scattering-layers--m-mask)
-  - [1.5 Borders](#15-borders--m-border)
-  - [1.6 Moments and first layer](#16-moments-and-first-layer): [M-MEAN](#m-mean--masked-mean) · [M-MOM](#m-mom--mean-and-var) · [M-W1](#m-w1--first-layer)
-  - [1.7 Scattering statistics](#17-scattering-statistics--vanilla-scatcov): [M-S1](#m-s1) · [M-S2](#m-s2) · [M-S3](#m-s3) · [M-S4](#m-s4) · [M-CHAN](#m-chan--storage-of-channel-pairs)
-  - [1.8 Normalisation and reductions](#18-normalisation-and-reductions): [M-NORM](#m-norm) · [M-RED-ISO](#m-red-iso--isotropy) · [M-RED-ANG](#m-red-ang--angular-fourier-transform) · [M-RED-SCALE](#m-red-scale--scale-cosine-transform) · [M-FLAT](#m-flat--flattening)
-  - [1.9 Power spectrum](#19-power-spectrum--m-ps-2d-from-master-v160): [Frequencies and bins](#frequencies-and-bins) · [Estimators](#estimators) · [Choice of estimator](#choice-of-estimator)
-  - [1.10 Defaults](#110-defaults--m-def)
-  - [1.11 Open points](#111-open-points-found-in-the-2d-code): [A. Values and correctness](#a-values-and-correctness) · [B. Conventions](#b-conventions-to-document) · [C. Transfer and API](#c-transfer-and-api)
+  - [1.0 Notation — M-NOT](#10-notation--m-not)
+  - [1.1 Data — M-DATA-2D](#11-data--m-data-2d)
+  - [1.2 Wavelets](#12-wavelets): [M-CONV-2D — "Convolution" is a correlation](#m-conv-2d--convolution-is-a-correlation) · [M-WAV-2D — Bump-steerable wavelets](#m-wav-2d--bump-steerable-wavelets)
+  - [1.3 Downsampling](#13-downsampling): [M-H — Anti-aliasing kernel](#m-h--anti-aliasing-kernel) · [M-DOWN — Downsampling without mask](#m-down--downsampling-without-mask) · [M-DOWN-MASK — Downsampling with missing data](#m-down-mask--downsampling-with-missing-data)
+  - [1.4 Masks of the scattering layers — M-MASK](#14-masks-of-the-scattering-layers--m-mask)
+  - [1.5 Borders — M-BORDER](#15-borders--m-border)
+  - [1.6 Moments and first layer](#16-moments-and-first-layer): [M-MEAN — Masked mean](#m-mean--masked-mean) · [M-MOM — mean and var](#m-mom--mean-and-var) · [M-W1 — First layer](#m-w1--first-layer)
+  - [1.7 Scattering statistics — vanilla ScatCov](#17-scattering-statistics--vanilla-scatcov): [M-S1](#m-s1) · [M-S2](#m-s2) · [M-S3](#m-s3) · [M-S4](#m-s4) · [M-CHAN — Storage of channel pairs](#m-chan--storage-of-channel-pairs)
+  - [1.8 Normalisation and reductions](#18-normalisation-and-reductions): [M-NORM](#m-norm) · [M-RED-ISO — Isotropy](#m-red-iso--isotropy) · [M-RED-ANG — Angular Fourier transform](#m-red-ang--angular-fourier-transform) · [M-RED-SCALE — Scale cosine transform](#m-red-scale--scale-cosine-transform) · [M-FLAT — Flattening](#m-flat--flattening)
+  - [1.9 Power spectrum — M-PS-2D (from master, v1.6.0)](#19-power-spectrum--m-ps-2d-from-master-v160): [Frequencies and bins](#frequencies-and-bins) · [Estimators](#estimators) · [Choice of estimator](#choice-of-estimator)
+  - [1.10 Defaults — M-DEF](#110-defaults--m-def)
+  - [1.11 Open points found in the 2D code](#111-open-points-found-in-the-2d-code): [A. Values and correctness](#a-values-and-correctness) · [B. Conventions to document](#b-conventions-to-document) · [C. Transfer and API](#c-transfer-and-api)
 - [2. 1D](#2-1d) — not started
 - [3. Tensor products](#3-tensor-products) — not started
 - [4. HEALPix](#4-healpix) — not started

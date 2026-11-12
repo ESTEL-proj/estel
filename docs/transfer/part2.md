@@ -2,16 +2,16 @@
 
 Step 1 rebuilds what STL computes inside the architecture of Part I, and proves, case by case, that ESTEL gives the same numbers. It adds no mathematics. Everything it leaves out is listed (§10), and everything it prepares for step 2 is reserved explicitly (§9.4).
 
-Back to Overview.
+[Back to the overview](overview.md)
 
 ## Contents of this part
 
 - [9. Sources and scope of the transfer](#9-sources-and-scope-of-the-transfer)
-  - [9.1 Sources](#91-sources) · [9.2 The transfer rule](#92-the-transfer-rule) · [9.3 Scope of ESTEL 1.0.0](#93-scope-of-estel-100) · [9.4 Interfaces reserved for step 2](#94-interfaces-reserved-in-100-for-step-2)
+  - [9.1 Sources](#91-sources) · [9.2 The transfer rule](#92-the-transfer-rule) · [9.3 Scope of ESTEL 1.0.0](#93-scope-of-estel-100) · [9.4 Interfaces reserved in 1.0.0 for step 2](#94-interfaces-reserved-in-100-for-step-2)
 - [10. What is not transferred](#10-what-is-not-transferred)
 - [11. Package tree](#11-package-tree)
 - [12. Function inventory per module](#12-function-inventory-per-module)
-  - [12.1 Tags](#121-tags) · [12.2 Namespace](#122-public-namespace-and-configuration) · [12.3 L0 primitives](#123-l0-primitives) · [12.4 DataClasses](#124-dataclasses) · [12.5 Wavelets](#125-wavelets) · [12.6 Scattering](#126-scattering) · [12.7 Statistics](#127-statistics) · [12.8 Spectra](#128-spectra) · [12.9 Synthesis](#129-synthesis) · [12.10 Utilities](#1210-utilities) · [12.11 The oracle](#1211-the-oracle)
+  - [12.1 Tags](#121-tags) · [12.2 Public namespace and configuration](#122-public-namespace-and-configuration) · [12.3 L0 primitives](#123-l0-primitives) · [12.4 DataClasses](#124-dataclasses) · [12.5 Wavelets](#125-wavelets) · [12.6 Scattering](#126-scattering) · [12.7 Statistics](#127-statistics) · [12.8 Spectra](#128-spectra) · [12.9 Synthesis](#129-synthesis) · [12.10 Utilities](#1210-utilities) · [12.11 The oracle](#1211-the-oracle)
 - [13. Mathematics extracted from STL, and open points](#13-mathematics-extracted-from-stl-and-open-points)
   - [13.1 Principle](#131-principle) · [13.2 Open points in STL's mathematics](#132-open-points-in-stls-mathematics)
 - [14. Parity protocol with STL](#14-parity-protocol-with-stl)
