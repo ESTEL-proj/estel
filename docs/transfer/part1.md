@@ -474,7 +474,7 @@ The top of `AGENTS.md`:
 
 ### 8.3 Review rules
 
-`docs/agents/review_rules.md` adapts the GRID4EARTH review rubric:
+`docs/agents/review_rules.md` adapts the GRID4EARTH review rubric. It states every rule in full, in ESTEL's own words, so that agents need nothing else; the GRID4EARTH repository carries no licence, so its text is credited, not copied. The rules kept:
 
 - **Adopted as is:** A1, A3, A6, A7, A8 (which keeps component separation and inverse problems out of the core), A9, A10, B1, B3–B10, C1–C5, C7–C10, D1–D7, D9–D12, E1–E3, E5.
 - **Adapted:** A4 (healpix-geo terminology, for `DataHealpix` only), A11 (one dtype contract, applied to Python).
