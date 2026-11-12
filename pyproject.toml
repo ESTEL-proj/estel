@@ -51,6 +51,9 @@ explicit = true
 line-length = 100
 target-version = "py311"
 src = ["src", "tools", "tests"]
+# Python only: never reformat code blocks in the documentation.
+include = ["*.py", "*.pyi"]
+extend-exclude = ["docs"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "N", "PT"]
