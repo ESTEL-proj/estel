@@ -1,19 +1,21 @@
 # Part III — Step 2: later developments
 
-Back to Overview. Nothing in this part is implemented before 1.0.0. It is documented now for two reasons: so that step 1 reserves the right interfaces (Part II, §9.4), and so that each development starts from an agreed design rather than from an agent's improvisation. Each item enters ESTEL as an opt-in feature (a minor version); making it a default bumps STATISTICS\_REFERENCE, and whether that is also a major version is decided with the maintainers (Part I, §7.1). The order of the items is not fixed.
+[Back to the overview](overview.md)
+
+Nothing in this part is implemented before 1.0.0. It is documented now for two reasons: so that step 1 reserves the right interfaces (Part II, §9.4), and so that each development starts from an agreed design rather than from an agent's improvisation. Each item enters ESTEL as an opt-in feature (a minor version); making it a default bumps STATISTICS\_REFERENCE, and whether that is also a major version is decided with the maintainers (Part I, §7.1). The order of the items is not fixed.
 
 ## Contents of this part
 
-- [16. Register of later features](#mfw6gh3ctmx.481)
-  - [16.1 Library structure](#mfw6gh3ctmx.26089) · [16.2 New features for the user](#mfw6gh3ctmx.27036) · [16.3 Optimisation of existing features](#mfw6gh3ctmx.28349) · [16.4 Mathematical choices](#mfw6gh3ctmx.29256) · [16.5 Entries added on 12 November 2026](#mfw6gh3ctmx.34446)
-- [17. JAX backend](#mfw6gh3ctmx.3482)
-  - [17.1 Scope](#mfw6gh3ctmx.3498) · [17.2 What step 1 already guarantees](#mfw6gh3ctmx.3741) · [17.3 Points specific to JAX](#mfw6gh3ctmx.4259) · [17.4 HEALPix on JAX](#mfw6gh3ctmx.4925) · [17.5 Exit criteria](#mfw6gh3ctmx.5444)
-- [18. The Rust engine, from STL-Dev-MPI](#mfw6gh3ctmx.37448)
-  - [18.1 What STL-Dev-MPI is](#mfw6gh3ctmx.5909) · [18.2 Integration rules](#mfw6gh3ctmx.7244) · [18.3 MPI](#mfw6gh3ctmx.10601) · [18.4 HEALPix spectra in Rust](#mfw6gh3ctmx.42034) · [18.5 Capability roadmap](#mfw6gh3ctmx.42821)
-- [19. Compact coefficient layout](#mfw6gh3ctmx.14203)
-  - [19.1 Predictable NaNs](#mfw6gh3ctmx.14667) · [19.2 Two representations](#mfw6gh3ctmx.15950) · [19.3 Level-wise Gram products](#mfw6gh3ctmx.16678) · [19.4 Layout and Segment](#mfw6gh3ctmx.18748) · [19.5 Full-grid views](#mfw6gh3ctmx.19745) · [19.6 Reductions](#mfw6gh3ctmx.20065) · [19.7 Limits](#mfw6gh3ctmx.20419) · [19.8 The canonical set](#mfw6gh3ctmx.20969) · [19.9 Open choice](#mfw6gh3ctmx.21648)
-- [20. New mathematics](#mfw6gh3ctmx.21863)
-  - [20.1 Low-pass everywhere](#mfw6gh3ctmx.22074) · [20.2 Positive spectrum estimator](#mfw6gh3ctmx.23261) · [20.3 NaN masks in tensor products](#mfw6gh3ctmx.23543) · [20.4 HEALPix blocks](#mfw6gh3ctmx.23798) · [20.5 Estimators in every geometry](#mfw6gh3ctmx.24081) · [20.6 Wavelet optimisation](#mfw6gh3ctmx.24338) · [20.7 Deferred decisions](#mfw6gh3ctmx.24593) · [20.8 Exact translation invariance](#mfw6gh3ctmx.44629) · [20.9 Partial order of tensor-product scales](#mfw6gh3ctmx.45296)
+- [16. Register of later features](#16-register-of-later-features)
+  - [16.1 Library structure](#161-library-structure) · [16.2 New features for the user](#162-new-features-for-the-user) · [16.3 Optimisation of existing features](#163-optimisation-of-existing-features) · [16.4 Mathematical choices](#164-mathematical-choices) · [16.5 Entries added in the review of 12 November 2026](#165-entries-added-in-the-review-of-12-november-2026)
+- [17. JAX backend](#17-jax-backend)
+  - [17.1 Scope](#171-scope) · [17.2 What step 1 already guarantees](#172-what-step-1-already-guarantees) · [17.3 Points specific to JAX](#173-points-specific-to-jax) · [17.4 HEALPix on JAX](#174-healpix-on-jax) · [17.5 Exit criteria](#175-exit-criteria)
+- [18. The Rust engine, from STL-Dev-MPI](#18-the-rust-engine-from-stl-dev-mpi)
+  - [18.1 What STL-Dev-MPI is](#181-what-stl-dev-mpi-is) · [18.2 Integration rules](#182-integration-rules) · [18.3 MPI](#183-mpi) · [18.4 HEALPix spectra in Rust](#184-healpix-spectra-in-rust) · [18.5 Capability roadmap of the Rust engine](#185-capability-roadmap-of-the-rust-engine)
+- [19. Compact coefficient layout](#19-compact-coefficient-layout)
+  - [19.1 Where the predictable NaNs come from](#191-where-the-predictable-nans-come-from) · [19.2 Two representations](#192-two-representations) · [19.3 Level-wise Gram products](#193-level-wise-gram-products) · [19.4 `Layout` and `Segment`](#194-layout-and-segment) · [19.5 Full-grid views](#195-full-grid-views) · [19.6 Reductions as static linear maps](#196-reductions-as-static-linear-maps) · [19.7 What the compact layout does not solve](#197-what-the-compact-layout-does-not-solve) · [19.8 The canonical set](#198-the-canonical-set) · [19.9 Implementation choice still open](#199-implementation-choice-still-open)
+- [20. New mathematics](#20-new-mathematics)
+  - [20.1 Low-pass filters everywhere, including S3/S4](#201-low-pass-filters-everywhere-including-s3s4) · [20.2 Positive spectrum estimator for non-periodic data](#202-positive-spectrum-estimator-for-non-periodic-data) · [20.3 NaN masks in tensor products](#203-nan-masks-in-tensor-products) · [20.4 HEALPix blocks in tensor products](#204-healpix-blocks-in-tensor-products) · [20.5 Spectrum estimators in N dimensions](#205-spectrum-estimators-in-n-dimensions) · [20.6 Wavelet optimisation](#206-wavelet-optimisation) · [20.7 Canonical set and gradients through the reference](#207-canonical-set-and-gradients-through-the-reference) · [20.8 Exact translation invariance](#208-exact-translation-invariance) · [20.9 The partial order of tensor-product scales](#209-the-partial-order-of-tensor-product-scales)
 
 ## 16. Register of later features
 

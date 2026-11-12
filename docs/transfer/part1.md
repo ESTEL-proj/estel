@@ -1,29 +1,31 @@
 # Part I — ESTEL general rules
 
-Back to Overview. These rules hold for every version of ESTEL, from the first commit of step 1 onwards. They will move, almost unchanged, into the ESTEL reference document.
+[Back to the overview](overview.md)
+
+These rules hold for every version of ESTEL, from the first commit of step 1 onwards. They will move, almost unchanged, into the ESTEL reference document.
 
 ## Contents of this part
 
-- [1. Principles](#mfw6gh3ctmx.218)
-  - [1.1 Purpose and scope](#mfw6gh3ctmx.232) · [1.2 A library maintained by agents](#mfw6gh3ctmx.1036) · [1.3 Two-step development](#mfw6gh3ctmx.1464) · [1.4 Design for what comes next](#mfw6gh3ctmx.1848) · [1.5 Licensing](#m84rfdys5xw.0) · [1.6 Supported versions and dependencies](#mfw6gh3ctmx.41315)
-- [2. Architecture](#mfw6gh3ctmx.2283)
-  - [2.1 Layers](#mfw6gh3ctmx.2299)
-  - [2.2 Multi-backend strategy](#mfw6gh3ctmx.3478): [2.2.1 The primitive layer](#mfw6gh3ctmx.3673) · [2.2.2 Static plans](#mfw6gh3ctmx.4788) · [2.2.3 Backend selection](#mfw6gh3ctmx.5285) · [2.2.4 Engines](#mfw6gh3ctmx.5784) · [2.2.5 Roll-out](#mfw6gh3ctmx.6702)
-  - [2.3 Object model](#mfw6gh3ctmx.7096)
-  - [2.4 Code rules enforced in CI](#mfw6gh3ctmx.8920)
-- [3. Numerical coding rules](#mfw6gh3ctmx.10917)
-  - [3.1 Functional, JAX-ready style](#mfw6gh3ctmx.10943): [3.1.1 The scattering loop without in-place updates](#mfw6gh3ctmx.37326)
-  - [3.2 Differentiation contract](#mfw6gh3ctmx.12915): [3.2.1 Why second order](#mfw6gh3ctmx.12944) · [3.2.2 Guarantees](#mfw6gh3ctmx.14020) · [3.2.3 Implementation rules](#mfw6gh3ctmx.14665) · [3.2.4 Engines and differentiation order](#mfw6gh3ctmx.15752)
-- [4. Mathematics](#mfw6gh3ctmx.16535)
-  - [4.1 maths.md as an executable specification](#mfw6gh3ctmx.16550) · [4.2 The oracle](#mfw6gh3ctmx.17344) · [4.3 Outline of maths.md](#mfw6gh3ctmx.17754)
-- [5. Tests, reference values, tolerances](#mfw6gh3ctmx.19383)
-  - [5.1 Test families](#mfw6gh3ctmx.19422) · [5.2 Tolerances](#mfw6gh3ctmx.21622) · [5.3 Protection of reference values](#mfw6gh3ctmx.22564)
-- [6. CI, GPU access, benchmarks](#mfw6gh3ctmx.23587)
-  - [6.1 Tiers](#mfw6gh3ctmx.23617) · [6.2 Constrained GPU access from CI](#mfw6gh3ctmx.24399) · [6.3 Benchmarks](#mfw6gh3ctmx.25948)
-- [7. Versioning and merge policy](#mfw6gh3ctmx.26519)
-  - [7.1 Version numbers](#mfw6gh3ctmx.26550) · [7.2 Computing the required bump](#mfw6gh3ctmx.28138) · [7.3 Merging](#mfw6gh3ctmx.28601)
-- [8. Context files for agents](#mfw6gh3ctmx.29125)
-  - [8.1 Mirrored files](#mfw6gh3ctmx.29153) · [8.2 Golden rules](#mfw6gh3ctmx.29936) · [8.3 Review rules](#mfw6gh3ctmx.31147) · [8.4 Tuning prompts](#mfw6gh3ctmx.31967)
+- [1. Principles](#1-principles)
+  - [1.1 Purpose and scope](#11-purpose-and-scope) · [1.2 A library maintained by agents](#12-a-library-maintained-by-agents) · [1.3 Two-step development](#13-two-step-development) · [1.4 Design for what comes next](#14-design-for-what-comes-next) · [1.5 Licensing](#15-licensing) · [1.6 Supported versions and dependencies](#16-supported-versions-and-dependencies)
+- [2. Architecture](#2-architecture)
+  - [2.1 Layers](#21-layers)
+  - [2.2 Multi-backend strategy](#22-multi-backend-strategy): [2.2.1 The primitive layer (L0)](#221-the-primitive-layer-l0) · [2.2.2 Static plans](#222-static-plans) · [2.2.3 Backend selection](#223-backend-selection) · [2.2.4 Engines](#224-engines) · [2.2.5 Roll-out](#225-roll-out)
+  - [2.3 Object model](#23-object-model)
+  - [2.4 Code rules enforced in CI](#24-code-rules-enforced-in-ci)
+- [3. Numerical coding rules](#3-numerical-coding-rules)
+  - [3.1 Functional, JAX-ready style](#31-functional-jax-ready-style): [3.1.1 The scattering loop without in-place updates](#311-the-scattering-loop-without-in-place-updates)
+  - [3.2 Differentiation contract](#32-differentiation-contract): [3.2.1 Why second order](#321-why-second-order) · [3.2.2 Guarantees](#322-guarantees) · [3.2.3 Implementation rules](#323-implementation-rules) · [3.2.4 Engines and differentiation order](#324-engines-and-differentiation-order)
+- [4. Mathematics](#4-mathematics)
+  - [4.1 `maths.md` as an executable specification](#41-mathsmd-as-an-executable-specification) · [4.2 The oracle `_spec`](#42-the-oracle-_spec) · [4.3 Outline of `maths.md`](#43-outline-of-mathsmd)
+- [5. Tests, reference values, tolerances](#5-tests-reference-values-tolerances)
+  - [5.1 Test families](#51-test-families) · [5.2 Tolerances](#52-tolerances) · [5.3 Protection of reference values](#53-protection-of-reference-values)
+- [6. CI, GPU access, benchmarks](#6-ci-gpu-access-benchmarks)
+  - [6.1 Tiers](#61-tiers) · [6.2 Constrained GPU access from CI](#62-constrained-gpu-access-from-ci) · [6.3 Benchmarks](#63-benchmarks)
+- [7. Versioning and merge policy](#7-versioning-and-merge-policy)
+  - [7.1 Version numbers](#71-version-numbers) · [7.2 Computing the required bump](#72-computing-the-required-bump) · [7.3 Merging](#73-merging)
+- [8. Context files for agents](#8-context-files-for-agents)
+  - [8.1 Mirrored files](#81-mirrored-files) · [8.2 Golden rules](#82-golden-rules) · [8.3 Review rules](#83-review-rules) · [8.4 Tuning prompts](#84-tuning-prompts)
 
 ## 1. Principles
 
@@ -342,7 +344,7 @@ Calibration, written in `TOLERANCES.md`: run every backend, device and dtype on 
 - **CODEOWNERS** makes human review mandatory on the protected paths:
   - reference data and tolerances: `tests/reference/**`, `tests/tolerances.toml`;
   - the reference counters: `src/estel/_reference.py`;
-  - the transfer specification: `docs/transfer/**` and, during the review, `docs/maths.md`, read-only exports of this document, updated only by exporting it again;
+  - the specification: `docs/transfer/**` and `docs/maths.md`, changed only through pull requests that a maintainer requests and merges;
   - the oracle and the mathematics: `src/estel/_spec/**`, `docs/maths.md`;
   - policy and API: `docs/policy/**`, `api/manifest.json`;
   - context files: `AGENTS.md`, `CLAUDE.md`, their mirrors, `docs/agents/review_rules.md`;
@@ -423,7 +425,7 @@ How the two steps map onto versions:
 **How CI sees a bump of a reference counter.** `STATISTICS_REFERENCE` and `SYNTHESIS_REFERENCE` are integer constants in `src/estel/_reference.py`, a protected file (§5.3), exported by `estel/__init__.py`. `tools/version_impact.py` reads them on the base branch and on the PR:
 
 - a PR that changes `tests/reference/` must increase `STATISTICS_REFERENCE` by exactly one, and a PR that changes `STATISTICS_REFERENCE` must change `tests/reference/`; before 1.0.0 a mismatch is only reported, from 1.0.0 it fails;
-- `SYNTHESIS_REFERENCE` follows the same rule for the synthesis references, once they exist (after 1.0.0);
+- `SYNTHESIS_REFERENCE` follows the same rule for the synthesis references, once they exist (after 1.0.0, Part IV, §24.1, W2). It stays 0 until then, and goes to 1 with the first synthesis references; at the 1.0.0 freeze, only `STATISTICS_REFERENCE` goes to 1;
 - no label is involved: the bump is in the code, visible in the diff, and approved through CODEOWNERS.
 
 Each PR adds a news fragment `changes/<PR>.<major|minor|patch>.md` (towncrier). CI fails if the declared bump is below the required one.

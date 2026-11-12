@@ -1,15 +1,15 @@
 # Part IV — Review and decisions
 
-Back to Overview.
+[Back to the overview](overview.md)
 
 ## Contents of this part
 
-- [21. Critical review: failure modes](#mfw6gh3ctmx.65)
-- [22. Decision log](#mfw6gh3ctmx.5523)
-  - [22.1 Scope and organisation](#mfw6gh3ctmx.5649) · [22.2 Architecture and backends](#mfw6gh3ctmx.6524) · [22.3 Process](#mfw6gh3ctmx.7648) · [22.4 Review round of 12 November 2026](#mfw6gh3ctmx.20259)
-- [23. Open questions](#mfw6gh3ctmx.8581)
-- [24. Deferred work and points to discuss later](#mfw6gh3ctmx.27170)
-  - [24.1 Deferred work](#mfw6gh3ctmx.27408) · [24.2 Points to discuss later](#mfw6gh3ctmx.27990)
+- [21. Critical review: failure modes](#21-critical-review-failure-modes)
+- [22. Decision log](#22-decision-log)
+  - [22.1 Scope and organisation](#221-scope-and-organisation) · [22.2 Architecture and backends](#222-architecture-and-backends) · [22.3 Process](#223-process) · [22.4 Review round of 12 November 2026](#224-review-round-of-12-november-2026)
+- [23. Open questions](#23-open-questions)
+- [24. Deferred work and points to discuss later](#24-deferred-work-and-points-to-discuss-later)
+  - [24.1 Deferred work](#241-deferred-work) · [24.2 Points to discuss later](#242-points-to-discuss-later)
 
 ## 21. Critical review: failure modes
 
