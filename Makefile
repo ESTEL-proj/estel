@@ -3,11 +3,14 @@
 
 RUN := uv run --locked
 
-.PHONY: check lint types lint-imports layers manifest mirrors mirrors-fix maths-ids test test-float32 \
-        test-float64 version-impact parity-image parity container-runtime
+.PHONY: check lint types lint-imports layers manifest mirrors mirrors-fix maths-ids test test-torch \
+        test-jax version-impact parity-image parity container-runtime
+
+# Backends the tests run on (Part I, §3.1). CI runs one per job: make check TEST_BACKENDS=torch
+TEST_BACKENDS ?= torch jax
 
 check: lint types lint-imports layers manifest mirrors maths-ids test
-	@echo "make check: tier 0 passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, tests float32 + float64)"
+	@echo "make check: tier 0 passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, tests float32 + float64 on $(TEST_BACKENDS))"
 
 lint:
 	$(RUN) ruff check .
@@ -39,13 +42,13 @@ mirrors-fix:
 maths-ids:
 	$(RUN) python tools/check_maths_ids.py --allow-unimplemented
 
-test: test-float32 test-float64
+test: $(addprefix test-,$(TEST_BACKENDS))
 
-test-float32:
-	ESTEL_TEST_DTYPE=float32 $(RUN) pytest
-
-test-float64:
-	ESTEL_TEST_DTYPE=float64 $(RUN) pytest
+# The whole suite on one backend, in float32 then float64. The JAX run switches JAX's 64-bit
+# mode on at start (tests/conftest.py).
+test-torch test-jax: test-%:
+	ESTEL_TEST_BACKEND=$* ESTEL_TEST_DTYPE=float32 $(RUN) pytest
+	ESTEL_TEST_BACKEND=$* ESTEL_TEST_DTYPE=float64 $(RUN) pytest
 
 # STL parity harness (Part II, §14; tools/stl_parity/README.md). Step 1 only, not in tier 0.
 CONTAINER ?= docker

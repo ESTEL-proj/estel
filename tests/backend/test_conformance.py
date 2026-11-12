@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import itertools
 import math
+import subprocess
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -28,6 +30,7 @@ import numpy as np
 import pytest
 
 from estel.backend._protocol import Backend, DType
+from tests._backends import BACKENDS, backend_name
 
 Array = Any
 NDArray = np.ndarray[Any, Any]
@@ -879,8 +882,42 @@ def _smooth(backend: Backend, dtype: DType) -> Callable[[Array], Array]:
     return lambda x: xp.sum(xp.sin(xp.matmul(a, x) - b) ** 2) + 0.1 * xp.sum(x**4)
 
 
+# Primitives a backend may declare it does not provide yet (its ``not_provided``), with the
+# error each must raise instead. Maintainer decision on issue #10: only lbfgs, on JAX, until
+# step 2 (LF1). On such a backend every test of the primitive checks that error instead.
+NOT_PROVIDED_ERRORS = {"lbfgs": r"^L-BFGS on the JAX backend arrives in step 2 \(LF1\)"}
+
+
+def test_only_approved_primitives_are_missing(backend: Backend) -> None:
+    missing = set(getattr(backend, "not_provided", frozenset()))
+    assert missing <= set(NOT_PROVIDED_ERRORS), (
+        f"{backend.name} declares {sorted(missing)} not provided; only "
+        f"{sorted(NOT_PROVIDED_ERRORS)} may be, by maintainer decision."
+    )
+    if backend.name == "torch":
+        assert not missing
+
+
+def _lbfgs_not_provided(backend: Backend, dtype: DType) -> bool:
+    """On a backend without lbfgs, check its exact error and return True."""
+    if "lbfgs" not in getattr(backend, "not_provided", frozenset()):
+        return False
+    with pytest.raises(NotImplementedError, match=NOT_PROVIDED_ERRORS["lbfgs"]):
+        backend.lbfgs(
+            _least_squares(backend, dtype),
+            backend.asarray(np.zeros(5), dtype),
+            max_iter=5,
+            history_size=5,
+            tolerance_grad=1e-7,
+            tolerance_change=1e-9,
+        )
+    return True
+
+
 class TestLbfgs:
     def test_solves_least_squares(self, backend: Backend, dtype: DType) -> None:
+        if _lbfgs_not_provided(backend, dtype):
+            return
         x0_np = np.zeros(5)
         x0 = backend.asarray(x0_np, dtype)
         result = backend.lbfgs(
@@ -904,6 +941,8 @@ class TestLbfgs:
         assert np.all(np.diff(losses) <= 0)
 
     def test_losses_follow_the_iterates(self, backend: Backend, dtype: DType) -> None:
+        if _lbfgs_not_provided(backend, dtype):
+            return
         fun = _smooth(backend, dtype)
         result = backend.lbfgs(
             fun,
@@ -920,6 +959,8 @@ class TestLbfgs:
         assert_close(backend, fun(result.x), np.asarray(losses[-1], dtype=np.float64), dtype)
 
     def test_resume_continues_the_run(self, backend: Backend, dtype: DType) -> None:
+        if _lbfgs_not_provided(backend, dtype):
+            return
         fun = _smooth(backend, dtype)
         settings: dict[str, Any] = {
             "history_size": 3,
@@ -935,6 +976,8 @@ class TestLbfgs:
         assert_close(backend, whole.losses, resumed.astype(np.float64), dtype)
 
     def test_stops_at_a_stationary_point(self, backend: Backend, dtype: DType) -> None:
+        if _lbfgs_not_provided(backend, dtype):
+            return
         xp = backend.xp
         result = backend.lbfgs(
             lambda x: xp.sum(x * x),
@@ -947,6 +990,8 @@ class TestLbfgs:
         assert backend.to_numpy(result.losses).shape == (0,)
 
     def test_rejects(self, backend: Backend, dtype: DType) -> None:
+        if _lbfgs_not_provided(backend, dtype):
+            return
         fun = _least_squares(backend, dtype)
         x0 = backend.asarray(np.zeros(5), dtype)
         common: dict[str, Any] = {"tolerance_grad": 1e-7, "tolerance_change": 1e-9}
@@ -967,5 +1012,13 @@ class TestLbfgs:
 
 
 def test_deterministic_can_be_switched(backend: Backend) -> None:
-    backend.deterministic(True)
-    backend.deterministic(False)
+    """At set-up, in a fresh process: JAX reads its flag only before it starts (issue #10)."""
+    module, _, cls = BACKENDS[backend_name()].partition(":")
+    code = (
+        f"from {module} import {cls}\n"
+        f"backend = {cls}()\n"
+        "backend.deterministic(True)\n"
+        "backend.deterministic(False)\n"
+        "backend.deterministic(True)\n"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True)

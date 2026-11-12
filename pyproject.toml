@@ -22,6 +22,11 @@ dependencies = [
     "array-api-compat>=1.11",
 ]
 
+[project.optional-dependencies]
+# The experimental JAX backend (Part I, §1.6 and §2.2.5): opt-in, not covered by the 1.0.0
+# guarantees.
+jax = ["jax>=0.5"]
+
 [dependency-groups]
 dev = [
     "pytest>=8",
@@ -30,6 +35,8 @@ dev = [
     "mypy>=1.13",
     "import-linter>=2.1",
     "towncrier>=24.8",
+    # Tier 0 runs the whole suite on the experimental JAX backend too (Part I, §3.1).
+    "jax>=0.5",
 ]
 
 [tool.hatch.build.targets.wheel]
