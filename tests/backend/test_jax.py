@@ -182,6 +182,26 @@ class TestDeterministic:
         assert result.returncode == 0, result.stderr
 
 
+@pytest.mark.parametrize("missing", ["module", "function"])
+def test_deterministic_without_the_private_jax_check(
+    missing: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If JAX drops ``backends_are_initialized``, deterministic says so; the backend still works."""
+    import jax._src.xla_bridge as xla_bridge
+
+    if missing == "module":
+        monkeypatch.setitem(sys.modules, "jax._src.xla_bridge", None)
+    else:
+        monkeypatch.delattr(xla_bridge, "backends_are_initialized")
+    monkeypatch.delenv("XLA_FLAGS", raising=False)
+    backend = JaxBackend()
+    with pytest.raises(RuntimeError, match="could not check whether JAX has started"):
+        backend.deterministic(True)
+    assert "XLA_FLAGS" not in os.environ
+    backend.deterministic(False)  # unchanged: needs no check
+    assert backend.to_numpy(backend.asarray(np.ones(2), "float32")).sum() == 2.0
+
+
 def test_asarray_takes_device_names(dtype: DType) -> None:
     backend = JaxBackend()
     x = backend.asarray(np.ones(3), dtype, device="cpu")

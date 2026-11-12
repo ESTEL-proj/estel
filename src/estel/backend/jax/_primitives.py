@@ -17,6 +17,7 @@ Two things differ from PyTorch, both decided by the maintainers (issue #10):
 
 from __future__ import annotations
 
+import importlib
 import math
 import os
 from collections.abc import Callable, Sequence
@@ -29,7 +30,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import lax
-from jax._src import xla_bridge
 
 from .._protocol import DType, LbfgsResult, PadMode, Primals
 
@@ -165,6 +165,28 @@ def _device(device: Any) -> Any:
             f"device {device!r} is not available to JAX; the available devices are "
             f"{jax.devices()}. Pass one of them, or None for the default device."
         ) from error
+
+
+def _jax_has_started(enabled: bool) -> bool:
+    """Whether JAX has initialised its backends, so that XLA has read ``XLA_FLAGS`` already.
+
+    JAX has no public way to ask, so this reads the private
+    ``jax._src.xla_bridge.backends_are_initialized``, imported here rather than with the
+    module: if a JAX version drops it, only :meth:`JaxBackend.deterministic` fails, with an
+    error that says what to do, and the rest of the backend still imports.
+    """
+    try:
+        xla_bridge = importlib.import_module("jax._src.xla_bridge")
+        started = xla_bridge.backends_are_initialized
+    except (ImportError, AttributeError) as error:
+        raise RuntimeError(
+            f"deterministic({bool(enabled)}) could not check whether JAX has started its "
+            f"backends: JAX {jax.__version__} has no jax._src.xla_bridge."
+            "backends_are_initialized, which ESTEL uses for that. Set "
+            f"XLA_FLAGS={_DETERMINISTIC_FLAG}={str(bool(enabled)).lower()} in the environment "
+            "before starting Python instead, and report this JAX version in an ESTEL issue."
+        ) from error
+    return bool(started())
 
 
 def _flag_value(flags: Sequence[str]) -> bool:
@@ -525,7 +547,7 @@ class JaxBackend:
         flags = os.environ.get("XLA_FLAGS", "").split()
         if _flag_value(flags) == bool(enabled):
             return
-        if xla_bridge.backends_are_initialized():
+        if _jax_has_started(enabled):
             raise RuntimeError(
                 f"deterministic({bool(enabled)}) came after JAX started its backends, and XLA "
                 "reads XLA_FLAGS only once, so it would have no effect. Call it at set-up, "
