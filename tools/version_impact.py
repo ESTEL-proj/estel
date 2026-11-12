@@ -5,10 +5,16 @@ Rules (docs/policy/VERSIONING.md; Part I, §7.2):
 * ``api/manifest.json``: an entry removed or changed -> major; an entry added -> minor;
 * the geometry registry changed -> major (paths in ``GEOMETRY_REGISTRY``; none yet);
 * the ``bench`` label -> minor;
-* anything else -> patch;
-* a changed ``tests/reference/`` needs a reference-counter bump with CODEOWNER approval, shown
-  by the ``major`` label (Part I, §5.3). Before 1.0.0 nothing is gated by reference values,
-  so it is only reported.
+* anything else -> patch.
+
+Reference counters (Part I, §5.3 and §7.2). ``STATISTICS_REFERENCE`` and
+``SYNTHESIS_REFERENCE`` are integer literals in ``src/estel/_reference.py``; the tool reads them
+on the base branch and on the PR, without importing estel. A PR that changes the references of
+a counter must increase that counter by exactly one, and a PR that changes a counter must change
+its references (``tests/reference/`` for ``STATISTICS_REFERENCE``; ``SYNTHESIS_REFERENCE`` has
+no references yet). Before 1.0.0 a mismatch is only reported; from 1.0.0 it fails. No label is
+involved: the bump is in the diff, and CODEOWNERS approves it. Counters absent on the base
+branch count as 0.
 
 The declared bump is read from the news fragments the branch adds,
 ``changes/<PR>.<major|minor|patch>.md`` (towncrier). The tool fails if there is none, if one
@@ -16,12 +22,13 @@ is misnamed, or if the declared bump is below the required one.
 
 Usage (CI passes the PR number and its labels)::
 
-    python tools/version_impact.py --base origin/main --pr 12 --labels bench,major
+    python tools/version_impact.py --base origin/main --pr 12 --labels bench
 """
 
 from __future__ import annotations
 
 import argparse
+import ast
 import re
 import subprocess
 import sys
@@ -34,7 +41,13 @@ from api_manifest import MANIFEST, compare, load_manifest_text
 REPO = Path(__file__).resolve().parents[1]
 LEVELS = ("patch", "minor", "major")
 FRAGMENT_RE = re.compile(r"^changes/(?P<pr>\d+)\.(?P<level>major|minor|patch)\.md$")
-REFERENCE_DIR = "tests/reference/"
+COUNTERS_FILE = "src/estel/_reference.py"
+# Each reference counter and the directory of the references it versions. The synthesis
+# references do not exist yet (after 1.0.0); set their directory in the PR that creates them.
+COUNTERS: dict[str, str | None] = {
+    "STATISTICS_REFERENCE": "tests/reference/",
+    "SYNTHESIS_REFERENCE": None,
+}
 # Files that define the geometry registry. The registry does not exist yet (phase P2);
 # add its path here in the PR that creates it.
 GEOMETRY_REGISTRY: tuple[str, ...] = ()
@@ -76,6 +89,101 @@ def package_major(pyproject_text: str) -> int:
     return int(str(version).split(".")[0])
 
 
+def read_counters(text: str, origin: str) -> tuple[dict[str, int], list[str]]:
+    """The integer counters assigned at the top level of ``text``, and the problems found."""
+    restore = f"Restore {COUNTERS_FILE} from main; each counter is a plain integer literal."
+    try:
+        tree = ast.parse(text, filename=origin)
+    except SyntaxError as exc:
+        return {}, [f"{origin} does not parse ({exc.msg}, line {exc.lineno}). {restore}"]
+    values: dict[str, int] = {}
+    problems: list[str] = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets, value = node.targets, node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets, value = [node.target], node.value
+        else:
+            continue
+        for target in targets:
+            if not isinstance(target, ast.Name) or target.id not in COUNTERS:
+                continue
+            if (
+                isinstance(value, ast.Constant)
+                and isinstance(value.value, int)
+                and not isinstance(value.value, bool)
+            ):
+                values[target.id] = value.value
+            else:
+                problems.append(
+                    f"{origin}: {target.id} = {ast.unparse(value)} is not an integer literal. "
+                    + restore
+                )
+    for name in COUNTERS:
+        if name not in values and not any(name in p for p in problems):
+            problems.append(f"{origin}: {name} is missing. {restore}")
+    return values, problems
+
+
+def check_counters(
+    root: Path, merge_base: str, head: str, changed: set[str], impact: Impact
+) -> None:
+    """Apply the reference-counter rule of Part I, §7.2."""
+    base_text = show(root, merge_base, COUNTERS_FILE)
+    head_text = show(root, head, COUNTERS_FILE)
+    if base_text:
+        old, problems = read_counters(base_text, f"{COUNTERS_FILE} on the base branch")
+        if problems:  # the base branch is what it is; compare with what can be read
+            impact.notes.extend(problems)
+    else:
+        old = {}  # the counters did not exist yet: they were 0
+    if not head_text:
+        impact.errors.append(f"{COUNTERS_FILE} is missing. Restore it from main.")
+        return
+    new, problems = read_counters(head_text, COUNTERS_FILE)
+    impact.errors.extend(problems)
+
+    gated = package_major(show(root, head, "pyproject.toml")) >= 1
+    for name, directory in COUNTERS.items():
+        if name not in new:
+            continue
+        before, after = old.get(name, 0), new[name]
+        references = sorted(p for p in changed if p.startswith(directory)) if directory else []
+        where = directory or f"the references of {name}"
+        mismatch: str | None = None
+        if references and after != before + 1:
+            shown = ", ".join(references[:5]) + (" ..." if len(references) > 5 else "")
+            mismatch = (
+                f"{where} changed ({shown}) but {name} went from {before} to {after}; it must "
+                f"increase by exactly one, to {before + 1}, in {COUNTERS_FILE}, with CODEOWNER "
+                "approval. If you did not mean to change reference values, revert these files "
+                "and open an issue (AGENTS.md, golden rule 1)."
+            )
+        elif not references and after != before:
+            if directory is None:
+                mismatch = (
+                    f"{name} changed from {before} to {after}, but {name} has no references "
+                    f"yet. Restore it to {before} in {COUNTERS_FILE}; it is bumped together "
+                    "with the synthesis references, once they exist."
+                )
+            else:
+                mismatch = (
+                    f"{name} changed from {before} to {after}, but {directory} did not change. "
+                    f"A bump of {name} comes with the regenerated references, in the same PR: "
+                    f"restore {name} to {before} in {COUNTERS_FILE}, or add the references."
+                )
+        if mismatch is None:
+            if after != before:
+                impact.notes.append(
+                    f"{name} bumped from {before} to {after} with {where}; this needs "
+                    "CODEOWNER approval."
+                )
+        elif gated:
+            impact.errors.append(mismatch)
+        else:
+            impact.notes.append(f"{mismatch} (Before 1.0.0 this is only reported.)")
+
+
 def assess(root: Path, base: str, head: str, pr: int | None, labels: set[str]) -> Impact:
     impact = Impact()
     merge_base = git(root, "merge-base", base, head).strip()
@@ -110,22 +218,8 @@ def assess(root: Path, base: str, head: str, pr: int | None, labels: set[str]) -
     if "bench" in labels:
         impact.require("minor", "the `bench` label is set")
 
-    # Reference values.
-    reference = sorted(p for p in changed if p.startswith(REFERENCE_DIR))
-    if reference:
-        shown = ", ".join(reference[:5]) + (" ..." if len(reference) > 5 else "")
-        if package_major(show(root, head, "pyproject.toml")) == 0:
-            impact.notes.append(
-                f"{REFERENCE_DIR} changed ({shown}). Before 1.0.0 reference values gate "
-                "nothing; the path is protected, so a CODEOWNER still reviews it."
-            )
-        elif "major" not in labels:
-            impact.errors.append(
-                f"{REFERENCE_DIR} changed ({shown}). This needs a bump of "
-                "STATISTICS_REFERENCE or SYNTHESIS_REFERENCE and CODEOWNER approval, shown by "
-                "the `major` label. If you did not mean to change reference values, revert "
-                "these files and open an issue (AGENTS.md, golden rule 1)."
-            )
+    # Reference counters.
+    check_counters(root, merge_base, head, changed, impact)
 
     # Declared bump, from the news fragments.
     declared: str | None = None

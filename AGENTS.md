@@ -46,7 +46,7 @@ The static plan (`ScatteringPlan`) is built in NumPy when an operator is constru
 
 ## Protected paths (CODEOWNER approval)
 
-`tests/reference/**`, `tests/tolerances.toml`, `docs/transfer/**`, `src/estel/_spec/**`, `docs/maths.md`, `docs/policy/**`, `api/manifest.json`, `AGENTS.md`, `CLAUDE.md` and their mirrors, `docs/agents/review_rules.md`, `.github/**`, `tools/make_reference.py`, `bench/thresholds.toml`; in step 2, the Rust binding and the capability schema.
+`tests/reference/**`, `tests/tolerances.toml`, `src/estel/_reference.py`, `docs/transfer/**`, `src/estel/_spec/**`, `docs/maths.md`, `docs/policy/**`, `api/manifest.json`, `AGENTS.md`, `CLAUDE.md` and their mirrors, `docs/agents/review_rules.md`, `.github/**`, `tools/make_reference.py`, `bench/thresholds.toml`; in step 2, the Rust binding and the capability schema.
 
 ## Commands
 

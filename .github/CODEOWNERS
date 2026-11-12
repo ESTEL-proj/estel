@@ -2,6 +2,7 @@
 # Maintainers: Erwan Allys (@Eralys), Jean-Marc Delouis (@jmdelouis), Pablo Richard (@pablo-richard).
 tests/reference/**            @Eralys @jmdelouis @pablo-richard
 tests/tolerances.toml         @Eralys @jmdelouis @pablo-richard
+src/estel/_reference.py       @Eralys @jmdelouis @pablo-richard
 docs/transfer/**              @Eralys @jmdelouis @pablo-richard
 src/estel/_spec/**            @Eralys @jmdelouis @pablo-richard
 docs/maths.md                 @Eralys @jmdelouis @pablo-richard
