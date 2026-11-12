@@ -3,11 +3,11 @@
 
 RUN := uv run --locked
 
-.PHONY: check lint types lint-imports manifest mirrors maths-ids test test-float32 \
+.PHONY: check lint types lint-imports layers manifest mirrors maths-ids test test-float32 \
         test-float64 version-impact
 
-check: lint types lint-imports manifest mirrors maths-ids test
-	@echo "make check: tier 0 passed (lint, types, import contracts, manifest, mirrors, maths IDs, tests float32 + float64)"
+check: lint types lint-imports layers manifest mirrors maths-ids test
+	@echo "make check: tier 0 passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, tests float32 + float64)"
 
 lint:
 	$(RUN) ruff check .
@@ -19,6 +19,11 @@ types:
 # Import contracts of Part I, §2.4 (pyproject.toml); custom contract types live in tools/.
 lint-imports:
 	PYTHONPATH=tools $(RUN) lint-imports --no-cache
+
+# AST rules of Part I, §2.4: no class-name comparisons, no __class__ writes, no in-place
+# array updates in L1/L2.
+layers:
+	$(RUN) python tools/check_layers.py
 
 manifest:
 	$(RUN) python tools/api_manifest.py --check
