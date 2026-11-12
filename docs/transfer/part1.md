@@ -157,7 +157,7 @@ Each rule is enforced by a mechanical check — `import-linter` contracts and a 
 | L2 never imports a DataClass subclass; it talks to the mother-class interface | import-linter "layers" contract |
 | `estel._spec` imports NumPy only, and nothing from `estel` | import-linter "independence" contract |
 | No `type(x).__name__ ==` comparisons, no assignment to `__class__` | AST check |
-| No in-place array mutation in L1/L2 (`x[...] =`, `out=`, `.add_`, `inplace=True`) | AST check |
+| No in-place array mutation in L1/L2 (`x[...] =`, `out=`, `.add_`, `inplace=True`, `x += y`, `del x[...]`, `__setitem__`). The NumPy modules that build the static plan (tag N in Part II, §12) are exempt from this rule only, through an explicit list in the checker: they run once, at construction, and are never traced or differentiated | AST check |
 | **Public vs internal.** Public names are exactly those listed in `api/manifest.json` and exported from `estel/__init__.py`. Internal functions live in private modules, named with a leading underscore (`spectra/_estimators.py`), with plain names inside; internal methods of public classes start with an underscore | `tools/api_manifest.py --check` fails if a name is reachable without an underscore, outside a private module, and not in the manifest |
 
 **Why these rules, in plain terms:**
@@ -174,7 +174,7 @@ Each rule is enforced by a mechanical check — `import-linter` contracts and a 
 
 These rules apply to L1 and L2 from the first commit of step 1, although the JAX backend only arrives in step 2. Rules that are not tested drift, so from phase P1 the CI also traces the L2 code on small inputs with a minimal, unreleased JAX implementation of L0. That test makes no numerical claim; it only proves the code is traceable. The rules are copied into `docs/agents/jax_rules.md`.
 
-1. **Functional code only.** Build per-level results in Python lists (§3.1.1), then `concat` or `stack` them. No preallocation filled by index, no `out=`, no `inplace=`.
+1. **Functional code only.** Build per-level results in Python lists (§3.1.1), then `concat` or `stack` them. No preallocation filled by index, no `out=`, no `inplace=`. This applies to the code that computes the statistics; the NumPy code that builds the static plan, run once at construction, may write in place (§2.4).
 2. **Static shapes.** Everything shape-related — index sets, crop widths, stencils, bins — lives in the `ScatteringPlan`, built in NumPy and passed as a static argument.
 3. **No decisions on array values inside traced code.** No `if x.isnan().any()`, no `.item()`, no `float(x)`, no `print(x)`. NaN detection and estimator selection happen when the DataClass or the operator is constructed; the masks and reweighting maps they produce are then static data of the plan (§2.3).
 4. **Large constants are arguments, not closures.** Kernels, masks and stencils are passed as arrays to the computation (`arrays` in `scattering(x, plan, arrays)`), so they are not baked into the compiled program. Whether baking small kernels in as compiled constants would be faster is a step-2 question (LF29).
@@ -341,6 +341,7 @@ Calibration, written in `TOLERANCES.md`: run every backend, device and dtype on 
 
 - **CODEOWNERS** makes human review mandatory on the protected paths:
   - reference data and tolerances: `tests/reference/**`, `tests/tolerances.toml`;
+  - the transfer specification: `docs/transfer/**` and, during the review, `docs/maths.md`, read-only exports of this document, updated only by exporting it again;
   - the oracle and the mathematics: `src/estel/_spec/**`, `docs/maths.md`;
   - policy and API: `docs/policy/**`, `api/manifest.json`;
   - context files: `AGENTS.md`, `CLAUDE.md`, their mirrors, `docs/agents/review_rules.md`;
