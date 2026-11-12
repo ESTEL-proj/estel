@@ -458,6 +458,7 @@ Each task becomes a GitHub issue, to be picked by an agent. A task names its inp
 | T1.2 | P1 | PyTorch primitives | §12.3 | conformance suite green in float32 and float64 |
 | T1.3 | P1 | Minimal JAX L0, for the trace test only | Part I, §3.1 | the trace test runs in tier 0 |
 | T1.4 | P1 | Reserved interfaces: engine registry, storage accessors, `allreduce`, `partition`, `io` schema | §9.4 | reserved tests green |
+| T1.5 | P1 | Backend registry and global configuration: `_registry.py`, `_config.py`; public `set_backend`, `get_backend`, `set_default_dtype`, `set_default_device`, listed in the manifest; mixing backends raises `BackendMismatchError` | §12.2; Part I, §2.2.3, §3.1 rule 7 | functions public and tested; "jax" accepted as a reserved name with a clear error |
 | T2.0 | P2 | Write the 1D section of the maths tab, from the STL code at the frozen commits, and add it to `docs/maths.md` | STL `2D+1D`; maths tab | reviewed by a maintainer before T2.4 checks 1D parity |
 | T2.1 | P2 | `DataClass`, `Data1D`, `Data2D`, static masks and reweighting maps | §12.4; Part I, §2.3; maths M-DOWN-MASK, M-MASK | unit tests; masks equal STL's |
 | T2.2 | P2 | Wavelet banks (port of `bump_steerable_bank`) and H | maths M-WAV-2D, M-H | kernels equal STL's to rounding; Littlewood–Paley CI test |
