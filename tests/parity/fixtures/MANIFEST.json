@@ -61,6 +61,285 @@
     },
     "sha256": "4e4e18621bab7646063576b2869a4d26c68b8d33b3871751be4b073981a6f0fe"
   },
+  "empty_means_1d.npz": {
+    "case": "tools/stl_parity/cases/empty_means_1d.py",
+    "stl_branch": "2D+1D",
+    "stl_commit": "8f51143c5f8ebc259328830f246894d7031acae5",
+    "image_id": "sha256:8b35ee00a5fc4f993e95083087b63c2fbab51f0bffeb865ea3dbfa19ece7f757",
+    "parameters": {
+      "L": 1,
+      "threshold": 0.5,
+      "masks": {
+        "gap": {
+          "seed": 2,
+          "scatter_fraction": 0.05,
+          "gap": [
+            40,
+            47
+          ]
+        }
+      },
+      "configs": {
+        "deep_open": {
+          "N": 128,
+          "J": 4,
+          "pbc": false,
+          "mask": "gap"
+        },
+        "deep_periodic": {
+          "N": 128,
+          "J": 4,
+          "pbc": true,
+          "mask": "gap"
+        }
+      }
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "deep_open_S1_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          1
+        ]
+      },
+      "deep_open_S2_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          1
+        ]
+      },
+      "deep_open_S3_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          1,
+          1
+        ]
+      },
+      "deep_open_S4_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          4,
+          1,
+          1,
+          1
+        ]
+      },
+      "deep_open_mean_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "deep_open_var_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "deep_periodic_S1_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          1
+        ]
+      },
+      "deep_periodic_S2_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          1
+        ]
+      },
+      "deep_periodic_S3_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          1,
+          1
+        ]
+      },
+      "deep_periodic_S4_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          4,
+          1,
+          1,
+          1
+        ]
+      },
+      "deep_periodic_mean_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "deep_periodic_var_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "mask_gap": {
+        "dtype": "float64",
+        "shape": [
+          128
+        ]
+      }
+    },
+    "sha256": "9c934537b535ce3d09340568f631cc1145609deacae1542374a2142e3ca5c54c"
+  },
+  "empty_means_2d.npz": {
+    "case": "tools/stl_parity/cases/empty_means_2d.py",
+    "stl_branch": "master",
+    "stl_commit": "8eaf7691d55f3c3441cde9b95f1f80eb17aa8014",
+    "image_id": "sha256:8b35ee00a5fc4f993e95083087b63c2fbab51f0bffeb865ea3dbfa19ece7f757",
+    "parameters": {
+      "L": 4,
+      "threshold": 0.33,
+      "masks": {
+        "small_hole": {
+          "seed": 1,
+          "scatter_fraction": 0.0,
+          "hole": [
+            [
+              30,
+              33
+            ],
+            [
+              30,
+              34
+            ]
+          ]
+        }
+      },
+      "configs": {
+        "deep_open": {
+          "N": 64,
+          "J": 4,
+          "pbc": false,
+          "mask": "small_hole"
+        },
+        "deep_periodic": {
+          "N": 64,
+          "J": 4,
+          "pbc": true,
+          "mask": "small_hole"
+        }
+      }
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "deep_open_S1_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "deep_open_S2_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "deep_open_S3_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          4,
+          4
+        ]
+      },
+      "deep_open_S4_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          4,
+          4,
+          4,
+          4
+        ]
+      },
+      "deep_open_mean_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "deep_open_var_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "deep_periodic_S1_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "deep_periodic_S2_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "deep_periodic_S3_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          4,
+          4
+        ]
+      },
+      "deep_periodic_S4_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          4,
+          4,
+          4,
+          4
+        ]
+      },
+      "deep_periodic_mean_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "deep_periodic_var_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "mask_small_hole": {
+        "dtype": "float64",
+        "shape": [
+          64,
+          64
+        ]
+      }
+    },
+    "sha256": "6e8c3d9841ab52539022d37cbaa06a46f9b352a8fb0e03565b7945f2a4b5e9c6"
+  },
   "masks_1d.npz": {
     "case": "tools/stl_parity/cases/masks_1d.py",
     "stl_branch": "2D+1D",
@@ -736,5 +1015,417 @@
       }
     },
     "sha256": "055bb25c139a01f4d6432bc1e99044f4c3474072c0ab947074e05ff383b0ce4e"
+  },
+  "plan_1d.npz": {
+    "case": "tools/stl_parity/cases/plan_1d.py",
+    "stl_branch": "2D+1D",
+    "stl_commit": "8f51143c5f8ebc259328830f246894d7031acae5",
+    "image_id": "sha256:8b35ee00a5fc4f993e95083087b63c2fbab51f0bffeb865ea3dbfa19ece7f757",
+    "parameters": {
+      "L": 1,
+      "K": 5,
+      "threshold": 0.5,
+      "masks": {
+        "gap": {
+          "seed": 2,
+          "scatter_fraction": 0.05,
+          "gap": [
+            40,
+            47
+          ]
+        }
+      },
+      "configs": {
+        "open": {
+          "N": 32,
+          "J": 4,
+          "pbc": false,
+          "mask": null,
+          "weights": false
+        },
+        "periodic": {
+          "N": 32,
+          "J": 4,
+          "pbc": true,
+          "mask": null,
+          "weights": false
+        },
+        "masked_open": {
+          "N": 128,
+          "J": 3,
+          "pbc": false,
+          "mask": "gap",
+          "weights": true
+        },
+        "masked_periodic": {
+          "N": 128,
+          "J": 3,
+          "pbc": true,
+          "mask": "gap",
+          "weights": true
+        },
+        "deep_open": {
+          "N": 128,
+          "J": 4,
+          "pbc": false,
+          "mask": "gap",
+          "weights": false
+        },
+        "deep_periodic": {
+          "N": 128,
+          "J": 4,
+          "pbc": true,
+          "mask": "gap",
+          "weights": false
+        }
+      }
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "deep_open_border": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      },
+      "deep_open_count": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      },
+      "deep_periodic_border": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      },
+      "deep_periodic_count": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      },
+      "mask_gap": {
+        "dtype": "float64",
+        "shape": [
+          128
+        ]
+      },
+      "masked_open_border": {
+        "dtype": "float64",
+        "shape": [
+          20
+        ]
+      },
+      "masked_open_count": {
+        "dtype": "float64",
+        "shape": [
+          20
+        ]
+      },
+      "masked_open_weights_0": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          128
+        ]
+      },
+      "masked_open_weights_1": {
+        "dtype": "float64",
+        "shape": [
+          6,
+          64
+        ]
+      },
+      "masked_open_weights_2": {
+        "dtype": "float64",
+        "shape": [
+          10,
+          32
+        ]
+      },
+      "masked_periodic_border": {
+        "dtype": "float64",
+        "shape": [
+          20
+        ]
+      },
+      "masked_periodic_count": {
+        "dtype": "float64",
+        "shape": [
+          20
+        ]
+      },
+      "masked_periodic_weights_0": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          128
+        ]
+      },
+      "masked_periodic_weights_1": {
+        "dtype": "float64",
+        "shape": [
+          6,
+          64
+        ]
+      },
+      "masked_periodic_weights_2": {
+        "dtype": "float64",
+        "shape": [
+          10,
+          32
+        ]
+      },
+      "open_border": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      },
+      "open_count": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      },
+      "periodic_border": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      },
+      "periodic_count": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      }
+    },
+    "sha256": "241d37fef729d4e0dd97557685e728273dcb7cab9535a67b035cd6f9eabbe49d"
+  },
+  "plan_2d.npz": {
+    "case": "tools/stl_parity/cases/plan_2d.py",
+    "stl_branch": "master",
+    "stl_commit": "8eaf7691d55f3c3441cde9b95f1f80eb17aa8014",
+    "image_id": "sha256:8b35ee00a5fc4f993e95083087b63c2fbab51f0bffeb865ea3dbfa19ece7f757",
+    "parameters": {
+      "L": 4,
+      "K": 5,
+      "threshold": 0.33,
+      "masks": {
+        "sparse": {
+          "seed": 1,
+          "scatter_fraction": 0.003,
+          "hole": [
+            [
+              20,
+              27
+            ],
+            [
+              8,
+              19
+            ]
+          ]
+        },
+        "small_hole": {
+          "seed": 1,
+          "scatter_fraction": 0.0,
+          "hole": [
+            [
+              30,
+              33
+            ],
+            [
+              30,
+              34
+            ]
+          ]
+        }
+      },
+      "configs": {
+        "open": {
+          "N": 32,
+          "J": 4,
+          "pbc": false,
+          "mask": null,
+          "weights": false
+        },
+        "periodic": {
+          "N": 32,
+          "J": 4,
+          "pbc": true,
+          "mask": null,
+          "weights": false
+        },
+        "masked_open": {
+          "N": 64,
+          "J": 3,
+          "pbc": false,
+          "mask": "sparse",
+          "weights": true
+        },
+        "masked_periodic": {
+          "N": 64,
+          "J": 3,
+          "pbc": true,
+          "mask": "sparse",
+          "weights": true
+        },
+        "deep_open": {
+          "N": 64,
+          "J": 4,
+          "pbc": false,
+          "mask": "small_hole",
+          "weights": false
+        },
+        "deep_periodic": {
+          "N": 64,
+          "J": 4,
+          "pbc": true,
+          "mask": "small_hole",
+          "weights": false
+        }
+      }
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "deep_open_border": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      },
+      "deep_open_count": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      },
+      "deep_periodic_border": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      },
+      "deep_periodic_count": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      },
+      "mask_small_hole": {
+        "dtype": "float64",
+        "shape": [
+          64,
+          64
+        ]
+      },
+      "mask_sparse": {
+        "dtype": "float64",
+        "shape": [
+          64,
+          64
+        ]
+      },
+      "masked_open_border": {
+        "dtype": "float64",
+        "shape": [
+          20
+        ]
+      },
+      "masked_open_count": {
+        "dtype": "float64",
+        "shape": [
+          20
+        ]
+      },
+      "masked_open_weights_0": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          64,
+          64
+        ]
+      },
+      "masked_open_weights_1": {
+        "dtype": "float64",
+        "shape": [
+          6,
+          32,
+          32
+        ]
+      },
+      "masked_open_weights_2": {
+        "dtype": "float64",
+        "shape": [
+          10,
+          16,
+          16
+        ]
+      },
+      "masked_periodic_border": {
+        "dtype": "float64",
+        "shape": [
+          20
+        ]
+      },
+      "masked_periodic_count": {
+        "dtype": "float64",
+        "shape": [
+          20
+        ]
+      },
+      "masked_periodic_weights_0": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          64,
+          64
+        ]
+      },
+      "masked_periodic_weights_1": {
+        "dtype": "float64",
+        "shape": [
+          6,
+          32,
+          32
+        ]
+      },
+      "masked_periodic_weights_2": {
+        "dtype": "float64",
+        "shape": [
+          10,
+          16,
+          16
+        ]
+      },
+      "open_border": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      },
+      "open_count": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      },
+      "periodic_border": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      },
+      "periodic_count": {
+        "dtype": "float64",
+        "shape": [
+          35
+        ]
+      }
+    },
+    "sha256": "7f391cec89a5059fde1777d291da76f46ac578e108f2c9638194955b368ea263"
   }
 }

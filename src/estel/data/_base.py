@@ -281,6 +281,21 @@ class DataClass:
             "geometry overrides it (Part II, §12.4)."
         )
 
+    def _crop_weights(self, level: int, border: int) -> NDArray[np.float64]:
+        """The border crop of maths.md M-BORDER at resolution ``level``, as weights.
+
+        A NumPy float64 array of the spatial shape at ``level``: 1 where a pixel enters the
+        means, 0 where the crop removes it, ``border`` pixels on each side of every spatial
+        axis. The plan computes ``border`` from the convolutions applied (M-BORDER) and
+        multiplies these weights by the valid pixels of the mask, once, when an operator is
+        built (Part I, §3.1.1). Each geometry implements it (planar: STL's ``_crop``, with its
+        reduction of a border too large for the array, OP-13; HEALPix: no crop).
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement the geometry hook _crop_weights: every "
+            "geometry overrides it (Part II, §12.4)."
+        )
+
     def __repr__(self) -> str:
         n_missing = 0 if self._mask is None else int(self._mask.sum())
         return (
