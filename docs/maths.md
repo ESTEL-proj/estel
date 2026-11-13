@@ -57,6 +57,15 @@
 
 - **Complex conjugate** z̄; modulus |z|.
 
+**Filters and scales.**
+
+- s: the smoothing kernel, the filter of one downsampling step (M-SMOOTH-2D, M-SMOOTH-1D).
+- S\_j: the cumulated smoothing of j downsampling steps, Ŝ\_j(ω) = ŝ(ω) ŝ(2ω) ⋯ ŝ(2^(j−1) ω), up to the sampling of each step.
+- ψ\_ℓ: a wavelet kernel, applied at a given level. ψ\_(j,ℓ): the effective wavelet seen from full resolution, ψ̂\_(j,ℓ)(ω) = ψ̂\_ℓ(2^j ω) Ŝ\_j(ω).
+- φ\_J: the low-pass filter, the effective filter of scale J. In STL and in 1.0.0, φ̂\_J = Ŝ\_J. A dedicated low-pass kernel φ may replace this realisation (LF6); there is none in 1.0.0.
+- Λ: the Littlewood–Paley sum, Λ(ω) = |φ̂\_J(ω)|² + ½ Σ\_(j,ℓ) (|ψ̂\_(j,ℓ)(ω)|² + |ψ̂\_(j,ℓ)(−ω)|²). Both signs of ω are counted because the wavelets are analytic. Λ = 1 everywhere would mean that the coefficients keep all the energy of the data.
+- Per-level energy partition: P(ω) = |ŝ(ω)|² + ½ Σ\_ℓ (|ψ̂\_ℓ(ω)|² + |ψ̂\_ℓ(−ω)|²). If P = 1 at every level, then Λ = 1 follows by cascade, with φ̂\_J = Ŝ\_J. A dedicated φ only acts on the last octave: it cannot make up for a partition that differs from 1 at the intermediate levels.
+
 ### 1.1 Data — M-DATA-2D
 
 - **Shape.** Arrays are `(Nb, Nc, N1, N2)`; a 2D array is promoted to `(1, 1, N1, N2)`, a 3D one to `(1, Nc, N1, N2)`. Data must be real.
@@ -468,6 +477,9 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-21 | Spectrum border mask at 60 % of the point-spread energy, hard by default |
 | OP-22 | Orientation convention: θ\_ℓ = πℓ/L + π/2 from axis 1 |
 | OP-30 | A channel with cross statistics but no auto statistics gets NaN after `store_ref` normalisation; STL only warns |
+| OP-32 | The per-level energy partition P of STL's kernels is only close to 1. Measured on the 5-tap kernels: in 1D, within 0.1 of 1 up to ω = 3π/4, falling to 0.23 at the Nyquist frequency; in 2D (L = 4, J = 5, with φ\_J), Λ lies between 0.22 and 1.76 in the disc of radius π, is anisotropic (more energy on the diagonals than on the axes), and is close to 0 in the corners of the frequency square |
+| OP-33 | Gain convention: the analytic wavelets have a maximum gain of 1, so on real data they measure half the energy of their band; Λ counts both signs to compensate. Normalised statistics do not depend on it |
+| OP-34 | Tensor products (section 3, when written): the low-pass filter of a block is silently dropped when the block size is not divisible by 2^(J\_b), because STL obtains it by one more downsampling than the coarsest wavelet |
 
 #### C. Transfer and API
 
@@ -560,7 +572,7 @@ The rule of §1.11 applies. OP-2, OP-8, OP-10, OP-12, OP-24, OP-25 and OP-26 als
 
 | # | Point | Proposal |
 | --- | --- | --- |
-| OP-28 | The 1D wavelet is centred on the Nyquist frequency, so only the lower half of its bump exists on the grid; it has no width factor and no normalisation, unlike the 2D wavelet | reproduce; examine with the wavelet optimisation (LF22) |
+| OP-28 | The 1D wavelet is centred on the Nyquist frequency, so only the lower half of its bump exists on the grid; it has no width factor and no normalisation, unlike the 2D wavelet | reproduce; examine with the wavelet optimisation (LF22). The 1D wavelet is the upper half of a two-channel bank whose lower half is the smoothing kernel: their per-level energy partition is within 0.1 of 1 up to 3π/4 (OP-32) |
 | OP-29 | A 2D array given as 1D data is read as `(Nc, N)`, not `(Nb, N)` | reproduce, document |
 
 ## 3. Tensor products
