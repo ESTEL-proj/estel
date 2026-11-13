@@ -405,6 +405,11 @@ Step 1 is validated by comparison: ESTEL and STL run on the same inputs, and the
 - **Environment.** A container image that pins each STL commit of §9.1, healpix-analyse `aac5e26`, and their PyTorch version. The image is archived with the parity report, so the comparison can be rerun after STL's dependencies have moved on.
 - **Which STL for what.** `master` for every 2D result (statistics and spectra); `2D+1D` for 1D and tensor-product statistics; `HealpixUpdate` for HEALPix statistics.
 - **Inputs.** The reference inputs of Part I, §5.1, the test cases of the STOC deliverable at reduced sizes, and the cases of STL's certification notebooks (2D kernel, smoothing kernel design, 2D cross and power spectra, 1D kernel, 2D+1D kernel, HEALPix kernel), converted into scripts.
+- **Parity fixtures.** STL's results enter the tests as fixtures, produced once in the container and stored in the repository:
+    - each comparison case is a small script in `tools/stl_parity/cases/` that names its STL branch, its seeded inputs and its parameters;
+    - `make parity-fixtures` runs the cases in the container, on a maintainer's machine, and writes `tests/parity/fixtures/<case>.npz`, with `tests/parity/fixtures/MANIFEST.json` recording for each file the STL commit, the container image digest, the case and a checksum;
+    - the parity tests compare ESTEL with these files on every PR, in float64, with the tolerances of §14.3, without Docker;
+    - `tests/parity/fixtures/` is protected: only a maintainer regenerates it. An agent that needs a new case writes the case and its test, and asks for the fixture in its PR.
 
 ### 14.3 Comparison
 
@@ -456,6 +461,7 @@ Each task becomes a GitHub issue, to be picked by an agent. A task names its inp
 | T0.5 | P0 | Export `docs/maths.md` from the maths tab (its 2D part, enough to start) | maths tab | `check_maths_ids` runs on the 2D IDs |
 | T0.6 | P0 | Parity harness container, with the STL commits and healpix-analyse `aac5e26` | §9.1, §14.2 | STL runs in the container in float64 |
 | T0.7 | P0 | CI speed: tests run in parallel (`pytest-xdist`), locally and in CI; a PR that changes only `docs/`, `.github/` or `changes/` runs only the check tools, while every required check still reports a result | Part I, §6.1 | tier-0 wall time on a code PR measured before and after; a documentation-only PR has all required checks green in a few minutes |
+| T0.8 | P0 | Parity fixtures: `tools/stl_parity/cases/`, `make parity-fixtures`, `MANIFEST.json`, the comparison helpers of `tests/parity/`, and one example case (the 2D bump-steerable kernel at `master`) | §14.2 | the example fixture is produced in the container and its test passes in tier 0 |
 | T1.1 | P1 | `_protocol.py`, with value contracts citing `maths.md` | §12.3; maths tab, M-CONV-2D | contracts documented for every primitive |
 | T1.2 | P1 | PyTorch primitives | §12.3 | conformance suite green in float32 and float64 |
 | T1.3 | P1 | Experimental JAX backend: every L0 primitive, registered with a warning; tier 0 runs the whole test suite on both backends, in parallel jobs | Part I, §3.1 | conformance suite green on JAX in float32 and float64; all tests run on both backends |

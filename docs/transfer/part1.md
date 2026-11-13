@@ -345,6 +345,7 @@ Calibration, written in `TOLERANCES.md`: run every backend, device and dtype on 
 - **CODEOWNERS** makes human review mandatory on the protected paths:
   - reference data and tolerances: `tests/reference/**`, `tests/tolerances.toml`;
   - the reference counters: `src/estel/_reference.py`;
+  - the STL parity fixtures: `tests/parity/fixtures/**`;
   - the specification: `docs/transfer/**` and `docs/maths.md`, changed only through pull requests that a maintainer requests and merges;
   - the oracle and the mathematics: `src/estel/_spec/**`, `docs/maths.md`;
   - policy and API: `docs/policy/**`, `api/manifest.json`;
