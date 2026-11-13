@@ -8,14 +8,13 @@ marked ``"weights"``) the pixels it averages, in the order of STL's loops (the c
 docstrings, ``tools/stl_parity/cases/plan_2d.py``). The comparison is exact: borders and counts
 are integers, weights 0 or 1.
 
-Where STL divides by zero (a count of 0), ESTEL raises a clear error instead (maths.md OP-3): the
-test checks that the plan raises exactly for the configurations where some STL count is 0,
-naming the first such mean in the plan's order (moments, S1 and S2, S3, S4).
+Where STL divides by zero (a count of 0), the coefficient is NaN, in STL and in ESTEL (maths.md
+M-MEAN, OP-3): the test checks that the plan lists exactly those means as empty, leaves them
+without weights, and computes every other one with STL's denominator.
 """
 
 from __future__ import annotations
 
-import re
 import warnings
 from typing import Any
 
@@ -53,10 +52,6 @@ def _stl_order(J: int) -> list[tuple[str, tuple[tuple[int, ...], ...], int, Any]
                 key = ("S4", j1, j2, j3)
                 order.append((f"S4 (j1={j1}, j2={j2}, j3={j3})", ((j1, j3), (j2, j3)), j3, key))
     return order
-
-
-def _family(key: Any) -> str:
-    return "moments" if key == "moments" else str(key[0])
 
 
 def _lookup(plan: ScatteringPlan, key: Any) -> MeanWeights:
@@ -100,8 +95,8 @@ def test_borders_equal_stl(case: str, name: str) -> None:
 
 @pytest.mark.parametrize(("case", "name"), _configs())
 def test_denominators_and_weights_equal_stl(case: str, name: str) -> None:
-    """M-MEAN: every denominator, and the averaged pixels where stored, are STL's; the plan
-    raises where STL divides by zero (OP-3)."""
+    """M-MEAN: the means where STL divides by zero are the plan's empty means (OP-3); every
+    other denominator, and the averaged pixels where stored, are STL's."""
     fixture = load_fixture(case)
     parameters = _parameters(case)
     data, n_scales = _data(case, name, fixture)
@@ -109,17 +104,19 @@ def test_denominators_and_weights_equal_stl(case: str, name: str) -> None:
     counts = fixture[f"{name}_count"]
     assert len(counts) == len(order)
     empty = {key for (_, _, _, key), count in zip(order, counts, strict=True) if count == 0}
-    if empty:
-        # The plan builds the means family by family: moments, S1 and S2, S3, then S4.
-        families = ("moments", "S1", "S3", "S4")
-        plan_order = sorted(order, key=lambda mean: families.index(_family(mean[3])))
-        label = next(label for label, _, _, key in plan_order if key in empty)
-        with pytest.raises(ValueError, match=rf"mean of {re.escape(label)}, .*OP-3"):
-            _build(data, n_scales, parameters["L"])
-        return
     plan = _build(data, n_scales, parameters["L"])
-    got = [_lookup(plan, key) for _, _, _, key in order]
-    np.testing.assert_array_equal(np.asarray([w.denominator for w in got]), counts)
+    listed = {
+        *(("S1", j) for j in plan.empty_scales),
+        *(("S3", *p) for p in plan.empty_s3_pairs),
+        *(("S4", *t) for t in plan.empty_s4_triples),
+    }
+    assert listed == empty
+    for _, _, _, key in order:
+        if key in empty:
+            with pytest.raises(KeyError):
+                _lookup(plan, key)
+    got = [_lookup(plan, key) for _, _, _, key in order if key not in empty]
+    np.testing.assert_array_equal(np.asarray([w.denominator for w in got]), counts[counts > 0])
     if not parameters["configs"][name]["weights"]:
         return
     for level in range(n_scales):

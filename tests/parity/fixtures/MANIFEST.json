@@ -61,6 +61,285 @@
     },
     "sha256": "4e4e18621bab7646063576b2869a4d26c68b8d33b3871751be4b073981a6f0fe"
   },
+  "empty_means_1d.npz": {
+    "case": "tools/stl_parity/cases/empty_means_1d.py",
+    "stl_branch": "2D+1D",
+    "stl_commit": "8f51143c5f8ebc259328830f246894d7031acae5",
+    "image_id": "sha256:8b35ee00a5fc4f993e95083087b63c2fbab51f0bffeb865ea3dbfa19ece7f757",
+    "parameters": {
+      "L": 1,
+      "threshold": 0.5,
+      "masks": {
+        "gap": {
+          "seed": 2,
+          "scatter_fraction": 0.05,
+          "gap": [
+            40,
+            47
+          ]
+        }
+      },
+      "configs": {
+        "deep_open": {
+          "N": 128,
+          "J": 4,
+          "pbc": false,
+          "mask": "gap"
+        },
+        "deep_periodic": {
+          "N": 128,
+          "J": 4,
+          "pbc": true,
+          "mask": "gap"
+        }
+      }
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "deep_open_S1_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          1
+        ]
+      },
+      "deep_open_S2_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          1
+        ]
+      },
+      "deep_open_S3_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          1,
+          1
+        ]
+      },
+      "deep_open_S4_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          4,
+          1,
+          1,
+          1
+        ]
+      },
+      "deep_open_mean_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "deep_open_var_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "deep_periodic_S1_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          1
+        ]
+      },
+      "deep_periodic_S2_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          1
+        ]
+      },
+      "deep_periodic_S3_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          1,
+          1
+        ]
+      },
+      "deep_periodic_S4_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          4,
+          1,
+          1,
+          1
+        ]
+      },
+      "deep_periodic_mean_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "deep_periodic_var_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "mask_gap": {
+        "dtype": "float64",
+        "shape": [
+          128
+        ]
+      }
+    },
+    "sha256": "9c934537b535ce3d09340568f631cc1145609deacae1542374a2142e3ca5c54c"
+  },
+  "empty_means_2d.npz": {
+    "case": "tools/stl_parity/cases/empty_means_2d.py",
+    "stl_branch": "master",
+    "stl_commit": "8eaf7691d55f3c3441cde9b95f1f80eb17aa8014",
+    "image_id": "sha256:8b35ee00a5fc4f993e95083087b63c2fbab51f0bffeb865ea3dbfa19ece7f757",
+    "parameters": {
+      "L": 4,
+      "threshold": 0.33,
+      "masks": {
+        "small_hole": {
+          "seed": 1,
+          "scatter_fraction": 0.0,
+          "hole": [
+            [
+              30,
+              33
+            ],
+            [
+              30,
+              34
+            ]
+          ]
+        }
+      },
+      "configs": {
+        "deep_open": {
+          "N": 64,
+          "J": 4,
+          "pbc": false,
+          "mask": "small_hole"
+        },
+        "deep_periodic": {
+          "N": 64,
+          "J": 4,
+          "pbc": true,
+          "mask": "small_hole"
+        }
+      }
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "deep_open_S1_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "deep_open_S2_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "deep_open_S3_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          4,
+          4
+        ]
+      },
+      "deep_open_S4_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          4,
+          4,
+          4,
+          4
+        ]
+      },
+      "deep_open_mean_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "deep_open_var_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "deep_periodic_S1_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "deep_periodic_S2_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "deep_periodic_S3_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          4,
+          4
+        ]
+      },
+      "deep_periodic_S4_nan": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4,
+          4,
+          4,
+          4,
+          4
+        ]
+      },
+      "deep_periodic_mean_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "deep_periodic_var_nan": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "mask_small_hole": {
+        "dtype": "float64",
+        "shape": [
+          64,
+          64
+        ]
+      }
+    },
+    "sha256": "6e8c3d9841ab52539022d37cbaa06a46f9b352a8fb0e03565b7945f2a4b5e9c6"
+  },
   "masks_1d.npz": {
     "case": "tools/stl_parity/cases/masks_1d.py",
     "stl_branch": "2D+1D",

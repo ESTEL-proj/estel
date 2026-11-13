@@ -237,15 +237,78 @@ def test_s3_uses_the_union_where_the_layer_2_mask_misses_layer_1() -> None:
     assert plan.s3[(0, 2)].denominator == float((~layer2).sum() - (layer1 & ~layer2).sum())
 
 
+def _deep_mask(ndim: int) -> tuple[int, NDArray[np.bool_]]:
+    """A mask for which some, not all, S3 and S4 means of an open plan with J = 4 have no valid
+    pixel (the masks of the parity cases ``plan_2d`` and ``plan_1d``)."""
+    if ndim == 2:
+        mask = np.zeros((64, 64), dtype=bool)
+        mask[30:33, 30:34] = True
+        return 64, mask
+    rng = np.random.default_rng(2)
+    gap = (np.arange(128) >= 40) & (np.arange(128) < 47)
+    return 128, (rng.random(128) < 0.05) | gap
+
+
+@pytest.mark.maths("M-MEAN", "M-MASK", "M-BORDER")
+@pytest.mark.parametrize("ndim", sorted(GEOMETRIES))
+def test_means_without_valid_pixel_are_listed_not_computed(ndim: int) -> None:
+    """OP-3 (revised): a mean with no valid pixel is NaN, as in STL, decided by the plan. It has
+    no weights, the plan lists it, and building the plan warns once, naming every such mean."""
+    n, mask = _deep_mask(ndim)
+    data = _data(ndim, n, pbc=False, mask=mask)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        plan = build_plan(data, 4, 1)
+    expected = _expected_invalid(ndim, mask, 4, pbc=False)
+
+    def empty(key: Any, level: int, border: int) -> bool:
+        return not np.any(np.where(expected[key], 0.0, _crop(plan.level_shapes[level], border)))
+
+    def border(histories: tuple[tuple[int, ...], ...], level: int) -> int:
+        return max(border_width(h, level, 5, False) for h in histories)
+
+    empty_s3 = tuple(
+        (j2, j3)
+        for j2, j3 in plan.s3_pairs
+        if empty(("S3", j2, j3), j3, border(((j2, j3), (j3,)), j3))
+    )
+    empty_s4 = tuple(
+        t
+        for t in plan.s4_triples
+        if empty(("S4", *t), t[2], border(((t[0], t[2]), (t[1], t[2])), t[2]))
+    )
+    assert plan.empty_scales == ()
+    assert plan.empty_s3_pairs == empty_s3
+    assert plan.empty_s4_triples == empty_s4
+    assert empty_s3
+    assert empty_s4
+    assert set(plan.s3) == set(plan.s3_pairs) - set(empty_s3)
+    assert set(plan.s4) == set(plan.s4_triples) - set(empty_s4)
+    assert all(w.denominator >= 1 for w in _all_means(plan))
+    messages = [str(w.message) for w in caught if "OP-3" in str(w.message)]
+    assert len(messages) == 1
+    assert f"{len(empty_s3) + len(empty_s4)} mean(s)" in messages[0]
+    for j2, j3 in empty_s3:
+        assert f"S3 (j2={j2}, j3={j3})" in messages[0]
+    for j1, j2, j3 in empty_s4:
+        assert f"S4 (j1={j1}, j2={j2}, j3={j3})" in messages[0]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        periodic = build_plan(_data(ndim, n, pbc=True, mask=mask), 4, 1)
+    assert periodic.empty_s3_pairs == ()
+    assert periodic.empty_s4_triples == ()
+
+
 @pytest.mark.maths("M-MEAN")
 @pytest.mark.parametrize("ndim", sorted(GEOMETRIES))
-def test_a_mean_without_valid_pixel_raises(ndim: int) -> None:
-    """OP-3: STL divides by zero; ESTEL refuses to build the plan, naming the mean."""
-    n = 32
-    mask = np.zeros((n,) * ndim, dtype=bool)
-    mask[(slice(8, 24),) * ndim] = True  # a large hole: nothing valid at level 3
-    with pytest.raises(ValueError, match=r"no pixel is left for the mean of .*OP-3"):
-        _plan(_data(ndim, n, pbc=False, mask=mask), 4, L=1)
+def test_a_whole_empty_family_raises(ndim: int) -> None:
+    """OP-3 (revised): the plan raises only when a whole family has no computable coefficient.
+    Here one line of pixels is valid: the field has a mean, but the 5-pixel wavelet footprint
+    invalidates every pixel of the first layer, so S1 and S2 at the only scale are empty."""
+    mask = np.ones((32,) * ndim, dtype=bool)
+    mask[0] = False
+    with pytest.raises(ValueError, match=r"no S1 and S2 coefficient can be computed.*OP-3"):
+        _plan(_data(ndim, 32, pbc=True, mask=mask), 1, L=1)
 
 
 @pytest.mark.maths("M-DOWN-MASK")

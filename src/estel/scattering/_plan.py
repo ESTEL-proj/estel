@@ -22,7 +22,8 @@ What it holds, for STL's loop structure (maths.md §1.6 to 1.7; STL ``ST_Operato
 * **The masks and reweighting maps** of the data, ``estel.data._masks.MaskMaps`` (M-DOWN-MASK,
   M-MASK), and the maps of each downsampling step (:meth:`ScatteringPlan.downsample_maps`).
 * **The weights and denominator of every mean** (:class:`MeanWeights`; M-MEAN, M-BORDER): 1 on
-  the pixels that enter the mean, 0 elsewhere, and their sum.
+  the pixels that enter the mean, 0 elsewhere, and their sum; and the means that have no
+  valid pixel, whose coefficients are NaN (OP-3).
 
 Each mean of the loop is a (co)variance of operands described by their convolution history,
 the scales of the convolutions applied, which in ESTEL is plan data rather than data state
@@ -37,10 +38,18 @@ The border of a mean is the larger of its operands' borders (M-BORDER, "fully fl
 the geometry turns it into weights (``DataClass._crop_weights``), reducing a border too large
 for the grid as STL does, with one warning per plan (OP-13). The invalid pixels of a mean are
 the union of its operands' masks (M-MASK, "Covariances"). STL takes the mask of the operand
-with more convolutions instead, assuming that it contains the other one; it does not always do
-so (masked 1D data), and STL's S3 is then NaN, while the union gives a value: reported on
-issue #15. Without missing values every pixel is valid. A mean with no pixel left raises a
-clear error when the plan is built (M-MEAN, OP-3), where STL divides by zero.
+with more convolutions instead, assuming that it contains the other one; where it does not
+(masked 1D data), STL's S3 is NaN, and the union gives a value (OP-35). Without missing values
+every pixel is valid.
+
+A mean with no pixel left is where STL divides by zero, and its coefficient is NaN (M-MEAN,
+OP-3). The plan knows these means statically: it leaves them out of ``first_layer``, ``s3``
+and ``s4``, lists them in ``empty_scales``, ``empty_s3_pairs`` and ``empty_s4_triples``, and
+warns once, naming them. The
+computation does not compute them, the full grid holds NaN there, like the structural NaN, with
+no division 0/0 and so no NaN in gradients, and ``to_vector`` leaves them out (tasks T2.4, T2.5).
+Building the plan raises an error only when a whole family (mean and var, S1 and S2, S3, S4) has
+no computable coefficient.
 """
 
 from __future__ import annotations
@@ -106,7 +115,8 @@ class MeanWeights:
     """1 on the pixels that enter the mean, 0 on the border crop and on invalid pixels; a
     read-only float64 array of the spatial shape at ``level``."""
     denominator: float
-    """The number of pixels that enter the mean, ``weights.sum()``, at least 1."""
+    """The number of pixels that enter the mean, ``weights.sum()``, at least 1: a mean with
+    no valid pixel has no ``MeanWeights`` (OP-3)."""
 
 
 @dataclass(frozen=True, eq=False)
@@ -153,11 +163,21 @@ class ScatteringPlan:
     moments: MeanWeights
     """The weights of ``mean`` and ``var``, at level 0 (M-MOM)."""
     first_layer: Mapping[int, MeanWeights]
-    """For each scale ``j``: the weights of S1 and S2 at ``j`` (M-S1, M-S2), at level ``j``."""
+    """For each scale ``j`` of :attr:`scales` not in :attr:`empty_scales`: the weights of S1
+    and S2 at ``j`` (M-S1, M-S2), at level ``j``."""
     s3: Mapping[tuple[int, int], MeanWeights]
-    """For each pair of :attr:`s3_pairs`: the weights of S3, at level ``j3`` (M-S3)."""
+    """For each pair of :attr:`s3_pairs` not in :attr:`empty_s3_pairs`: the weights of S3, at
+    level ``j3`` (M-S3)."""
     s4: Mapping[tuple[int, int, int], MeanWeights]
-    """For each triple of :attr:`s4_triples`: the weights of S4, at level ``j3`` (M-S4)."""
+    """For each triple of :attr:`s4_triples` not in :attr:`empty_s4_triples`: the weights of
+    S4, at level ``j3`` (M-S4)."""
+    empty_scales: tuple[int, ...]
+    """The scales whose S1 and S2 have no valid pixel: NaN coefficients, not computed (M-MEAN,
+    OP-3). Empty without missing values, as for the next two."""
+    empty_s3_pairs: tuple[tuple[int, int], ...]
+    """The pairs of :attr:`s3_pairs` whose S3 has no valid pixel (OP-3)."""
+    empty_s4_triples: tuple[tuple[int, int, int], ...]
+    """The triples of :attr:`s4_triples` whose S4 has no valid pixel (OP-3)."""
     _key: tuple[Any, ...] = field(repr=False)
 
     def __hash__(self) -> int:
@@ -220,9 +240,10 @@ def build_plan(
     orientations on data with the geometry, spatial shape, ``pbc`` and mask of ``data``.
 
     The values of ``data.array`` are not read. Raises a ``ValueError`` when the sizes are not
-    divisible by 2^(J-1) (maths.md M-DATA-2D, OP-8), and when a mean would have no valid pixel
-    (M-MEAN, OP-3). Warns once when a border is too large for the grid and is reduced (M-BORDER,
-    OP-13).
+    divisible by 2^(J-1) (maths.md M-DATA-2D, OP-8), and when a whole family of statistics has
+    no mean with a valid pixel (M-MEAN, OP-3). Warns once when some means have no valid pixel,
+    listing them (their coefficients are NaN, OP-3), and once when a border is too large for the
+    grid and is reduced (M-BORDER, OP-13).
     """
     if not isinstance(data, DataClass):
         raise TypeError(
@@ -273,10 +294,12 @@ def build_plan(
         for key, (_, histories, level) in means.items()
     }
     crops = _crop_weights(data, {(means[key][2], border) for key, border in borders.items()})
-    weights = {
-        key: _mean_weights(label, histories, level, borders[key], crops, masks)
-        for key, (label, histories, level) in means.items()
+    candidates = {
+        key: _mean_weights(histories, level, borders[key], crops, masks)
+        for key, (_, histories, level) in means.items()
     }
+    weights = {key: w for key, w in candidates.items() if w is not None}
+    _check_empty(means, weights)
 
     return ScatteringPlan(
         J=n_scales,
@@ -294,9 +317,16 @@ def build_plan(
         lowpass_level=n_scales,
         masks=masks,
         moments=weights["moments"],
-        first_layer=MappingProxyType({j: weights[("S1", j)] for j in scales}),
-        s3=MappingProxyType({(j2, j3): weights[("S3", j2, j3)] for j2, j3 in s3_pairs}),
-        s4=MappingProxyType({t: weights[("S4", *t)] for t in s4_triples}),
+        first_layer=MappingProxyType(
+            {j: weights[("S1", j)] for j in scales if ("S1", j) in weights}
+        ),
+        s3=MappingProxyType(
+            {(j2, j3): weights[("S3", j2, j3)] for j2, j3 in s3_pairs if ("S3", j2, j3) in weights}
+        ),
+        s4=MappingProxyType({t: weights[("S4", *t)] for t in s4_triples if ("S4", *t) in weights}),
+        empty_scales=tuple(j for j in scales if ("S1", j) not in weights),
+        empty_s3_pairs=tuple(p for p in s3_pairs if ("S3", *p) not in weights),
+        empty_s4_triples=tuple(t for t in s4_triples if ("S4", *t) not in weights),
         _key=(
             type(data),
             n_scales,
@@ -369,15 +399,14 @@ def _invalid(masks: MaskMaps, history: History, level: int) -> BoolMap:
 
 
 def _mean_weights(
-    label: str,
     histories: tuple[History, ...],
     level: int,
     border: int,
     crops: Mapping[tuple[int, int], FloatMap],
     masks: MaskMaps | None,
-) -> MeanWeights:
+) -> MeanWeights | None:
     """The weights of one mean: the crop of ``border``, times the valid pixels of the union of
-    the operands' masks (M-BORDER, M-MASK, M-MEAN)."""
+    the operands' masks (M-BORDER, M-MASK, M-MEAN); ``None`` when no pixel is left (OP-3)."""
     crop = crops[(level, border)]
     if masks is None:
         weights = np.array(crop, dtype=np.float64)
@@ -386,11 +415,42 @@ def _mean_weights(
         weights = np.where(invalid, 0.0, crop)
     denominator = float(weights.sum())
     if denominator == 0.0:
-        raise ValueError(
-            f"no pixel is left for the mean of {label}, at level {level}: the missing values "
-            f"and the border crop of {border} pixel(s) remove every pixel of the "
-            f"{crop.shape} grid, so the mean would divide by zero (maths.md M-MEAN, OP-3). Use "
-            "a smaller J, data with fewer missing values, or pbc=True if the data are periodic."
-        )
+        return None
     weights.flags.writeable = False
     return MeanWeights(level=level, border=border, weights=weights, denominator=denominator)
+
+
+_FAMILIES = {"moments": "mean and var", "S1": "S1 and S2", "S3": "S3", "S4": "S4"}
+
+
+def _family(key: Any) -> str:
+    return "moments" if key == "moments" else str(key[0])
+
+
+def _check_empty(
+    means: Mapping[Any, tuple[str, tuple[History, ...], int]], weights: Mapping[Any, MeanWeights]
+) -> None:
+    """Raise if a whole family has no mean with a valid pixel; otherwise warn once, listing the
+    means that have none, whose coefficients are NaN (M-MEAN, OP-3)."""
+    empty = [key for key in means if key not in weights]
+    if not empty:
+        return
+    advice = (
+        "Use a smaller J, data with fewer missing values, or pbc=True if the data are periodic "
+        "(the mask grows by the wavelet footprint at each layer, and the border crop with depth)."
+    )
+    for family, name in _FAMILIES.items():
+        members = [key for key in means if _family(key) == family]
+        if members and all(key not in weights for key in members):
+            raise ValueError(
+                f"no {name} coefficient can be computed: the missing values and the border crops "
+                f"leave no pixel for any of them (maths.md M-MEAN, OP-3). {advice}"
+            )
+    listed = "; ".join(means[key][0] for key in empty)
+    warnings.warn(
+        f"{len(empty)} mean(s) have no pixel left after the missing values and the border crop, "
+        f"so their coefficients are NaN, as in STL, and are not computed (maths.md M-MEAN, "
+        f"OP-3): {listed}. {advice}",
+        UserWarning,
+        stacklevel=3,
+    )

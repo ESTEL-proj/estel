@@ -187,7 +187,7 @@ Let E be the K × K support of the wavelets (all ones), shared by all orientatio
 - **Layer 0:** the full-resolution mask m⁽⁰⁾; at level j > 0, the invalid pixels after thresholded downsampling (M-DOWN-MASK).
 - **Layer 1** (data convolved once, at scale j, level j): an output pixel is invalid if the wavelet support E touches an invalid input pixel, that is m₁⁽ʲ⁾ = (E ⋆ m⁽ʲ⁾) > 0.
 - **Layer 2** (first convolved at j₂, modulus, downsampled to j₃, convolved again at j₃): m₂ = (E ⋆ m) > 0, where m is the layer-1 mask at j₃ if j₂ = j₃, or the downsampled-and-thresholded layer-1 mask of j₂ otherwise.
-- **Covariances** use the union of the masks of their two arguments, or the larger one when one contains the other.
+- **Covariances** use the union of the masks of their two arguments, or the larger one when one contains the other. **⚠ OP-35**
 - **Source:** `_build_reweighting_maps_and_scattering_layer_masks`, `_find_mask`, `cov`.
 
 ### 1.5 Borders — M-BORDER
@@ -206,7 +206,7 @@ The two other methods in the code (`largest_scale_second_layer`, `layer_flexible
 
 #### M-MEAN — Masked mean
 
-⟨a⟩\_m as in M-NOT: the sum over valid pixels divided by their number, after the border crop. If no pixel is valid, the division by zero is not caught. **⚠ OP-3**
+⟨a⟩\_m as in M-NOT: the sum over valid pixels divided by their number, after the border crop. If no pixel is valid, STL divides by zero and the coefficient is NaN. ESTEL keeps this NaN, decided statically: the masks and the borders tell, when the operator is built, which means have no valid pixel. These coefficients are not computed; they are NaN in the full grid, like the structural NaN, with no division 0/0 and so no NaN in gradients, and `to_vector` leaves them out. ESTEL warns once, when the operator is built, listing them, and raises an error only if a whole family has no computable coefficient. **⚠ OP-3**
 
 - **Source:** `torch_backend.maskmean`, `WaveletOperator2Dkernel_torch.mean`.
 
@@ -440,7 +440,7 @@ Automatic, when the operator is built, from the example data. `pbc=None` counts 
 
 ### 1.11 Open points found in the 2D code
 
-**Rule for these open points.** In 1.0.0, ESTEL reproduces STL wherever STL gives a result, problems included; most open points are fixed afterwards, each as a traced change. Where STL gives no usable value (OP-3, OP-8), ESTEL raises a clear error instead.
+**Rule for these open points.** In 1.0.0, ESTEL reproduces STL wherever STL gives a result, problems included; most open points are fixed afterwards, each as a traced change. Where STL gives no usable value (OP-8), ESTEL raises a clear error instead; a mean with no valid pixel (OP-3) gives a NaN coefficient, as in STL.
 
 Grouped in three categories: (A) points that affect values or correctness, (B) conventions to document, (C) transfer and API points.
 
@@ -450,13 +450,14 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | --- | --- | --- |
 | OP-1 | Filtering is a correlation, not a convolution; complex coefficients are the conjugates of the textbook definition | reproduce, document |
 | OP-2 | Even-sized smoothing kernel with asymmetric padding (2/3): possible half-pixel shift per level, questioned by a `TODO` | reproduce for parity; revisit in a major |
-| OP-3 | Masked mean divides by zero when no pixel is valid | decided: ESTEL raises a clear error; STL gives no usable value here, so parity is not concerned |
+| OP-3 | Masked mean divides by zero when no pixel is valid | revised: the coefficient is NaN, as in STL, decided statically by the plan; ESTEL warns once, listing such coefficients, and raises only if a whole family is empty |
 | OP-4 | `pbc=None` breaks the scattering transform but means "periodic" for spectra | require an explicit boolean in ESTEL |
 | OP-5 | `iso` and `angular_ft` treat orientations as cyclic over \[0, π), mixing conjugate values on wrapped pairs | reproduced in 1.0.0; a problem to fix afterwards (LF32) |
 | OP-6 | Radial binning of the spectrum is not isotropic for rectangular images | restrict PS to square images in 1.0.0, or document |
 | OP-7 | `nan_mask` fills missing pixels with the mean before filtering, leaking near mask edges | reproduce, document; better estimator in step 2 |
 | OP-8 | The default J does not ensure that the sizes are divisible by 2^(J−1), so the default operator can fail on sizes that are not powers of two | decided: ESTEL rejects the combination at construction with a clear message; STL fails here, so parity is not concerned |
 | OP-31 | STL builds its wavelet kernels at torch's default dtype, float32 unless changed, although the rest of its computation is in float64; its kernels therefore have float32 precision | ESTEL builds them in float64; the parity harness runs STL with float64 as torch's default dtype (Part II, §14.2) |
+| OP-35 | STL computes S3 on the layer-2 mask alone, assuming it contains the layer-1 mask; for some masked 1D data the assumption fails and STL's S3 is NaN | ESTEL uses the union of the two masks, as the formula defines; both agree wherever STL gives a value |
 
 #### B. Conventions to document
 
