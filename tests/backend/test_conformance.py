@@ -1011,6 +1011,7 @@ class TestLbfgs:
             )
 
 
+@pytest.mark.serial
 def test_deterministic_can_be_switched(backend: Backend) -> None:
     """At set-up, in a fresh process: JAX reads its flag only before it starts (issue #10)."""
     module, _, cls = BACKENDS[backend_name()].partition(":")

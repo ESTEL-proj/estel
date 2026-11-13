@@ -3,6 +3,11 @@
 ``make check`` runs the suite on every backend (``ESTEL_TEST_BACKEND``, see ``tests/_backends.py``)
 and, for each, twice: with ``ESTEL_TEST_DTYPE=float32`` and ``float64`` (Part I, §3.1, rule 7).
 Numerical tests take the ``dtype`` and ``backend`` fixtures.
+
+Each run has two passes (task T0.7): the tests in parallel, in ``pytest-xdist`` workers
+(``-n auto -m "not serial"``), then the tests marked ``serial`` alone, in one process
+(``-p no:xdist -m serial``). Mark ``serial`` a test that starts fresh processes or switches a
+process-wide setting, such as ``Backend.deterministic``.
 """
 
 from __future__ import annotations
@@ -30,6 +35,16 @@ def pytest_configure(config: pytest.Config) -> None:
         import jax
 
         jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Refuse to run a ``serial`` test in an xdist worker, where other tests run beside it."""
+    if item.get_closest_marker("serial") and "PYTEST_XDIST_WORKER" in os.environ:
+        pytest.fail(
+            f"{item.nodeid} is marked serial and must run alone: run the parallel pass with "
+            '-m "not serial" and this test with -p no:xdist -m serial, as `make test` does.',
+            pytrace=False,
+        )
 
 
 @pytest.fixture

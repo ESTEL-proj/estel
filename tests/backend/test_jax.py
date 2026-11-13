@@ -128,6 +128,7 @@ def test_lbfgs_names_its_step() -> None:
         )
 
 
+@pytest.mark.serial
 class TestDeterministic:
     """``--xla_gpu_deterministic_ops`` in ``XLA_FLAGS``, read by XLA once, when JAX starts."""
 
@@ -182,6 +183,7 @@ class TestDeterministic:
         assert result.returncode == 0, result.stderr
 
 
+@pytest.mark.serial
 @pytest.mark.parametrize("missing", ["module", "function"])
 def test_deterministic_without_the_private_jax_check(
     missing: str, monkeypatch: pytest.MonkeyPatch
