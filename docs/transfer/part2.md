@@ -458,14 +458,14 @@ Each task becomes a GitHub issue, to be picked by an agent. A task names its inp
 | T1.1 | P1 | `_protocol.py`, with value contracts citing `maths.md` | §12.3; maths tab, M-CONV-2D | contracts documented for every primitive |
 | T1.2 | P1 | PyTorch primitives | §12.3 | conformance suite green in float32 and float64 |
 | T1.3 | P1 | Experimental JAX backend: every L0 primitive, registered with a warning; tier 0 runs the whole test suite on both backends, in parallel jobs | Part I, §3.1 | conformance suite green on JAX in float32 and float64; all tests run on both backends |
-| T1.4 | P1 | Reserved interfaces: engine registry, storage accessors, `allreduce`, `partition`, `io` schema | §9.4 | reserved tests green |
+| T1.4 | P1 | Reserved engine interface: engine protocol and registry (only `"python"`, order 2), capability declaration, `EngineUnsupportedError`. The other reserved interfaces moved: storage accessors, the `allreduce` hook and the `io` schema to T2.5, `partition` to T5.1 | §9.4 | reserved tests green |
 | T1.5 | P1 | Backend registry and global configuration: `_registry.py`, `_config.py`; public `set_backend`, `get_backend`, `set_default_dtype`, `set_default_device`, listed in the manifest; mixing backends raises `BackendMismatchError` | §12.2; Part I, §2.2.3, §3.1 rule 7 | functions public and tested; "jax" selectable as an experimental backend, with a warning |
 | T2.0 | P2 | Write the 1D section of the maths tab, from the STL code at the frozen commits, and add it to `docs/maths.md` | STL `2D+1D`; maths tab | reviewed by a maintainer before T2.4 checks 1D parity |
 | T2.1 | P2 | `DataClass`, `Data1D`, `Data2D`, static masks and reweighting maps | §12.4; Part I, §2.3; maths M-DOWN-MASK, M-MASK | unit tests; masks equal STL's |
 | T2.2 | P2 | Wavelet banks (port of `bump_steerable_bank`) and H | maths M-WAV-2D, M-H | kernels equal STL's to rounding; Littlewood–Paley CI test |
 | T2.3 | P2 | `ScatteringPlan`: index sets, levels, borders, mean denominators | maths §1.3–1.5 | plan tests |
 | T2.4 | P2 | `STOperator`: STL's loop structure, in functional style | maths §1.6–1.7 and the 1D section; Part I, §3.1.1 | parity on 1D and 2D statistics, masked cases included (maths tab, OP-26, OP-27) |
-| T2.5 | P2 | `STStatistics`, normalisation, reductions, `to_vector(mask_st)` | maths §1.8; §12.7 | parity on normalised and reduced statistics |
+| T2.5 | P2 | `STStatistics`, normalisation, reductions, `to_vector(mask_st)`; the reserved storage accessors, the `allreduce` hook of the reductions and the versioned `io` schema (from T1.4) | maths §1.8; §12.7 | parity on normalised and reduced statistics |
 | T2.6 | P2 | `_spec` for planar data | maths tab | spec parity |
 | T2.7 | P2 | Differentiation tests, to second order | Part I, §3.2 | gradcheck and gradgradcheck green in float64 |
 | T2.8 | P2 | Invariance tests | Part I, §5.1 | invariance family green |
@@ -474,7 +474,7 @@ Each task becomes a GitHub issue, to be picked by an agent. A task names its inp
 | T3.2 | P3 | `STOperatorTensorProd`, low-pass and box term | maths, tensor-product section | parity on tensor products |
 | T4.1 | P4 | 2D spectrum estimators and automatic selection | maths §1.9; §12.8 | parity with `master` |
 | T5.0 | P5 | Write the HEALPix section of the maths tab | STL `HealpixUpdate`; STL-Dev-MPI `CLAUDE.md` §3 | reviewed by a maintainer before T5.1 |
-| T5.1 | P5 | Port of the `TorchGeometry` tables; `DataHealpix` | maths, HEALPix section; §9.3 | tables equal healpix-analyse's; parity with `HealpixUpdate` |
+| T5.1 | P5 | Port of the `TorchGeometry` tables; `DataHealpix`, with its reserved `partition` argument (from T1.4) | maths, HEALPix section; §9.3 | tables equal healpix-analyse's; parity with `HealpixUpdate` |
 | T6.0 | P6 | Write the synthesis section of the maths tab: Gaussian start, Nyquist pre-filter, loss | STL `Synthesis.py` | reviewed by a maintainer before T6.1 |
 | T6.1 | P6 | Synthesis API with checkpoints | §12.9 | API tests: a run writes checkpoints and resumes from them |
 | T6.2 | P6 | Utilities and diagnostics | §12.10 | unit tests |
