@@ -15,7 +15,7 @@ Summary of [Part I, §5 — Tests, reference values, tolerances](../transfer/par
 | maths ↔ spec ↔ tests | every `M-` ID has a `_spec` function and a test, and vice versa (`tools/check_maths_ids.py`) |
 | API | manifest up to date, public vs internal, actionable error messages |
 | Reserved interfaces | each step-2 interface exercised through its trivial implementation |
-| STL parity | ESTEL vs STL in float64 (`make parity`, step 1 only) |
+| STL parity | ESTEL vs STL in float64, step 1 only: STL's results are fixtures of `tests/parity/fixtures/` (protected), made in the container by `make parity-fixtures`; the tests compare with them through `tests/parity/_compare.py` |
 
 Every test runs in float32 and float64 (`ESTEL_TEST_DTYPE`), on PyTorch and on the experimental JAX backend (`ESTEL_TEST_BACKEND=torch|jax`, the `backend` fixture; `tests/_backends.py`). `make check` runs every combination; tier 0 runs one backend per job. `tests/backend/test_torch.py` and `test_jax.py` run only on their own backend.
 

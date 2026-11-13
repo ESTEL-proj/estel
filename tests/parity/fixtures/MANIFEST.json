@@ -1,0 +1,27 @@
+{
+  "bump_steerable_kernel_2d.npz": {
+    "case": "tools/stl_parity/cases/bump_steerable_kernel_2d.py",
+    "stl_branch": "master",
+    "stl_commit": "8eaf7691d55f3c3441cde9b95f1f80eb17aa8014",
+    "image_id": "sha256:204d931b9889f73b1c9cf899d361c8b647f2b5ece050d09bf2188d534ed3b421",
+    "parameters": {
+      "J": 3,
+      "L": 4,
+      "K": 5,
+      "N": 32,
+      "seed": 0
+    },
+    "arrays": {
+      "kernel": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          4,
+          5,
+          5
+        ]
+      }
+    },
+    "sha256": "57481d681872f84633ff3d9bc2f87d09c97377bd80ff042b638570ccc05a7b9c"
+  }
+}

@@ -4,7 +4,7 @@
 RUN := uv run --locked
 
 .PHONY: check check-tools lint types lint-imports layers manifest mirrors mirrors-fix maths-ids workflows test \
-        test-torch test-jax version-impact parity-image parity container-runtime
+        test-torch test-jax version-impact parity-image parity parity-fixtures container-runtime
 
 # Backends the tests run on (Part I, §3.1). CI runs one per job: make check TEST_BACKENDS=torch
 TEST_BACKENDS ?= torch jax
@@ -76,6 +76,22 @@ parity-image: container-runtime
 
 parity: container-runtime
 	$(CONTAINER) run --rm --platform linux/amd64 $(PARITY_IMAGE)
+
+# Parity fixtures (Part II, §14.2; task T0.8): runs the cases of tools/stl_parity/cases/ in the
+# image and writes tests/parity/fixtures/ (protected: maintainers only). The cases are mounted,
+# not copied, so adding one needs no new image. One case: make parity-fixtures CASES=<name>
+CASES ?=
+PARITY_FIXTURES := tests/parity/fixtures
+
+parity-fixtures: container-runtime
+	@image_id=$$($(CONTAINER) image inspect --format '{{.Id}}' $(PARITY_IMAGE)) || { \
+		echo "No image '$(PARITY_IMAGE)': build it first with make parity-image."; exit 1; }; \
+	mkdir -p $(PARITY_FIXTURES) && \
+	$(CONTAINER) run --rm --platform linux/amd64 --user "$$(id -u):$$(id -g)" -e HOME=/tmp \
+		-e PARITY_IMAGE_ID="$$image_id" \
+		-v "$(CURDIR)/tools/stl_parity:/mnt/stl_parity:ro" \
+		-v "$(CURDIR)/$(PARITY_FIXTURES):/mnt/fixtures" \
+		$(PARITY_IMAGE) /bin/sh /mnt/stl_parity/run_fixtures.sh $(CASES)
 
 container-runtime:
 	@command -v $(CONTAINER) >/dev/null 2>&1 || { \

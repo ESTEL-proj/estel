@@ -4,8 +4,8 @@ The harness that compares ESTEL with STL during step 1 (Part II, §14 of
 [`docs/transfer/part2.md`](../../docs/transfer/part2.md#14-parity-protocol-with-stl)). It lives in the
 repository but is not shipped and not imported by ESTEL, and it is retired after 1.0.0.
 
-So far it holds the container (task T0.6). The parity cases come with the phases that need them
-(P2 onwards, §14.4).
+It holds the container (task T0.6) and the parity fixtures (task T0.8). The parity cases come
+with the phases that need them (P2 onwards, §14.4); `cases/` holds one example so far.
 
 ## The container
 
@@ -14,8 +14,8 @@ One image, built from [`Dockerfile`](Dockerfile), with one Python environment pe
 
 | Environment | STL-Dev branch | Commit | Used for |
 | --- | --- | --- | --- |
-| `/opt/venv/master` | `master` | `8eaf769` (v1.6.0) | 2D cross spectra |
-| `/opt/venv/2d1d` | `2D+1D` | `8f51143` | 1D, 2D and tensor-product statistics |
+| `/opt/venv/master` | `master` | `8eaf769` (v1.6.0) | every 2D result: statistics and spectra |
+| `/opt/venv/2d1d` | `2D+1D` | `8f51143` | 1D and tensor-product statistics |
 | `/opt/venv/healpix` | `HealpixUpdate` | `90eb1a9` | HEALPix statistics |
 
 The three commits install the same package (`STL_main`), so they cannot share an environment. Each
@@ -63,6 +63,35 @@ To archive the image with the parity report:
 ```bash
 docker save estel-stl-parity | gzip > estel-stl-parity.tar.gz
 ```
+
+## Parity fixtures
+
+STL's results enter the tests as fixtures (§14.2): `.npz` files in
+[`tests/parity/fixtures/`](../../tests/parity/fixtures), produced once in the container and
+compared with ESTEL on every PR, in float64, without Docker.
+
+- **A case** is a script of [`cases/`](cases) that names its STL environment (`STL_ENV`: `master`,
+  `2d1d` or `healpix`), its parameters and seeded inputs (`PARAMETERS`), and returns its results
+  as float64 or complex128 NumPy arrays (`run()`). It imports STL, never `estel`. The example,
+  [`cases/bump_steerable_kernel_2d.py`](cases/bump_steerable_kernel_2d.py), stores the 2D
+  bump-steerable kernels of STL `master`.
+- **`make parity-fixtures`** runs every case in its environment
+  ([`make_fixtures.py`](make_fixtures.py), through [`run_fixtures.sh`](run_fixtures.sh)) and writes
+  `tests/parity/fixtures/<case>.npz`. `make parity-fixtures CASES=<case>` runs one case. The cases
+  are mounted into the container, not copied, so a new case needs no new image; build the image
+  first with `make parity-image`.
+- **`MANIFEST.json`** records for each file the case script, the STL branch and the commit of its
+  checkout, the container image ID (`docker image inspect --format '{{.Id}}'`: a locally built
+  image has no registry digest), the parameters, each array's dtype and shape, and the file's
+  SHA-256. The files are written byte for byte the same when STL's results are the same, so
+  regenerating an unchanged case changes nothing.
+- **The tests** of [`tests/parity/`](../../tests/parity) check every fixture against the manifest,
+  and compare ESTEL with it through `load_fixture` and `assert_parity`
+  ([`tests/parity/_compare.py`](../../tests/parity/_compare.py)): same shape, NaN at the same
+  positions, rtol 1e-10 in float64 and 1e-5 in float32 (§14.3).
+- **`tests/parity/fixtures/` is protected.** Only a maintainer runs `make parity-fixtures` and
+  commits its output. An agent that needs a new case writes the case and its test, and asks for
+  the fixture in its PR.
 
 ## Changing the pins
 

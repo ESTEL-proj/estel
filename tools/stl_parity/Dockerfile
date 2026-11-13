@@ -1,12 +1,13 @@
 # Parity harness container (Part II, §14.2; task T0.6).
 #
 # One image, three STL environments, one per frozen STL-Dev commit of Part II, §9.1:
-#   /opt/venv/master    STL-Dev `master`        8eaf769 (v1.6.0)  2D cross spectra
-#   /opt/venv/2d1d      STL-Dev `2D+1D`         8f51143           1D, 2D, tensor products
+#   /opt/venv/master    STL-Dev `master`        8eaf769 (v1.6.0)  2D statistics and spectra
+#   /opt/venv/2d1d      STL-Dev `2D+1D`         8f51143           1D, tensor products
 #   /opt/venv/healpix   STL-Dev `HealpixUpdate` 90eb1a9           HEALPix, with healpix-analyse aac5e26
 # Every Python dependency is pinned in requirements/*.txt; PyTorch is 2.15.0+cpu in all three.
 #
-# Build and run from the repository root: make parity-image, then make parity.
+# Build and run from the repository root: make parity-image, then make parity; make
+# parity-fixtures runs the parity cases, which it mounts (tools/stl_parity/README.md).
 
 FROM --platform=linux/amd64 python:3.11-slim-bookworm
 
