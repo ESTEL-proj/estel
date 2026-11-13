@@ -402,7 +402,7 @@ Step 1 is validated by comparison: ESTEL and STL run on the same inputs, and the
 
 - **Location.** `tools/stl_parity/`, in the ESTEL repository but not shipped and not imported by the library.
 - **Environment.** A container image that pins each STL commit of §9.1, healpix-analyse `aac5e26`, and their PyTorch version. The image is archived with the parity report, so the comparison can be rerun after STL's dependencies have moved on.
-- **Which STL for what.** `master` for the 2D cross spectra; `2D+1D` for 1D, 2D and tensor-product statistics; `HealpixUpdate` for HEALPix statistics.
+- **Which STL for what.** `master` for every 2D result (statistics and spectra); `2D+1D` for 1D and tensor-product statistics; `HealpixUpdate` for HEALPix statistics.
 - **Inputs.** The reference inputs of Part I, §5.1, the test cases of the STOC deliverable at reduced sizes, and the cases of STL's certification notebooks (2D kernel, smoothing kernel design, 2D cross and power spectra, 1D kernel, 2D+1D kernel, HEALPix kernel), converted into scripts.
 
 ### 14.3 Comparison
@@ -434,7 +434,7 @@ During step 1, pull requests merge when CI passes; the three CODEOWNERS review s
 | --- | --- | --- |
 | P0 Bootstrap | One public repository, under Apache-2.0 (Part I, §1.5); policies, agent files, tier-0 CI, manifest and check tools; `docs/maths.md` exported from the maths tab; parity harness skeleton and its container | all tools run on an empty package |
 | P1 Backend | L0 for PyTorch and, experimental, for JAX; the conformance suite on both; the reserved engine and storage interfaces | conformance passes in float32 and float64 |
-| P2 Planar | `DataClass`, `Data1D`, `Data2D`, `WaveletOperator`, `ScatteringPlan`, `STOperator`, `STStatistics`, normalisation, reductions; `_spec` for planar data | parity with `2D+1D` on 1D and 2D statistics; second-order tests; peak memory measured against STL |
+| P2 Planar | `DataClass`, `Data1D`, `Data2D`, `WaveletOperator`, `ScatteringPlan`, `STOperator`, `STStatistics`, normalisation, reductions; `_spec` for planar data | parity with `master` on 2D statistics and with `2D+1D` on 1D statistics (without spectrum); second-order tests; peak memory measured against STL |
 | P3 Tensor products | `DataTensorProd`, `STOperatorTensorProd`, low-pass and box term as in STL; block dispatch along axes, benchmarked against `swapaxes` | parity with `2D+1D` on tensor products |
 | P4 Spectra | the 2D estimators of v1.6.0, with automatic selection | parity with `master` on 2D spectra |
 | P5 HEALPix | `DataHealpix`, with tables ported from `TorchGeometry` (no healpix-analyse at run time) | parity with `HealpixUpdate` on HEALPix statistics |
