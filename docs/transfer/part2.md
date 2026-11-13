@@ -335,7 +335,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `diagnostics.describe(obj) -> dict` | F | Plan summary: coefficient counts per family, memory estimate, levels, backend, engine | new |
 | `diagnostics.estimate_memory(shape, J, L, ...) -> dict` | F | Peak and output memory **before** building an operator | new |
 | `diagnostics.frequency_response(op, N)` | F | Fourier transform of the effective filters (kernels cascaded through the downsamplings) on an N grid, for plots and checks | `filters_fourier`, `_build_wavelet_kernel_from_ifft_crop` |
-| `diagnostics.littlewood_paley(op, N)` | F | Littlewood–Paley sum of the bank, built on `frequency_response`: a diagnostic, without a pass/fail criterion in 1.0.0; the basis of the CI test that comes with LF22 It reports the sum with and without the low-pass filter, in the convention of the maths tab (Λ) | new |
+| `diagnostics.littlewood_paley(op, N)` | F | Littlewood–Paley sum of the bank, built on `frequency_response`: a diagnostic, without a pass/fail criterion in 1.0.0; the basis of the CI test that comes with LF22. It reports the sum with and without the low-pass filter, in the convention of the maths tab (Λ) | new |
 | `diagnostics.energy_partition(op, N)` | F | The per-level energy partition P of the smoothing kernel and the wavelets (maths tab, "Filters and scales"); shows where energy is lost or counted twice between scales | new |
 | `diagnostics.aliasing(op, N)` | F | The fraction of energy that each downsampling folds back (Part III, §20.10) | new |
 
