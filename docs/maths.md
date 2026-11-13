@@ -455,7 +455,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-9 | Width factor 2.5 tuned for L = 4 only: the valid range of L to set |
 | OP-10 | Kernels cropped to 5×5 and centred, not renormalised; effective filters are cascades |
 | OP-11 | `var` and every STL "covariance" are non-centred second moments |
-| OP-12 | NaN threshold τ = 0.33 in 2D, 0.5 in 1D; reweighting 1/(1−f) |
+| OP-12 | NaN threshold τ = 0.33 in 2D, 0.5 in 1D; reweighting 1/(1−f); a pixel whose missing fraction equals τ exactly is decided by the last bit of H: ESTEL reproduces STL's correctly rounded H (`math.fsum`), and in float32 such ties may be decided differently from STL |
 | OP-13 | Borders too large for the array are silently reduced |
 | OP-14 | S1/S2 store c₁ ≤ c₂ only, S3/S4 both orders; conjugate duplicates (LF20) |
 | OP-15 | Scale indices of S3 named (j₁, j₂) in STL's comments, (j₂, j₃) in the code |
