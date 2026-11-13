@@ -1,0 +1,12 @@
+# Keeps the SHA-pinned actions of .github/workflows/ up to date (review rule E5): Dependabot bumps
+# the SHA and its version comment together. All updates arrive grouped in one weekly PR.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"
