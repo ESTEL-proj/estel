@@ -134,8 +134,8 @@ estel/                             # one repository for Python and Rust (Part IV
 │   ├── engines/                   # _protocol.py, _registry.py (reserved);
 │   │   │                          # python.py: the Python engine
 │   │   └── rust.py                # (step 2, LF3) adapter to the estel-rust wheel
-│   ├── data/                      # _base.py (DataClass), planar.py, healpix.py,
-│   │                              # tensor_prod.py, _masks.py
+│   ├── data/                      # _base.py (DataClass), _planar.py, _healpix.py,
+│   │                              # _tensor_prod.py, _masks.py
 │   ├── wavelets/                  # operator.py, _banks.py, _healpix_bank.py,
 │   │                              # _healpix_geometry.py (ported from TorchGeometry)
 │   ├── scattering/                # _plan.py, operator.py, operator_tensor_prod.py

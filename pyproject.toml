@@ -151,9 +151,9 @@ source_modules = [
     "estel.functional",
 ]
 forbidden_modules = [
-    "estel.data.planar",
-    "estel.data.healpix",
-    "estel.data.tensor_prod",
+    "estel.data._planar",
+    "estel.data._healpix",
+    "estel.data._tensor_prod",
 ]
 allow_indirect_imports = true
 broken_contract_guidance = "Use the DataClass interface of estel.data._base; add a geometry hook there if L2 needs something new."

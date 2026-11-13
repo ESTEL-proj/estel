@@ -61,20 +61,6 @@
     "estel.SYNTHESIS_REFERENCE": {
       "kind": "constant"
     },
-    "estel.data.planar.Data1D": {
-      "kind": "class",
-      "signature": "(self, array: Any, mask: Any=None, *, pbc: bool) -> None"
-    },
-    "estel.data.planar.Data1D.ndim": {
-      "kind": "constant"
-    },
-    "estel.data.planar.Data2D": {
-      "kind": "class",
-      "signature": "(self, array: Any, mask: Any=None, *, pbc: bool) -> None"
-    },
-    "estel.data.planar.Data2D.ndim": {
-      "kind": "constant"
-    },
     "estel.get_backend": {
       "kind": "function",
       "signature": "() -> str"

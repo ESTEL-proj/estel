@@ -2,7 +2,7 @@
 
 A DataClass is one backend array plus static metadata: the periodicity ``pbc`` and the mask of
 missing values. It is immutable: operations return new objects (:meth:`DataClass.with_array`),
-never modify one. Subclasses (``Data1D``, ``Data2D`` in ``planar.py``) set the number of spatial
+never modify one. Subclasses (``Data1D``, ``Data2D`` in ``_planar.py``) set the number of spatial
 axes and the geometry constants, and override only the geometry hooks (tag G of §12.4).
 
 Validation happens once, here, when the object is built (review rule B1): the array is converted

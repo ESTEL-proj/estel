@@ -19,7 +19,7 @@ import pytest
 from numpy.typing import NDArray
 
 from estel.data._masks import MaskMaps, build_mask_maps
-from estel.data.planar import Data1D, Data2D
+from estel.data._planar import Data1D, Data2D
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
 CASES = {"masks_2d": Data2D, "masks_1d": Data1D}
