@@ -42,7 +42,7 @@ def test_clean_layered_package_keeps_every_contract(tmp_path: Path) -> None:
             "estel/backend/torch/__init__.py": "import torch\n",
             "estel/data/__init__.py": "",
             "estel/data/_base.py": "import estel.backend\n",
-            "estel/data/planar.py": "import estel.data._base\n",
+            "estel/data/_planar.py": "import estel.data._base\n",
             "estel/scattering/__init__.py": "import estel.data._base\n",
             "estel/_spec/__init__.py": "import math\nimport numpy\n",
         },
@@ -80,9 +80,9 @@ def test_clean_layered_package_keeps_every_contract(tmp_path: Path) -> None:
         pytest.param(
             {
                 "estel/data/__init__.py": "",
-                "estel/data/planar.py": "",
+                "estel/data/_planar.py": "",
                 "estel/statistics/__init__.py": "",
-                "estel/statistics/stats.py": "from estel.data import planar\n",
+                "estel/statistics/stats.py": "from estel.data import _planar\n",
             },
             "L2 talks to the DataClass mother class, never to a subclass",
             id="l2-imports-subclass",

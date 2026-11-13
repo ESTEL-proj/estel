@@ -124,6 +124,14 @@ def current_backend() -> Backend:
     return _instance(_current)
 
 
+def backend_named(name: str) -> Backend:
+    """The primitives of the backend ``name`` (``"torch"`` or ``"jax"``), for objects that
+    recorded their backend when they were built. Internal: not in the manifest."""
+    if name not in _MODULES:
+        raise ValueError(f"no backend named {name!r}; ESTEL has {', '.join(BACKENDS)}.")
+    return _instance(name)
+
+
 # ------------------------------------------------------------------ dtype and device
 
 

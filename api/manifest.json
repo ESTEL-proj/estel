@@ -5,6 +5,56 @@
       "kind": "class",
       "signature": "()"
     },
+    "estel.Data1D": {
+      "kind": "class",
+      "signature": "(self, array: Any, mask: Any=None, *, pbc: bool) -> None"
+    },
+    "estel.Data1D.ndim": {
+      "kind": "constant"
+    },
+    "estel.Data2D": {
+      "kind": "class",
+      "signature": "(self, array: Any, mask: Any=None, *, pbc: bool) -> None"
+    },
+    "estel.Data2D.ndim": {
+      "kind": "constant"
+    },
+    "estel.DataClass": {
+      "kind": "class",
+      "signature": "(self, array: Any, mask: Any=None, *, pbc: bool) -> None"
+    },
+    "estel.DataClass.array": {
+      "kind": "property"
+    },
+    "estel.DataClass.backend": {
+      "kind": "property"
+    },
+    "estel.DataClass.copy": {
+      "kind": "method",
+      "signature": "(self, empty: bool=False) -> DataClass"
+    },
+    "estel.DataClass.mask": {
+      "kind": "property"
+    },
+    "estel.DataClass.n_batch": {
+      "kind": "property"
+    },
+    "estel.DataClass.n_channels": {
+      "kind": "property"
+    },
+    "estel.DataClass.ndim": {
+      "kind": "constant"
+    },
+    "estel.DataClass.pbc": {
+      "kind": "property"
+    },
+    "estel.DataClass.shape": {
+      "kind": "property"
+    },
+    "estel.DataClass.with_array": {
+      "kind": "method",
+      "signature": "(self, new_array: Any) -> DataClass"
+    },
     "estel.STATISTICS_REFERENCE": {
       "kind": "constant"
     },

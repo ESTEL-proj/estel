@@ -134,8 +134,8 @@ estel/                             # one repository for Python and Rust (Part IV
 │   ├── engines/                   # _protocol.py, _registry.py (reserved);
 │   │   │                          # python.py: the Python engine
 │   │   └── rust.py                # (step 2, LF3) adapter to the estel-rust wheel
-│   ├── data/                      # _base.py (DataClass), planar.py, healpix.py,
-│   │                              # tensor_prod.py, _masks.py
+│   ├── data/                      # _base.py (DataClass), _planar.py, _healpix.py,
+│   │                              # _tensor_prod.py, _masks.py
 │   ├── wavelets/                  # operator.py, _banks.py, _healpix_bank.py,
 │   │                              # _healpix_geometry.py (ported from TorchGeometry)
 │   ├── scattering/                # _plan.py, operator.py, operator_tensor_prod.py
@@ -237,7 +237,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `_crop_weights(level, border)` | G | Planar: removal of non-periodic borders, widths from the plan. HEALPix: identity | `_crop`, `_get_crop_border_size_*` |
 | `_nyquist_filter(x)` | G | Pre-filter before synthesis | `apply_nyquist_filter`, `apply_bandlimit` |
 | `_spectrum_geometry()` | G | 2D: FFT frequency grids. Other geometries: later (LF23, LF24) | `CS_operator_*` initialisation |
-| `Data1D`, `Data2D` | F | Explicit planar classes sharing `planar.py`, differing by `ndim` | `STL_1D_Kernel_Torch`, `STL_2D_Kernel_Torch` |
+| `Data1D`, `Data2D` | F | Explicit planar classes sharing `_planar.py`, differing by `ndim` | `STL_1D_Kernel_Torch`, `STL_2D_Kernel_Torch` |
 | `DataHealpix(array, depth, cell_ids=None, partition=None, ...)` | F | NESTED ordering, partial sky through `cell_ids`; `depth`, not `nside` (rule A4). `partition` is reserved (§9.4) | `STL_Healpix_Kernel_Torch` |
 | `DataTensorProd(array, blocks, pbc)` | F | `blocks = (Data1D, Data2D, …)` in axis order. It **composes** block geometries (`BlockSpec`: class, axes, pbc) instead of creating classes at run time: one array, all blocks on the same backend | `STL_TensorProd_Kernel_Torch`, `DimHandler` |
 | `DataTensorProd._conv`, `_downsample`, `_crop_weights` | G | Dispatch to the geometry of each block, applied along that block's own axes, without `swapaxes`. Phase P3 benchmarks it against STL's `swapaxes`, which is kept only where it is measurably faster | `_as_data_class_of`, `_from_data_class_of` |
