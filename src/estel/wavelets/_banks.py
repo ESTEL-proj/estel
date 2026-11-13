@@ -208,6 +208,10 @@ def smoothing_kernel(ndim: int) -> NDArray[np.float64]:
       STL's literals.
 
     STL's ``sigma_smooth`` has no effect and is dropped (OP-25).
+
+    Terminology: this is the filter of one downsampling step. The low-pass filter is
+    phi_J, the effective filter of scale J (M-LP), which STL realises as the cascade of the
+    smoothing kernels of J downsamplings; in ESTEL "low-pass filter" never means this kernel.
     """
     if isinstance(ndim, bool) or ndim not in (1, 2):
         raise ValueError(
@@ -220,5 +224,5 @@ def smoothing_kernel(ndim: int) -> NDArray[np.float64]:
     # sequential sum is one unit in the last place lower, and that bit decides the masked
     # downsampling where a fraction of invalid input equals τ = 0.5 exactly (M-DOWN-MASK).
     row = _SMOOTHING_KERNEL_2D[2]
-    h: NDArray[np.float64] = row / math.fsum(row)
-    return h
+    s: NDArray[np.float64] = row / math.fsum(row)
+    return s

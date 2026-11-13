@@ -65,8 +65,8 @@ def test_banks_are_new_arrays() -> None:
     first = bump_steerable_2d(4)
     first[...] = 0.0
     assert np.abs(bump_steerable_2d(4)).max() > 0.0
-    h = smoothing_kernel(2)
-    h[...] = 0.0
+    s = smoothing_kernel(2)
+    s[...] = 0.0
     assert smoothing_kernel(2).sum() > 0.5
 
 

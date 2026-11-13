@@ -288,7 +288,7 @@ In step 1, `maths.md` records the mathematics of STL **as it is**, including cho
 | M-DATA | Fields, masks, valid-pixel weights, pbc per block | 1 |
 | M-WAV-1D, M-WAV-2D | Bump-steerable kernels: construction in Fourier space, crop to 5 taps or 5×5, orientations; the analytic 1D wavelet and its conjugate | 1 |
 | M-WAV-HPX | HEALPix gauge-oriented kernels, stencils, decimation. The definitions of the STL-Dev-MPI `CLAUDE.md` §3, which give the same numbers as the PyTorch code (Q10) | 1 |
-| M-H, M-LP | Anti-aliasing kernel H; low-pass φ\_J = H^(J) | 1 |
+| M-SMOOTH-2D, M-SMOOTH-1D, M-LP | Smoothing kernel s, the filter of one downsampling step; low-pass filter φ\_J, the effective filter of scale J, realised as the cascade of the smoothing kernels | 1 |
 | M-DOWN | Normalised downsampling, and the threshold below which an output pixel is masked | 1 |
 | M-BORDER | Padding modes; crop widths as a function of the convolutions applied | 1 |
 | M-MASK | Mask propagation through convolutions | 1 |

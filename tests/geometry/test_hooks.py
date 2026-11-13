@@ -110,14 +110,14 @@ def test_downsample_is_strided_correlation_with_the_smoothing_kernel(
     backend: Backend, dtype: DType, ndim: int, pbc: bool, complex_input: bool
 ) -> None:
     data = _geometry(ndim, 16, pbc)
-    h = smoothing_kernel(ndim)
+    s = smoothing_kernel(ndim)
     x = _field((2, 3) + (16,) * ndim, complex_=complex_input)
     in_dtype = COMPLEX[dtype] if complex_input else dtype
     out = data._downsample(
-        backend.asarray(x, in_dtype), DownsampleWeights(backend.asarray(h, dtype)), 0
+        backend.asarray(x, in_dtype), DownsampleWeights(backend.asarray(s, dtype)), 0
     )
     # Padded by 2 before and 3 after, stride 2 (M-DOWN, OP-2).
-    _assert_close(backend, out, _correlate(x, h, 2, 3, pbc, 2), dtype)
+    _assert_close(backend, out, _correlate(x, s, 2, 3, pbc, 2), dtype)
 
 
 @pytest.mark.maths("M-DOWN-MASK")
@@ -132,17 +132,17 @@ def test_masked_downsample_zeroes_invalid_inputs_and_reweights(
     rng = np.random.default_rng(3)
     mask = rng.random((n,) * ndim) < 0.15
     data = GEOMETRIES[ndim](np.zeros((n,) * ndim), mask=mask, pbc=pbc)
-    h = smoothing_kernel(ndim)
-    maps = build_mask_maps(mask, 2, h, 5, data._nan_threshold, pbc)
+    s = smoothing_kernel(ndim)
+    maps = build_mask_maps(mask, 2, s, 5, data._nan_threshold, pbc)
     field = _field((2, 1) + (n,) * ndim)
     x = np.where(mask, np.nan, field)
     weights = DownsampleWeights(
-        backend.asarray(h, dtype),
+        backend.asarray(s, dtype),
         backend.asarray(~mask, "bool"),
         backend.asarray(maps.smooth_reweight[1], dtype),
     )
     out = data._downsample(backend.asarray(x, dtype), weights, 0)
-    expected = _correlate(np.where(mask, 0.0, field), h, 2, 3, pbc, 2) * maps.smooth_reweight[1]
+    expected = _correlate(np.where(mask, 0.0, field), s, 2, 3, pbc, 2) * maps.smooth_reweight[1]
     _assert_close(backend, out, expected, dtype)
 
     xp = backend.xp
@@ -156,18 +156,18 @@ def test_masked_downsample_zeroes_invalid_inputs_and_reweights(
 
 def test_downsample_rejects_bad_inputs(backend: Backend, dtype: DType) -> None:
     data = _geometry(2, 8, True)
-    h = backend.asarray(smoothing_kernel(2), dtype)
+    s = backend.asarray(smoothing_kernel(2), dtype)
     x = backend.asarray(_field((1, 1, 8, 8)), dtype)
     with pytest.raises(ValueError, match="smoothing_kernel"):
         data._downsample(x, DownsampleWeights(backend.asarray(smoothing_kernel(1), dtype)), 0)
     with pytest.raises(ValueError, match="or neither"):
         data._downsample(
-            x, DownsampleWeights(h, valid=backend.asarray(np.ones((8, 8), bool), "bool")), 0
+            x, DownsampleWeights(s, valid=backend.asarray(np.ones((8, 8), bool), "bool")), 0
         )
     odd = _geometry(2, 6, True)
     with pytest.raises(ValueError, match="divisible by 2"):
         odd._downsample(
-            backend.asarray(_field((1, 1, 6, 6))[..., :5, :5], dtype), DownsampleWeights(h), 0
+            backend.asarray(_field((1, 1, 6, 6))[..., :5, :5], dtype), DownsampleWeights(s), 0
         )
 
 

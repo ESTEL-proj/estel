@@ -34,7 +34,7 @@ def _maps(case: str, pbc: bool) -> tuple[MaskMaps, dict[str, NDArray[Any]], dict
     maps = build_mask_maps(
         fixture["mask_full_res"] > 0,
         n_levels=parameters["J"],
-        h=smoothing_kernel(CASES[case].ndim),
+        s=smoothing_kernel(CASES[case].ndim),
         kernel_size=parameters["K"],
         threshold=CASES[case]._nan_threshold,
         pbc=pbc,

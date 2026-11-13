@@ -10,7 +10,7 @@ both modes, ESTEL only those of the data's ``pbc``. One difference of representa
 stores NaN in a reweighting map to mark an invalid pixel, ESTEL stores a boolean mask and a
 reweighting of 0 there (maths.md OP-27). ``tests/parity/test_masks.py`` checks the equality.
 
-Each downsampling step correlates with the smoothing kernel ``h``, the anti-aliasing filter of the
+Each downsampling step correlates with the smoothing kernel ``s``, the anti-aliasing filter of the
 downsampling (maths.md M-SMOOTH-2D, M-SMOOTH-1D), passed in; the wavelet footprint E is a box
 of the kernel size K on every spatial axis.
 """
@@ -80,12 +80,12 @@ def _correlate(a: FloatMap, kernel: FloatMap, stride: int) -> FloatMap:
     return np.tensordot(windows, kernel, axes=(axes, tuple(range(a.ndim))))
 
 
-def downsample_step(a: FloatMap, h: FloatMap, pbc: bool) -> FloatMap:
+def downsample_step(a: FloatMap, s: FloatMap, pbc: bool) -> FloatMap:
     """One downsampling step (M-DOWN): pad by ``(K-1)//2`` before and ``K//2`` after each axis,
-    correlate with ``h``, keep one pixel in two. ``h`` has one axis per axis of ``a``."""
-    if h.ndim != a.ndim:
+    correlate with ``s``, keep one pixel in two. ``s`` has one axis per axis of ``a``."""
+    if s.ndim != a.ndim:
         raise ValueError(
-            f"the smoothing kernel has {h.ndim} axes but the map has {a.ndim}: pass the "
+            f"the smoothing kernel has {s.ndim} axes but the map has {a.ndim}: pass the "
             "smoothing kernel of the geometry, smoothing_kernel(ndim) (maths.md M-SMOOTH-2D, "
             "M-SMOOTH-1D)."
         )
@@ -95,8 +95,8 @@ def downsample_step(a: FloatMap, h: FloatMap, pbc: bool) -> FloatMap:
             f"cannot downsample a map of shape {a.shape}: every axis must be even at each "
             "level, so the sizes must be divisible by 2^(J-1) (maths.md M-DATA-2D, OP-8)."
         )
-    widths = [((k - 1) // 2, k // 2) for k in h.shape]
-    return _correlate(_pad(a, widths, pbc), h, stride=2)
+    widths = [((k - 1) // 2, k // 2) for k in s.shape]
+    return _correlate(_pad(a, widths, pbc), s, stride=2)
 
 
 def propagate_mask_conv(mask: BoolMap, footprint: Sequence[int], pbc: bool) -> BoolMap:
@@ -122,7 +122,7 @@ def _threshold(fraction: FloatMap, threshold: float) -> tuple[BoolMap, FloatMap]
 def build_mask_maps(
     mask: BoolMap,
     n_levels: int,
-    h: FloatMap,
+    s: FloatMap,
     kernel_size: int,
     threshold: float,
     pbc: bool,
@@ -130,17 +130,17 @@ def build_mask_maps(
     """The static maps of ``mask`` for levels 0 … ``n_levels``-1 (M-DOWN-MASK, M-MASK).
 
     ``mask`` is the full-resolution mask (True = missing), with one axis per spatial axis;
-    ``n_levels`` is J; ``h`` the smoothing kernel of the geometry, summing to 1;
+    ``n_levels`` is J; ``s`` the smoothing kernel of the geometry, summing to 1;
     ``kernel_size`` the wavelet support K; ``threshold`` the τ of the geometry
     (``Data2D._nan_threshold``, ``Data1D._nan_threshold``); ``pbc`` the padding mode.
     """
     m0 = np.asarray(mask, dtype=bool)
-    h = np.asarray(h, dtype=np.float64)
+    s = np.asarray(s, dtype=np.float64)
     if n_levels < 1:
         raise ValueError(f"n_levels={n_levels}: there is at least one level (J ≥ 1).")
-    if not np.isclose(h.sum(), 1.0):
+    if not np.isclose(s.sum(), 1.0):
         raise ValueError(
-            f"the smoothing kernel sums to {h.sum()}, not 1: pass the smoothing kernel of the "
+            f"the smoothing kernel sums to {s.sum()}, not 1: pass the smoothing kernel of the "
             "geometry, smoothing_kernel(ndim) (maths.md M-SMOOTH-2D, M-SMOOTH-1D)."
         )
     footprint = (kernel_size,) * m0.ndim
@@ -150,7 +150,7 @@ def build_mask_maps(
     smooth = [(m0, np.ones(m0.shape))]
     for _ in range(1, n_levels):
         parent = smooth[-1][0].astype(np.float64)
-        smooth.append(_threshold(downsample_step(parent, h, pbc), threshold))
+        smooth.append(_threshold(downsample_step(parent, s, pbc), threshold))
 
     # Layer 1: data convolved at scale j, at level j.
     layer1 = {j: propagate_mask_conv(smooth[j][0], footprint, pbc) for j in range(n_levels)}
@@ -160,7 +160,7 @@ def build_mask_maps(
     for j in range(n_levels - 1):
         chain = [layer1[j]]
         for _ in range(j + 1, n_levels):
-            step = _threshold(downsample_step(chain[-1].astype(np.float64), h, pbc), threshold)
+            step = _threshold(downsample_step(chain[-1].astype(np.float64), s, pbc), threshold)
             chain.append(step[0])
             wav = {**wav, (j + len(chain) - 1, j): step}
 

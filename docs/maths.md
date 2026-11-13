@@ -140,6 +140,7 @@ The smoothing kernel is the anti-aliasing filter applied before each downsamplin
 
 - The constructor argument `sigma_smooth` exists but has **no effect**: the kernel is hard-coded. **⚠ OP-25**
 - **Source:** `_get_smooth_kernel` (the 2×2, 3×3 and 5×5 alternatives in the code are disabled).
+- **Terminology.** The smoothing kernel s is the filter of one downsampling step. The low-pass filter φ\_J (tensor-product section, §3, which will define its ID) is the effective filter of scale J. STL realises φ\_J as the cascade of the smoothing kernels of J downsamplings, which is the realisation that closes the energy sum of the pyramid; a dedicated low-pass kernel φ remains possible (LF6, LF22). In ESTEL, "low-pass filter" always means φ\_J, never s.
 
 #### M-DOWN — Downsampling without mask
 

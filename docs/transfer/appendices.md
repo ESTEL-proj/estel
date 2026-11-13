@@ -15,6 +15,8 @@
 | Scattering-transform statistics | Numbers that summarise a field from its responses to wavelets of several scales and orientations, and from the interactions between those responses |
 | S1, S2, S3, S4 | The families of statistics: mean modulus and energy of the wavelet responses (S1, S2), and correlations between scales (S3, S4) |
 | Wavelet, low-pass filter (φ) | A wavelet selects a band of scales and an orientation; the low-pass filter keeps only the largest scales |
+| Smoothing kernel | s, the filter of one downsampling step (M-SMOOTH-2D, M-SMOOTH-1D) |
+| Low-pass filter | φ\_J, the effective filter of scale J (M-LP); realised in STL and 1.0.0 as the cascade of the smoothing kernels; never used for s |
 | Box term | The statistics of the low-passed field, with its mean removed |
 | Tensor product, block | A field defined on several domains at once (space × time, space × depth); each domain is a block, with its own wavelets |
 | pbc | Periodic boundary conditions: whether a domain wraps around |
