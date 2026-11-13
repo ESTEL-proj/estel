@@ -160,6 +160,7 @@ Each rule is enforced by a mechanical check — `import-linter` contracts and a 
 | `estel._spec` imports NumPy only, and nothing from `estel` | import-linter "independence" contract |
 | No `type(x).__name__ ==` comparisons, no assignment to `__class__` | AST check |
 | No in-place array mutation in L1/L2 (`x[...] =`, `out=`, `.add_`, `inplace=True`, `x += y`, `del x[...]`, `__setitem__`). The NumPy modules that build the static plan (tag N in Part II, §12) are exempt from this rule only, through an explicit list in the checker: they run once, at construction, and are never traced or differentiated | AST check |
+| CI workflows: every action pinned to a full commit SHA with its version as a comment; every checkout with `persist-credentials: false`; an explicit top-level `permissions:` block (review rule E5). Dependabot proposes the updates of pinned actions | `tools/check_workflows.py` |
 | **Public vs internal.** Public names are exactly those listed in `api/manifest.json` and exported from `estel/__init__.py`. Internal functions live in private modules, named with a leading underscore (`spectra/_estimators.py`), with plain names inside; internal methods of public classes start with an underscore | `tools/api_manifest.py --check` fails if a name is reachable without an underscore, outside a private module, and not in the manifest |
 
 **Why these rules, in plain terms:**
@@ -421,6 +422,7 @@ How the two steps map onto versions:
 - `api/manifest.json`: an entry removed or changed → major, an entry added → minor;
 - the geometry registry changed → major;
 - the `bench` label → minor.
+- a PR that changes only `.github/` needs no news fragment: it does not change the package. Such PRs, including Dependabot's, still need CODEOWNER approval, since `.github/` is protected.
 
 **How CI sees a bump of a reference counter.** `STATISTICS_REFERENCE` and `SYNTHESIS_REFERENCE` are integer constants in `src/estel/_reference.py`, a protected file (§5.3), exported by `estel/__init__.py`. `tools/version_impact.py` reads them on the base branch and on the PR:
 

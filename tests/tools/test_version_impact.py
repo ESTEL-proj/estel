@@ -76,6 +76,61 @@ def test_added_entry_with_minor_fragment_passes(repo: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    "labels",
+    [pytest.param((), id="no-label"), pytest.param(("--labels", "bench"), id="bench-label")],
+)
+def test_github_only_change_needs_no_fragment(repo: Path, labels: tuple[str, ...]) -> None:
+    commit(
+        repo,
+        {
+            ".github/workflows/tier0.yml": "on: push\n",
+            ".github/dependabot.yml": "version: 2\n",
+        },
+    )
+    result = impact(repo, "--pr", "7", *labels)
+    assert result.returncode == 0, result.stderr
+    assert "required bump: none (no package change)" in result.stdout
+    assert "needs CODEOWNER approval" in result.stdout
+    assert ("`bench` label is ignored" in result.stdout) == bool(labels)
+
+
+def test_github_only_deletion_needs_no_fragment(repo: Path) -> None:
+    commit(repo, {".github/old.yml": "x"})
+    git(repo, "checkout", "-q", "-B", "main")
+    git(repo, "checkout", "-q", "-b", "drop-old")
+    git(repo, "rm", "-q", ".github/old.yml")
+    git(repo, "commit", "-q", "-m", "drop")
+    result = impact(repo, "--pr", "7")
+    assert result.returncode == 0, result.stderr
+    assert "no package change" in result.stdout
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        pytest.param(
+            {".github/workflows/tier0.yml": "on: push\n", "README.md": "y"},
+            id="github-and-docs",
+        ),
+        pytest.param({"tools/github/x.py": "", "docs/.github.md": "x"}, id="github-in-name-only"),
+    ],
+)
+def test_github_exemption_needs_every_file_under_github(repo: Path, files: dict[str, str]) -> None:
+    commit(repo, files)
+    result = impact(repo, "--pr", "7")
+    assert result.returncode == 1
+    assert "No news fragment. Add changes/7.patch.md" in result.stderr
+    assert "no package change" not in result.stdout
+
+
+def test_empty_diff_still_needs_a_fragment(repo: Path) -> None:
+    git(repo, "commit", "-q", "--allow-empty", "-m", "empty")
+    result = impact(repo, "--pr", "7")
+    assert result.returncode == 1
+    assert "No news fragment" in result.stderr
+
+
+@pytest.mark.parametrize(
     ("files", "args", "message"),
     [
         pytest.param(

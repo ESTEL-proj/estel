@@ -6,6 +6,7 @@
 
 - One topic, branched from `main`; follow-ups named explicitly.
 - A news fragment `changes/<PR>.<major|minor|patch>.md`.
+- Exception: a PR that changes only `.github/` needs no news fragment, since it does not change the package (Part I, §7.2). It still needs CODEOWNER approval.
 - `make check` green locally; its summary in the description.
 - No new `skip` or `xfail` without the `test-change` label; the number of tests may not drop.
 
