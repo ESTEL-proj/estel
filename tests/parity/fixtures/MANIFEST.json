@@ -1427,5 +1427,1349 @@
       }
     },
     "sha256": "7f391cec89a5059fde1777d291da76f46ac578e108f2c9638194955b368ea263"
+  },
+  "scattering_1d.npz": {
+    "case": "tools/stl_parity/cases/scattering_1d.py",
+    "stl_branch": "2D+1D",
+    "stl_commit": "8f51143c5f8ebc259328830f246894d7031acae5",
+    "image_id": "sha256:8b35ee00a5fc4f993e95083087b63c2fbab51f0bffeb865ea3dbfa19ece7f757",
+    "parameters": {
+      "L": 1,
+      "threshold": 0.5,
+      "masks": {
+        "gap": {
+          "seed": 2,
+          "scatter_fraction": 0.05,
+          "gap": [
+            40,
+            47
+          ]
+        }
+      },
+      "configs": {
+        "periodic": {
+          "N": 128,
+          "J": 4,
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": true,
+          "seed": 20
+        },
+        "open": {
+          "N": 128,
+          "J": 4,
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": false,
+          "seed": 21
+        },
+        "masked_open": {
+          "N": 128,
+          "J": 3,
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": false,
+          "seed": 22,
+          "mask": "gap"
+        },
+        "masked_periodic": {
+          "N": 128,
+          "J": 4,
+          "Nb": 1,
+          "Nc": 2,
+          "pbc": true,
+          "seed": 23,
+          "mask": "gap"
+        },
+        "standardized": {
+          "N": 128,
+          "J": 4,
+          "Nb": 2,
+          "Nc": 1,
+          "pbc": false,
+          "seed": 24,
+          "mask": "gap",
+          "standardize": true
+        },
+        "cross_matrix": {
+          "N": 128,
+          "J": 4,
+          "Nb": 1,
+          "Nc": 3,
+          "pbc": true,
+          "seed": 25,
+          "cross_matrix": [
+            [
+              true,
+              false,
+              true
+            ],
+            [
+              false,
+              false,
+              true
+            ],
+            [
+              false,
+              false,
+              true
+            ]
+          ]
+        },
+        "conjugate": {
+          "N": 128,
+          "J": 4,
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": false,
+          "seed": 26,
+          "L": 2
+        },
+        "deep_open": {
+          "N": 128,
+          "J": 4,
+          "Nb": 1,
+          "Nc": 1,
+          "pbc": false,
+          "seed": 27,
+          "mask": "gap"
+        }
+      }
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "conjugate_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          4,
+          2
+        ]
+      },
+      "conjugate_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          4,
+          2
+        ]
+      },
+      "conjugate_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          4,
+          4,
+          2,
+          2
+        ]
+      },
+      "conjugate_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          4,
+          4,
+          4,
+          2,
+          2,
+          2
+        ]
+      },
+      "conjugate_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          128
+        ]
+      },
+      "conjugate_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "conjugate_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "cross_matrix_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          3,
+          3,
+          4,
+          1
+        ]
+      },
+      "cross_matrix_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          3,
+          3,
+          4,
+          1
+        ]
+      },
+      "cross_matrix_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          3,
+          3,
+          4,
+          4,
+          1,
+          1
+        ]
+      },
+      "cross_matrix_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          3,
+          3,
+          4,
+          4,
+          4,
+          1,
+          1,
+          1
+        ]
+      },
+      "cross_matrix_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          3,
+          128
+        ]
+      },
+      "cross_matrix_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          3
+        ]
+      },
+      "cross_matrix_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          3
+        ]
+      },
+      "deep_open_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          4,
+          1
+        ]
+      },
+      "deep_open_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          4,
+          1
+        ]
+      },
+      "deep_open_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          4,
+          4,
+          1,
+          1
+        ]
+      },
+      "deep_open_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          4,
+          4,
+          4,
+          1,
+          1,
+          1
+        ]
+      },
+      "deep_open_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          128
+        ]
+      },
+      "deep_open_mask": {
+        "dtype": "float64",
+        "shape": [
+          128
+        ]
+      },
+      "deep_open_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "deep_open_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "masked_open_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          1
+        ]
+      },
+      "masked_open_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          1
+        ]
+      },
+      "masked_open_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          1,
+          1
+        ]
+      },
+      "masked_open_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          1,
+          1,
+          1
+        ]
+      },
+      "masked_open_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          128
+        ]
+      },
+      "masked_open_mask": {
+        "dtype": "float64",
+        "shape": [
+          128
+        ]
+      },
+      "masked_open_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "masked_open_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "masked_periodic_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          4,
+          1
+        ]
+      },
+      "masked_periodic_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          4,
+          1
+        ]
+      },
+      "masked_periodic_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          4,
+          4,
+          1,
+          1
+        ]
+      },
+      "masked_periodic_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          4,
+          4,
+          4,
+          1,
+          1,
+          1
+        ]
+      },
+      "masked_periodic_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2,
+          128
+        ]
+      },
+      "masked_periodic_mask": {
+        "dtype": "float64",
+        "shape": [
+          128
+        ]
+      },
+      "masked_periodic_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "masked_periodic_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "open_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          4,
+          1
+        ]
+      },
+      "open_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          4,
+          1
+        ]
+      },
+      "open_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          4,
+          4,
+          1,
+          1
+        ]
+      },
+      "open_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          4,
+          4,
+          4,
+          1,
+          1,
+          1
+        ]
+      },
+      "open_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          128
+        ]
+      },
+      "open_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "open_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "periodic_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          4,
+          1
+        ]
+      },
+      "periodic_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          4,
+          1
+        ]
+      },
+      "periodic_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          4,
+          4,
+          1,
+          1
+        ]
+      },
+      "periodic_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          4,
+          4,
+          4,
+          1,
+          1,
+          1
+        ]
+      },
+      "periodic_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          128
+        ]
+      },
+      "periodic_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "periodic_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "standardized_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          4,
+          1
+        ]
+      },
+      "standardized_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          4,
+          1
+        ]
+      },
+      "standardized_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          4,
+          4,
+          1,
+          1
+        ]
+      },
+      "standardized_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          4,
+          4,
+          4,
+          1,
+          1,
+          1
+        ]
+      },
+      "standardized_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1,
+          128
+        ]
+      },
+      "standardized_mask": {
+        "dtype": "float64",
+        "shape": [
+          128
+        ]
+      },
+      "standardized_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "standardized_mean_pre_std": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "standardized_std_pre_std": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "standardized_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      }
+    },
+    "sha256": "4fce21591af13f6eeb804461acc15cc0f0e1823ec3d665c53549839ac0775dac"
+  },
+  "scattering_2d.npz": {
+    "case": "tools/stl_parity/cases/scattering_2d.py",
+    "stl_branch": "master",
+    "stl_commit": "8eaf7691d55f3c3441cde9b95f1f80eb17aa8014",
+    "image_id": "sha256:8b35ee00a5fc4f993e95083087b63c2fbab51f0bffeb865ea3dbfa19ece7f757",
+    "parameters": {
+      "L": 4,
+      "threshold": 0.33,
+      "masks": {
+        "scatter_hole": {
+          "seed": 1,
+          "scatter_fraction": 0.03,
+          "hole": [
+            [
+              10,
+              17
+            ],
+            [
+              4,
+              13
+            ]
+          ]
+        },
+        "small_hole": {
+          "seed": 1,
+          "scatter_fraction": 0.0,
+          "hole": [
+            [
+              30,
+              33
+            ],
+            [
+              30,
+              34
+            ]
+          ]
+        }
+      },
+      "configs": {
+        "periodic": {
+          "N": 32,
+          "J": 3,
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": true,
+          "seed": 10
+        },
+        "open": {
+          "N": 32,
+          "J": 3,
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": false,
+          "seed": 11
+        },
+        "masked_open": {
+          "N": 32,
+          "J": 3,
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": false,
+          "seed": 12,
+          "mask": "scatter_hole"
+        },
+        "masked_periodic": {
+          "N": 32,
+          "J": 3,
+          "Nb": 1,
+          "Nc": 2,
+          "pbc": true,
+          "seed": 13,
+          "mask": "scatter_hole"
+        },
+        "standardized": {
+          "N": 32,
+          "J": 3,
+          "Nb": 2,
+          "Nc": 1,
+          "pbc": false,
+          "seed": 14,
+          "mask": "scatter_hole",
+          "standardize": true
+        },
+        "cross_matrix": {
+          "N": 32,
+          "J": 3,
+          "Nb": 1,
+          "Nc": 3,
+          "pbc": true,
+          "seed": 15,
+          "cross_matrix": [
+            [
+              true,
+              false,
+              true
+            ],
+            [
+              false,
+              false,
+              true
+            ],
+            [
+              false,
+              false,
+              true
+            ]
+          ]
+        },
+        "deep_open": {
+          "N": 64,
+          "J": 4,
+          "Nb": 1,
+          "Nc": 1,
+          "pbc": false,
+          "seed": 16,
+          "mask": "small_hole"
+        }
+      }
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "cross_matrix_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          3,
+          3,
+          3,
+          4
+        ]
+      },
+      "cross_matrix_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          3,
+          3,
+          3,
+          4
+        ]
+      },
+      "cross_matrix_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          3,
+          3,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "cross_matrix_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          3,
+          3,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "cross_matrix_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          3,
+          32,
+          32
+        ]
+      },
+      "cross_matrix_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          3
+        ]
+      },
+      "cross_matrix_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          3
+        ]
+      },
+      "deep_open_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          4,
+          4
+        ]
+      },
+      "deep_open_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          4,
+          4
+        ]
+      },
+      "deep_open_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          4,
+          4,
+          4,
+          4
+        ]
+      },
+      "deep_open_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4
+        ]
+      },
+      "deep_open_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          64,
+          64
+        ]
+      },
+      "deep_open_mask": {
+        "dtype": "float64",
+        "shape": [
+          64,
+          64
+        ]
+      },
+      "deep_open_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "deep_open_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "masked_open_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "masked_open_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "masked_open_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "masked_open_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "masked_open_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "masked_open_mask": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          32
+        ]
+      },
+      "masked_open_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "masked_open_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "masked_periodic_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "masked_periodic_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "masked_periodic_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "masked_periodic_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "masked_periodic_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2,
+          32,
+          32
+        ]
+      },
+      "masked_periodic_mask": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          32
+        ]
+      },
+      "masked_periodic_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "masked_periodic_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "open_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "open_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "open_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "open_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "open_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "open_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "open_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "periodic_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "periodic_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "periodic_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "periodic_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "periodic_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "periodic_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "periodic_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "standardized_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "standardized_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "standardized_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "standardized_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "standardized_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1,
+          32,
+          32
+        ]
+      },
+      "standardized_mask": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          32
+        ]
+      },
+      "standardized_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "standardized_mean_pre_std": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "standardized_std_pre_std": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "standardized_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      }
+    },
+    "sha256": "cd01a1964c7a4b5bac861ae5802f159be1a7bf0d25f819dedc1b7a993dee121c"
   }
 }

@@ -267,7 +267,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 
 | Function | Tag | Purpose | Origin |
 | --- | --- | --- | --- |
-| `STOperator(data, J=None, L=None, *, norm="store_ref", compute_cross_matrix=None, compute_PS=None, engine="python", **wavelet_kwargs)` | F | Single-domain operator (1D, 2D, HEALPix). Every computation option is set here, once. Reductions and selections are `STStatistics` methods only (rule A6). `compute_PS` is True by default for 2D data and unavailable elsewhere in 1.0.0. `engine` is reserved | `ST_Operator.__init__` |
+| `STOperator(data, J=None, L=None, *, norm="store_ref", standardize=False, compute_cross_matrix=None, compute_PS=None, engine="python", **wavelet_kwargs)` | F | Single-domain operator (1D, 2D, HEALPix). Every computation option is set here, once. Reductions and selections are `STStatistics` methods only (rule A6). `compute_PS` is True by default for 2D data and unavailable elsewhere in 1.0.0. `engine` is reserved. `standardize` removes the mean and divides by the standard deviation before the transform, as STL's apply(standardize=True); both values are kept with the statistics | `ST_Operator.__init__` |
 | `STOperator.apply(data, ref=None) -> STStatistics` | F | The only call-time arguments: the data and an optional reference. The normalisation kind is fixed at construction | `ST_Operator.apply` |
 | `STOperator.from_statistics(stats)` | F | Rebuild the operator that produced a statistics object | `from_ST_Statistics` |
 | `STOperatorTensorProd(data, J=(…), L=(…), *, lowpass="ST", …)` | F | Tensor-product operator, with STL's low-pass options (`"ST"`, `"PS"`, both, or none). Overrides only the hooks below | `ST_Operator_TensorProd` |
@@ -477,11 +477,12 @@ Each task becomes a GitHub issue, to be picked by an agent. A task names its inp
 | T2.2 | P2 | Wavelet banks, 2D and 1D (port of `bump_steerable_bank` and `bump_steerable_1d`), and the smoothing kernel | maths M-WAV-2D, M-SMOOTH-2D | 1D and 2D kernels equal STL's to rounding (parity fixtures: L = 4 in 2D, L = 1 and 2 in 1D) |
 | T2.3 | P2 | `ScatteringPlan`: index sets, levels, borders, mean denominators | maths §1.3–1.5 | plan tests |
 | T2.4 | P2 | `STOperator`: STL's loop structure, in functional style | maths §1.6–1.7 and the 1D section; Part I, §3.1.1 | parity on 1D and 2D statistics, masked cases included (maths tab, OP-26, OP-27) |
-| T2.5 | P2 | `STStatistics`, normalisation, reductions, `to_vector(mask_st)`; the reserved storage accessors, the `allreduce` hook of the reductions and the versioned `io` schema (from T1.4) | maths §1.8; §12.7 | parity on normalised and reduced statistics |
+| T2.5 | P2 | `STStatistics`, normalisation, reductions, `to_vector(mask_st)`; the reserved storage accessors, the `allreduce` hook of the reductions and the versioned `io` schema (from T1.4); makes `STOperator`, `estel.functional.scattering` and `STStatistics` public together | maths §1.8; §12.7 | parity on normalised and reduced statistics |
 | T2.6 | P2 | `_spec` for planar data | maths tab | spec parity |
 | T2.7 | P2 | Differentiation tests, to second order | Part I, §3.2 | gradcheck and gradgradcheck green in float64 |
 | T2.8 | P2 | Invariance tests | Part I, §5.1 | invariance family green |
 | T2.9 | P2 | Pytree registration: an L0 primitive `register_pytree(cls, flatten, unflatten)` on both backends, used to register `DataClass` now and `STStatistics` later (Part I, §3.1, rule 9). On JAX through `jax.tree_util`; on PyTorch through `torch.utils._pytree`, imported lazily with a fallback, and only a warning if no such API exists, since nothing in ESTEL needs pytrees on PyTorch; on JAX, any registration error is raised | Part I, §3.1 rule 9; §12.3, §12.4 | `jax.jit` and `jax.vmap` accept a `DataClass` and return one; the PyTorch behaviour is unchanged; conformance test on both backends |
+| T2.10 | P2 | Public `WaveletOperator` (§12.5): `apply`, `lowpass`, `downsample` at a given level; decides how a data object knows its resolution level | §12.4, §12.5; maths M-WAV-2D, M-WAV-1D | public and tested; its results equal the loop's convolutions |
 | T3.0 | P3 | Write the tensor-product section of the maths tab, with G3 written out explicitly | STL `2D+1D`; §13.2 | reviewed by a maintainer before T3.2 |
 | T3.1 | P3 | `DataTensorProd`, dispatch along each block's axes | §12.4 | unit tests; benchmark against `swapaxes` recorded |
 | T3.2 | P3 | `STOperatorTensorProd`, low-pass and box term | maths, tensor-product section | parity on tensor products |

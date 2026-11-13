@@ -111,8 +111,9 @@ class ForwardResult(NamedTuple):
 class Engine(Protocol):
     """An engine: the whole computation of the statistics, and its gradient.
 
-    The Python engine's ``forward`` is ``estel.functional.scattering`` (T2.4). An engine of
-    order 1 is wrapped with ``jax.custom_vjp`` or a ``torch.autograd.Function`` marked
+    The Python engine's ``forward`` is ``estel.functional.scattering`` (T2.5; until then, the
+    internal loop of T2.4, ``estel.scattering._loop.scattering``). An engine of order 1 is
+    wrapped with ``jax.custom_vjp`` or a ``torch.autograd.Function`` marked
     ``once_differentiable``; an engine of order 2 also provides a JVP and a differentiable VJP
     (Part I, §3.2.4).
     """

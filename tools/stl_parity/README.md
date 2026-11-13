@@ -10,7 +10,9 @@ kernels, `bump_steerable_kernel_2d.py` on `master`), the masks and reweighting m
 (`masks_2d.py` on `master`, `masks_1d.py` on `2D+1D`), the 1D kernels of T2.2
 (`bump_steerable_kernel_1d.py` on `2D+1D`) and the borders, masks and denominators of the means
 of T2.3 (`plan_2d.py` on `master`, `plan_1d.py` on `2D+1D`), with the NaN coefficients STL returns
-where a mean has no valid pixel (`empty_means_2d.py` on `master`, `empty_means_1d.py` on `2D+1D`).
+where a mean has no valid pixel (`empty_means_2d.py` on `master`, `empty_means_1d.py` on `2D+1D`),
+and the vanilla statistics of the scattering loop of T2.4 (`scattering_2d.py` on `master`,
+`scattering_1d.py` on `2D+1D`).
 
 ## The container
 
