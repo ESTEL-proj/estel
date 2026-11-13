@@ -27,10 +27,10 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 MANIFEST = "MANIFEST.json"
 # Part II, §14.3: both libraries run in float64 for parity; float32 is a secondary check.
 PARITY_RTOL = {"float64": 1e-10, "float32": 1e-5}
-# Maintainer decision on #57: an absolute tolerance too, PARITY_ATOL_FACTOR x max|expected| over
-# the compared array, so that values zero in theory (imaginary parts of real quantities,
-# subtracted means) do not fail on a 1e-17 difference.
-PARITY_ATOL_FACTOR = 1e-12
+# Part II, §14.3: an absolute tolerance too, atol = PARITY_ATOL_RATIO x rtol x max|expected| over
+# the compared array (1e-12 in float64, 1e-7 in float32 for max|expected| = 1), so that values
+# zero in theory (imaginary parts of real quantities, subtracted means) do not fail on rounding.
+PARITY_ATOL_RATIO = 0.01
 # The STL-Dev commit of each branch (Part II, §9.1), as the parity container pins them.
 STL_COMMITS = {
     "master": "8eaf7691d55f3c3441cde9b95f1f80eb17aa8014",
@@ -79,13 +79,18 @@ def load_fixture(case: str, directory: Path = FIXTURES) -> dict[str, NDArray[Any
         return {key: stored[key] for key in stored.files}
 
 
-def parity_atol(expected: NDArray[Any]) -> float:
-    """The absolute tolerance for ``expected``: ``PARITY_ATOL_FACTOR`` x its largest finite modulus.
+def parity_atol(expected: NDArray[Any], dtype: str = "float64") -> float:
+    """The absolute tolerance of §14.3 for ``expected``: 0.01 x rtol x its largest finite modulus.
 
-    NaN and infinite values are left out, so that they do not make every difference pass.
+    ``rtol`` is the §14.3 value for ``dtype``. NaN and infinite values are left out of the
+    maximum, so that they do not make every difference pass.
     """
+    if dtype not in PARITY_RTOL:
+        raise ValueError(f"dtype={dtype!r}: pass one of {sorted(PARITY_RTOL)}.")
     magnitude = np.abs(expected[np.isfinite(expected)])
-    return PARITY_ATOL_FACTOR * float(magnitude.max()) if magnitude.size else 0.0
+    if not magnitude.size:
+        return 0.0
+    return PARITY_ATOL_RATIO * PARITY_RTOL[dtype] * float(magnitude.max())
 
 
 def assert_parity(actual: Any, expected: NDArray[Any], dtype: str = "float64") -> None:
@@ -94,7 +99,8 @@ def assert_parity(actual: Any, expected: NDArray[Any], dtype: str = "float64") -
     Same shape; NaN at exactly the same positions; elsewhere, element by element (complex moduli
     for complex arrays), ``|actual - expected| <= atol + rtol * |expected|``, with ``rtol`` the
     §14.3 value for the ``dtype`` ESTEL computed in (1e-10 in float64, 1e-5 in float32) and
-    ``atol = 1e-12 * max|expected|`` over the finite values of ``expected`` (``parity_atol``).
+    ``atol = 0.01 * rtol * max|expected|`` over the finite values of ``expected`` (§14.3;
+    ``parity_atol``).
     """
     if dtype not in PARITY_RTOL:
         raise ValueError(f"dtype={dtype!r}: pass one of {sorted(PARITY_RTOL)}.")
@@ -113,7 +119,7 @@ def assert_parity(actual: Any, expected: NDArray[Any], dtype: str = "float64") -
             f"{[tuple(int(i) for i in p) for p in positions[:5]]}: they must match exactly "
             f"(§14.3). {_REPORT}"
         )
-    atol = parity_atol(expected)
+    atol = parity_atol(expected, dtype)
     valid = ~nan_expected
     got, want = actual[valid], expected[valid]
     with np.errstate(invalid="ignore"):

@@ -40,7 +40,7 @@ archived with it (§14.2), and is what reruns the comparison afterwards.
 parity needs (§14.3). The container has no GPU. STL still builds some arrays at torch's default
 dtype, float32 unless changed: its 2D kernels, for one, call `torch.fft.fftfreq` without a dtype.
 So every STL run of the container, the smoke check and the fixtures alike, first calls
-`torch.set_default_dtype(torch.float64)` (maintainer decision on #57), and STL's own, unchanged
+`torch.set_default_dtype(torch.float64)` (Part II, §14.2; maths.md OP-31), and STL's own, unchanged
 code then builds them in float64. `MANIFEST.json` records the setting for each fixture.
 
 ## Commands
@@ -93,8 +93,8 @@ compared with ESTEL on every PR, in float64, without Docker.
   and compare ESTEL with it through `load_fixture` and `assert_parity`
   ([`tests/parity/_compare.py`](../../tests/parity/_compare.py)): same shape, NaN at the same
   positions, and `|ESTEL − STL| ≤ atol + rtol·|STL|` element by element, with rtol 1e-10 in
-  float64 and 1e-5 in float32 (§14.3) and atol 1e-12 × the largest finite |STL| of the array
-  (maintainer decision on #57), so that values zero in theory pass on rounding.
+  float64 and 1e-5 in float32, and atol = 0.01 × rtol × the largest finite |STL| of the array
+  (§14.3), so that values zero in theory pass on rounding.
 - **`tests/parity/fixtures/` is protected.** Only a maintainer runs `make parity-fixtures` and
   commits its output. An agent that needs a new case writes the case and its test, and asks for
   the fixture in its PR.
