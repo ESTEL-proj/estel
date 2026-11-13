@@ -18,6 +18,7 @@ import pytest
 from estel.wavelets._banks import (
     FOURIER_GRID,
     KERNEL_SIZE,
+    _check_zero_sum,
     bump_steerable_1d,
     bump_steerable_2d,
     smoothing_kernel,
@@ -68,6 +69,44 @@ def test_banks_are_new_arrays() -> None:
     s = smoothing_kernel(2)
     s[...] = 0.0
     assert smoothing_kernel(2).sum() > 0.5
+
+
+def _assert_zero_sum(kernels: np.ndarray, ndim: int) -> None:
+    """|sum| <= 1e-12 max|kernel| in float64 for each kernel (Part III, §20.11, rule 3)."""
+    axes = tuple(range(-ndim, 0))
+    values = np.asarray(kernels, dtype=np.complex128)
+    sums = np.abs(values.sum(axis=axes))
+    peaks = np.abs(values).max(axis=axes)
+    assert np.all(peaks > 0.0)
+    assert np.all(sums <= 1e-12 * peaks), sums / peaks
+    _check_zero_sum(kernels, ndim, "test bank")
+
+
+@pytest.mark.parametrize("n_orientations", [1, 2, 3, 4, 8, 16])
+@pytest.mark.parametrize("size", [3, KERNEL_SIZE, 7, 31])
+def test_every_2d_band_pass_kernel_is_zero_sum(n_orientations: int, size: int) -> None:
+    _assert_zero_sum(bump_steerable_2d(n_orientations, size), ndim=2)
+
+
+@pytest.mark.parametrize("xi0", [None, FOURIER_GRID / 4, FOURIER_GRID / 8, 10.0])
+@pytest.mark.parametrize("size", [3, KERNEL_SIZE, 7, 31])
+@pytest.mark.parametrize("conjugate", [False, True])
+def test_every_1d_band_pass_kernel_is_zero_sum(
+    xi0: float | None, size: int, conjugate: bool
+) -> None:
+    _assert_zero_sum(bump_steerable_1d(xi0, size, conjugate), ndim=1)
+
+
+@pytest.mark.parametrize("ndim", [1, 2])
+def test_zero_sum_check_rejects_a_kernel_with_a_non_zero_sum(ndim: int) -> None:
+    """Part III, §20.11, rule 3: the construction fails, naming the kernel."""
+    bank = bump_steerable_2d(4) if ndim == 2 else bump_steerable_1d(conjugate=True)
+    peak = np.abs(bank[1]).max()
+    n_pixels = bank[1].size
+    bank[1] += 1e-9 * peak / n_pixels  # |sum| = 1e-9 max|kernel|, above the 1e-12 tolerance
+    _check_zero_sum(bank[:1], ndim, "unchanged")
+    with pytest.raises(ValueError, match=r"my bank: kernel 1 is not zero-sum"):
+        _check_zero_sum(bank, ndim, "my bank")
 
 
 @pytest.mark.parametrize("value", [0, -1])

@@ -7,7 +7,7 @@ Nothing in this part is implemented before 1.0.0. It is documented now for two r
 ## Contents of this part
 
 - [16. Register of later features](#16-register-of-later-features)
-  - [16.1 Library structure](#161-library-structure) · [16.2 New features for the user](#162-new-features-for-the-user) · [16.3 Optimisation of existing features](#163-optimisation-of-existing-features) · [16.4 Mathematical choices](#164-mathematical-choices) · [16.5 Entries added in the review of 12 November 2026](#165-entries-added-in-the-review-of-12-november-2026)
+  - [16.1 Library structure](#161-library-structure) · [16.2 New features for the user](#162-new-features-for-the-user) · [16.3 Optimisation of existing features](#163-optimisation-of-existing-features) · [16.4 Mathematical choices](#164-mathematical-choices) · [16.5 Entries added in the reviews of 12 and 13 November 2026](#165-entries-added-in-the-reviews-of-12-and-13-november-2026)
 - [17. JAX backend](#17-jax-backend)
   - [17.1 Scope](#171-scope) · [17.2 What step 1 already guarantees](#172-what-step-1-already-guarantees) · [17.3 Points specific to JAX](#173-points-specific-to-jax) · [17.4 HEALPix on JAX](#174-healpix-on-jax) · [17.5 Exit criteria](#175-exit-criteria)
 - [18. The Rust engine, from STL-Dev-MPI](#18-the-rust-engine-from-stl-dev-mpi)
@@ -73,7 +73,7 @@ Decisions that change what existing statistics compute.
 | LF21 | Gradient semantics through the reference | implicit differentiation with targets that depend on parameters | `ref` argument | yes, if the default changes | reference bump if default | §20.7 | Q2, G6, OP-18 |
 | LF22 | Wavelet optimisation | better filters, satisfying a Littlewood–Paley condition, low-pass filter included (LF6), tested in CI | `WaveletOperator` | yes | reference bump; major decided with the maintainers | §20.6, §20.10 | — |
 
-### 16.5 Entries added in the review of 12 November 2026
+### 16.5 Entries added in the reviews of 12 and 13 November 2026
 
 They continue the numbering; their category is given in the second column.
 
@@ -377,7 +377,7 @@ At the last level, the low-pass filter is applied without the final downsampling
 
 The scattering covariances are covariances (maths tab, "Moments and covariances"); STL computes raw second moments (OP-36). Step 2 computes covariances, by default, with the rules below. Their order of priority is numerical efficiency first, then simplicity.
 
-1. **Correct coefficients, never maps.** Cov(A, B) = M2(A, B) − M1(A) M1(B)\*. The raw moments are computed as today, each first moment is computed once per map, and the correction is applied to the arrays of coefficients. No centred map is ever built. When the last filter is a low-pass filter, the first moments are already known: M1(φ\_J ⋆ |W\_j x|) is S1(j), up to window effects.
+1. **Correct coefficients, never maps.** Cov(A, B) = M2(A, B) − M1(A) conj(M1(B)). The raw moments are computed as today, each first moment is computed once per map, and the correction is applied to the arrays of coefficients. No centred map is ever built. When the last filter is a low-pass filter, the first moments are already known: M1(φ\_J ⋆ |W\_j x|) is S1(j), up to window effects.
 2. **Only where needed, decided by the plan.** A covariance is not centred when the plan can prove that one argument has M1 = 0: its last filter is band-pass, and the window is the whole periodic domain without mask. Otherwise it is centred. So periodic data without mask and without low-pass terms keep today's values and today's cost; any term ending with a low-pass filter is centred; with non-periodic borders or with masks, every covariance is centred.
 3. **Band-pass kernels sum to zero, by requirement.** Every band-pass kernel is built with a zero sum, and its construction fails if this does not hold within rounding. Rule 2 relies on it: it is a guarantee of the filter bank, not a property looked up kernel by kernel.
 4. **One window per level when centring is active.** All the maps of a level share the most restrictive border and mask, so that M1 and M2 use the same window. Centring is then exact, costs one sum per map, and is a rank-one correction of the level's Gram product (§19.3). This window policy is an option of the plan, which holds the weights of every mean: going back to one window per pair changes values, not the structure of the code.

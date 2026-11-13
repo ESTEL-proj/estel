@@ -6,7 +6,7 @@
 
 - [21. Critical review: failure modes](#21-critical-review-failure-modes)
 - [22. Decision log](#22-decision-log)
-  - [22.1 Scope and organisation](#221-scope-and-organisation) · [22.2 Architecture and backends](#222-architecture-and-backends) · [22.3 Process](#223-process) · [22.4 Review round of 12 November 2026](#224-review-round-of-12-november-2026)
+  - [22.1 Scope and organisation](#221-scope-and-organisation) · [22.2 Architecture and backends](#222-architecture-and-backends) · [22.3 Process](#223-process) · [22.4 Review round of 12 November 2026, and decisions of 13 November 2026](#224-review-round-of-12-november-2026-and-decisions-of-13-november-2026)
 - [23. Open questions](#23-open-questions)
 - [24. Deferred work and points to discuss later](#24-deferred-work-and-points-to-discuss-later)
   - [24.1 Deferred work](#241-deferred-work) · [24.2 Points to discuss later](#242-points-to-discuss-later)
@@ -42,7 +42,7 @@ The plan is sound in its core: a frozen skeleton, versions tied to reference val
 
 ## 22. Decision log
 
-Decisions taken from 4 to 12 November 2026. Tables 22.1 to 22.3 record the decisions up to draft 0.2, updated where later decisions replaced them; 22.4 records the review round of 12 November 2026, point by point.
+Decisions taken from 4 to 13 November 2026. Tables 22.1 to 22.3 record the decisions up to draft 0.2, updated where later decisions replaced them; 22.4 records the review round of 12 November 2026, point by point.
 
 ### 22.1 Scope and organisation
 
@@ -86,7 +86,7 @@ Decisions taken from 4 to 12 November 2026. Tables 22.1 to 22.3 record the decis
 | Deferred | Q1 (canonical set) and Q2 (gradients through the reference): after 1.0.0 | round 3 |
 | Document | One tab per part; a short contents in the Overview tab, a developed one in each part | round 5 |
 
-### 22.4 Review round of 12 November 2026
+### 22.4 Review round of 12 November 2026, and decisions of 13 November 2026
 
 Every point of the review list (C: critical before the start, S: needed during step 1, A: API and naming), with the decision and where it is applied. "Traced" means the point is not implemented now and is recorded where shown, so that it is not forgotten.
 
