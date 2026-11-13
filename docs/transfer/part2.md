@@ -213,6 +213,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `stop_gradient(x)` | P | `x.detach()` / `jax.lax.stop_gradient` | `.detach()` calls |
 | `random_normal(key, shape, dtype)`, `make_key(seed)` | P | Explicit keys on every backend | `torch.randn` in `Synthesis.py` |
 | `jit(fn, static_argnames)` | P | Identity in PyTorch; `jax.jit` in the JAX backend | new |
+| `register_pytree(cls, flatten, unflatten)` | P | Registers a class as a pytree: on JAX through `jax.tree_util`; on PyTorch through `torch.utils._pytree`, imported lazily, with a warning if no such API exists. Used for `DataClass`, and later `STStatistics` (Part I, §3.1, rule 9) | new |
 | `value_and_grad(fn)`, `vjp`, `jvp`, `hvp` | P | Synthesis and the differentiation tests; `torch.func` / `jax` | `loss.backward()` |
 | `lbfgs(...)` | P | The built-in L-BFGS of each backend: `torch.optim.LBFGS(line_search_fn="strong_wolfe")`; `optax.lbfgs` in step 2; the Rust L-BFGS (`impl="rust"`) when the Rust engine is selected (Part III, §18.2) | `optimize_lbfgs` |
 | `deterministic(enabled)` | P | `torch.use_deterministic_algorithms`; on JAX, `XLA_FLAGS=--xla_gpu_deterministic_ops=true`, set before JAX starts. On in tests | new |
@@ -477,7 +478,7 @@ Each task becomes a GitHub issue, to be picked by an agent. A task names its inp
 | T2.6 | P2 | `_spec` for planar data | maths tab | spec parity |
 | T2.7 | P2 | Differentiation tests, to second order | Part I, §3.2 | gradcheck and gradgradcheck green in float64 |
 | T2.8 | P2 | Invariance tests | Part I, §5.1 | invariance family green |
-| T2.9 | P2 | Pytree registration: an L0 primitive `register_pytree(cls, flatten, unflatten)` on both backends, used to register `DataClass` now and `STStatistics` later (Part I, §3.1, rule 9). On JAX through `jax.tree_util`; on PyTorch through `torch.utils._pytree`, imported lazily with a fallback and a clear error, as for `deterministic` on JAX | Part I, §3.1 rule 9; §12.3, §12.4 | `jax.jit` and `jax.vmap` accept a `DataClass` and return one; the PyTorch behaviour is unchanged; conformance test on both backends |
+| T2.9 | P2 | Pytree registration: an L0 primitive `register_pytree(cls, flatten, unflatten)` on both backends, used to register `DataClass` now and `STStatistics` later (Part I, §3.1, rule 9). On JAX through `jax.tree_util`; on PyTorch through `torch.utils._pytree`, imported lazily with a fallback, and only a warning if no such API exists, since nothing in ESTEL needs pytrees on PyTorch; on JAX, any registration error is raised | Part I, §3.1 rule 9; §12.3, §12.4 | `jax.jit` and `jax.vmap` accept a `DataClass` and return one; the PyTorch behaviour is unchanged; conformance test on both backends |
 | T3.0 | P3 | Write the tensor-product section of the maths tab, with G3 written out explicitly | STL `2D+1D`; §13.2 | reviewed by a maintainer before T3.2 |
 | T3.1 | P3 | `DataTensorProd`, dispatch along each block's axes | §12.4 | unit tests; benchmark against `swapaxes` recorded |
 | T3.2 | P3 | `STOperatorTensorProd`, low-pass and box term | maths, tensor-product section | parity on tensor products |

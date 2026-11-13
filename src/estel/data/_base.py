@@ -272,15 +272,24 @@ class _StaticMask:
     NumPy array can be neither hashed nor compared to a single bool. Two DataClasses with equal
     masks then share one compiled function; a different mask compiles a new one, since the
     mask is static.
+
+    The hash is computed once, here, and the wrapped mask is read-only, so that the hash can
+    never go stale. A DataClass mask is already a read-only array that owns its data, and is
+    kept as it is; any other mask (writable, or a view whose base may be written) is copied
+    first.
     """
 
-    __slots__ = ("mask",)
+    __slots__ = ("_hash", "mask")
 
     def __init__(self, mask: NDArray[np.bool_]) -> None:
+        if mask.flags.writeable or not mask.flags.owndata:
+            mask = np.array(mask, dtype=bool, copy=True)
+            mask.flags.writeable = False
         self.mask = mask
+        self._hash = hash((mask.shape, np.packbits(mask).tobytes()))
 
     def __hash__(self) -> int:
-        return hash((self.mask.shape, np.packbits(self.mask).tobytes()))
+        return self._hash
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, _StaticMask):

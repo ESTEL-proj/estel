@@ -77,6 +77,55 @@ def test_static_masks_compare_by_value() -> None:
     assert _StaticMask(a) != _StaticMask(_mask((2, 8), (0, 1)))
 
 
+def test_static_mask_hashes_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The hash is computed when the wrapper is made, never again."""
+    calls: list[int] = []
+    packbits = np.packbits
+
+    def counting(*args: Any, **kwargs: Any) -> Any:
+        calls.append(1)
+        return packbits(*args, **kwargs)
+
+    monkeypatch.setattr(np, "packbits", counting)
+    static = _StaticMask(_mask((4, 4), (0, 1)))
+    assert len(calls) == 1
+    first = hash(static)
+    assert all(hash(static) == first for _ in range(3))
+    assert len(calls) == 1
+
+
+def test_static_mask_cannot_be_written() -> None:
+    """A writable mask is copied and frozen, so the hash cannot go stale; the caller's
+    array is left as it was."""
+    given = _mask((4, 4), (0, 1))
+    static = _StaticMask(given)
+    assert static.mask is not given
+    assert given.flags.writeable
+    with pytest.raises(ValueError, match="read-only"):
+        static.mask[2, 2] = True
+    given[2, 2] = True  # writing the caller's array does not reach the wrapper
+    assert not static.mask[2, 2]
+    assert static == _StaticMask(_mask((4, 4), (0, 1)))
+
+
+def test_static_mask_copies_a_read_only_view_of_a_writable_array() -> None:
+    base = _mask((4, 4), (0, 1))
+    view = base[:]
+    view.flags.writeable = False
+    static = _StaticMask(view)
+    base[3, 3] = True
+    assert not static.mask[3, 3]
+
+
+def test_static_mask_keeps_the_mask_of_a_dataclass() -> None:
+    """A DataClass mask is read-only and owns its data: wrapped without a copy."""
+    data = Data2D(_field((4, 4)), mask=_mask((4, 4), (0, 0)), pbc=True)
+    assert data.mask is not None
+    assert _StaticMask(data.mask).mask is data.mask
+    with pytest.raises(ValueError, match="read-only"):
+        data.mask[1, 1] = True
+
+
 @jax_only
 def test_jax_compiles_once_per_mask(dtype: DType) -> None:
     """Equal masks reuse the compiled function; a new mask is new static data, so it compiles

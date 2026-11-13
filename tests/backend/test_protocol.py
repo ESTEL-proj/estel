@@ -18,8 +18,7 @@ from estel.backend._protocol import Backend
 
 REPO = Path(__file__).resolve().parents[2]
 
-# Part II, §12.3, in the order of its table, then register_pytree, added by task T2.9 of
-# §15.2 (maintainer decision); ``name`` identifies the backend.
+# Part II, §12.3, in the order of its table; ``name`` identifies the backend.
 PRIMITIVES = (
     "xp",
     "asarray",
@@ -36,13 +35,13 @@ PRIMITIVES = (
     "random_normal",
     "make_key",
     "jit",
+    "register_pytree",
     "value_and_grad",
     "vjp",
     "jvp",
     "hvp",
     "lbfgs",
     "deterministic",
-    "register_pytree",
 )
 SECTIONS = ("Shapes:", "Dtypes:", "Values:", "Gradients:", "Edge cases:")
 
