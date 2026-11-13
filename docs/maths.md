@@ -66,6 +66,14 @@
 - Λ: the Littlewood–Paley sum, Λ(ω) = |φ̂\_J(ω)|² + ½ Σ\_(j,ℓ) (|ψ̂\_(j,ℓ)(ω)|² + |ψ̂\_(j,ℓ)(−ω)|²). Both signs of ω are counted because the wavelets are analytic. Λ = 1 everywhere would mean that the coefficients keep all the energy of the data.
 - Per-level energy partition: P(ω) = |ŝ(ω)|² + ½ Σ\_ℓ (|ψ̂\_ℓ(ω)|² + |ψ̂\_ℓ(−ω)|²). If P = 1 at every level, then Λ = 1 follows by cascade, with φ̂\_J = Ŝ\_J. A dedicated φ only acts on the last octave: it cannot make up for a partition that differs from 1 at the intermediate levels.
 
+**Moments and covariances.**
+
+- M1(A) = ⟨A⟩\_w: the first moment, the mean of A over a window w (the valid pixels after the border crop).
+- M2(A, B) = ⟨A conj(B)⟩\_w: the raw second moment.
+- Cov(A, B) = M2(A, B) − M1(A) conj(M1(B)): the covariance, with M1 and M2 on the same window.
+- The scattering covariances are covariances by definition: S2 = Cov(W\_{j,ℓ} x, W\_{j,ℓ} x), S3 = Cov(ψ\_{ℓ₃} ⋆ |W\_{j₂,ℓ₂} x|, W\_{j₃,ℓ₃} x) and S4 = Cov(ψ\_{ℓ₃} ⋆ |W\_{j₁,ℓ₁} x|, ψ\_{ℓ₃} ⋆ |W\_{j₂,ℓ₂} x|), with ψ at scale j3. S1 = M1(|W\_{j,ℓ} x|) is a first moment. STL, and ESTEL 1.0.0, compute the raw moments M2 instead (OP-36); the two are equal when M1 of one argument is zero.
+- Zero-mean property: a band-pass kernel sums to zero, so a field filtered by it has M1 = 0 exactly when w is the whole periodic domain, without mask. This does not hold with a cropped border or a mask. It does not hold either when the last filter is the low-pass filter φ\_J: M1(φ\_J ⋆ |W\_{j,ℓ} x|) is S1(j), and M1(φ\_J ⋆ x) is the mean of the data.
+
 ### 1.1 Data — M-DATA-2D
 
 - **Shape.** Arrays are `(Nb, Nc, N1, N2)`; a 2D array is promoted to `(1, 1, N1, N2)`, a 3D one to `(1, Nc, N1, N2)`. Data must be real.
@@ -465,7 +473,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | --- | --- |
 | OP-9 | Width factor 2.5 tuned for L = 4 only: the valid range of L to set |
 | OP-10 | Kernels cropped to 5×5 and centred, not renormalised; effective filters are cascades |
-| OP-11 | `var` and every STL "covariance" are non-centred second moments |
+| OP-11 | `var` and every STL "covariance" are non-centred second moments (OP-36) |
 | OP-12 | NaN threshold τ = 0.33 in 2D, 0.5 in 1D; reweighting 1/(1−f); a pixel whose missing fraction equals τ exactly is decided by the last bit of the smoothing kernel: ESTEL reproduces STL's correctly rounded smoothing kernel (`math.fsum`), and in float32 such ties may be decided differently from STL |
 | OP-13 | Borders too large for the array are silently reduced |
 | OP-14 | S1/S2 store c₁ ≤ c₂ only, S3/S4 both orders; conjugate duplicates (LF20) |
@@ -481,6 +489,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-32 | The per-level energy partition P of STL's kernels is only close to 1. Measured on the 5-tap kernels: in 1D, within 0.1 of 1 up to ω = 3π/4, falling to 0.23 at the Nyquist frequency; in 2D (L = 4, J = 5, with φ\_J), Λ lies between 0.22 and 1.76 in the disc of radius π, is anisotropic (more energy on the diagonals than on the axes), and is close to 0 in the corners of the frequency square |
 | OP-33 | Gain convention: the analytic wavelets have a maximum gain of 1, so on real data they measure half the energy of their band; Λ counts both signs to compensate. Normalised statistics do not depend on it |
 | OP-34 | Tensor products (section 3, when written): the low-pass filter of a block is silently dropped when the block size is not divisible by 2^(J\_b), because STL obtains it by one more downsampling than the coarsest wavelet |
+| OP-36 | STL computes raw second moments, not covariances; its `cov` has a `remove_mean` argument that was never implemented. This is exact for periodic data without mask. Otherwise the forgotten term M1(A)·conj(M1(B)), relative to the covariance, measured on a test field (orders of magnitude): from 1e-6 at j = 0 to 1e-2 at the coarsest scale for non-periodic data; about ten times more with a mask covering 20 % of the pixels; of order 1 for any term whose last filter is a low-pass filter |
 
 #### C. Transfer and API
 
