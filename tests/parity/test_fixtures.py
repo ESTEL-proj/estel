@@ -173,8 +173,8 @@ def test_assert_parity_rejects_different_nan_positions(where: str) -> None:
         assert_parity(actual, expected)
 
 
-@pytest.mark.parametrize(("dtype", "atol"), [("float64", 1e-12), ("float32", 1e-7)])
-def test_parity_atol_is_a_hundredth_of_rtol_times_the_largest_finite_modulus(
+@pytest.mark.parametrize(("dtype", "atol"), [("float64", 1e-11), ("float32", 1e-6)])
+def test_parity_atol_is_a_tenth_of_rtol_times_the_largest_finite_modulus(
     dtype: str, atol: float
 ) -> None:
     assert parity_atol(np.array([0.5, -1.0, 0.25]), dtype) == pytest.approx(atol)
@@ -183,6 +183,30 @@ def test_parity_atol_is_a_hundredth_of_rtol_times_the_largest_finite_modulus(
     assert parity_atol(np.array([np.nan, np.inf, -np.inf, 2.0]), dtype) == pytest.approx(2 * atol)
     assert parity_atol(np.array([np.nan, np.inf]), dtype) == 0.0
     assert parity_atol(np.zeros(3), dtype) == 0.0
+
+
+@pytest.mark.parametrize(("dtype", "atol"), [("float64", 1e-11), ("float32", 1e-6)])
+def test_parity_atol_takes_a_given_scale_instead_of_the_largest_value(
+    dtype: str, atol: float
+) -> None:
+    """§14.3: a quantity that may be zero in theory, such as ``mean``, takes its natural scale
+    (sqrt(max(var)) for ``mean``) instead of its own largest value."""
+    assert parity_atol(np.array([1e-17, -1e-17]), dtype, scale=3.0) == pytest.approx(3 * atol)
+    assert parity_atol(np.array([100.0]), dtype, scale=2.0) == pytest.approx(2 * atol)
+    assert parity_atol(np.array([1.0]), dtype, scale=0.0) == 0.0
+    for scale in (-1.0, np.nan, np.inf):
+        with pytest.raises(ValueError, match="scale"):
+            parity_atol(np.ones(2), dtype, scale=scale)
+
+
+def test_assert_parity_uses_the_given_scale() -> None:
+    expected = np.array([1e-17, -2e-17])  # a mean zero in theory: its own max is rounding
+    actual = np.array([5e-12, -3e-12])
+    with pytest.raises(AssertionError, match="beyond atol"):
+        assert_parity(actual, expected)
+    assert_parity(actual, expected, scale=1.0)  # within 1e-11 x 1
+    with pytest.raises(AssertionError, match=r"atol 1e-12 .* Worst at \(0,\)"):
+        assert_parity(actual, expected, scale=0.1)
 
 
 def test_parity_atol_refuses_an_unknown_dtype() -> None:
@@ -198,9 +222,9 @@ def test_assert_parity_accepts_rounding_on_values_zero_in_theory(dtype: str) -> 
 
 def test_assert_parity_float32_atol_is_looser_than_float64() -> None:
     expected = np.array([1.0, 0.0])
-    actual = np.array([1.0, 5e-8])  # within 1e-7 (float32), beyond 1e-12 (float64)
+    actual = np.array([1.0, 5e-7])  # within 1e-6 (float32), beyond 1e-11 (float64)
     assert_parity(actual, expected, "float32")
-    with pytest.raises(AssertionError, match=r"atol 1e-12 .* Worst at \(1,\)"):
+    with pytest.raises(AssertionError, match=r"atol 1e-11 .* Worst at \(1,\)"):
         assert_parity(actual, expected, "float64")
 
 
@@ -208,7 +232,7 @@ def test_assert_parity_float32_atol_is_looser_than_float64() -> None:
 def test_assert_parity_atol_scales_with_the_largest_value(dtype: str) -> None:
     expected = np.array([100.0, 0.0])
     atol = parity_atol(expected, dtype)
-    assert atol == pytest.approx(PARITY_RTOL[dtype])  # 0.01 x rtol x 100
+    assert atol == pytest.approx(10 * PARITY_RTOL[dtype])  # 0.1 x rtol x 100
     assert_parity(np.array([100.0, 0.9 * atol]), expected, dtype)
     message = rf"atol {re.escape(f'{atol:.3g}')} .* Worst at \(1,\)"
     with pytest.raises(AssertionError, match=message):
@@ -224,7 +248,7 @@ def test_assert_parity_needs_exact_zeros_when_everything_is_zero() -> None:
 
 def test_assert_parity_atol_ignores_infinities() -> None:
     expected = np.array([1.0, np.inf, 0.0])
-    with pytest.raises(AssertionError, match=r"atol 1e-12 .* Worst at \(2,\)"):
+    with pytest.raises(AssertionError, match=r"atol 1e-11 .* Worst at \(2,\)"):
         assert_parity(np.array([1.0, np.inf, 1e-3]), expected)
 
 

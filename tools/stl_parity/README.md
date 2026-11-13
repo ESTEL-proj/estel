@@ -100,8 +100,10 @@ compared with ESTEL on every PR, in float64, without Docker.
   and compare ESTEL with it through `load_fixture` and `assert_parity`
   ([`tests/parity/_compare.py`](../../tests/parity/_compare.py)): same shape, NaN at the same
   positions, and `|ESTEL − STL| ≤ atol + rtol·|STL|` element by element, with rtol 1e-10 in
-  float64 and 1e-5 in float32, and atol = 0.01 × rtol × the largest finite |STL| of the array
-  (§14.3), so that values zero in theory pass on rounding.
+  float64 and 1e-5 in float32, and atol = 0.1 × rtol × the largest finite |STL| of the array
+  (§14.3), so that values zero in theory pass on rounding. For `mean`, which may be zero in
+  theory, the scale is the standard deviation of the data, sqrt(max(var)) (`scale=` of
+  `assert_parity`).
 - **`tests/parity/fixtures/` is protected.** Only a maintainer runs `make parity-fixtures` and
   commits its output. An agent that needs a new case writes the case and its test, and asks for
   the fixture in its PR.

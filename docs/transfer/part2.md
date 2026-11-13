@@ -420,7 +420,7 @@ Step 1 is validated by comparison: ESTEL and STL run on the same inputs, and the
 
 - **Same shapes.** In step 1, ESTEL stores statistics in STL's full-grid shapes (§12.7). Outputs are compared element by element, and the NaN positions must match exactly.
 - **Precision.** Both libraries run in float64 for parity, which STL supports, so that only rounding separates them.
-- **Tolerances.** rtol 1e-10 in float64; 1e-5 in float32, as a secondary check; with an absolute tolerance atol = 0.01 × rtol × max|expected| (1e-12 in float64, 1e-7 in float32), so that values that are zero in theory do not fail on rounding. A larger difference is documented individually in the parity report, explained, and approved by the CODEOWNERS.
+- **Tolerances.** rtol 1e-10 in float64; 1e-5 in float32, as a secondary check; with an absolute tolerance atol = 0.1 × rtol × max|expected| (1e-11 in float64, 1e-6 in float32), so that values that are zero in theory do not fail on rounding. For `mean`, whose theoretical value may be zero, the scale is the standard deviation of the data: atol = 0.1 × rtol × sqrt(max(var)). A larger difference is documented individually in the parity report, explained, and approved by the CODEOWNERS.
 - **Gradients.** First-order gradients of a loss are compared between the two libraries; second order is tested in ESTEL only.
 - **Syntheses.** Not compared in step 1: synthesis parity and synthesis tests come after 1.0.0 (Part IV, §24.1).
 

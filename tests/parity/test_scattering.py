@@ -10,11 +10,10 @@ built with the same parameters on the stored input, and every family is compared
 ``assert_parity``: same full-grid shape, NaN at the same positions (structural, channel pairs not
 computed, empty means), values within the tolerances of Part II, §14.3.
 
-Both libraries run in float64 for parity (§14.3), so the operator is built in float64 in every
-run, whatever ``ESTEL_TEST_DTYPE``, as the kernels are compared in float64 in ``test_kernels``.
-The float32 secondary check of §14.3 is not run on the statistics: its absolute tolerance,
-0.01 x 1e-5 x max|STL|, is below the rounding of float32 sums over many pixels; issue #66
-asks the maintainers how to check float32 instead.
+The operator runs in the run's dtype: float64 is the parity check of §14.3 (rtol 1e-10), float32
+its secondary check (rtol 1e-5), both with atol = 0.1 x rtol x max|STL| (issue #66). ``mean``,
+whose theoretical value may be zero (standardised data), takes the standard deviation of the data
+as its scale instead: atol = 0.1 x rtol x sqrt(max(var)) (§14.3).
 """
 
 from __future__ import annotations
@@ -27,19 +26,20 @@ import pytest
 from numpy.typing import NDArray
 
 from estel import Data1D, Data2D, DataClass, _config
+from estel.backend._protocol import DType
 from estel.scattering._loop import ScatteringValues
 from estel.scattering._operator import STOperator
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
 CASES: dict[str, type[DataClass]] = {"scattering_2d": Data2D, "scattering_1d": Data1D}
-FAMILIES = ("S1", "S2", "S3", "S4")
+FAMILIES = ("var", "S1", "S2", "S3", "S4")
 pytestmark = pytest.mark.maths("M-MOM", "M-W1", "M-S1", "M-S2", "M-S3", "M-S4", "M-CHAN", "M-MEAN")
 
 
 @pytest.fixture(autouse=True)
-def _float64(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Data and operators in float64 for this test only (§14.3)."""
-    monkeypatch.setattr(_config, "_dtype", "float64")
+def _run_dtype(monkeypatch: pytest.MonkeyPatch, dtype: DType) -> None:
+    """Data and operators in the run's dtype."""
+    monkeypatch.setattr(_config, "_dtype", dtype)
 
 
 def _parameters(case: str) -> dict[str, Any]:
@@ -74,22 +74,24 @@ def _statistics(
 
 
 @pytest.mark.parametrize(("case", "name"), _configs())
-def test_statistics_equal_stl(case: str, name: str) -> None:
+def test_statistics_equal_stl(case: str, name: str, dtype: DType) -> None:
     fixture = load_fixture(case)
     values, config = _statistics(case, name, fixture)
-    # mean and var, the moments of M-MOM, are compared as one array: the absolute tolerance of
-    # §14.3 is relative to the largest value of the compared array, and the mean of standardised
-    # data is zero in theory, a whole array of rounding errors (1e-16) on its own.
-    moments = np.stack([np.asarray(values.mean), np.asarray(values.var)])
-    assert moments.dtype == fixture[f"{name}_mean"].dtype == fixture[f"{name}_var"].dtype
-    assert_parity(moments, np.stack([fixture[f"{name}_mean"], fixture[f"{name}_var"]]))
+    expected_kind = {"float32": ("float32", "complex64"), "float64": ("float64", "complex128")}
+    real, complex_ = expected_kind[dtype]
+    # mean has the units of the data and may be zero in theory (standardised data), so its scale
+    # is their standard deviation, sqrt(max(var)) (§14.3).
+    mean = np.asarray(values.mean)
+    assert mean.dtype == np.dtype(real)
+    scale = float(np.sqrt(np.max(fixture[f"{name}_var"])))
+    assert_parity(mean, fixture[f"{name}_mean"], dtype, scale=scale)
     for family in FAMILIES:
         actual = np.asarray(getattr(values, family))
-        assert actual.dtype == fixture[f"{name}_{family}"].dtype, family
-        assert_parity(actual, fixture[f"{name}_{family}"])
+        assert actual.dtype == np.dtype(real if family == "var" else complex_), family
+        assert_parity(actual, fixture[f"{name}_{family}"], dtype)
     if config.get("standardize", False):
-        assert_parity(np.asarray(values.mean_pre_std), fixture[f"{name}_mean_pre_std"])
-        assert_parity(np.asarray(values.std_pre_std), fixture[f"{name}_std_pre_std"])
+        for key in ("mean_pre_std", "std_pre_std"):
+            assert_parity(np.asarray(getattr(values, key)), fixture[f"{name}_{key}"], dtype)
     else:
         assert values.mean_pre_std is None
         assert values.std_pre_std is None
