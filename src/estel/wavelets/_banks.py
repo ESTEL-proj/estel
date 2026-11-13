@@ -1,4 +1,4 @@
-"""Planar wavelet banks and the anti-aliasing kernel H (Part II, §12.5; task T2.2).
+"""Planar wavelet banks and the smoothing kernel (Part II, §12.5; task T2.2).
 
 Built once, in NumPy float64, when an operator is built; never traced, never differentiated (tag
 N of Part II, §12). The operator casts them to its dtype and backend.
@@ -11,7 +11,7 @@ N of Part II, §12). The operator casts them to its dtype and backend.
   `2D+1D` ``8f51143`` (``WaveletOperator1Dkernel_torch.bump_steerable_1d``,
   ``bump_steerable_bank`` and ``_build_wavelet_kernel_from_ifft_crop``), with its conjugate for
   L = 2.
-* :func:`smoothing_kernel_H`: the anti-aliasing kernel of maths.md M-H and M-H-1D
+* :func:`smoothing_kernel`: the smoothing kernel of maths.md M-SMOOTH-2D and M-SMOOTH-1D
   (``_get_smooth_kernel`` of both classes).
 
 STL's kernels are reproduced as they are, problems included: the 2D width factor tuned for L = 4
@@ -45,9 +45,9 @@ WIDTH_FACTOR_2D = 2.5
 _BUMP_EPS = 1e-12
 """STL clamps the denominator of the bump at this value (``clamp_min(eps)``)."""
 
-# STL's literal 6 x 6 anti-aliasing kernel, "cropped raised cosine, bandwidth .71, beta .35"
-# (M-H). As written in STL it sums to 1.00000004, not exactly 1; it is reproduced as it is.
-_H_2D = np.array(
+# STL's literal 6 x 6 smoothing kernel, "cropped raised cosine, bandwidth .71, beta .35"
+# (M-SMOOTH-2D). As written in STL it sums to 1.00000004, not exactly 1; it is reproduced as it is.
+_SMOOTHING_KERNEL_2D = np.array(
     [
         [0.00238073, -0.00275097, -0.02402609, -0.02402609, -0.00275097, 0.00238073],
         [-0.00275097, 0.0031788, 0.0277626, 0.0277626, 0.0031788, -0.00275097],
@@ -196,12 +196,14 @@ def bump_steerable_1d(
     return kernel
 
 
-def smoothing_kernel_H(ndim: int) -> NDArray[np.float64]:  # noqa: N802
-    """The anti-aliasing kernel H of the planar downsampling, float64, a new array at each call.
+def smoothing_kernel(ndim: int) -> NDArray[np.float64]:
+    """The smoothing kernel, the anti-aliasing filter applied before each planar downsampling.
 
-    * ``ndim=2``: STL's 6 x 6 kernel of maths.md M-H, as written in STL (it sums to
+    Float64, a new array at each call.
+
+    * ``ndim=2``: STL's 6 x 6 kernel of maths.md M-SMOOTH-2D, as written in STL (it sums to
       1.00000004);
-    * ``ndim=1``: its third row divided by its sum, as STL's 1D class builds it (M-H-1D),
+    * ``ndim=1``: its third row divided by its sum, as STL's 1D class builds it (M-SMOOTH-1D),
       bit for bit; the 2D kernel is its outer product with itself up to the rounding of
       STL's literals.
 
@@ -209,14 +211,14 @@ def smoothing_kernel_H(ndim: int) -> NDArray[np.float64]:  # noqa: N802
     """
     if isinstance(ndim, bool) or ndim not in (1, 2):
         raise ValueError(
-            f"ndim={ndim!r}: the planar anti-aliasing kernel exists for 1D and 2D data; pass "
+            f"ndim={ndim!r}: the planar smoothing kernel exists for 1D and 2D data; pass "
             "ndim=1 or ndim=2."
         )
     if ndim == 2:
-        return _H_2D.copy()
+        return _SMOOTHING_KERNEL_2D.copy()
     # Divided by the correctly rounded sum (0.49241182), as torch's sum gives in STL; NumPy's
     # sequential sum is one unit in the last place lower, and that bit decides the masked
     # downsampling where a fraction of invalid input equals τ = 0.5 exactly (M-DOWN-MASK).
-    row = _H_2D[2]
+    row = _SMOOTHING_KERNEL_2D[2]
     h: NDArray[np.float64] = row / math.fsum(row)
     return h

@@ -21,7 +21,7 @@
   - [1.0 Notation — M-NOT](#10-notation--m-not)
   - [1.1 Data — M-DATA-2D](#11-data--m-data-2d)
   - [1.2 Wavelets](#12-wavelets): [M-CONV-2D — "Convolution" is a correlation](#m-conv-2d--convolution-is-a-correlation) · [M-WAV-2D — Bump-steerable wavelets](#m-wav-2d--bump-steerable-wavelets)
-  - [1.3 Downsampling](#13-downsampling): [M-H — Anti-aliasing kernel](#m-h--anti-aliasing-kernel) · [M-DOWN — Downsampling without mask](#m-down--downsampling-without-mask) · [M-DOWN-MASK — Downsampling with missing data](#m-down-mask--downsampling-with-missing-data)
+  - [1.3 Downsampling](#13-downsampling): [M-SMOOTH-2D — Smoothing kernel](#m-smooth-2d--smoothing-kernel) · [M-DOWN — Downsampling without mask](#m-down--downsampling-without-mask) · [M-DOWN-MASK — Downsampling with missing data](#m-down-mask--downsampling-with-missing-data)
   - [1.4 Masks of the scattering layers — M-MASK](#14-masks-of-the-scattering-layers--m-mask)
   - [1.5 Borders — M-BORDER](#15-borders--m-border)
   - [1.6 Moments and first layer](#16-moments-and-first-layer): [M-MEAN — Masked mean](#m-mean--masked-mean) · [M-MOM — mean and var](#m-mom--mean-and-var) · [M-W1 — First layer](#m-w1--first-layer)
@@ -33,7 +33,7 @@
 - [2. 1D](#2-1d)
   - [2.0 Data — M-DATA-1D](#20-data--m-data-1d)
   - [2.1 Wavelets — M-WAV-1D](#21-wavelets--m-wav-1d)
-  - [2.2 Downsampling — M-H-1D](#22-downsampling--m-h-1d)
+  - [2.2 Downsampling](#22-downsampling): [M-SMOOTH-1D — Smoothing kernel](#m-smooth-1d--smoothing-kernel)
   - [2.3 Masks, borders, moments and first layer](#23-masks-borders-moments-and-first-layer)
   - [2.4 Scattering statistics, normalisation and reductions](#24-scattering-statistics-normalisation-and-reductions)
   - [2.5 Defaults — M-DEF-1D](#25-defaults--m-def-1d)
@@ -127,9 +127,9 @@ Only the finest scale (j = 0) is built. Coarser scales are obtained by applying 
 
 ### 1.3 Downsampling
 
-#### M-H — Anti-aliasing kernel
+#### M-SMOOTH-2D — Smoothing kernel
 
-A fixed 6 × 6 kernel H ("cropped raised cosine, bandwidth 0.71, beta 0.35"), separable and symmetric, summing to 1:
+The smoothing kernel is the anti-aliasing filter applied before each downsampling (M-DOWN, M-DOWN-MASK). It is a fixed 6 × 6 kernel ("cropped raised cosine, bandwidth 0.71, beta 0.35"), separable and symmetric, summing to 1:
 
 |  |  |  |  |  |  |
 | --- | --- | --- | --- | --- | --- |
@@ -143,15 +143,15 @@ A fixed 6 × 6 kernel H ("cropped raised cosine, bandwidth 0.71, beta 0.35"), se
 
 #### M-DOWN — Downsampling without mask
 
-One step, from level j to j+1, where x̃⁽ʲ⁾ is x⁽ʲ⁾ padded by **2 pixels before and 3 after** on each axis (circular or replicate, as in M-CONV-2D), keeping one pixel in two on each axis (stride 2):
+One step, from level j to j+1, where x̃⁽ʲ⁾ is x⁽ʲ⁾ padded by **2 pixels before and 3 after** on each axis (circular or replicate, as in M-CONV-2D), keeping one pixel in two on each axis (stride 2), with s the smoothing kernel (M-SMOOTH-2D):
 
 ```latex
-x^{(j+1)}[n] = \sum_{m_1, m_2 = 0}^{5} H[m]\ \tilde x^{(j)}[2n + m]
+x^{(j+1)}[n] = \sum_{m_1, m_2 = 0}^{5} s[m]\ \tilde x^{(j)}[2n + m]
 ```
 
 Several levels are reached by repeating the step.
 
-- Because H has an even size, the padding is asymmetric, and a comment in the code questions it. Each step may shift the grid by half a pixel. **⚠ OP-2**
+- Because the smoothing kernel has an even size, the padding is asymmetric, and a comment in the code questions it. Each step may shift the grid by half a pixel. **⚠ OP-2**
 - Complex arrays are downsampled part by part (real and imaginary).
 - **Source:** `_downsample_tensor`, `downsample`.
 
@@ -163,7 +163,7 @@ With a mask, each step is "normalised": invalid input pixels are set to 0, the r
 x^{(j+1)} = \big(\text{M-DOWN of } x^{(j)} \cdot \mathbb 1_{\text{valid}}\big) \cdot \frac{1}{1 - f^{(j+1)}}
 ```
 
-where f⁽ʲ⁺¹⁾ is the fraction of invalid input contributing to each output pixel: the invalid mask, as 0/1, downsampled with the same kernel H.
+where f⁽ʲ⁺¹⁾ is the fraction of invalid input contributing to each output pixel: the invalid mask, as 0/1, downsampled with the same smoothing kernel.
 
 - **Threshold.** An output pixel is declared invalid if f > τ, with τ = 0.33 (`downsample_nan_weight_threshold`). **⚠ OP-12**
 - **Invalid output pixels** are filled with `replace_nan_value`, NaN by default; the code notes that this breaks back-propagation. ESTEL uses weights instead of NaN values; statistics only read valid pixels, so the values are unchanged. **⚠ OP-27**
@@ -439,7 +439,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | # | Point | Proposal |
 | --- | --- | --- |
 | OP-1 | Filtering is a correlation, not a convolution; complex coefficients are the conjugates of the textbook definition | reproduce, document |
-| OP-2 | Even-sized H with asymmetric padding (2/3): possible half-pixel shift per level, questioned by a `TODO` | reproduce for parity; revisit in a major |
+| OP-2 | Even-sized smoothing kernel with asymmetric padding (2/3): possible half-pixel shift per level, questioned by a `TODO` | reproduce for parity; revisit in a major |
 | OP-3 | Masked mean divides by zero when no pixel is valid | decided: ESTEL raises a clear error; STL gives no usable value here, so parity is not concerned |
 | OP-4 | `pbc=None` breaks the scattering transform but means "periodic" for spectra | require an explicit boolean in ESTEL |
 | OP-5 | `iso` and `angular_ft` treat orientations as cyclic over \[0, π), mixing conjugate values on wrapped pairs | reproduced in 1.0.0; a problem to fix afterwards (LF32) |
@@ -455,7 +455,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-9 | Width factor 2.5 tuned for L = 4 only: the valid range of L to set |
 | OP-10 | Kernels cropped to 5×5 and centred, not renormalised; effective filters are cascades |
 | OP-11 | `var` and every STL "covariance" are non-centred second moments |
-| OP-12 | NaN threshold τ = 0.33 in 2D, 0.5 in 1D; reweighting 1/(1−f); a pixel whose missing fraction equals τ exactly is decided by the last bit of H: ESTEL reproduces STL's correctly rounded H (`math.fsum`), and in float32 such ties may be decided differently from STL |
+| OP-12 | NaN threshold τ = 0.33 in 2D, 0.5 in 1D; reweighting 1/(1−f); a pixel whose missing fraction equals τ exactly is decided by the last bit of the smoothing kernel: ESTEL reproduces STL's correctly rounded smoothing kernel (`math.fsum`), and in float32 such ties may be decided differently from STL |
 | OP-13 | Borders too large for the array are silently reduced |
 | OP-14 | S1/S2 store c₁ ≤ c₂ only, S3/S4 both orders; conjugate duplicates (LF20) |
 | OP-15 | Scale indices of S3 named (j₁, j₂) in STL's comments, (j₂, j₃) in the code |
@@ -509,15 +509,19 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 - **Source:** `WaveletOperator1Dkernel_torch.bump_steerable_1d`, `bump_steerable_bank`, `_build_wavelet_kernel_from_ifft_crop`, `__init__`; `_conv_circular` (inherited).
 - **Oracle:** `spec_wavelets_1d(L, K)`. **Tests:** kernel values against STL, for L = 1 and L = 2.
 
-### 2.2 Downsampling — M-H-1D
+### 2.2 Downsampling
 
-The 1D anti-aliasing kernel is the third row of the 2D table of M-H divided by its sum (0.49241182):
+#### M-SMOOTH-1D — Smoothing kernel
+
+The 1D smoothing kernel, the anti-aliasing filter applied before each downsampling, is the third row of the 2D table of M-SMOOTH-2D divided by its sum (0.49241182):
 
 ```text
-h = [-0.04879268, 0.05638086, 0.49241182, 0.49241182, 0.05638086, -0.04879268]
+s = [-0.04879268, 0.05638086, 0.49241182, 0.49241182, 0.05638086, -0.04879268]
 ```
 
-It sums to 1, and the 2D kernel of M-H is exactly h ⊗ h (for example 0.49241182² = 0.2424694). The code doubts this choice in a `TODO`; the check above confirms that it is the 1D factor of the 2D kernel.
+It sums to 1, and the 2D smoothing kernel of M-SMOOTH-2D is exactly s ⊗ s (for example 0.49241182² = 0.2424694). The code doubts this choice in a `TODO`; the check above confirms that it is the 1D factor of the 2D kernel.
+
+**Downsampling** with this kernel:
 
 - **Without a mask:** M-DOWN along one axis: padding 2 before and 3 after (**⚠ OP-2**), stride 2.
 - **With a mask:** M-DOWN-MASK along one axis, with the threshold **τ = 0.5** in 1D (`downsample_nan_weight_threshold=0.5`), instead of 0.33 in 2D. **⚠ OP-12**

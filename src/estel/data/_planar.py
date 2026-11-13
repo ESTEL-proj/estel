@@ -73,9 +73,10 @@ def _planar_downsample(self: DataClass, x: Any, weights: DownsampleWeights, leve
 
     Invalid input pixels are set to 0 (selected out, so that a NaN there is never read and
     gives no NaN gradient, OP-27); the array is padded by ``(K-1)//2`` before and ``K//2``
-    after each spatial axis (2 and 3 for H, OP-2), circular if ``pbc``, replicate otherwise;
-    correlated with H at stride 2; then multiplied by the reweighting map. Complex arrays are
-    downsampled part by part. ``level`` does not matter: H is the same at every level.
+    after each spatial axis (2 and 3 for the smoothing kernel, OP-2), circular if ``pbc``,
+    replicate otherwise; correlated with the smoothing kernel at stride 2; then multiplied by
+    the reweighting map. Complex arrays are downsampled part by part. ``level`` does not
+    matter: the smoothing kernel is the same at every level.
     """
     _check_array(self, x, "_downsample")
     backend = _registry.backend_named(self.backend)
@@ -84,7 +85,7 @@ def _planar_downsample(self: DataClass, x: Any, weights: DownsampleWeights, leve
     if len(kernel.shape) != self.ndim:
         raise ValueError(
             f"{type(self).__name__}._downsample: the kernel has shape {tuple(kernel.shape)}; "
-            f"pass the anti-aliasing kernel of the geometry, smoothing_kernel_H({self.ndim})."
+            f"pass the smoothing kernel of the geometry, smoothing_kernel({self.ndim})."
         )
     if (valid is None) != (reweight is None):
         raise ValueError(

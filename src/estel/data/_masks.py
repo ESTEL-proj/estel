@@ -10,8 +10,9 @@ both modes, ESTEL only those of the data's ``pbc``. One difference of representa
 stores NaN in a reweighting map to mark an invalid pixel, ESTEL stores a boolean mask and a
 reweighting of 0 there (maths.md OP-27). ``tests/parity/test_masks.py`` checks the equality.
 
-Each downsampling step correlates with the anti-aliasing kernel ``h`` (maths.md M-H, M-H-1D),
-passed in; the wavelet footprint E is a box of the kernel size K on every spatial axis.
+Each downsampling step correlates with the smoothing kernel ``h``, the anti-aliasing filter of the
+downsampling (maths.md M-SMOOTH-2D, M-SMOOTH-1D), passed in; the wavelet footprint E is a box
+of the kernel size K on every spatial axis.
 """
 
 from __future__ import annotations
@@ -84,8 +85,9 @@ def downsample_step(a: FloatMap, h: FloatMap, pbc: bool) -> FloatMap:
     correlate with ``h``, keep one pixel in two. ``h`` has one axis per axis of ``a``."""
     if h.ndim != a.ndim:
         raise ValueError(
-            f"the anti-aliasing kernel has {h.ndim} axes but the map has {a.ndim}: pass the "
-            "kernel of the geometry (maths.md M-H, M-H-1D)."
+            f"the smoothing kernel has {h.ndim} axes but the map has {a.ndim}: pass the "
+            "smoothing kernel of the geometry, smoothing_kernel(ndim) (maths.md M-SMOOTH-2D, "
+            "M-SMOOTH-1D)."
         )
     odd = [n for n in a.shape if n % 2]
     if odd:
@@ -128,7 +130,7 @@ def build_mask_maps(
     """The static maps of ``mask`` for levels 0 … ``n_levels``-1 (M-DOWN-MASK, M-MASK).
 
     ``mask`` is the full-resolution mask (True = missing), with one axis per spatial axis;
-    ``n_levels`` is J; ``h`` the anti-aliasing kernel of the geometry, summing to 1;
+    ``n_levels`` is J; ``h`` the smoothing kernel of the geometry, summing to 1;
     ``kernel_size`` the wavelet support K; ``threshold`` the τ of the geometry
     (``Data2D._nan_threshold``, ``Data1D._nan_threshold``); ``pbc`` the padding mode.
     """
@@ -138,8 +140,8 @@ def build_mask_maps(
         raise ValueError(f"n_levels={n_levels}: there is at least one level (J ≥ 1).")
     if not np.isclose(h.sum(), 1.0):
         raise ValueError(
-            f"the anti-aliasing kernel sums to {h.sum()}, not 1: pass the kernel H of the "
-            "geometry (maths.md M-H, M-H-1D)."
+            f"the smoothing kernel sums to {h.sum()}, not 1: pass the smoothing kernel of the "
+            "geometry, smoothing_kernel(ndim) (maths.md M-SMOOTH-2D, M-SMOOTH-1D)."
         )
     footprint = (kernel_size,) * m0.ndim
 

@@ -19,7 +19,7 @@ from estel import Data1D, Data2D, DataClass
 from estel.backend._protocol import Backend, DType
 from estel.data._base import DownsampleWeights
 from estel.data._masks import build_mask_maps
-from estel.wavelets._banks import bump_steerable_1d, bump_steerable_2d, smoothing_kernel_H
+from estel.wavelets._banks import bump_steerable_1d, bump_steerable_2d, smoothing_kernel
 
 TOLERANCES = {"float32": (1e-4, 1e-6), "float64": (1e-10, 1e-12)}
 COMPLEX: dict[str, DType] = {"float32": "complex64", "float64": "complex128"}
@@ -106,11 +106,11 @@ def test_conv_rejects_a_real_or_misshaped_bank(backend: Backend, dtype: DType) -
 @pytest.mark.parametrize("complex_input", [False, True])
 @pytest.mark.parametrize("pbc", [True, False])
 @pytest.mark.parametrize("ndim", [2, 1])
-def test_downsample_is_strided_correlation_with_h(
+def test_downsample_is_strided_correlation_with_the_smoothing_kernel(
     backend: Backend, dtype: DType, ndim: int, pbc: bool, complex_input: bool
 ) -> None:
     data = _geometry(ndim, 16, pbc)
-    h = smoothing_kernel_H(ndim)
+    h = smoothing_kernel(ndim)
     x = _field((2, 3) + (16,) * ndim, complex_=complex_input)
     in_dtype = COMPLEX[dtype] if complex_input else dtype
     out = data._downsample(
@@ -132,7 +132,7 @@ def test_masked_downsample_zeroes_invalid_inputs_and_reweights(
     rng = np.random.default_rng(3)
     mask = rng.random((n,) * ndim) < 0.15
     data = GEOMETRIES[ndim](np.zeros((n,) * ndim), mask=mask, pbc=pbc)
-    h = smoothing_kernel_H(ndim)
+    h = smoothing_kernel(ndim)
     maps = build_mask_maps(mask, 2, h, 5, data._nan_threshold, pbc)
     field = _field((2, 1) + (n,) * ndim)
     x = np.where(mask, np.nan, field)
@@ -156,10 +156,10 @@ def test_masked_downsample_zeroes_invalid_inputs_and_reweights(
 
 def test_downsample_rejects_bad_inputs(backend: Backend, dtype: DType) -> None:
     data = _geometry(2, 8, True)
-    h = backend.asarray(smoothing_kernel_H(2), dtype)
+    h = backend.asarray(smoothing_kernel(2), dtype)
     x = backend.asarray(_field((1, 1, 8, 8)), dtype)
-    with pytest.raises(ValueError, match="smoothing_kernel_H"):
-        data._downsample(x, DownsampleWeights(backend.asarray(smoothing_kernel_H(1), dtype)), 0)
+    with pytest.raises(ValueError, match="smoothing_kernel"):
+        data._downsample(x, DownsampleWeights(backend.asarray(smoothing_kernel(1), dtype)), 0)
     with pytest.raises(ValueError, match="or neither"):
         data._downsample(
             x, DownsampleWeights(h, valid=backend.asarray(np.ones((8, 8), bool), "bool")), 0

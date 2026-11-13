@@ -274,7 +274,7 @@ class DataClass:
         ``x`` is an array of this object's backend, ``(Nb, Nc, *spatial)`` at ``level``, real
         or complex; ``weights`` the static weights of the step (:class:`DownsampleWeights`).
         The result has the shape of the coarser level and the dtype of ``x``. Each geometry
-        implements it (planar: a normalised strided correlation with H).
+        implements it (planar: a normalised strided correlation with the smoothing kernel).
         """
         raise NotImplementedError(
             f"{type(self).__name__} does not implement the geometry hook _downsample: every "
@@ -297,12 +297,12 @@ class DownsampleWeights(NamedTuple):
     of the data's backend, built from the plan.
 
     ``wavelets`` and ``data`` are independent layers, so the kernel is passed in rather than
-    imported: the operator casts ``smoothing_kernel_H(ndim)`` once and passes it at every step.
+    imported: the operator casts ``smoothing_kernel(ndim)`` once and passes it at every step.
     """
 
     kernel: Any
-    """The anti-aliasing kernel of the geometry, real, with the real dtype of the data
-    (planar: H of maths.md M-H, M-H-1D)."""
+    """The smoothing kernel of the geometry, real, with the real dtype of the data
+    (planar: the smoothing kernel of maths.md M-SMOOTH-2D, M-SMOOTH-1D)."""
     valid: Any = None
     """Without missing values, ``None``. Otherwise the valid input pixels, a boolean array of
     the spatial shape at the input level: invalid pixels are set to 0 before filtering, never

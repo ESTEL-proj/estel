@@ -38,7 +38,7 @@ NDArray = np.ndarray[Any, Any]
 TOLERANCES = {"float32": (1e-4, 1e-6), "float64": (1e-10, 1e-12)}
 COMPLEX_OF: dict[str, DType] = {"float32": "complex64", "float64": "complex128"}
 
-# M-H: the anti-aliasing kernel of the downsampling, separable; its 1D factor.
+# M-SMOOTH-2D: the smoothing kernel of the downsampling, separable; its 1D factor (M-SMOOTH-1D).
 H_1D = np.array([-0.04853, 0.05664, 0.49189, 0.49189, 0.05664, -0.04853])
 
 

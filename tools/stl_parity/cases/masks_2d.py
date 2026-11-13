@@ -17,7 +17,7 @@ This case stores them as STL holds them, for ``pbc=False`` (padding mode ``repli
 ``pbc=True`` (``circular``), with array names ``<mode>_<family>_<levels>``: ``smooth_<d>``,
 ``wav_<d>_<j>``, ``layer1_<j>``, ``layer2_<j3>_<j2>``. The boolean masks are stored as float64
 0/1, the reweighting maps as float64 with their NaN. It also stores the input mask
-(``mask_full_res``) and the anti-aliasing kernel STL uses (``smooth_kernel``, maths.md M-H).
+(``mask_full_res``) and the smoothing kernel STL uses (``smooth_kernel``, maths.md M-SMOOTH-2D).
 
 The input is a 32 x 32 field whose missing pixels are a seeded scatter of isolated pixels plus a
 rectangular hole, so that some downsampled pixels stay valid with a reweighting and others pass

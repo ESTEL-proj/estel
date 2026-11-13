@@ -1,4 +1,5 @@
-"""Unit tests of the planar wavelet banks and of H (maths.md M-WAV-2D, M-WAV-1D, M-H, M-H-1D;
+"""Unit tests of the planar wavelet banks and of the smoothing kernel (maths.md M-WAV-2D, M-WAV-1D,
+M-SMOOTH-2D, M-SMOOTH-1D;
 task T2.2).
 
 Properties that hold by construction, and the validation of the parameters. Equality with STL's
@@ -19,10 +20,10 @@ from estel.wavelets._banks import (
     KERNEL_SIZE,
     bump_steerable_1d,
     bump_steerable_2d,
-    smoothing_kernel_H,
+    smoothing_kernel,
 )
 
-pytestmark = pytest.mark.maths("M-WAV-2D", "M-WAV-1D", "M-H", "M-H-1D")
+pytestmark = pytest.mark.maths("M-WAV-2D", "M-WAV-1D", "M-SMOOTH-2D", "M-SMOOTH-1D")
 
 
 @pytest.mark.parametrize("n_orientations", [1, 2, 3, 4, 8, 16])
@@ -64,9 +65,9 @@ def test_banks_are_new_arrays() -> None:
     first = bump_steerable_2d(4)
     first[...] = 0.0
     assert np.abs(bump_steerable_2d(4)).max() > 0.0
-    h = smoothing_kernel_H(2)
+    h = smoothing_kernel(2)
     h[...] = 0.0
-    assert smoothing_kernel_H(2).sum() > 0.5
+    assert smoothing_kernel(2).sum() > 0.5
 
 
 @pytest.mark.parametrize("value", [0, -1])
@@ -100,11 +101,11 @@ def test_bump_steerable_1d_rejects_non_boolean_conjugate() -> None:
         bump_steerable_1d(conjugate=2)  # type: ignore[arg-type]
 
 
-def test_smoothing_kernel_h_2d_is_stls_table() -> None:
-    """M-H: 6 x 6, symmetric, the product of the 1D kernel up to the rounding of STL's
+def test_smoothing_kernel_2d_is_stls_table() -> None:
+    """M-SMOOTH-2D: 6 x 6, symmetric, the product of the 1D kernel up to the rounding of STL's
     literals, summing to 1 up to that rounding (1.00000004)."""
-    h2 = smoothing_kernel_H(2)
-    h1 = smoothing_kernel_H(1)
+    h2 = smoothing_kernel(2)
+    h1 = smoothing_kernel(1)
     assert h2.shape == (6, 6)
     assert h2.dtype == np.float64
     np.testing.assert_array_equal(h2, h2.T)
@@ -114,10 +115,10 @@ def test_smoothing_kernel_h_2d_is_stls_table() -> None:
     assert h2[2, 2] == 0.2424694
 
 
-def test_smoothing_kernel_h_1d_is_the_third_row_normalised() -> None:
-    """M-H-1D: the third row of the 2D table divided by its sum (0.49241182 at the centre)."""
-    h1 = smoothing_kernel_H(1)
-    row = smoothing_kernel_H(2)[2]
+def test_smoothing_kernel_1d_is_the_third_row_normalised() -> None:
+    """M-SMOOTH-1D: the third row of the 2D table divided by its sum (0.49241182 at the centre)."""
+    h1 = smoothing_kernel(1)
+    row = smoothing_kernel(2)[2]
     np.testing.assert_array_equal(h1, row / 0.49241182)  # the correctly rounded sum
     assert h1.sum() == pytest.approx(1.0, abs=1e-15)
     np.testing.assert_allclose(
@@ -126,6 +127,6 @@ def test_smoothing_kernel_h_1d_is_the_third_row_normalised() -> None:
 
 
 @pytest.mark.parametrize("ndim", [0, 3, True])
-def test_smoothing_kernel_h_rejects_other_dimensions(ndim: Any) -> None:
+def test_smoothing_kernel_rejects_other_dimensions(ndim: Any) -> None:
     with pytest.raises(ValueError, match="ndim=1 or ndim=2"):
-        smoothing_kernel_H(ndim)
+        smoothing_kernel(ndim)
