@@ -41,7 +41,7 @@ What users will be able to compute or do that they cannot today.
 
 | ID | Feature | Why | Builds on (reserved in 1.0.0) | Changes reference values | Version impact | Details | Source |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| LF6 | Low-pass filters in every geometry and in S3/S4 | the largest scales enter every statistic | index sets of the plan | yes (new default) | reference bump; major decided with the maintainers | §20.1 | Q5, G9 |
+| LF6 | Low-pass filters in every geometry and in S3/S4. At the last level the low-pass filter is applied without STL's final downsampling, which removes a size constraint (OP-34); this is a traced change of reference values. It is realised with the smoothing kernel; a dedicated low-pass kernel φ remains possible | the largest scales enter every statistic | index sets of the plan | yes (new default) | reference bump; major decided with the maintainers | §20.1, §20.10 | Q5, G9 |
 | LF7 | Positive spectrum estimator for non-periodic data | today's estimator gives negative bins | estimator registry | yes, if it becomes the default | reference bump if default | §20.2 | G10, OP-21 |
 | LF8 | NaN masks in tensor products | gaps in space–time data | masks as weights | no (new capability) | minor | §20.3 | — |
 | LF9 | HEALPix blocks in tensor products | sphere × time, sphere × frequency | geometry hooks | no (new geometry) | major (new geometry) | §20.4 | — |
@@ -71,7 +71,7 @@ Decisions that change what existing statistics compute.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | LF20 | Canonical coefficient set | no duplicate coefficients | compact layout | yes | reference bump; major decided with the maintainers | §19.8 | Q1, G2, OP-14 |
 | LF21 | Gradient semantics through the reference | implicit differentiation with targets that depend on parameters | `ref` argument | yes, if the default changes | reference bump if default | §20.7 | Q2, G6, OP-18 |
-| LF22 | Wavelet optimisation | better filters, satisfying a Littlewood–Paley condition, low-pass filter included (LF6), tested in CI | `WaveletOperator` | yes | reference bump; major decided with the maintainers | §20.6 | — |
+| LF22 | Wavelet optimisation | better filters, satisfying a Littlewood–Paley condition, low-pass filter included (LF6), tested in CI | `WaveletOperator` | yes | reference bump; major decided with the maintainers | §20.6, §20.10 | — |
 
 ### 16.5 Entries added in the review of 12 November 2026
 
@@ -81,7 +81,7 @@ They continue the numbering; their category is given in the second column.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | LF23 | 16.2 New feature | 1D and tensor-product spectra, as in STL `2D+1D`: binned spectra, joint and low-pass bins | spectra for every planar geometry | `method=` names reserved | no (new capability) | Part II, §9.2 | C22 |
 | LF24 | 16.2 New feature | HEALPix spectra (`gaussian_rings`, `alm`, `anafast`), through the Rust anafast (LF5) | spectra on the sphere | `method=` names reserved | no (new capability) | §18.4 | C22, C9 |
-| LF25 | 16.4 Mathematical choice | Exact translation invariance: remove the grid locking between the centring of the downsampling kernel and the stride, without breaking Littlewood–Paley | a property users expect, and a strong test | `smoothing_kernel`, downsampling | yes | §20.8 | C19, OP-2 |
+| LF25 | 16.4 Mathematical choice | Exact translation invariance: remove the grid locking between the centring of the downsampling kernel and the stride, without breaking Littlewood–Paley | a property users expect, and a strong test | `smoothing_kernel`, downsampling | yes | §20.8, §20.10 | C19, OP-2 |
 | LF26 | 16.4 Mathematical choice | Reductions on tensor products (`iso`, `angular_ft`, `scale_ft`) redefined: the product orientation mixes rotations with the direction of propagation | meaningful reduced statistics for space–time data | reductions | yes | Part II, §13.2, G4 | C8, OP-5 |
 | LF27 | 16.4 Mathematical choice | Relevance of the partial order of tensor-product scales: should some incomparable pairs of scales be measured? | interactions between fine-in-space, coarse-in-time and coarse-in-space, fine-in-time components are never measured | `_scale_index_set` | yes, if the set of scales changes | §20.9 | A12 |
 | LF28 | 16.4 Mathematical choice | A better regularisation of the cross S1 terms than `ε = 1e-8` | the constant is arbitrary and scale-dependent | M-S1 | yes | Part II, §13.2, G17 | G17, OP-16 |
@@ -360,3 +360,14 @@ STL's downsampling uses a 6×6 anti-aliasing kernel with asymmetric padding (2 p
 ### 20.9 The partial order of tensor-product scales
 
 STL orders the multi-index scales of a tensor product componentwise, so pairs such as (0, 2) and (1, 1) — finer in space, coarser in time — are not comparable and give no S3 or S4 coefficient (Part II, §13.2, G3). LF27 examines whether these interactions carry useful information on the STOC test cases. If they do, it defines which incomparable pairs to add, with their cost in coefficients, as a change of reference values.
+
+### 20.10 Joint design of the smoothing kernel and the wavelets
+
+LF6, LF22 and LF25 are one design problem: the pair (s, ψ). With φ\_J realised as the cascade of the smoothing kernels, the Littlewood–Paley sum Λ equals 1 everywhere as soon as the per-level energy partition P does (maths tab, "Filters and scales"); a dedicated low-pass kernel only acts on the last octave and cannot make up for losses between scales. The design requirements:
+
+1. **Energy partition.** P = 1 at every level, within a tolerance set when the design is made, with both signs counted and an explicit gain convention (OP-33).
+2. **Bounded aliasing.** At each downsampling, the energy that the smoothing kernel lets through above half the Nyquist frequency, which folds back, stays below a set fraction. Requirements 1 and 2 pull in opposite directions; they are compatible only if the wavelets capture the whole upper half of the band.
+3. **First octave and corners.** A decision for the frequencies that no wavelet covers: the first octave and, in 2D, the corners of the frequency square. Either a residual high-frequency band, or a deficit that is documented.
+4. **Centred kernels,** so that the downsampling grid does not lock (LF25, OP-2).
+
+At the last level, the low-pass filter is applied without the final downsampling (LF6). Measured on STL's kernels (OP-32), the 1D pair already nearly meets requirement 1; the 2D pair is anisotropic and leaves the corners uncovered. The three diagnostics of Part II, §12.10 (energy partition, Littlewood–Paley sum, aliasing) are the measurements on which these requirements will be checked.

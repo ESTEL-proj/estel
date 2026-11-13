@@ -236,6 +236,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `_conv(x, kernels, level)` | G | Planar: `pad` + `conv_axes`. HEALPix: `gather_weighted` with the stencils ported from `TorchGeometry` | `apply` of each wavelet operator |
 | `_downsample(x, weights, level)` | G | Planar: strided normalised convolution with the smoothing kernel. HEALPix: decimation with `gather_weighted`, then parent binning with `segment_sum` | `_downsample_tensor`, `_down_one_level`, `_downsample_masked` |
 | `_crop_weights(level, border)` | G | Planar: removal of non-periodic borders, widths from the plan. HEALPix: identity | `_crop`, `_get_crop_border_size_*` |
+| `_lowpass(x, plan, block)` | G | Applies the low-pass filter described by the plan. In 1.0.0, as in STL: the data downsampled J times, returned unchanged, since the low-pass filter is the cascade of the smoothing kernels. Later: the smoothing kernel at level J−1 without the final downsampling, or a dedicated kernel (LF6, Part III §20.10) | `Tensor_Product_Kernel_Torch.lowpass` |
 | `_nyquist_filter(x)` | G | Pre-filter before synthesis | `apply_nyquist_filter`, `apply_bandlimit` |
 | `_spectrum_geometry()` | G | 2D: FFT frequency grids. Other geometries: later (LF23, LF24) | `CS_operator_*` initialisation |
 | `Data1D`, `Data2D` | F | Explicit planar classes sharing `_planar.py`, differing by `ndim` | `STL_1D_Kernel_Torch`, `STL_2D_Kernel_Torch` |
@@ -275,7 +276,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `_first_layer(x, plan)` | I | W\_j x and \|W\_j x\| at every level, built functionally | `_compute_ST_loop` |
 | `_second_layer(u, plan, level)` | I | The S3 and S4 means at one level, following the structure of STL's loop (Part I, §3.1, rule 8), returned as lists and stacked; no preallocated tensor filled in place (Part I, §3.1.1) | the `cov` calls of the loop |
 | `_normalize(values, plan, ref)` | I | Normalisation only: `store_ref`, `load_ref`, batch mean, with the optional reference. Reductions are `STStatistics` methods | `_finalize_compute`, `to_norm`, `_normalize_scatcov` |
-| `ScatteringPlan` | N | Static description: J, L, index sets, levels, crop widths, masks and reweighting maps, mean denominators; hashable | new |
+| `ScatteringPlan` | N | Static description: J, L, index sets, levels, the low-pass filter (how it is realised and at which level), crop widths derived from the plan's list of operations, masks and reweighting maps, mean denominators; hashable | new |
 | `scattering(x, plan, arrays, ref=None)` (in `functional`) | I/F | The pure function behind `apply`, public for `jit`, `grad` and `vmap` users, and for downstream implicit differentiation | new |
 
 ### 12.7 Statistics
@@ -334,7 +335,9 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `diagnostics.describe(obj) -> dict` | F | Plan summary: coefficient counts per family, memory estimate, levels, backend, engine | new |
 | `diagnostics.estimate_memory(shape, J, L, ...) -> dict` | F | Peak and output memory **before** building an operator | new |
 | `diagnostics.frequency_response(op, N)` | F | Fourier transform of the effective filters (kernels cascaded through the downsamplings) on an N grid, for plots and checks | `filters_fourier`, `_build_wavelet_kernel_from_ifft_crop` |
-| `diagnostics.littlewood_paley(op, N)` | F | Littlewood–Paley sum of the bank, built on `frequency_response`: a diagnostic, without a pass/fail criterion in 1.0.0; the basis of the CI test that comes with LF22 | new |
+| `diagnostics.littlewood_paley(op, N)` | F | Littlewood–Paley sum of the bank, built on `frequency_response`: a diagnostic, without a pass/fail criterion in 1.0.0; the basis of the CI test that comes with LF22 It reports the sum with and without the low-pass filter, in the convention of the maths tab (Λ) | new |
+| `diagnostics.energy_partition(op, N)` | F | The per-level energy partition P of the smoothing kernel and the wavelets (maths tab, "Filters and scales"); shows where energy is lost or counted twice between scales | new |
+| `diagnostics.aliasing(op, N)` | F | The fraction of energy that each downsampling folds back (Part III, §20.10) | new |
 
 All utilities take public objects, return values or a matplotlib `Figure`, never call `plt.show()`, and import no backend.
 

@@ -152,6 +152,11 @@ Every point of the review list (C: critical before the start, S: needed during s
 | OP-5 | iso and angular\_ft on complex coefficients | Reproduced in 1.0.0; a problem to fix afterwards | Part III, LF32 |
 | — | Philosophy of step 1 | Reproduce STL with its problems, then fix most of them as traced changes | Part II, §9.2 |
 | — | JAX in step 1 | An experimental JAX backend from P1: every L0 primitive, the conformance suite and the whole test suite on both backends; not covered by the 1.0.0 guarantees; syntheses on JAX and stability in step 2 (LF1). Replaces the minimal trace-only JAX L0 | Part I, §2.2.5, §3.1; Part II, §15.2, T1.3 |
+| — | Littlewood–Paley | No pass/fail criterion in 1.0.0: STL's kernels are reproduced and do not satisfy it. It becomes a requirement of LF22, low-pass filter included (LF6) | Part II, §12.5; Part III, LF22, §20.10 |
+| — | Smoothing kernel | "H" renamed "smoothing kernel" s (M-SMOOTH-2D, M-SMOOTH-1D), after STL's name. The low-pass filter φ\_J is a separate object, realised in 1.0.0 as the cascade of the smoothing kernels | maths tab; Part I, §4.3; glossary |
+| — | Final downsampling of the low-pass filter | Parity with STL in 1.0.0 (the final downsampling is kept); without it in step 2 (LF6), as a traced change of reference values | Part III, LF6, §20.10 |
+| — | Joint design of s and ψ | LF6, LF22 and LF25 are designed together, with the requirements of Part III §20.10; the three diagnostics of Part II §12.10 measure them | Part III, §20.10; Part II, §12.10 |
+| — | `WaveletOperator` L | Any integer L ≥ 1, as in STL | Part II, §12.5 |
 
 ## 23. Open questions
 
