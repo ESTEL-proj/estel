@@ -1,4 +1,40 @@
 {
+  "bump_steerable_kernel_1d.npz": {
+    "case": "tools/stl_parity/cases/bump_steerable_kernel_1d.py",
+    "stl_branch": "2D+1D",
+    "stl_commit": "8f51143c5f8ebc259328830f246894d7031acae5",
+    "image_id": "sha256:d4d2d6767579f2c9c27b4e808cc163bdfbe9bb9f8d26b48309590f32955a5d26",
+    "parameters": {
+      "J": 5,
+      "L": [
+        1,
+        2
+      ],
+      "K": 5,
+      "N": 128,
+      "seed": 0
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "kernel_L1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          5
+        ]
+      },
+      "kernel_L2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          5
+        ]
+      }
+    },
+    "sha256": "7f742f7337579d780eb63068e1ddd0db8c0ad6cc999f6c044741eae166f09044"
+  },
   "bump_steerable_kernel_2d.npz": {
     "case": "tools/stl_parity/cases/bump_steerable_kernel_2d.py",
     "stl_branch": "master",

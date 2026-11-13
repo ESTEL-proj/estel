@@ -249,11 +249,11 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 
 | Function | Tag | Purpose | Origin |
 | --- | --- | --- | --- |
-| `WaveletOperator(data, J, L=None, wavelet="bump_steerable")` | F | Generic operator, without a DataClass in its name. Builds the bank with a branch on `data.ndim` (1D, 2D) or the HEALPix geometry. Validates its parameters at construction (J compatible with the data size, L ≥ 1, L within the tested range) | `WaveletOperator2Dkernel_torch`, `…1Dkernel_torch`, `…HealpixKernel_torch` |
+| `WaveletOperator(data, J, L=None, wavelet="bump_steerable")` | F | Generic operator, without a DataClass in its name. Builds the bank with a branch on `data.ndim` (1D, 2D) or the HEALPix geometry. Validates its parameters at construction (J compatible with the data size, an integer L ≥ 1, as STL accepts) | `WaveletOperator2Dkernel_torch`, `…1Dkernel_torch`, `…HealpixKernel_torch` |
 | `.apply(data, j)` | F | ψ\_j ⋆ x at level j: complex output, L orientations | `apply` |
 | `.lowpass(data, j)` | F | φ\_j ⋆ x | `lowpass`, `lowpass_dg` |
 | `.downsample(data, level_out)` | F | Normalised downsampling to a coarser level | `downsample` |
-| `bump_steerable_2d(L, size)`, `bump_steerable_1d(xi0, size, conjugate)` | N | Kernels built in NumPy, cropped to 5×5 or 5 taps. The Littlewood–Paley property is guaranteed by construction and tested in CI over a grid of parameters plus randomly drawn ones, covering the top of the range of L; it is not checked at run time | `_build_bump_steerable_wavelet_kernel`, `bump_steerable_bank` (ported from the Fourier-space class) |
+| `bump_steerable_2d(L, size)`, `bump_steerable_1d(xi0, size, conjugate)` | N | Kernels built in NumPy, cropped to 5×5 or 5 taps. STL's kernels are reproduced as they are. They do not satisfy the Littlewood–Paley condition exactly, so 1.0.0 does not test it; a Littlewood–Paley requirement, tested in CI, comes with the wavelet optimisation (LF22); that test includes the low-pass filter, without which the Littlewood–Paley sum is not meaningful (LF6) | `_build_bump_steerable_wavelet_kernel`, `bump_steerable_bank` (ported from the Fourier-space class) |
 | `smoothing_kernel_H(ndim)` | N | Anti-aliasing kernel; STL's unused `sigma_smooth` is dropped | `_get_smooth_kernel` |
 | `healpix_kernel_weights(depth, L, kernel_size)` | N | Gauge-oriented kernel weights | `_wavelet_kernel` |
 | `healpix_stencils(cell_ids, depth)`, `healpix_decimation(cell_ids, depth)` | N | Index and weight tables for `gather_weighted`, ported from `TorchGeometry` (step 1) | `TorchGeometry`, `stl-core` |
@@ -334,7 +334,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `diagnostics.describe(obj) -> dict` | F | Plan summary: coefficient counts per family, memory estimate, levels, backend, engine | new |
 | `diagnostics.estimate_memory(shape, J, L, ...) -> dict` | F | Peak and output memory **before** building an operator | new |
 | `diagnostics.frequency_response(op, N)` | F | Fourier transform of the effective filters (kernels cascaded through the downsamplings) on an N grid, for plots and checks | `filters_fourier`, `_build_wavelet_kernel_from_ifft_crop` |
-| `diagnostics.littlewood_paley(op, N)` | F | Littlewood–Paley sum of the bank, built on `frequency_response`: a diagnostic, and the basis of the CI test of §12.5 | new |
+| `diagnostics.littlewood_paley(op, N)` | F | Littlewood–Paley sum of the bank, built on `frequency_response`: a diagnostic, without a pass/fail criterion in 1.0.0; the basis of the CI test that comes with LF22 | new |
 
 All utilities take public objects, return values or a matplotlib `Figure`, never call `plt.show()`, and import no backend.
 
@@ -471,7 +471,7 @@ Each task becomes a GitHub issue, to be picked by an agent. A task names its inp
 | T1.5 | P1 | Backend registry and global configuration: `_registry.py`, `_config.py`; public `set_backend`, `get_backend`, `set_default_dtype`, `set_default_device`, listed in the manifest; mixing backends raises `BackendMismatchError` | §12.2; Part I, §2.2.3, §3.1 rule 7 | functions public and tested; "jax" selectable as an experimental backend, with a warning |
 | T2.0 | P2 | Write the 1D section of the maths tab, from the STL code at the frozen commits, and add it to `docs/maths.md` | STL `2D+1D`; maths tab | reviewed by a maintainer before T2.4 checks 1D parity |
 | T2.1 | P2 | `DataClass`, `Data1D`, `Data2D`, static masks and reweighting maps | §12.4; Part I, §2.3; maths M-DOWN-MASK, M-MASK | unit tests; masks equal STL's |
-| T2.2 | P2 | Wavelet banks (port of `bump_steerable_bank`) and H | maths M-WAV-2D, M-H | kernels equal STL's to rounding; Littlewood–Paley CI test |
+| T2.2 | P2 | Wavelet banks, 2D and 1D (port of `bump_steerable_bank` and `bump_steerable_1d`), and H | maths M-WAV-2D, M-H | 1D and 2D kernels equal STL's to rounding (parity fixtures: L = 4 in 2D, L = 1 and 2 in 1D) |
 | T2.3 | P2 | `ScatteringPlan`: index sets, levels, borders, mean denominators | maths §1.3–1.5 | plan tests |
 | T2.4 | P2 | `STOperator`: STL's loop structure, in functional style | maths §1.6–1.7 and the 1D section; Part I, §3.1.1 | parity on 1D and 2D statistics, masked cases included (maths tab, OP-26, OP-27) |
 | T2.5 | P2 | `STStatistics`, normalisation, reductions, `to_vector(mask_st)`; the reserved storage accessors, the `allreduce` hook of the reductions and the versioned `io` schema (from T1.4) | maths §1.8; §12.7 | parity on normalised and reduced statistics |

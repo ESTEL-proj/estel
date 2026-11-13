@@ -5,8 +5,10 @@ The harness that compares ESTEL with STL during step 1 (Part II, §14 of
 repository but is not shipped and not imported by ESTEL, and it is retired after 1.0.0.
 
 It holds the container (task T0.6) and the parity fixtures (task T0.8). The parity cases come
-with the phases that need them (P2 onwards, §14.4): `cases/` holds the example of T0.8 and the
-masks and reweighting maps of T2.1 (`masks_2d.py` on `master`, `masks_1d.py` on `2D+1D`).
+with the phases that need them (P2 onwards, §14.4): `cases/` holds the example of T0.8 (the 2D
+kernels, `bump_steerable_kernel_2d.py` on `master`), the masks and reweighting maps of T2.1
+(`masks_2d.py` on `master`, `masks_1d.py` on `2D+1D`) and the 1D kernels of T2.2
+(`bump_steerable_kernel_1d.py` on `2D+1D`).
 
 ## The container
 

@@ -71,7 +71,7 @@ Decisions that change what existing statistics compute.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | LF20 | Canonical coefficient set | no duplicate coefficients | compact layout | yes | reference bump; major decided with the maintainers | §19.8 | Q1, G2, OP-14 |
 | LF21 | Gradient semantics through the reference | implicit differentiation with targets that depend on parameters | `ref` argument | yes, if the default changes | reference bump if default | §20.7 | Q2, G6, OP-18 |
-| LF22 | Wavelet optimisation | better filters | `WaveletOperator` | yes | reference bump; major decided with the maintainers | §20.6 | — |
+| LF22 | Wavelet optimisation | better filters, satisfying a Littlewood–Paley condition, low-pass filter included (LF6), tested in CI | `WaveletOperator` | yes | reference bump; major decided with the maintainers | §20.6 | — |
 
 ### 16.5 Entries added in the review of 12 November 2026
 
