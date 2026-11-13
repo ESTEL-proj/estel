@@ -13,10 +13,12 @@ process-wide setting, such as ``Backend.deterministic``.
 from __future__ import annotations
 
 import os
+import warnings
 
 import pytest
 
 from estel.backend._protocol import Backend
+from estel.backend._registry import set_backend
 from tests._backends import backend_name, make_backend
 
 DTYPES = ("float32", "float64")
@@ -35,6 +37,10 @@ def pytest_configure(config: pytest.Config) -> None:
         import jax
 
         jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
+    # Operators read the default backend when they are built (issue #39): make it the run's.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)  # the experimental-JAX warning
+        set_backend(name)
 
 
 def pytest_runtest_setup(item: pytest.Item) -> None:

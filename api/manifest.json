@@ -1,11 +1,31 @@
 {
   "schema": 1,
   "public": {
+    "estel.BackendMismatchError": {
+      "kind": "class",
+      "signature": "()"
+    },
     "estel.STATISTICS_REFERENCE": {
       "kind": "constant"
     },
     "estel.SYNTHESIS_REFERENCE": {
       "kind": "constant"
+    },
+    "estel.get_backend": {
+      "kind": "function",
+      "signature": "() -> str"
+    },
+    "estel.set_backend": {
+      "kind": "function",
+      "signature": "(name: str) -> None"
+    },
+    "estel.set_default_device": {
+      "kind": "function",
+      "signature": "(device: str) -> None"
+    },
+    "estel.set_default_dtype": {
+      "kind": "function",
+      "signature": "(dtype: Literal['float32', 'float64']) -> None"
     }
   }
 }

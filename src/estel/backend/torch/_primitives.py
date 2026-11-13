@@ -117,6 +117,24 @@ def _axes(axes: Sequence[int], ndim: int) -> list[int]:
     return normalised
 
 
+# ------------------------------------------------------------------ global configuration
+
+
+def enable_float64() -> None:
+    """Nothing to do: PyTorch handles float64 without a process-wide switch.
+
+    Called by ``estel.set_default_dtype("float64")`` (``estel.backend._registry``). ESTEL never
+    calls ``torch.set_default_dtype``: every primitive takes an explicit dtype.
+    """
+
+
+def available_devices() -> tuple[str, ...]:
+    """The device names ``estel.set_default_device`` accepts on PyTorch: ``"cpu"``, then
+    ``"cuda:N"`` for each CUDA device."""
+    count = torch.cuda.device_count() if torch.cuda.is_available() else 0
+    return ("cpu", *(f"cuda:{i}" for i in range(count)))
+
+
 # ------------------------------------------------------------------ the backend
 
 

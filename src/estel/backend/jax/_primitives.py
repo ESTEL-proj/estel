@@ -8,8 +8,10 @@ is differentiable to second order, in reverse and forward mode, and traceable by
 Two things differ from PyTorch, both decided by the maintainers (issue #10):
 
 * **64-bit mode.** JAX stores float64, complex128 and int64 in 32 bits unless its process-wide
-  ``jax_enable_x64`` flag is on. The backend never switches it: asking for a 64-bit dtype
-  while it is off raises ``TypeError`` with the way to switch it on.
+  ``jax_enable_x64`` flag is on. The primitives never switch it: asking for a 64-bit dtype
+  while it is off raises ``TypeError`` with the way to switch it on. Only the global
+  configuration does, through :func:`enable_float64`, when ``estel.set_default_dtype("float64")``
+  is called (issue #39).
 * **No L-BFGS before step 2.** :meth:`JaxBackend.lbfgs` raises ``NotImplementedError``; the
   backend declares it in ``JaxBackend.not_provided``, and the conformance suite checks that
   exact error. ``optax.lbfgs`` arrives in step 2 (LF1).
@@ -146,9 +148,9 @@ def _require_x64(dtype: str) -> None:
         raise TypeError(
             f"dtype {dtype} needs JAX's 64-bit mode, which is off: JAX would store the array "
             "in 32 bits. Switch it on at start-up, before creating any JAX array, with "
-            "jax.config.update('jax_enable_x64', True) or the environment variable "
-            "JAX_ENABLE_X64=1. The backend never switches it itself, since it changes the "
-            "default dtypes of all JAX code in the process."
+            "estel.set_default_dtype('float64'), jax.config.update('jax_enable_x64', True) or "
+            "the environment variable JAX_ENABLE_X64=1. The primitives never switch it "
+            "themselves, since it changes the default dtypes of all JAX code in the process."
         )
 
 
@@ -167,26 +169,65 @@ def _device(device: Any) -> Any:
         ) from error
 
 
-def _jax_has_started(enabled: bool) -> bool:
-    """Whether JAX has initialised its backends, so that XLA has read ``XLA_FLAGS`` already.
+def _backends_started(what: str, instead: str) -> bool:
+    """Whether JAX has initialised its backends (it does so at the first array).
 
     JAX has no public way to ask, so this reads the private
     ``jax._src.xla_bridge.backends_are_initialized``, imported here rather than with the
-    module: if a JAX version drops it, only :meth:`JaxBackend.deterministic` fails, with an
-    error that says what to do, and the rest of the backend still imports.
+    module: if a JAX version drops it, only the caller fails, with an error that says what to
+    do (``instead``), and the rest of the backend still imports.
     """
     try:
         xla_bridge = importlib.import_module("jax._src.xla_bridge")
         started = xla_bridge.backends_are_initialized
     except (ImportError, AttributeError) as error:
         raise RuntimeError(
-            f"deterministic({bool(enabled)}) could not check whether JAX has started its "
-            f"backends: JAX {jax.__version__} has no jax._src.xla_bridge."
-            "backends_are_initialized, which ESTEL uses for that. Set "
-            f"XLA_FLAGS={_DETERMINISTIC_FLAG}={str(bool(enabled)).lower()} in the environment "
-            "before starting Python instead, and report this JAX version in an ESTEL issue."
+            f"{what} could not check whether JAX has started its backends: JAX "
+            f"{jax.__version__} has no jax._src.xla_bridge.backends_are_initialized, which "
+            f"ESTEL uses for that. {instead}, and report this JAX version in an ESTEL issue."
         ) from error
     return bool(started())
+
+
+def _jax_has_started(enabled: bool) -> bool:
+    """Whether JAX has initialised its backends, so that XLA has read ``XLA_FLAGS`` already."""
+    return _backends_started(
+        f"deterministic({bool(enabled)})",
+        f"Set XLA_FLAGS={_DETERMINISTIC_FLAG}={str(bool(enabled)).lower()} in the environment "
+        "before starting Python instead",
+    )
+
+
+def enable_float64() -> None:
+    """Switch JAX's 64-bit mode on, for ``estel.set_default_dtype("float64")`` (Part I, §3.1).
+
+    The primitives never switch it themselves; only the global configuration does, through
+    this function (``estel.backend._registry``). Once JAX has started its backends in 32-bit
+    mode, arrays already made stay 32-bit, so a late switch raises ``RuntimeError`` and changes
+    nothing. A mode already on is left alone.
+    """
+    if _x64_enabled():
+        return
+    instead = "Set the environment variable JAX_ENABLE_X64=1 before starting Python instead"
+    if _backends_started('set_default_dtype("float64")', instead):
+        raise RuntimeError(
+            'set_default_dtype("float64") came after JAX started in 32-bit mode, so the JAX '
+            "arrays made so far are float32 and JAX's 64-bit mode can no longer be switched on "
+            'safely. Call estel.set_default_dtype("float64") at set-up, before the first JAX '
+            "array is created, or set the environment variable JAX_ENABLE_X64=1 before "
+            "starting Python."
+        )
+    jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
+
+
+def available_devices() -> tuple[str, ...]:
+    """The device names ``estel.set_default_device`` accepts on JAX: ``"cpu"``, then
+    ``"cuda:N"`` for each GPU. Starts JAX's backends when asked for GPUs."""
+    try:
+        gpus = jax.devices("gpu")
+    except RuntimeError:  # no GPU platform in this JAX install
+        gpus = []
+    return ("cpu", *(f"cuda:{i}" for i in range(len(gpus))))
 
 
 def _flag_value(flags: Sequence[str]) -> bool:

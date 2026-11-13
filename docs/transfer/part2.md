@@ -187,12 +187,13 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 
 ### 12.2 Public namespace and configuration
 
-`estel/__init__.py`, `_config.py`:
+`estel/__init__.py`, `_config.py`, `backend/_registry.py` (signatures decided on issue #39):
 
 | Function / class | Tag | Purpose | Origin |
 | --- | --- | --- | --- |
-| `set_backend(name)`, `get_backend()` | F | Global backend choice: `"torch"` and, experimental, `"jax"` (with a warning). Operators record the backend when built and refuse arrays from another one | new (replaces the module globals of `torch_backend.py`) |
-| `set_default_dtype("float32"\|"float64")`, `set_default_device(...)` | F | Global defaults; float32 by default | `bk._DEFAULT_DTYPE` |
+| `set_backend(name: str) -> None`, `get_backend() -> str` | F | Global backend choice: `"torch"` (the default) and, experimental, `"jax"` (with a warning). `get_backend()` returns the name, not the backend object. Operators record the backend when built and refuse arrays from another one | new (replaces the module globals of `torch_backend.py`) |
+| `set_default_dtype(dtype: Literal["float32", "float64"]) -> None`, `set_default_device(device: str) -> None` | F | Global defaults. The dtype is float32 by default; `"float64"` enables float64 on every backend (Part I, §3.1, rule 7). The device is `"cpu"`, `"cuda"` or `"cuda:N"`, checked against the backend; until it is set, it is CUDA if available, else CPU, as in STL | `bk._DEFAULT_DTYPE`, `bk._DEFAULT_DEVICE` |
+| `BackendMismatchError` | F | Raised when arrays of two backends are mixed (Part I, §2.2.3); a subclass of `TypeError`, whose message says how to fix it. Public because it can occur in 1.0.0; `EngineUnsupportedError` stays internal | new |
 | `__version__`, `STATISTICS_REFERENCE`, `SYNTHESIS_REFERENCE` | F | Package version and the two reference counters (Part I, §7.1) | new |
 
 ### 12.3 L0 primitives
