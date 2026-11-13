@@ -24,5 +24,681 @@
       }
     },
     "sha256": "4e4e18621bab7646063576b2869a4d26c68b8d33b3871751be4b073981a6f0fe"
+  },
+  "masks_1d.npz": {
+    "case": "tools/stl_parity/cases/masks_1d.py",
+    "stl_branch": "2D+1D",
+    "stl_commit": "8f51143c5f8ebc259328830f246894d7031acae5",
+    "image_id": "sha256:d4d2d6767579f2c9c27b4e808cc163bdfbe9bb9f8d26b48309590f32955a5d26",
+    "parameters": {
+      "J": 4,
+      "L": 1,
+      "K": 5,
+      "N": 128,
+      "threshold": 0.5,
+      "seed": 2,
+      "scatter_fraction": 0.05,
+      "gap": [
+        40,
+        47
+      ]
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "circular_layer1_0": {
+        "dtype": "float64",
+        "shape": [
+          128
+        ]
+      },
+      "circular_layer1_1": {
+        "dtype": "float64",
+        "shape": [
+          64
+        ]
+      },
+      "circular_layer1_2": {
+        "dtype": "float64",
+        "shape": [
+          32
+        ]
+      },
+      "circular_layer1_3": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "circular_layer2_0_0": {
+        "dtype": "float64",
+        "shape": [
+          128
+        ]
+      },
+      "circular_layer2_1_0": {
+        "dtype": "float64",
+        "shape": [
+          64
+        ]
+      },
+      "circular_layer2_1_1": {
+        "dtype": "float64",
+        "shape": [
+          64
+        ]
+      },
+      "circular_layer2_2_0": {
+        "dtype": "float64",
+        "shape": [
+          32
+        ]
+      },
+      "circular_layer2_2_1": {
+        "dtype": "float64",
+        "shape": [
+          32
+        ]
+      },
+      "circular_layer2_2_2": {
+        "dtype": "float64",
+        "shape": [
+          32
+        ]
+      },
+      "circular_layer2_3_0": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "circular_layer2_3_1": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "circular_layer2_3_2": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "circular_layer2_3_3": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "circular_smooth_1": {
+        "dtype": "float64",
+        "shape": [
+          64
+        ]
+      },
+      "circular_smooth_2": {
+        "dtype": "float64",
+        "shape": [
+          32
+        ]
+      },
+      "circular_smooth_3": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "circular_wav_1_0": {
+        "dtype": "float64",
+        "shape": [
+          64
+        ]
+      },
+      "circular_wav_2_0": {
+        "dtype": "float64",
+        "shape": [
+          32
+        ]
+      },
+      "circular_wav_2_1": {
+        "dtype": "float64",
+        "shape": [
+          32
+        ]
+      },
+      "circular_wav_3_0": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "circular_wav_3_1": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "circular_wav_3_2": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "mask_full_res": {
+        "dtype": "float64",
+        "shape": [
+          128
+        ]
+      },
+      "replicate_layer1_0": {
+        "dtype": "float64",
+        "shape": [
+          128
+        ]
+      },
+      "replicate_layer1_1": {
+        "dtype": "float64",
+        "shape": [
+          64
+        ]
+      },
+      "replicate_layer1_2": {
+        "dtype": "float64",
+        "shape": [
+          32
+        ]
+      },
+      "replicate_layer1_3": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "replicate_layer2_0_0": {
+        "dtype": "float64",
+        "shape": [
+          128
+        ]
+      },
+      "replicate_layer2_1_0": {
+        "dtype": "float64",
+        "shape": [
+          64
+        ]
+      },
+      "replicate_layer2_1_1": {
+        "dtype": "float64",
+        "shape": [
+          64
+        ]
+      },
+      "replicate_layer2_2_0": {
+        "dtype": "float64",
+        "shape": [
+          32
+        ]
+      },
+      "replicate_layer2_2_1": {
+        "dtype": "float64",
+        "shape": [
+          32
+        ]
+      },
+      "replicate_layer2_2_2": {
+        "dtype": "float64",
+        "shape": [
+          32
+        ]
+      },
+      "replicate_layer2_3_0": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "replicate_layer2_3_1": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "replicate_layer2_3_2": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "replicate_layer2_3_3": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "replicate_smooth_1": {
+        "dtype": "float64",
+        "shape": [
+          64
+        ]
+      },
+      "replicate_smooth_2": {
+        "dtype": "float64",
+        "shape": [
+          32
+        ]
+      },
+      "replicate_smooth_3": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "replicate_wav_1_0": {
+        "dtype": "float64",
+        "shape": [
+          64
+        ]
+      },
+      "replicate_wav_2_0": {
+        "dtype": "float64",
+        "shape": [
+          32
+        ]
+      },
+      "replicate_wav_2_1": {
+        "dtype": "float64",
+        "shape": [
+          32
+        ]
+      },
+      "replicate_wav_3_0": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "replicate_wav_3_1": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "replicate_wav_3_2": {
+        "dtype": "float64",
+        "shape": [
+          16
+        ]
+      },
+      "smooth_kernel": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      }
+    },
+    "sha256": "5b9148bfb4021a88bb24e750badc65b80f1ae48aef02ce94c463bf98fcac548f"
+  },
+  "masks_2d.npz": {
+    "case": "tools/stl_parity/cases/masks_2d.py",
+    "stl_branch": "master",
+    "stl_commit": "8eaf7691d55f3c3441cde9b95f1f80eb17aa8014",
+    "image_id": "sha256:d4d2d6767579f2c9c27b4e808cc163bdfbe9bb9f8d26b48309590f32955a5d26",
+    "parameters": {
+      "J": 4,
+      "L": 4,
+      "K": 5,
+      "N": 32,
+      "threshold": 0.33,
+      "seed": 1,
+      "scatter_fraction": 0.05,
+      "hole": [
+        [
+          10,
+          17
+        ],
+        [
+          4,
+          13
+        ]
+      ]
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "circular_layer1_0": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          32
+        ]
+      },
+      "circular_layer1_1": {
+        "dtype": "float64",
+        "shape": [
+          16,
+          16
+        ]
+      },
+      "circular_layer1_2": {
+        "dtype": "float64",
+        "shape": [
+          8,
+          8
+        ]
+      },
+      "circular_layer1_3": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "circular_layer2_0_0": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          32
+        ]
+      },
+      "circular_layer2_1_0": {
+        "dtype": "float64",
+        "shape": [
+          16,
+          16
+        ]
+      },
+      "circular_layer2_1_1": {
+        "dtype": "float64",
+        "shape": [
+          16,
+          16
+        ]
+      },
+      "circular_layer2_2_0": {
+        "dtype": "float64",
+        "shape": [
+          8,
+          8
+        ]
+      },
+      "circular_layer2_2_1": {
+        "dtype": "float64",
+        "shape": [
+          8,
+          8
+        ]
+      },
+      "circular_layer2_2_2": {
+        "dtype": "float64",
+        "shape": [
+          8,
+          8
+        ]
+      },
+      "circular_layer2_3_0": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "circular_layer2_3_1": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "circular_layer2_3_2": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "circular_layer2_3_3": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "circular_smooth_1": {
+        "dtype": "float64",
+        "shape": [
+          16,
+          16
+        ]
+      },
+      "circular_smooth_2": {
+        "dtype": "float64",
+        "shape": [
+          8,
+          8
+        ]
+      },
+      "circular_smooth_3": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "circular_wav_1_0": {
+        "dtype": "float64",
+        "shape": [
+          16,
+          16
+        ]
+      },
+      "circular_wav_2_0": {
+        "dtype": "float64",
+        "shape": [
+          8,
+          8
+        ]
+      },
+      "circular_wav_2_1": {
+        "dtype": "float64",
+        "shape": [
+          8,
+          8
+        ]
+      },
+      "circular_wav_3_0": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "circular_wav_3_1": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "circular_wav_3_2": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "mask_full_res": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          32
+        ]
+      },
+      "replicate_layer1_0": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          32
+        ]
+      },
+      "replicate_layer1_1": {
+        "dtype": "float64",
+        "shape": [
+          16,
+          16
+        ]
+      },
+      "replicate_layer1_2": {
+        "dtype": "float64",
+        "shape": [
+          8,
+          8
+        ]
+      },
+      "replicate_layer1_3": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "replicate_layer2_0_0": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          32
+        ]
+      },
+      "replicate_layer2_1_0": {
+        "dtype": "float64",
+        "shape": [
+          16,
+          16
+        ]
+      },
+      "replicate_layer2_1_1": {
+        "dtype": "float64",
+        "shape": [
+          16,
+          16
+        ]
+      },
+      "replicate_layer2_2_0": {
+        "dtype": "float64",
+        "shape": [
+          8,
+          8
+        ]
+      },
+      "replicate_layer2_2_1": {
+        "dtype": "float64",
+        "shape": [
+          8,
+          8
+        ]
+      },
+      "replicate_layer2_2_2": {
+        "dtype": "float64",
+        "shape": [
+          8,
+          8
+        ]
+      },
+      "replicate_layer2_3_0": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "replicate_layer2_3_1": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "replicate_layer2_3_2": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "replicate_layer2_3_3": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "replicate_smooth_1": {
+        "dtype": "float64",
+        "shape": [
+          16,
+          16
+        ]
+      },
+      "replicate_smooth_2": {
+        "dtype": "float64",
+        "shape": [
+          8,
+          8
+        ]
+      },
+      "replicate_smooth_3": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "replicate_wav_1_0": {
+        "dtype": "float64",
+        "shape": [
+          16,
+          16
+        ]
+      },
+      "replicate_wav_2_0": {
+        "dtype": "float64",
+        "shape": [
+          8,
+          8
+        ]
+      },
+      "replicate_wav_2_1": {
+        "dtype": "float64",
+        "shape": [
+          8,
+          8
+        ]
+      },
+      "replicate_wav_3_0": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "replicate_wav_3_1": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "replicate_wav_3_2": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          4
+        ]
+      },
+      "smooth_kernel": {
+        "dtype": "float64",
+        "shape": [
+          6,
+          6
+        ]
+      }
+    },
+    "sha256": "055bb25c139a01f4d6432bc1e99044f4c3474072c0ab947074e05ff383b0ce4e"
   }
 }
