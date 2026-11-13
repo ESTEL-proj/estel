@@ -1,9 +1,10 @@
 """The STL parity fixtures and the comparison helpers (Part II, §14.2, §14.3; task T0.8).
 
 These tests check the integrity of the fixtures (against MANIFEST.json: checksum, STL commit,
-image ID; their dtypes and shapes) and the comparison helpers, on synthetic arrays. They do not
-compare ESTEL with STL: each parity test does that for its own fixture, with the helpers tested
-here. ESTEL's 2D kernels are compared with `bump_steerable_kernel_2d` by task T2.2 (issue #14).
+image ID, torch's default dtype; their dtypes and shapes) and the comparison helpers, on
+synthetic arrays. They do not compare ESTEL with STL: each parity test does that for its own
+fixture, with the helpers tested here. ESTEL's 2D kernels are compared with
+`bump_steerable_kernel_2d` by task T2.2 (issue #14).
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from tests.parity._compare import (
     STL_COMMITS,
     assert_parity,
     load_fixture,
+    parity_atol,
     read_manifest,
     sha256,
 )
@@ -51,6 +53,10 @@ def test_fixture_matches_its_manifest_entry(name: str, entry: dict[str, Any]) ->
         "commit of Part II, §9.1: rebuild the image (make parity-image) and regenerate it."
     )
     assert IMAGE_ID.fullmatch(entry["image_id"])
+    assert entry.get("torch_default_dtype") == "float64", (
+        f"{name} was produced with torch's default dtype {entry.get('torch_default_dtype')}: STL "
+        "runs with float64 as default (make_fixtures.py). Regenerate it with make parity-fixtures."
+    )
     assert entry["case"] == f"tools/stl_parity/cases/{Path(name).stem}.py"
     assert (REPO / entry["case"]).is_file(), f"{name}: its case script {entry['case']} is gone"
     arrays = load_fixture(Path(name).stem)
@@ -124,7 +130,8 @@ def test_assert_parity_accepts_differences_within_rtol(kind: type, dtype: str) -
 def test_assert_parity_rejects_differences_beyond_rtol(kind: type, dtype: str) -> None:
     expected = _reference(kind)
     actual = expected.copy()
-    actual[1, 2, 3] *= 1 + 2 * PARITY_RTOL[dtype]
+    allowed = parity_atol(expected) + PARITY_RTOL[dtype] * abs(expected[1, 2, 3])
+    actual[1, 2, 3] += 2 * allowed
     with pytest.raises(AssertionError, match=r"1 of 60 coefficients .* Worst at \(1, 2, 3\)"):
         assert_parity(actual, expected, dtype)
 
@@ -152,11 +159,39 @@ def test_assert_parity_rejects_different_nan_positions(where: str) -> None:
         assert_parity(actual, expected)
 
 
-def test_assert_parity_needs_exact_zeros() -> None:
+def test_parity_atol_is_1e_12_of_the_largest_finite_modulus() -> None:
+    assert parity_atol(np.array([0.5, -4.0, 2.0])) == pytest.approx(4e-12)
+    assert parity_atol(np.array([3 + 4j, 1.0])) == pytest.approx(5e-12)
+    assert parity_atol(np.array([np.nan, np.inf, -np.inf, 2.0])) == pytest.approx(2e-12)
+    assert parity_atol(np.array([np.nan, np.inf])) == 0.0
+    assert parity_atol(np.zeros(3)) == 0.0
+
+
+@pytest.mark.parametrize("dtype", sorted(PARITY_RTOL))
+def test_assert_parity_accepts_rounding_on_values_zero_in_theory(dtype: str) -> None:
+    assert_parity(np.array([1.0, 1e-17]), np.array([1.0, 0.0]), dtype)
+    assert_parity(np.array([1.0 + 1e-17j, -1e-17j]), np.array([1.0 + 0j, 0j]), dtype)
+
+
+@pytest.mark.parametrize("dtype", sorted(PARITY_RTOL))
+def test_assert_parity_atol_scales_with_the_largest_value(dtype: str) -> None:
+    expected = np.array([100.0, 0.0])
+    assert_parity(np.array([100.0, 9e-11]), expected, dtype)
+    with pytest.raises(AssertionError, match=r"atol 1e-10 .* Worst at \(1,\)"):
+        assert_parity(np.array([100.0, 2e-10]), expected, dtype)
+
+
+def test_assert_parity_needs_exact_zeros_when_everything_is_zero() -> None:
     expected = np.zeros(4)
     assert_parity(np.zeros(4), expected)
-    with pytest.raises(AssertionError, match="relative difference inf"):
+    with pytest.raises(AssertionError, match="allowed 0"):
         assert_parity(np.array([0.0, 1e-300, 0.0, 0.0]), expected)
+
+
+def test_assert_parity_atol_ignores_infinities() -> None:
+    expected = np.array([1.0, np.inf, 0.0])
+    with pytest.raises(AssertionError, match=r"atol 1e-12 .* Worst at \(2,\)"):
+        assert_parity(np.array([1.0, np.inf, 1e-3]), expected)
 
 
 def test_assert_parity_rejects_infinities_of_opposite_sign() -> None:

@@ -37,7 +37,11 @@ packages it downloads, which can disappear. The image that produced the parity r
 archived with it (§14.2), and is what reruns the comparison afterwards.
 
 **Precision.** STL runs in float64 on CPU by default (`STL_main.torch_backend`), which is what
-parity needs (§14.3). The container has no GPU.
+parity needs (§14.3). The container has no GPU. STL still builds some arrays at torch's default
+dtype, float32 unless changed: its 2D kernels, for one, call `torch.fft.fftfreq` without a dtype.
+So every STL run of the container, the smoke check and the fixtures alike, first calls
+`torch.set_default_dtype(torch.float64)` (maintainer decision on #57), and STL's own, unchanged
+code then builds them in float64. `MANIFEST.json` records the setting for each fixture.
 
 ## Commands
 
@@ -82,13 +86,15 @@ compared with ESTEL on every PR, in float64, without Docker.
   first with `make parity-image`.
 - **`MANIFEST.json`** records for each file the case script, the STL branch and the commit of its
   checkout, the container image ID (`docker image inspect --format '{{.Id}}'`: a locally built
-  image has no registry digest), the parameters, each array's dtype and shape, and the file's
-  SHA-256. The files are written byte for byte the same when STL's results are the same, so
+  image has no registry digest), the parameters, torch's default dtype (`float64`, see
+  *Precision*), each array's dtype and shape, and the file's SHA-256. The files are written byte for byte the same when STL's results are the same, so
   regenerating an unchanged case changes nothing.
 - **The tests** of [`tests/parity/`](../../tests/parity) check every fixture against the manifest,
   and compare ESTEL with it through `load_fixture` and `assert_parity`
   ([`tests/parity/_compare.py`](../../tests/parity/_compare.py)): same shape, NaN at the same
-  positions, rtol 1e-10 in float64 and 1e-5 in float32 (§14.3).
+  positions, and `|ESTEL − STL| ≤ atol + rtol·|STL|` element by element, with rtol 1e-10 in
+  float64 and 1e-5 in float32 (§14.3) and atol 1e-12 × the largest finite |STL| of the array
+  (maintainer decision on #57), so that values zero in theory pass on rounding.
 - **`tests/parity/fixtures/` is protected.** Only a maintainer runs `make parity-fixtures` and
   commits its output. An agent that needs a new case writes the case and its test, and asks for
   the fixture in its PR.

@@ -9,6 +9,8 @@ small float64 input, runs STL's scattering operator (and, on `master`, the four 
 estimators), and checks that every output is float64 or complex128 and holds finite values. It
 checks that STL runs, not what it computes: the parity cases compare values.
 
+Like make_fixtures.py, it sets torch's default dtype to float64 before STL runs.
+
 This file is not part of ESTEL. It imports STL, never `estel`.
 """
 
@@ -147,6 +149,7 @@ def _environment(env: str) -> list[str]:
     backend = importlib.import_module("STL_main.torch_backend")
     print(f"  STL {stl.__version__} at {COMMITS[env][:7]}, from {stl.__file__}")
     print(f"  torch {torch.__version__}, numpy {np.__version__}, python {sys.version.split()[0]}")
+    print(f"  torch default dtype {torch.get_default_dtype()}")
     errors = _healpix_analyse() if env == "healpix" else []
     default_dtype = backend._DEFAULT_DTYPE
     if default_dtype is not torch.float64:
@@ -189,6 +192,10 @@ def main() -> int:
     # catch. Disabling it skips the initialisation. NNPACK only handles float32, so the float64
     # results are unchanged.
     torch.backends.nnpack.set_flags(False)  # type: ignore[no-untyped-call]  # unannotated in torch
+    # Maintainer decision on #57: STL builds some arrays at torch's default dtype (its 2D kernels
+    # call torch.fft.fftfreq without a dtype), so every STL run of the container sets it to
+    # float64 first, and STL's own, unchanged code then computes them in float64.
+    torch.set_default_dtype(torch.float64)
     errors = _environment(env)
     for label, case in CASES[env].items():
         print(f"- {label}")

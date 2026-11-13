@@ -7,9 +7,14 @@ Runs inside the parity container, with the interpreter of one STL environment, f
 
 `make parity-fixtures` runs it in each environment (run_fixtures.sh). For each case it writes
 `<dir>/<case>.npz` and its entry of `<dir>/MANIFEST.json`: the case script, the STL branch and
-the commit of its checkout, the container image ID, the case's parameters, each array's dtype and
-shape, and the SHA-256 of the file. The `.npz` files are written byte for byte the same when the
-arrays are the same, so regenerating an unchanged case leaves its file and checksum unchanged.
+the commit of its checkout, the container image ID, the case's parameters, torch's default dtype,
+each array's dtype and shape, and the SHA-256 of the file. The `.npz` files are written byte for
+byte the same when the arrays are the same, so regenerating an unchanged case leaves its file and
+checksum unchanged.
+
+Every run sets torch's default dtype to float64 before STL runs (maintainer decision on #57): STL
+builds some arrays at the default dtype, such as its 2D kernels, which call torch.fft.fftfreq
+without a dtype. With float64, STL's own, unchanged code computes them in float64.
 
 A case is a module of `cases/` that defines `STL_ENV` (`master`, `2d1d` or `healpix`, the
 environments of the image), `PARAMETERS` (a JSON-serialisable dict) and `run()`, which returns a
@@ -117,6 +122,8 @@ def entry(case_path: Path, module: ModuleType, image_id: str, file: Path) -> dic
         "stl_commit": stl_commit(module.STL_ENV),
         "image_id": image_id,
         "parameters": module.PARAMETERS,
+        # Read after the case ran, so a case that changed it is recorded as it ran.
+        "torch_default_dtype": str(torch.get_default_dtype()).removeprefix("torch."),
         "arrays": arrays,
         "sha256": sha256(file),
     }
@@ -131,6 +138,10 @@ def main() -> int:
     args = parser.parse_intermixed_args()
     # See smoke.py: NNPACK fails to initialise under linux/amd64 emulation; float64 is unaffected.
     torch.backends.nnpack.set_flags(False)  # type: ignore[no-untyped-call]  # unannotated in torch
+    # Maintainer decision on #57: STL builds some arrays at torch's default dtype (its 2D kernels
+    # call torch.fft.fftfreq without a dtype), so every STL run of the container sets it to
+    # float64 first, and STL's own, unchanged code then computes them in float64.
+    torch.set_default_dtype(torch.float64)
 
     paths = sorted(CASES.glob("[!_]*.py"))
     unknown = sorted(set(args.cases) - {path.stem for path in paths})

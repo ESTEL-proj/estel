@@ -27,6 +27,10 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 MANIFEST = "MANIFEST.json"
 # Part II, §14.3: both libraries run in float64 for parity; float32 is a secondary check.
 PARITY_RTOL = {"float64": 1e-10, "float32": 1e-5}
+# Maintainer decision on #57: an absolute tolerance too, PARITY_ATOL_FACTOR x max|expected| over
+# the compared array, so that values zero in theory (imaginary parts of real quantities,
+# subtracted means) do not fail on a 1e-17 difference.
+PARITY_ATOL_FACTOR = 1e-12
 # The STL-Dev commit of each branch (Part II, §9.1), as the parity container pins them.
 STL_COMMITS = {
     "master": "8eaf7691d55f3c3441cde9b95f1f80eb17aa8014",
@@ -75,12 +79,22 @@ def load_fixture(case: str, directory: Path = FIXTURES) -> dict[str, NDArray[Any
         return {key: stored[key] for key in stored.files}
 
 
-def assert_parity(actual: Any, expected: NDArray[Any], dtype: str = "float64") -> None:
-    """Assert that ``actual`` equals the STL fixture ``expected`` within §14.3's tolerances.
+def parity_atol(expected: NDArray[Any]) -> float:
+    """The absolute tolerance for ``expected``: ``PARITY_ATOL_FACTOR`` x its largest finite modulus.
 
-    Same shape; NaN at exactly the same positions; elsewhere ``|actual - expected| <= rtol *
-    |expected|`` element by element (complex moduli for complex arrays), with ``rtol`` the §14.3
-    value for the ``dtype`` ESTEL computed in: 1e-10 in float64, 1e-5 in float32.
+    NaN and infinite values are left out, so that they do not make every difference pass.
+    """
+    magnitude = np.abs(expected[np.isfinite(expected)])
+    return PARITY_ATOL_FACTOR * float(magnitude.max()) if magnitude.size else 0.0
+
+
+def assert_parity(actual: Any, expected: NDArray[Any], dtype: str = "float64") -> None:
+    """Assert that ``actual`` equals the STL fixture ``expected`` within the parity tolerances.
+
+    Same shape; NaN at exactly the same positions; elsewhere, element by element (complex moduli
+    for complex arrays), ``|actual - expected| <= atol + rtol * |expected|``, with ``rtol`` the
+    §14.3 value for the ``dtype`` ESTEL computed in (1e-10 in float64, 1e-5 in float32) and
+    ``atol = 1e-12 * max|expected|`` over the finite values of ``expected`` (``parity_atol``).
     """
     if dtype not in PARITY_RTOL:
         raise ValueError(f"dtype={dtype!r}: pass one of {sorted(PARITY_RTOL)}.")
@@ -99,20 +113,22 @@ def assert_parity(actual: Any, expected: NDArray[Any], dtype: str = "float64") -
             f"{[tuple(int(i) for i in p) for p in positions[:5]]}: they must match exactly "
             f"(§14.3). {_REPORT}"
         )
+    atol = parity_atol(expected)
     valid = ~nan_expected
     got, want = actual[valid], expected[valid]
     with np.errstate(invalid="ignore"):
         error = np.abs(got.astype(np.complex128) - want)
-    magnitude = np.abs(want)
+    allowed = atol + rtol * np.abs(want)
     # An infinite value passes only when it is equal: its error is not finite.
-    failing = ~((got == want) | (np.isfinite(error) & (error <= rtol * magnitude)))
+    failing = ~((got == want) | (np.isfinite(error) & (error <= allowed)))
     if failing.any():
         with np.errstate(divide="ignore", invalid="ignore"):
-            relative = np.where(magnitude > 0, error / magnitude, np.inf)[failing]
-        worst = int(np.argmax(relative))
+            excess = np.where(allowed > 0, error / allowed, np.inf)[failing]
+        worst = int(np.argmax(excess))
         index = tuple(int(i) for i in np.argwhere(valid)[failing][worst])
         raise AssertionError(
             f"{int(failing.sum())} of {int(valid.sum())} coefficients differ from STL beyond "
-            f"rtol {rtol:g} ({dtype}). Worst at {index}: ESTEL {actual[index]!r}, STL "
-            f"{expected[index]!r}, relative difference {relative[worst]:.3g}. {_REPORT}"
+            f"atol {atol:.3g} + rtol {rtol:g} x |STL| ({dtype}). Worst at {index}: ESTEL "
+            f"{actual[index]!r}, STL {expected[index]!r}, difference {error[failing][worst]:.3g}, "
+            f"allowed {allowed[failing][worst]:.3g}. {_REPORT}"
         )
