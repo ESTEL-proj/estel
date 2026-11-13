@@ -229,7 +229,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `.copy(empty=False)`, `.__getitem__` (batch and channel slicing only) | F |  | `Base_DataClass.copy`, `__getitem__` |
 | `.with_array(new_array)` | F | Functional replacement of in-place updates | replaces `inplace=True` |
 | `modulus(x)`, `divide(x, y, eps, pow)` | I | Safe modulus and the regularised division of STL, differentiable twice (Part I, §3.2.3) | `modulus`, `divide` |
-| `mean_valid(x, weights, axes)`, `cov_valid(x, y, weights, axes)` | I | Weighted means over valid pixels, one implementation for every geometry; the denominators are precomputed in the plan | `mean`, `cov`, `square_mean` of each wavelet operator (three copies) |
+| `mean_valid(x, weights, axes)`, `cov_valid(x, y, weights, axes)` | I | Weighted means over valid pixels, one implementation for every geometry; the denominators are precomputed in the plan. `cov_valid` returns the raw second moment in 1.0.0, as STL; it accepts optional first moments, used by the centred covariances of step 2 (LF33) | `mean`, `cov`, `square_mean` of each wavelet operator (three copies) |
 | `standardize`, `unstandardize` | I |  | `standardize` |
 | `propagate_mask_conv(mask, footprint)` | I | An output is masked when its kernel footprint touches a masked input | `_build_reweighting_maps…`, `_find_mask` |
 | `_spatial_axes()` | G | Axes the geometry acts on | the `# conv_dims dependant` markers |
@@ -254,7 +254,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `.apply(data, j)` | F | ψ\_j ⋆ x at level j: complex output, L orientations | `apply` |
 | `.lowpass(data, j)` | F | φ\_j ⋆ x | `lowpass`, `lowpass_dg` |
 | `.downsample(data, level_out)` | F | Normalised downsampling to a coarser level | `downsample` |
-| `bump_steerable_2d(L, size)`, `bump_steerable_1d(xi0, size, conjugate)` | N | Kernels built in NumPy, cropped to 5×5 or 5 taps. STL's kernels are reproduced as they are. They do not satisfy the Littlewood–Paley condition exactly, so 1.0.0 does not test it; a Littlewood–Paley requirement, tested in CI, comes with the wavelet optimisation (LF22); that test includes the low-pass filter, without which the Littlewood–Paley sum is not meaningful (LF6) | `_build_bump_steerable_wavelet_kernel`, `bump_steerable_bank` (ported from the Fourier-space class) |
+| `bump_steerable_2d(L, size)`, `bump_steerable_1d(xi0, size, conjugate)` | N | Kernels built in NumPy, cropped to 5×5 or 5 taps. STL's kernels are reproduced as they are. They do not satisfy the Littlewood–Paley condition exactly, so 1.0.0 does not test it; a Littlewood–Paley requirement, tested in CI, comes with the wavelet optimisation (LF22); that test includes the low-pass filter, without which the Littlewood–Paley sum is not meaningful (LF6). Every band-pass kernel sums to zero by construction (its mean is subtracted), and the construction checks it: the centring rule of step 2 relies on it (Part III, §20.11) | `_build_bump_steerable_wavelet_kernel`, `bump_steerable_bank` (ported from the Fourier-space class) |
 | `smoothing_kernel(ndim)` | N | Smoothing kernel, the anti-aliasing filter applied before each downsampling; STL's unused `sigma_smooth` is dropped | `_get_smooth_kernel` |
 | `healpix_kernel_weights(depth, L, kernel_size)` | N | Gauge-oriented kernel weights | `_wavelet_kernel` |
 | `healpix_stencils(cell_ids, depth)`, `healpix_decimation(cell_ids, depth)` | N | Index and weight tables for `gather_weighted`, ported from `TorchGeometry` (step 1) | `TorchGeometry`, `stl-core` |
@@ -275,8 +275,8 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `_levels(plan)` | I | Resolution levels in execution order. Mother: `0…J`; tensor product: the product of block levels | `_compute_ST_loop` |
 | `_first_layer(x, plan)` | I | W\_j x and \|W\_j x\| at every level, built functionally | `_compute_ST_loop` |
 | `_second_layer(u, plan, level)` | I | The S3 and S4 means at one level, following the structure of STL's loop (Part I, §3.1, rule 8), returned as lists and stacked; no preallocated tensor filled in place (Part I, §3.1.1) | the `cov` calls of the loop |
-| `_normalize(values, plan, ref)` | I | Normalisation only: `store_ref`, `load_ref`, batch mean, with the optional reference. Reductions are `STStatistics` methods | `_finalize_compute`, `to_norm`, `_normalize_scatcov` |
-| `ScatteringPlan` | N | Static description: J, L, index sets, levels, the low-pass filter (how it is realised and at which level), crop widths derived from the plan's list of operations, masks and reweighting maps, mean denominators; hashable | new |
+| `_normalize(values, plan, ref)` | I | Normalisation only: `store_ref`, `load_ref`, batch mean, with the optional reference. Reductions are `STStatistics` methods. The reference object stores the normalisation scales and, from step 2, the first moments used by centring; the two options are independent (Part III, §20.11) | `_finalize_compute`, `to_norm`, `_normalize_scatcov` |
+| `ScatteringPlan` | N | Static description: J, L, index sets, levels, the low-pass filter (how it is realised and at which level), crop widths derived from the plan's list of operations, masks and reweighting maps, mean denominators, the centring of each covariance (`none` in 1.0.0) and the window policy; hashable | new |
 | `scattering(x, plan, arrays, ref=None)` (in `functional`) | I/F | The pure function behind `apply`, public for `jit`, `grad` and `vmap` users, and for downstream implicit differentiation | new |
 
 ### 12.7 Statistics

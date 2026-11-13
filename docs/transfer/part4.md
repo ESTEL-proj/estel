@@ -158,6 +158,8 @@ Every point of the review list (C: critical before the start, S: needed during s
 | — | Joint design of s and ψ | LF6, LF22 and LF25 are designed together, with the requirements of Part III §20.10; the three diagnostics of Part II §12.10 measure them | Part III, §20.10; Part II, §12.10 |
 | — | `WaveletOperator` L | Any integer L ≥ 1, as in STL | Part II, §12.5 |
 | OP-3 | OP-3 revised | A mean with no valid pixel gives a NaN coefficient, as in STL, decided statically by the plan; ESTEL warns once and raises only if a whole family is empty. The first decision (an error) would have refused many masked operators, since coarse levels often lose all their valid pixels | maths tab, M-MEAN, OP-3; Part II, §9.2 |
+| — | Centred covariances | The scattering covariances are covariances by definition; STL's raw moments are a simplification. 1.0.0 reproduces STL. Step 2 centres by default, only where the plan cannot prove a zero mean, by correcting coefficients; one window per level; band-pass kernels sum to zero by requirement; `centre` and `norm` are independent | Part III, LF33, §20.11; maths tab, OP-36 |
+| — | Mean of the data | Removed first and stored apart, explicitly; if it is not, the terms ending with a low-pass filter are centred explicitly | Part III, §20.11 |
 
 ## 23. Open questions
 
