@@ -30,6 +30,8 @@ jax = ["jax>=0.5"]
 [dependency-groups]
 dev = [
     "pytest>=8",
+    # Parallel tests in `make check` and CI (task T0.7).
+    "pytest-xdist>=3.6",
     "hypothesis>=6",
     "ruff>=0.8",
     "mypy>=1.13",
@@ -80,6 +82,7 @@ pythonpath = ["tools"]
 addopts = ["--strict-markers", "--strict-config", "-ra"]
 markers = [
     "maths(*ids): the docs/maths.md IDs (M-...) this test checks; read by tools/check_maths_ids.py",
+    "serial: runs alone, in a pass without xdist workers (`make test`): the test starts fresh processes or switches a process-wide setting",
 ]
 
 # ---------------------------------------------------------------- import rules (Part I, §2.4)

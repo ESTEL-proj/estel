@@ -16,7 +16,16 @@ concurrency:
 
 # Two parallel jobs, one per backend (Part I, §3.1 and §6.1). The PyTorch job keeps the name
 # "make check", which the main ruleset requires; the JAX job runs the whole test suite on the
-# experimental JAX backend.
+# experimental JAX backend. The tests run in parallel, in pytest-xdist workers (Makefile).
+#
+# Scope (task T0.7): a pull request, or a push to another branch than the default one, whose
+# files are all under docs/, .github/ or changes/ skips the test suites (tools/ci_scope.py),
+# unless a test reads one of them (docs/maths.md, for example). The PyTorch job then runs only
+# the check tools and the JAX job only reports the skip; both jobs still run and succeed, so
+# the required checks report a result and the PR can merge. Do not
+# move the scope to a job of its own that the others `need`: if it failed, they would be
+# skipped, and a skipped required check counts as passed. A push to the default branch always
+# runs everything.
 jobs:
   check:
     name: make check
@@ -25,8 +34,24 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0  # version_impact.py diffs against the base branch
+          fetch-depth: 0  # version_impact.py and ci_scope.py diff against the base branch
           persist-credentials: false
+
+      - name: Scope of the change
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            python3 tools/ci_scope.py --base "origin/$BASE_REF" >> "$GITHUB_OUTPUT"
+          elif [ "$REF_NAME" != "$DEFAULT_BRANCH" ]; then
+            python3 tools/ci_scope.py --base "origin/$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
+          else
+            python3 tools/ci_scope.py >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
@@ -37,7 +62,12 @@ jobs:
         run: uv sync --locked
 
       - name: make check
+        if: steps.scope.outputs.tests != 'false'
         run: make check TEST_BACKENDS=torch
+
+      - name: make check-tools (docs/, .github/ or changes/ only)
+        if: steps.scope.outputs.tests == 'false'
+        run: make check-tools
 
       - name: Version impact (pull requests only)
         if: github.event_name == 'pull_request'
@@ -56,15 +86,39 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0  # ci_scope.py diffs against the base branch
           persist-credentials: false
 
+      - name: Scope of the change
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            python3 tools/ci_scope.py --base "origin/$BASE_REF" >> "$GITHUB_OUTPUT"
+          elif [ "$REF_NAME" != "$DEFAULT_BRANCH" ]; then
+            python3 tools/ci_scope.py --base "origin/$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
+          else
+            python3 tools/ci_scope.py >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        if: steps.scope.outputs.tests != 'false'
         with:
           version: "0.13.8"
           enable-cache: true
 
       - name: Install the locked environment
+        if: steps.scope.outputs.tests != 'false'
         run: uv sync --locked
 
       - name: Tests on JAX, float32 and float64
+        if: steps.scope.outputs.tests != 'false'
         run: make test TEST_BACKENDS=jax
+
+      - name: No tests (docs/, .github/ or changes/ only)
+        if: steps.scope.outputs.tests == 'false'
+        run: echo "Every changed file is under docs/, .github/ or changes/; the check tools run in the make check job."

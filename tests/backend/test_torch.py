@@ -59,6 +59,7 @@ def test_lbfgs_is_one_torch_step(max_iter: int, seed: int, dtype: DType) -> None
     assert result.losses.shape == (optimizer.state[x]["n_iter"],)
 
 
+@pytest.mark.serial
 def test_deterministic_sets_the_torch_flag() -> None:
     before = torch.are_deterministic_algorithms_enabled()
     backend = TorchBackend()

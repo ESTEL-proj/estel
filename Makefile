@@ -3,14 +3,19 @@
 
 RUN := uv run --locked
 
-.PHONY: check lint types lint-imports layers manifest mirrors mirrors-fix maths-ids workflows test \
+.PHONY: check check-tools lint types lint-imports layers manifest mirrors mirrors-fix maths-ids workflows test \
         test-torch test-jax version-impact parity-image parity container-runtime
 
 # Backends the tests run on (Part I, §3.1). CI runs one per job: make check TEST_BACKENDS=torch
 TEST_BACKENDS ?= torch jax
 
-check: lint types lint-imports layers manifest mirrors maths-ids workflows test
+check: check-tools test
 	@echo "make check: tier 0 passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, workflows, tests float32 + float64 on $(TEST_BACKENDS))"
+
+# Tier 0 without the test suites. CI runs only this on a change confined to docs/, .github/
+# and changes/ (tools/ci_scope.py; task T0.7).
+check-tools: lint types lint-imports layers manifest mirrors maths-ids workflows
+	@echo "make check-tools: check tools passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, workflows)"
 
 lint:
 	$(RUN) ruff check .
@@ -49,11 +54,17 @@ workflows:
 
 test: $(addprefix test-,$(TEST_BACKENDS))
 
+# pytest-xdist workers of the parallel pass (task T0.7): a number, or auto (one per CPU).
+PYTEST_WORKERS ?= auto
+
 # The whole suite on one backend, in float32 then float64. The JAX run switches JAX's 64-bit
-# mode on at start (tests/conftest.py).
+# mode on at start (tests/conftest.py). Each run has two passes: the tests in parallel, then
+# the tests marked serial (fresh processes, process-wide settings) alone, in one process.
 test-torch test-jax: test-%:
-	ESTEL_TEST_BACKEND=$* ESTEL_TEST_DTYPE=float32 $(RUN) pytest
-	ESTEL_TEST_BACKEND=$* ESTEL_TEST_DTYPE=float64 $(RUN) pytest
+	ESTEL_TEST_BACKEND=$* ESTEL_TEST_DTYPE=float32 $(RUN) pytest -n $(PYTEST_WORKERS) -m "not serial"
+	ESTEL_TEST_BACKEND=$* ESTEL_TEST_DTYPE=float32 $(RUN) pytest -p no:xdist -m serial
+	ESTEL_TEST_BACKEND=$* ESTEL_TEST_DTYPE=float64 $(RUN) pytest -n $(PYTEST_WORKERS) -m "not serial"
+	ESTEL_TEST_BACKEND=$* ESTEL_TEST_DTYPE=float64 $(RUN) pytest -p no:xdist -m serial
 
 # STL parity harness (Part II, §14; tools/stl_parity/README.md). Step 1 only, not in tier 0.
 CONTAINER ?= docker
