@@ -3,19 +3,23 @@
 The backend-neutral checks are in ``test_conformance.py``; these pin the PyTorch choices of
 Part II, §12.3: ``lbfgs`` is ``torch.optim.LBFGS(line_search_fn="strong_wolfe")``,
 ``deterministic`` is ``torch.use_deterministic_algorithms``, keys leave the global random state
-alone, and nothing returned shares memory with an input.
+alone, and nothing returned shares memory with an input; ``register_pytree`` registers with
+``torch.utils._pytree``, imported when it is called (task T2.9).
 """
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 import numpy as np
 import pytest
 import torch
+import torch.utils._pytree as pytree
 
 from estel.backend._protocol import Backend, DType
 from estel.backend.torch._primitives import TorchBackend
+from tests.backend.test_conformance import pair_class, register_pair
 
 
 def test_satisfies_the_protocol() -> None:
@@ -97,3 +101,46 @@ def test_asarray_uses_the_default_device(dtype: DType) -> None:
     x = TorchBackend().asarray(np.ones(3), dtype)
     assert x.device == torch.get_default_device()
     assert x.dtype == {"float32": torch.float32, "float64": torch.float64}[dtype]
+
+
+class TestRegisterPytree:
+    """``register_pytree`` is ``torch.utils._pytree.register_pytree_node``, imported when it is
+    called, with a fallback to the older name and a clear error without either (task T2.9)."""
+
+    def test_torch_pytree_sees_the_children(self, dtype: DType) -> None:
+        backend = TorchBackend()
+        pair = register_pair(backend)
+        a, b = backend.asarray(np.ones(3), dtype), backend.asarray(np.zeros(2), dtype)
+        leaves, spec = pytree.tree_flatten(pair(a, b, "label"))
+        assert len(leaves) == 2
+        assert leaves[0] is a
+        assert leaves[1] is b
+        rebuilt = pytree.tree_unflatten(leaves, spec)
+        assert type(rebuilt) is pair
+        assert rebuilt.label == "label"
+        doubled = pytree.tree_map(lambda x: 2 * x, pair(a, b, "label"))
+        assert type(doubled) is pair
+        assert torch.equal(doubled.a, 2 * a)
+
+    def test_falls_back_to_the_older_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delattr(pytree, "register_pytree_node")
+        backend = TorchBackend()
+        pair = register_pair(backend)
+        leaves, _ = pytree.tree_flatten(pair(torch.ones(2), torch.zeros(1), "label"))
+        assert len(leaves) == 2
+
+    @pytest.mark.parametrize("missing", ["module", "functions"])
+    def test_without_the_private_module_says_what_to_do(
+        self, missing: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        if missing == "module":
+            monkeypatch.setitem(sys.modules, "torch.utils._pytree", None)
+        else:
+            monkeypatch.delattr(pytree, "register_pytree_node")
+            monkeypatch.delattr(pytree, "_register_pytree_node")
+        backend = TorchBackend()
+        pair: Any = pair_class()
+        with pytest.raises(RuntimeError, match="report this PyTorch version in an ESTEL issue"):
+            backend.register_pytree(pair, lambda p: ((), None), lambda aux, ch: pair)
+        x = backend.asarray(np.ones(2), "float32")  # the rest of the backend still works
+        assert backend.to_numpy(backend.stop_gradient(x)).sum() == 2.0

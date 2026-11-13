@@ -4,7 +4,8 @@ The backend-neutral checks are in ``test_conformance.py``; these pin the JAX cho
 is ``jax.jit`` and every primitive traces under it (Part I, §3.1); 64-bit dtypes need JAX's
 64-bit mode, which the backend never switches itself; ``deterministic`` sets
 ``--xla_gpu_deterministic_ops`` in ``XLA_FLAGS`` before JAX starts, and refuses a change it
-could no longer make; keys work for every seed, whatever the 64-bit mode.
+could no longer make; keys work for every seed, whatever the 64-bit mode; ``register_pytree``
+registers with ``jax.tree_util``, so that ``jax.vmap`` maps over the children (task T2.9).
 
 Collected only when ``ESTEL_TEST_BACKEND=jax``, which switches the 64-bit mode on at start.
 """
@@ -22,7 +23,13 @@ import pytest
 
 from estel.backend._protocol import Backend, DType
 from estel.backend.jax._primitives import JaxBackend
-from tests.backend.test_conformance import LINEAR_CASES, Linear, assert_close, draw
+from tests.backend.test_conformance import (
+    LINEAR_CASES,
+    Linear,
+    assert_close,
+    draw,
+    register_pair,
+)
 
 
 def test_satisfies_the_protocol() -> None:
@@ -210,3 +217,28 @@ def test_asarray_takes_device_names(dtype: DType) -> None:
     assert x.devices() == {jax.devices("cpu")[0]}
     with pytest.raises(ValueError, match="not available to JAX"):
         backend.asarray(np.ones(3), dtype, device="cpu:99")
+
+
+class TestRegisterPytree:
+    """``register_pytree`` is ``jax.tree_util.register_pytree_node`` (task T2.9)."""
+
+    def test_jax_tree_util_sees_the_children(self, dtype: DType) -> None:
+        backend = JaxBackend()
+        pair = register_pair(backend)
+        a, b = backend.asarray(np.ones(3), dtype), backend.asarray(np.zeros(2), dtype)
+        leaves, treedef = jax.tree_util.tree_flatten(pair(a, b, "label"))
+        assert leaves == [a, b]
+        rebuilt = jax.tree_util.tree_unflatten(treedef, leaves)
+        assert type(rebuilt) is pair
+        assert rebuilt.label == "label"
+
+    def test_vmap_maps_over_the_children(self, dtype: DType) -> None:
+        backend = JaxBackend()
+        pair = register_pair(backend)
+        a, b = draw((4, 3), dtype, 1), draw((4,), dtype, 2)
+        out = jax.vmap(lambda p: pair(p.a * p.b, p.b, p.label))(
+            pair(backend.asarray(a, dtype), backend.asarray(b, dtype), "label")
+        )
+        assert type(out) is pair
+        assert out.label == "label"
+        assert_close(backend, out.a, a * b[:, None], dtype)

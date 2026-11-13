@@ -1023,3 +1023,59 @@ def test_deterministic_can_be_switched(backend: Backend) -> None:
         "backend.deterministic(True)\n"
     )
     subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True)
+
+
+# ------------------------------------------------------------------ pytrees (task T2.9)
+
+
+def pair_class() -> type:
+    """A new class at each call: registration is process-wide and cannot be undone, so each
+    test registers its own."""
+
+    class Pair:
+        def __init__(self, a: Array, b: Array, label: str) -> None:
+            self.a, self.b, self.label = a, b, label
+
+    return Pair
+
+
+def register_pair(backend: Backend) -> Any:
+    pair: Any = pair_class()
+    backend.register_pytree(
+        pair, lambda p: ((p.a, p.b), p.label), lambda label, children: pair(*children, label)
+    )
+    return pair
+
+
+class TestRegisterPytree:
+    def test_jit_takes_and_returns_a_registered_class(self, backend: Backend, dtype: DType) -> None:
+        pair = register_pair(backend)
+        xp = backend.xp
+        a, b = draw((3,), dtype, 1), draw((2, 2), dtype, 2)
+        jitted = backend.jit(lambda p: pair(2 * p.a, xp.sin(p.b), p.label + "!"))
+        out = jitted(pair(backend.asarray(a, dtype), backend.asarray(b, dtype), "static"))
+        assert type(out) is pair
+        assert out.label == "static!"
+        assert_close(backend, out.a, 2 * a, dtype)
+        assert_close(backend, out.b, np.sin(b), dtype)
+
+    def test_gradients_flow_through_the_children(self, backend: Backend, dtype: DType) -> None:
+        pair = register_pair(backend)
+        xp = backend.xp
+        jitted = backend.jit(lambda p: pair(p.a * p.b, p.b, p.label))
+        x = draw((4,), dtype, 3)
+        _, grad = backend.value_and_grad(lambda v: xp.sum(jitted(pair(v, v, "l")).a))(
+            backend.asarray(x, dtype)
+        )
+        assert_close(backend, grad, 2 * x, dtype)
+
+    def test_refuses_a_class_registered_twice(self, backend: Backend) -> None:
+        pair = register_pair(backend)
+        with pytest.raises(ValueError, match="already registered as a pytree"):
+            backend.register_pytree(pair, lambda p: ((), None), lambda aux, children: pair)
+
+    def test_refuses_an_instance(self, backend: Backend) -> None:
+        pair: Any = pair_class()
+        instance = pair(None, None, "")
+        with pytest.raises(TypeError, match="takes a class"):
+            backend.register_pytree(instance, lambda p: ((), None), lambda aux, ch: instance)

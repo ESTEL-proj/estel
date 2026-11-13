@@ -410,3 +410,79 @@ class TestFreshProcess:
         message, backend = result.stdout.splitlines()
         assert "pip install 'estel[jax]'" in message
         assert backend == "torch"
+
+
+# ------------------------------------------------------------------ pytrees (task T2.9)
+
+
+class _RecordingBackend:
+    """Stands for a backend: records the classes registered with it, or fails as told."""
+
+    def __init__(self, error: Exception | None = None) -> None:
+        self.registered: list[type] = []
+        self.error = error
+
+    def register_pytree(self, cls: type, flatten: Any, unflatten: Any) -> None:
+        if self.error is not None:
+            raise self.error
+        self.registered.append(cls)
+
+
+@pytest.fixture
+def _fresh_pytrees(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_registry, "_pytrees", [])
+    monkeypatch.setattr(_registry, "_pytrees_done", {})
+
+
+def _flatten(obj: Any) -> tuple[tuple[()], None]:
+    return (), None
+
+
+def _unflatten(aux: Any, children: Any) -> None:
+    return None
+
+
+@pytest.mark.usefixtures("_fresh_pytrees")
+def test_register_pytree_reaches_loaded_and_later_backends(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loaded, later = _RecordingBackend(), _RecordingBackend()
+    monkeypatch.setattr(_registry, "_instances", {"torch": loaded})
+    _registry.register_pytree(int, _flatten, _unflatten)
+    assert loaded.registered == [int]
+    fake = ModuleType("fake_backend")
+    fake.JaxBackend = lambda: later  # type: ignore[attr-defined]
+    monkeypatch.setattr(_registry, "_module", lambda name: fake)
+    loaded_later: object = _registry._instance("jax")
+    assert loaded_later is later
+    assert later.registered == [int]
+
+
+@pytest.mark.usefixtures("_fresh_pytrees")
+def test_register_pytree_registers_once_per_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Registration with a library is process-wide: a new instance of a backend skips it."""
+    first, second = _RecordingBackend(), _RecordingBackend()
+    monkeypatch.setattr(_registry, "_instances", {"torch": first})
+    _registry.register_pytree(int, _flatten, _unflatten)
+    fake = ModuleType("fake_backend")
+    fake.TorchBackend = lambda: second  # type: ignore[attr-defined]
+    monkeypatch.setattr(_registry, "_module", lambda name: fake)
+    monkeypatch.setattr(_registry, "_instances", {})
+    _registry._instance("torch")
+    assert (first.registered, second.registered) == ([int], [])
+
+
+@pytest.mark.usefixtures("_fresh_pytrees")
+def test_register_pytree_warns_when_torch_cannot(monkeypatch: pytest.MonkeyPatch) -> None:
+    broken = _RecordingBackend(RuntimeError("no torch pytrees: install a supported PyTorch"))
+    monkeypatch.setattr(_registry, "_instances", {"torch": broken})
+    with pytest.warns(RuntimeWarning, match="install a supported PyTorch"):
+        _registry.register_pytree(int, _flatten, _unflatten)
+
+
+@pytest.mark.usefixtures("_fresh_pytrees")
+def test_register_pytree_raises_when_jax_cannot(monkeypatch: pytest.MonkeyPatch) -> None:
+    broken = _RecordingBackend(RuntimeError("jax failed"))
+    monkeypatch.setattr(_registry, "_instances", {"jax": broken})
+    with pytest.raises(RuntimeError, match="jax failed"):
+        _registry.register_pytree(int, _flatten, _unflatten)

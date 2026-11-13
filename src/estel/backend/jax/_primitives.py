@@ -22,7 +22,7 @@ from __future__ import annotations
 import importlib
 import math
 import os
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass
 from types import ModuleType
 from typing import Any, ClassVar
@@ -603,6 +603,46 @@ class JaxBackend:
             os.environ["XLA_FLAGS"] = " ".join(others)
         else:
             os.environ.pop("XLA_FLAGS", None)
+
+    # ------------------------------------------------------------ pytrees
+
+    def register_pytree(
+        self,
+        cls: type,
+        flatten: Callable[[Any], tuple[Sequence[Any], Hashable]],
+        unflatten: Callable[[Any, tuple[Any, ...]], Any],
+    ) -> None:
+        """``jax.tree_util.register_pytree_node``, whose ``unflatten`` takes ``(aux, children)``
+        as the protocol does."""
+        _check_pytree_class(cls)
+
+        def flatten_node(obj: Any) -> tuple[tuple[Any, ...], Hashable]:
+            children, aux = flatten(obj)
+            return tuple(children), aux
+
+        def unflatten_node(aux: Any, children: Any) -> Any:
+            return unflatten(aux, tuple(children))
+
+        try:
+            jax.tree_util.register_pytree_node(cls, flatten_node, unflatten_node)
+        except ValueError as error:
+            raise ValueError(_already_registered(cls, "jax.tree_util")) from error
+
+
+def _already_registered(cls: type, library: str) -> str:
+    return (
+        f"register_pytree: {cls.__module__}.{cls.__qualname__} is already registered as a "
+        f"pytree with {library}, and a registration cannot be undone. Register each class "
+        "once, at set-up: estel.backend._registry.register_pytree does it for every backend."
+    )
+
+
+def _check_pytree_class(cls: Any) -> None:
+    if not isinstance(cls, type):
+        raise TypeError(
+            f"register_pytree takes a class, got {type(cls).__name__}: pass the class itself, "
+            "for example register_pytree(Data2D, ...), not an instance."
+        )
 
 
 # ------------------------------------------------------------------ differentiation helpers
