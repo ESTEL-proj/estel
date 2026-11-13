@@ -9,6 +9,7 @@ float64 rtol 1e-10 / atol 1e-12, with atol relative to the largest expected modu
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import numpy as np
@@ -176,3 +177,46 @@ def test_mother_class_hooks_say_to_override() -> None:
         DataClass._conv(None, None, None, 0)  # type: ignore[arg-type]
     with pytest.raises(NotImplementedError, match="overrides"):
         DataClass._downsample(None, None, None, 0)  # type: ignore[arg-type]
+    with pytest.raises(NotImplementedError, match="overrides"):
+        DataClass._crop_weights(None, 0, 0)  # type: ignore[arg-type]
+
+
+@pytest.mark.maths("M-BORDER")
+@pytest.mark.parametrize("ndim", sorted(GEOMETRIES))
+@pytest.mark.parametrize(("level", "border"), [(0, 0), (0, 2), (1, 3), (2, 1)])
+def test_crop_weights_remove_border_pixels(ndim: int, level: int, border: int) -> None:
+    """0 on ``border`` pixels at both ends of every spatial axis at ``level``, 1 elsewhere
+    (STL ``_crop``), whatever ``pbc``: the plan passes a border of 0 for periodic data."""
+    for pbc in (False, True):
+        weights = _geometry(ndim, 32, pbc)._crop_weights(level, border)
+        n = 32 // 2**level
+        axis = np.zeros(n)
+        axis[border : n - border] = 1.0
+        expected = axis if ndim == 1 else np.multiply.outer(axis, axis)
+        assert weights.dtype == np.float64
+        np.testing.assert_array_equal(weights, expected)
+
+
+@pytest.mark.maths("M-BORDER")
+@pytest.mark.parametrize("ndim", sorted(GEOMETRIES))
+def test_crop_weights_reduce_a_border_too_large_with_a_warning(ndim: int) -> None:
+    """OP-13: a border with 2·border ≥ min N is reduced to ⌊(min N - 1)/2⌋, as in STL."""
+    data = _geometry(ndim, 32, pbc=False)
+    with pytest.warns(UserWarning, match="OP-13"):
+        weights = data._crop_weights(3, 2)  # 4 pixels per axis at level 3
+    assert weights.sum() == 2**ndim  # border 1: the 2 central pixels on each axis
+    with pytest.warns(UserWarning, match="OP-13"):
+        assert data._crop_weights(4, 5).sum() == 2**ndim  # 2 pixels per axis: border 0
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert data._crop_weights(2, 3).sum() == 2**ndim  # 8 pixels: 2·3 < 8, no reduction
+
+
+def test_crop_weights_reject_bad_arguments() -> None:
+    data = _geometry(2, 32, pbc=False)
+    with pytest.raises(ValueError, match="level"):
+        data._crop_weights(-1, 0)
+    with pytest.raises(ValueError, match="border"):
+        data._crop_weights(0, -1)
+    with pytest.raises(ValueError, match="divisible"):
+        data._crop_weights(6, 0)  # 32 is not divisible by 2^6

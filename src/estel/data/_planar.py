@@ -2,13 +2,19 @@
 
 The two classes share everything but the number of spatial axes and the threshold τ of the
 masked downsampling (maths.md M-DOWN-MASK, OP-12): STL's 1D class inherits from its 2D class
-and differs only there (STL `2D+1D`, `STL_1D_Kernel_Torch`). Their geometry hooks ``_conv`` and
-``_downsample`` are the same functions, written for any number of planar axes.
+and differs only there (STL `2D+1D`, `STL_1D_Kernel_Torch`). Their geometry hooks ``_conv``,
+``_downsample`` and ``_crop_weights`` are the same functions, written for any number of planar
+axes.
 """
 
 from __future__ import annotations
 
+import warnings
+from numbers import Integral
 from typing import Any, ClassVar
+
+import numpy as np
+from numpy.typing import NDArray
 
 from ..backend import _registry
 from ..backend._protocol import PadMode
@@ -116,6 +122,43 @@ def _planar_downsample(self: DataClass, x: Any, weights: DownsampleWeights, leve
     return out if reweight is None else out * reweight
 
 
+def _planar_crop_weights(self: DataClass, level: int, border: int) -> NDArray[np.float64]:
+    """Planar ``_crop_weights``: 0 on ``border`` pixels at both ends of every spatial axis of
+    the grid at ``level``, 1 elsewhere (maths.md M-BORDER; STL ``_crop``).
+
+    As in STL, a border that leaves no pixel on the shortest axis (2·border ≥ its length) is
+    reduced to ⌊(min N - 1)/2⌋, with a warning (OP-13). A border of 0 is never reduced.
+    """
+    if isinstance(level, bool) or not isinstance(level, Integral) or level < 0:
+        raise ValueError(f"{type(self).__name__}._crop_weights: level={level!r}; pass a level ≥ 0.")
+    if isinstance(border, bool) or not isinstance(border, Integral) or border < 0:
+        raise ValueError(
+            f"{type(self).__name__}._crop_weights: border={border!r}; pass a width ≥ 0, in "
+            "pixels at that level (maths.md M-BORDER)."
+        )
+    full = self.shape[2:]
+    if any(n % 2 ** int(level) for n in full):
+        raise ValueError(
+            f"{type(self).__name__}._crop_weights: the spatial shape {full} cannot be "
+            f"downsampled to level {level}: the sizes must be divisible by 2^level (maths.md "
+            "M-DATA-2D, OP-8). Use a smaller level."
+        )
+    shape = tuple(n // 2 ** int(level) for n in full)
+    width = int(border)
+    if width and min(shape) <= 2 * width:
+        reduced = (min(shape) - 1) // 2
+        warnings.warn(
+            f"{type(self).__name__}: at level {level} the spatial shape {shape} is too small "
+            f"for a border crop of {width} pixel(s); using {reduced} instead, as STL does "
+            "(maths.md M-BORDER, OP-13). Use a smaller J, larger data or pbc=True to avoid it.",
+            UserWarning,
+            stacklevel=2,
+        )
+        width = reduced
+    inner = np.ones(tuple(n - 2 * width for n in shape), dtype=np.float64)
+    return np.pad(inner, width)
+
+
 class Data2D(DataClass):
     """2D planar data, shape ``(Nb, Nc, N1, N2)``.
 
@@ -132,6 +175,7 @@ class Data2D(DataClass):
 
     _conv = _planar_conv
     _downsample = _planar_downsample
+    _crop_weights = _planar_crop_weights
 
 
 class Data1D(DataClass):
@@ -150,3 +194,4 @@ class Data1D(DataClass):
 
     _conv = _planar_conv
     _downsample = _planar_downsample
+    _crop_weights = _planar_crop_weights
