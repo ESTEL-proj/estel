@@ -13,7 +13,7 @@ from estel.data._masks import build_mask_maps, downsample_step, propagate_mask_c
 
 H_AVG_1D = np.array([0.5, 0.5])
 H_AVG_2D = np.full((2, 2), 0.25)
-# The 1D anti-aliasing kernel of maths.md M-H-1D, and its 2D product (M-H).
+# The 1D smoothing kernel of maths.md M-SMOOTH-1D, and its 2D product (M-SMOOTH-2D).
 H_1D = np.array([-0.04879268, 0.05638086, 0.49241182, 0.49241182, 0.05638086, -0.04879268])
 H_1D = H_1D / H_1D.sum()
 H_2D = np.outer(H_1D, H_1D)

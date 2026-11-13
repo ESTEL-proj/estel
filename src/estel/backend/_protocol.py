@@ -172,8 +172,8 @@ class Backend(Protocol):
 
             The scattering transform pads by ``⌊K/2⌋`` on each side, circular if ``pbc=True``
             and replicate otherwise (M-CONV-2D), and by 2 before and 3 after for the
-            downsampling kernel H (M-DOWN). Complex arrays are padded like their real and
-            imaginary parts.
+            smoothing kernel s (M-SMOOTH-2D, M-DOWN). Complex arrays are padded like their
+            real and imaginary parts.
         Gradients:
             Linear in ``x``: the gradient sums the cotangents of all copies of each input
             entry.
@@ -212,9 +212,9 @@ class Backend(Protocol):
 
             with ``n``, ``m`` and ``s·n`` multi-indices over the d axes. Padding is a
             separate call to :meth:`pad`. Padding by ``⌊K/2⌋`` then correlating gives the
-            filtering of M-CONV-2D (M-W1); padding by (2, 3) then correlating with H at
-            stride 2 gives one downsampling step (M-DOWN). This is a correlation, not a
-            convolution (OP-1): it reproduces STL.
+            filtering of M-CONV-2D (M-W1); padding by (2, 3) then correlating with the
+            smoothing kernel at stride 2 gives one downsampling step (M-DOWN). This is a
+            correlation, not a convolution (OP-1): it reproduces STL.
         Gradients:
             Bilinear in ``x`` and ``k``; differentiable with respect to both, to any order.
         Edge cases:

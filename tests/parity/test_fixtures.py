@@ -3,8 +3,8 @@
 These tests check the integrity of the fixtures (against MANIFEST.json: checksum, STL commit,
 image ID, torch's default dtype; their dtypes and shapes) and the comparison helpers, on
 synthetic arrays. They do not compare ESTEL with STL: each parity test does that for its own
-fixture, with the helpers tested here. ESTEL's 2D kernels are compared with
-`bump_steerable_kernel_2d` by task T2.2 (issue #14).
+fixture, with the helpers tested here; ESTEL's 1D and 2D kernels are compared with
+`bump_steerable_kernel_1d` and `bump_steerable_kernel_2d` in `test_kernels.py` (task T2.2).
 """
 
 from __future__ import annotations
@@ -76,6 +76,20 @@ def test_bump_steerable_kernel_2d_fixture() -> None:
     assert kernel.dtype == np.complex128
     assert kernel.shape == (1, 4, 5, 5)
     assert np.isfinite(kernel).all()
+
+
+def test_bump_steerable_kernel_1d_fixture() -> None:
+    """STL 2D+1D's 1D bump-steerable kernels, K=5, for L=1 (the default) and L=2 (the 1D
+    blocks of tensor products), as STL holds them: (1, L, K)."""
+    entry = read_manifest()["bump_steerable_kernel_1d.npz"]
+    assert entry["stl_branch"] == "2D+1D"
+    assert entry["parameters"] == {"J": 5, "L": [1, 2], "K": 5, "N": 128, "seed": 0}
+    arrays = load_fixture("bump_steerable_kernel_1d")
+    for n_orientations in (1, 2):
+        kernel = arrays[f"kernel_L{n_orientations}"]
+        assert kernel.dtype == np.complex128
+        assert kernel.shape == (1, n_orientations, 5)
+        assert np.isfinite(kernel).all()
 
 
 # ---------------------------------------------------------------- load_fixture

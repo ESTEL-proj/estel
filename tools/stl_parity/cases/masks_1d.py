@@ -3,7 +3,7 @@
 
 The 1D kernel operator of `2D+1D` (`WaveletOperator1Dkernel_torch`) inherits the construction
 of the static maps of maths.md M-DOWN-MASK and M-MASK from the dimension-generic 2D class of
-that branch, along one axis, with the 1D anti-aliasing kernel (maths.md M-H-1D) and the 1D
+that branch, along one axis, with the 1D smoothing kernel (maths.md M-SMOOTH-1D) and the 1D
 threshold τ = 0.5. The stored arrays are those of ``masks_2d.py`` (read its docstring for the
 names): ``smooth_<d>``, ``wav_<d>_<j>``, ``layer1_<j>``, ``layer2_<j3>_<j2>`` for each padding
 mode (``replicate`` for ``pbc=False``, ``circular`` for ``pbc=True``), plus ``mask_full_res`` and

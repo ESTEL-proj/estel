@@ -71,7 +71,7 @@ Decisions that change what existing statistics compute.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | LF20 | Canonical coefficient set | no duplicate coefficients | compact layout | yes | reference bump; major decided with the maintainers | §19.8 | Q1, G2, OP-14 |
 | LF21 | Gradient semantics through the reference | implicit differentiation with targets that depend on parameters | `ref` argument | yes, if the default changes | reference bump if default | §20.7 | Q2, G6, OP-18 |
-| LF22 | Wavelet optimisation | better filters | `WaveletOperator` | yes | reference bump; major decided with the maintainers | §20.6 | — |
+| LF22 | Wavelet optimisation | better filters, satisfying a Littlewood–Paley condition, low-pass filter included (LF6), tested in CI | `WaveletOperator` | yes | reference bump; major decided with the maintainers | §20.6 | — |
 
 ### 16.5 Entries added in the review of 12 November 2026
 
@@ -81,7 +81,7 @@ They continue the numbering; their category is given in the second column.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | LF23 | 16.2 New feature | 1D and tensor-product spectra, as in STL `2D+1D`: binned spectra, joint and low-pass bins | spectra for every planar geometry | `method=` names reserved | no (new capability) | Part II, §9.2 | C22 |
 | LF24 | 16.2 New feature | HEALPix spectra (`gaussian_rings`, `alm`, `anafast`), through the Rust anafast (LF5) | spectra on the sphere | `method=` names reserved | no (new capability) | §18.4 | C22, C9 |
-| LF25 | 16.4 Mathematical choice | Exact translation invariance: remove the grid locking between the centring of the downsampling kernel and the stride, without breaking Littlewood–Paley | a property users expect, and a strong test | `smoothing_kernel_H`, downsampling | yes | §20.8 | C19, OP-2 |
+| LF25 | 16.4 Mathematical choice | Exact translation invariance: remove the grid locking between the centring of the downsampling kernel and the stride, without breaking Littlewood–Paley | a property users expect, and a strong test | `smoothing_kernel`, downsampling | yes | §20.8 | C19, OP-2 |
 | LF26 | 16.4 Mathematical choice | Reductions on tensor products (`iso`, `angular_ft`, `scale_ft`) redefined: the product orientation mixes rotations with the direction of propagation | meaningful reduced statistics for space–time data | reductions | yes | Part II, §13.2, G4 | C8, OP-5 |
 | LF27 | 16.4 Mathematical choice | Relevance of the partial order of tensor-product scales: should some incomparable pairs of scales be measured? | interactions between fine-in-space, coarse-in-time and coarse-in-space, fine-in-time components are never measured | `_scale_index_set` | yes, if the set of scales changes | §20.9 | A12 |
 | LF28 | 16.4 Mathematical choice | A better regularisation of the cross S1 terms than `ε = 1e-8` | the constant is arbitrary and scale-dependent | M-S1 | yes | Part II, §13.2, G17 | G17, OP-16 |

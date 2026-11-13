@@ -22,7 +22,7 @@ and ``jax.vmap`` accept a DataClass and return one.
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, NamedTuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -253,12 +253,64 @@ class DataClass:
         """The axes the geometry acts on: the last ``ndim`` axes of the array."""
         return tuple(range(2, 2 + self.ndim))
 
+    def _conv(self, x: Any, kernels: Any, level: int) -> Any:
+        """Filter ``x`` with the wavelet ``kernels`` at resolution ``level`` (maths.md M-W1).
+
+        ``x`` is an array of this object's backend, ``(Nb, Nc, *spatial)`` at that level, real
+        or complex; ``kernels`` the complex bank of the geometry, cast to the backend and to the
+        complex dtype matching ``x``. The result is complex, with the orientation axis inserted
+        before the spatial axes: ``(Nb, Nc, L, *spatial)``. Each geometry implements it
+        (planar: ``pad`` + ``conv_axes``, M-CONV-2D).
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement the geometry hook _conv: every geometry "
+            "overrides it (Part II, §12.4)."
+        )
+
+    def _downsample(self, x: Any, weights: DownsampleWeights, level: int) -> Any:
+        """Downsample ``x`` by one step, from resolution ``level`` to ``level + 1`` (maths.md
+        M-DOWN, M-DOWN-MASK).
+
+        ``x`` is an array of this object's backend, ``(Nb, Nc, *spatial)`` at ``level``, real
+        or complex; ``weights`` the static weights of the step (:class:`DownsampleWeights`).
+        The result has the shape of the coarser level and the dtype of ``x``. Each geometry
+        implements it (planar: a normalised strided correlation with the smoothing kernel).
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement the geometry hook _downsample: every "
+            "geometry overrides it (Part II, §12.4)."
+        )
+
     def __repr__(self) -> str:
         n_missing = 0 if self._mask is None else int(self._mask.sum())
         return (
             f"{type(self).__name__}(shape={self.shape}, pbc={self._pbc}, "
             f"missing={n_missing}, backend={self._backend!r})"
         )
+
+
+# ---------------------------------------------------------------------- geometry hook inputs
+
+
+class DownsampleWeights(NamedTuple):
+    """The static weights of one downsampling step (:meth:`DataClass._downsample`), as arrays
+    of the data's backend, built from the plan.
+
+    ``wavelets`` and ``data`` are independent layers, so the kernel is passed in rather than
+    imported: the operator casts ``smoothing_kernel(ndim)`` once and passes it at every step.
+    """
+
+    kernel: Any
+    """The smoothing kernel of the geometry, real, with the real dtype of the data
+    (planar: the smoothing kernel of maths.md M-SMOOTH-2D, M-SMOOTH-1D)."""
+    valid: Any = None
+    """Without missing values, ``None``. Otherwise the valid input pixels, a boolean array of
+    the spatial shape at the input level: invalid pixels are set to 0 before filtering, never
+    read (M-DOWN-MASK, OP-27)."""
+    reweight: Any = None
+    """Without missing values, ``None``. Otherwise the reweighting 1 / (1 - f) of the output
+    pixels, of the spatial shape at the output level, 0 at invalid outputs (M-DOWN-MASK;
+    ``MaskMaps.smooth_reweight`` and ``wav_reweight`` of ``_masks.py``)."""
 
 
 # ---------------------------------------------------------------------- pytree metadata
