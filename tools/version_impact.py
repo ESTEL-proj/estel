@@ -7,6 +7,10 @@ Rules (docs/policy/VERSIONING.md; Part I, §7.2):
 * the ``bench`` label -> minor;
 * anything else -> patch.
 
+A PR whose changed files are all under ``.github/`` does not change the package: it needs no
+news fragment and is reported as "no package change". ``.github/`` is protected, so such PRs,
+Dependabot's included, still need CODEOWNER approval.
+
 Reference counters (Part I, §5.3 and §7.2). ``STATISTICS_REFERENCE`` and
 ``SYNTHESIS_REFERENCE`` are integer literals in ``src/estel/_reference.py``; the tool reads them
 on the base branch and on the PR, without importing estel. A PR that changes the references of
@@ -51,11 +55,14 @@ COUNTERS: dict[str, str | None] = {
 # Files that define the geometry registry. The registry does not exist yet (phase P2);
 # add its path here in the PR that creates it.
 GEOMETRY_REGISTRY: tuple[str, ...] = ()
+# A PR that changes only files under this prefix does not change the package (Part I, §7.2).
+NON_PACKAGE_PREFIX = ".github/"
 
 
 @dataclass
 class Impact:
     required: str = "patch"
+    package_change: bool = True
     reasons: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
@@ -197,6 +204,20 @@ def assess(root: Path, base: str, head: str, pr: int | None, labels: set[str]) -
     changed = {path for _, path in changes}
     added = {path for status, path in changes if status == "A"}
 
+    # CI-only PRs (Part I, §7.2): nothing in the package changes, so no bump and no fragment.
+    if changed and all(path.startswith(NON_PACKAGE_PREFIX) for path in changed):
+        impact.package_change = False
+        impact.notes.append(
+            f"only {NON_PACKAGE_PREFIX} changed: no news fragment is needed. "
+            f"{NON_PACKAGE_PREFIX} is protected, so this PR needs CODEOWNER approval."
+        )
+        if "bench" in labels:
+            impact.notes.append(
+                "the `bench` label is ignored: a PR that changes only "
+                f"{NON_PACKAGE_PREFIX} cannot change performance. Remove the label."
+            )
+        return impact
+
     # Public API.
     manifest = str(MANIFEST)
     if manifest in changed:
@@ -268,7 +289,10 @@ def main(argv: list[str] | None = None) -> int:
     labels = {label.strip() for label in args.labels.split(",") if label.strip()}
     impact = assess(args.root, args.base, args.head, args.pr, labels)
 
-    print(f"version_impact: required bump: {impact.required}")
+    if impact.package_change:
+        print(f"version_impact: required bump: {impact.required}")
+    else:
+        print("version_impact: required bump: none (no package change)")
     for reason in impact.reasons:
         print(f"  - {reason}")
     for note in impact.notes:
