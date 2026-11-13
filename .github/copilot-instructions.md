@@ -57,10 +57,13 @@ The static plan (`ScatteringPlan`) is built in NumPy when an operator is constru
 | Command | What |
 |---|---|
 | `make check` | tier 0 locally: lint, types, layer checks, manifest, mirrors, maths IDs, all CPU tests in float32 and float64 |
+| `make check-tools` | tier 0 without the test suites: every check tool of `make check` |
 | `make mirrors-fix` | regenerate `.github/copilot-instructions.md` after changing `AGENTS.md` |
 | `make test-spec` | spec parity against the oracle |
 | `make parity` | STL parity (step 1 only; needs the parity container) |
 | `make bench` | benchmark cases (tier 2; humans trigger it in CI) |
+
+When every changed file is in the no-test scope (`docs/`, `.github/`, `changes/`; `.gitignore`, `LICENSE`, `NOTICE` and `README.md` at the root; every `AGENTS.md` and `CLAUDE.md`; none read by a test), that is when `python tools/ci_scope.py --base origin/main` prints `tests=false`, run `make check-tools` instead of `make check` before opening the PR. CI does the same.
 
 ## More context
 
