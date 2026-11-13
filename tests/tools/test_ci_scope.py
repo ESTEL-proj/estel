@@ -1,5 +1,5 @@
 """tools/ci_scope.py skips the test suites only when every changed file is under ``docs/``,
-``.github/`` or ``changes/`` (task T0.7)."""
+``.github/`` or ``changes/``, and none is a file the tests read (task T0.7)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from .conftest import run_tool, write
+from ci_scope import docs_read_by_tests
+
+from .conftest import REPO, run_tool, write
+
+# A test of the fake repository that reads a document, as tests/backend/test_protocol.py does.
+READS_MATHS = 'REPO = Path(__file__).parents[1]\ntext = (REPO / "docs/maths.md").read_text()\n'
 
 
 def git(root: Path, *args: str) -> None:
@@ -79,3 +84,57 @@ def test_an_unknown_base_fails_and_says_what_to_do(repo: Path) -> None:
     assert result.returncode == 1
     assert result.stdout == ""
     assert "fetch-depth: 0" in result.stderr
+
+
+def test_the_tests_of_this_repository_read_maths_md() -> None:
+    """tests/backend/test_protocol.py reads docs/maths.md: changing it runs the whole suite."""
+    assert "docs/maths.md" in docs_read_by_tests(REPO)
+
+
+def test_a_change_to_maths_md_runs_the_tests(repo: Path) -> None:
+    write(repo, {"tests/test_protocol.py": READS_MATHS, "docs/maths.md": "#### M-S1\n"})
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "a test reads maths.md")
+    git(repo, "branch", "-f", "main")
+    write(repo, {"docs/maths.md": "#### M-S1\n#### M-S2\n"})
+    git(repo, "commit", "-qam", "maths only")
+    result = scope(repo, "--base", "main")
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "tests=true"
+    assert "tests read docs/maths.md" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("test", "change", "expected"),
+    [
+        pytest.param(READS_MATHS, {"docs/maths.md": "b"}, "tests=true", id="one-string"),
+        pytest.param(
+            'p = REPO / "docs" / "guide" / "a.md"\n',
+            {"docs/guide/a.md": "b"},
+            "tests=true",
+            id="joined-parts",
+        ),
+        pytest.param(READS_MATHS, {"docs/other.md": "b"}, "tests=false", id="unread-document"),
+    ],
+)
+def test_documents_named_by_tests(
+    repo: Path, test: str, change: dict[str, str], expected: str
+) -> None:
+    write(repo, {"tests/test_reads.py": test})
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "a test reads a document")
+    git(repo, "branch", "-f", "main")
+    write(repo, change)
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "docs only")
+    assert scope(repo, "--base", "main").stdout.strip() == expected
+
+
+def test_deleting_a_document_the_tests_read_runs_the_tests(repo: Path) -> None:
+    write(repo, {"tests/test_protocol.py": READS_MATHS, "docs/maths.md": "#### M-S1\n"})
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "a test reads maths.md")
+    git(repo, "branch", "-f", "main")
+    git(repo, "rm", "-q", "docs/maths.md")
+    git(repo, "commit", "-q", "-m", "drop maths.md")
+    assert scope(repo, "--base", "main").stdout.strip() == "tests=true"

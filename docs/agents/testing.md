@@ -19,7 +19,7 @@ Summary of [Part I, §5 — Tests, reference values, tolerances](../transfer/par
 
 Every test runs in float32 and float64 (`ESTEL_TEST_DTYPE`), on PyTorch and on the experimental JAX backend (`ESTEL_TEST_BACKEND=torch|jax`, the `backend` fixture; `tests/_backends.py`). `make check` runs every combination; tier 0 runs one backend per job. `tests/backend/test_torch.py` and `test_jax.py` run only on their own backend.
 
-The tests run in parallel, in `pytest-xdist` workers (`make test`; `PYTEST_WORKERS`, `auto` by default), then the tests marked `serial` run alone, in one process. Mark `serial` a test that starts fresh processes or switches a process-wide setting (such as `Backend.deterministic`); `tests/conftest.py` refuses to run one in a worker. In CI, a change confined to `docs/`, `.github/` and `changes/` runs only the check tools (`make check-tools`; `tools/ci_scope.py`), and both required jobs still report success.
+The tests run in parallel, in `pytest-xdist` workers (`make test`; `PYTEST_WORKERS`, `auto` by default), then the tests marked `serial` run alone, in one process. Mark `serial` a test that starts fresh processes or switches a process-wide setting (such as `Backend.deterministic`); `tests/conftest.py` refuses to run one in a worker. In CI, a change confined to `docs/`, `.github/` and `changes/` runs only the check tools (`make check-tools`; `tools/ci_scope.py`), and both required jobs still report success. A document that a test reads (a `docs/...` path written in `tests/`, such as `docs/maths.md`) is a test input: changing it runs the whole suite.
 
 ## Reference values
 

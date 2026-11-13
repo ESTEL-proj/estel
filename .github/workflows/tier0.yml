@@ -19,9 +19,10 @@ concurrency:
 # experimental JAX backend. The tests run in parallel, in pytest-xdist workers (Makefile).
 #
 # Scope (task T0.7): a pull request, or a push to another branch than the default one, whose
-# files are all under docs/, .github/ or changes/ skips the test suites (tools/ci_scope.py). The
-# PyTorch job then runs only the check tools and the JAX job only reports the skip; both jobs
-# still run and succeed, so the required checks report a result and the PR can merge. Do not
+# files are all under docs/, .github/ or changes/ skips the test suites (tools/ci_scope.py),
+# unless a test reads one of them (docs/maths.md, for example). The PyTorch job then runs only
+# the check tools and the JAX job only reports the skip; both jobs still run and succeed, so
+# the required checks report a result and the PR can merge. Do not
 # move the scope to a job of its own that the others `need`: if it failed, they would be
 # skipped, and a skipped required check counts as passed. A push to the default branch always
 # runs everything.
