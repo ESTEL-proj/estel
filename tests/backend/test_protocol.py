@@ -35,6 +35,7 @@ PRIMITIVES = (
     "random_normal",
     "make_key",
     "jit",
+    "register_pytree",
     "value_and_grad",
     "vjp",
     "jvp",

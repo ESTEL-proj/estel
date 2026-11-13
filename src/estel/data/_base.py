@@ -14,6 +14,10 @@ for missing values again (Part I, §3.1, rule 3).
 
 The values of the array at masked pixels are kept as given (NaN, if the mask came from them).
 They are never read: the statistics use the mask as weights (M-DOWN-MASK, M-MEAN; OP-27).
+
+Every DataClass is a pytree whose only leaf is the array (Part I, §2.3 and §3.1, rule 9; task
+T2.9): each subclass is registered when it is defined, on every backend, so that ``jax.jit``
+and ``jax.vmap`` accept a DataClass and return one.
 """
 
 from __future__ import annotations
@@ -65,6 +69,12 @@ class DataClass:
     _backend: str
     _mask: NDArray[np.bool_] | None
     _pbc: bool
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Register every geometry as a pytree on every backend (task T2.9): registration is
+        per exact class, so each subclass needs its own."""
+        super().__init_subclass__(**kwargs)
+        _registry.register_pytree(cls, cls._tree_flatten, cls._tree_unflatten)
 
     def __init__(self, array: Any, mask: Any = None, *, pbc: bool) -> None:
         cls = type(self)
@@ -222,13 +232,20 @@ class DataClass:
     # ------------------------------------------------------------------ pytree
 
     def _tree_flatten(self) -> tuple[tuple[Any], tuple[Any, ...]]:
-        """The array is the only leaf; everything else is static (Part I, §2.3)."""
-        return (self._array,), (self._mask, self._pbc, self._backend)
+        """The array is the only leaf; everything else is static (Part I, §2.3).
+
+        The static part must be hashable and compare by value, since JAX caches compiled
+        functions by it: the mask goes in as a :class:`_StaticMask`.
+        """
+        mask = None if self._mask is None else _StaticMask(self._mask)
+        return (self._array,), (mask, self._pbc, self._backend)
 
     @classmethod
     def _tree_unflatten(cls, aux: tuple[Any, ...], children: tuple[Any, ...]) -> DataClass:
+        """Rebuild from :meth:`_tree_flatten`, without looking at the leaf: the backend passes
+        tracers, batched arrays and placeholders."""
         mask, pbc, backend = aux
-        return cls._from_parts(children[0], mask, pbc, backend)
+        return cls._from_parts(children[0], None if mask is None else mask.mask, pbc, backend)
 
     # ------------------------------------------------------------------ geometry hooks
 
@@ -242,6 +259,47 @@ class DataClass:
             f"{type(self).__name__}(shape={self.shape}, pbc={self._pbc}, "
             f"missing={n_missing}, backend={self._backend!r})"
         )
+
+
+# ---------------------------------------------------------------------- pytree metadata
+
+
+class _StaticMask:
+    """The mask of missing values as pytree metadata: hashable, and equal to another
+    ``_StaticMask`` exactly when the two masks have the same shape and values.
+
+    JAX hashes and compares the static part of a pytree to reuse compiled functions, and a
+    NumPy array can be neither hashed nor compared to a single bool. Two DataClasses with equal
+    masks then share one compiled function; a different mask compiles a new one, since the
+    mask is static.
+
+    The hash is computed once, here, and the wrapped mask is read-only, so that the hash can
+    never go stale. A DataClass mask is already a read-only array that owns its data, and is
+    kept as it is; any other mask (writable, or a view whose base may be written) is copied
+    first.
+    """
+
+    __slots__ = ("_hash", "mask")
+
+    def __init__(self, mask: NDArray[np.bool_]) -> None:
+        if mask.flags.writeable or not mask.flags.owndata:
+            mask = np.array(mask, dtype=bool, copy=True)
+            mask.flags.writeable = False
+        self.mask = mask
+        self._hash = hash((mask.shape, np.packbits(mask).tobytes()))
+
+    def __hash__(self) -> int:
+        return self._hash
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, _StaticMask):
+            return NotImplemented
+        return self.mask is other.mask or (
+            self.mask.shape == other.mask.shape and bool(np.array_equal(self.mask, other.mask))
+        )
+
+    def __repr__(self) -> str:
+        return f"_StaticMask(shape={self.mask.shape}, missing={int(self.mask.sum())})"
 
 
 # ---------------------------------------------------------------------- validation

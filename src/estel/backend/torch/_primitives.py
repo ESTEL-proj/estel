@@ -8,8 +8,10 @@ PyTorch. Every primitive is out of place and differentiable to second order, in 
 
 from __future__ import annotations
 
+import importlib
 import math
-from collections.abc import Callable, Sequence
+import warnings
+from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass
 from types import ModuleType
 from typing import Any
@@ -41,6 +43,15 @@ _TO_REAL = {torch.complex64: torch.float32, torch.complex128: torch.float64}
 _KIND_RANK = {"b": 0, "u": 1, "i": 1, "f": 2, "c": 3}
 _PAD_MODES = ("circular", "replicate", "zeros")
 _CONV = {1: F.conv1d, 2: F.conv2d, 3: F.conv3d}
+
+
+_NO_TORCH_PYTREE = (
+    "register_pytree could not register a pytree with PyTorch {version}: it has no "
+    "torch.utils._pytree.register_pytree_node (nor the older _register_pytree_node), which "
+    "ESTEL uses for that. ESTEL objects then work with the torch backend as before, but not "
+    "with torch.utils._pytree or torch.func: install a PyTorch version within the bounds of "
+    "ESTEL's pyproject.toml, and report this PyTorch version in an ESTEL issue."
+)
 
 
 @dataclass(frozen=True)
@@ -494,6 +505,74 @@ class TorchBackend:
 
     def deterministic(self, enabled: bool) -> None:
         torch.use_deterministic_algorithms(bool(enabled))
+
+    # ------------------------------------------------------------ pytrees
+
+    def register_pytree(
+        self,
+        cls: type,
+        flatten: Callable[[Any], tuple[Sequence[Any], Hashable]],
+        unflatten: Callable[[Any, tuple[Any, ...]], Any],
+    ) -> None:
+        """``torch.utils._pytree.register_pytree_node``, whose ``unflatten`` takes
+        ``(children, context)``: the order of the protocol, JAX's, is swapped here."""
+        _check_pytree_class(cls)
+        register, public = _pytree_registration()
+
+        def flatten_node(obj: Any) -> tuple[list[Any], Hashable]:
+            children, aux = flatten(obj)
+            return list(children), aux
+
+        def unflatten_node(children: Any, aux: Any) -> Any:
+            return unflatten(aux, tuple(children))
+
+        try:
+            if public:
+                name = f"{cls.__module__}.{cls.__qualname__}"
+                register(cls, flatten_node, unflatten_node, serialized_type_name=name)
+            else:
+                with warnings.catch_warnings():  # its deprecation, which users cannot act on
+                    warnings.simplefilter("ignore", FutureWarning)
+                    register(cls, flatten_node, unflatten_node)
+        except ValueError as error:
+            raise ValueError(_already_registered(cls, "torch.utils._pytree")) from error
+
+
+def _already_registered(cls: type, library: str) -> str:
+    return (
+        f"register_pytree: {cls.__module__}.{cls.__qualname__} is already registered as a "
+        f"pytree with {library}, and a registration cannot be undone. Register each class "
+        "once, at set-up: estel.backend._registry.register_pytree does it for every backend."
+    )
+
+
+def _check_pytree_class(cls: Any) -> None:
+    if not isinstance(cls, type):
+        raise TypeError(
+            f"register_pytree takes a class, got {type(cls).__name__}: pass the class itself, "
+            "for example register_pytree(Data2D, ...), not an instance."
+        )
+
+
+def _pytree_registration() -> tuple[Callable[..., None], bool]:
+    """The registration function of PyTorch's pytrees, and whether it is the current one.
+
+    ``torch.utils._pytree`` is private, so it is imported here rather than with the module:
+    if a PyTorch version drops or renames it, only ``register_pytree`` fails, with an error
+    that says what to do, and the rest of the backend still imports. ``register_pytree_node``
+    is its current name; ``_register_pytree_node`` the older one, used as a fallback.
+    """
+    try:
+        pytree = importlib.import_module("torch.utils._pytree")
+    except ImportError as error:
+        raise RuntimeError(_NO_TORCH_PYTREE.format(version=torch.__version__)) from error
+    register = getattr(pytree, "register_pytree_node", None)
+    if register is not None:
+        return register, True
+    register = getattr(pytree, "_register_pytree_node", None)
+    if register is not None:
+        return register, False
+    raise RuntimeError(_NO_TORCH_PYTREE.format(version=torch.__version__))
 
 
 # ------------------------------------------------------------------ differentiation helpers

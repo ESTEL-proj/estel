@@ -12,6 +12,10 @@ JAX's 64-bit mode on and checking that a device exists are backend matters, and 
 
 L1 and L2 reach the primitives through :func:`current_backend`; an operator records the
 backend it was built with, and checks the arrays it receives with :func:`check_backend`.
+
+It also keeps the classes registered as pytrees (:func:`register_pytree`; Part I, §3.1,
+rule 9): each is registered on every backend, now on those loaded and on the others when
+they are loaded, since only ``estel.backend`` may import a backend.
 """
 
 from __future__ import annotations
@@ -20,7 +24,9 @@ import importlib
 import re
 import sys
 import warnings
+from collections.abc import Callable, Hashable, Sequence
 from types import ModuleType
+from typing import Any
 
 from ._protocol import Backend
 
@@ -66,6 +72,14 @@ _float64: bool = False
 _device: str | None = None
 """The device passed to ``set_default_device``; ``None`` until then (STL's rule applies)."""
 
+_Flatten = Callable[[Any], tuple[Sequence[Any], Hashable]]
+_Unflatten = Callable[[Any, tuple[Any, ...]], Any]
+_pytrees: list[tuple[type, _Flatten, _Unflatten]] = []
+"""The classes passed to :func:`register_pytree`, in order."""
+_pytrees_done: dict[str, set[type]] = {}
+"""Backend name -> the classes already registered with that backend's library. Registration
+is process-wide and cannot be undone, so this outlives the backend instances."""
+
 
 def _module(name: str) -> ModuleType:
     module_name, _ = _MODULES[name]
@@ -84,6 +98,8 @@ def _instance(name: str) -> Backend:
     if name not in _instances:
         _, class_name = _MODULES[name]
         backend: Backend = getattr(_module(name), class_name)()
+        for cls, flatten, unflatten in _pytrees:
+            _register_on(name, backend, cls, flatten, unflatten)
         _instances[name] = backend
     return _instances[name]
 
@@ -130,6 +146,40 @@ def backend_named(name: str) -> Backend:
     if name not in _MODULES:
         raise ValueError(f"no backend named {name!r}; ESTEL has {', '.join(BACKENDS)}.")
     return _instance(name)
+
+
+# ------------------------------------------------------------------ pytrees
+
+
+def register_pytree(cls: type, flatten: _Flatten, unflatten: _Unflatten) -> None:
+    """Register ``cls`` as a pytree on every backend (Part I, §3.1, rule 9; task T2.9).
+
+    For L1 and L2, when a class is defined (``DataClass`` registers each of its subclasses);
+    internal: not in the manifest. The class is registered at once on every backend already
+    loaded, and on each other backend when it is loaded; see ``Backend.register_pytree`` for
+    the contract of ``flatten`` and ``unflatten``. On PyTorch, where pytrees serve only
+    ``torch.utils._pytree`` and ``torch.func``, a PyTorch version without the private
+    registration function gives a ``RuntimeWarning`` that says what to do, and ESTEL works on
+    as before; on JAX, where ``jax.jit`` and ``jax.vmap`` need it, any error is raised.
+    """
+    _pytrees.append((cls, flatten, unflatten))
+    for name, backend in _instances.items():
+        _register_on(name, backend, cls, flatten, unflatten)
+
+
+def _register_on(
+    name: str, backend: Backend, cls: type, flatten: _Flatten, unflatten: _Unflatten
+) -> None:
+    done = _pytrees_done.setdefault(name, set())
+    if cls in done:
+        return
+    try:
+        backend.register_pytree(cls, flatten, unflatten)
+    except RuntimeError as error:
+        if name != "torch":
+            raise
+        warnings.warn(str(error), RuntimeWarning, stacklevel=3)
+    done.add(cls)
 
 
 # ------------------------------------------------------------------ dtype and device

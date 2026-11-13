@@ -18,7 +18,8 @@ General rules, which every primitive follows unless its docstring says otherwise
 
 * **Pure and out of place.** No primitive modifies its inputs; outputs never share mutable
   state with them. Nothing here keeps state between calls, except :meth:`Backend.deterministic`,
-  which sets a process-wide flag.
+  which sets a process-wide flag, and :meth:`Backend.register_pytree`, which adds to the
+  process-wide pytree registry of the backend's library.
 * **No silent dtype change.** Floating inputs of one call share one dtype (float32 or float64,
   or the matching complex64 or complex128); a mismatch raises ``TypeError``. The result has
   that dtype unless the docstring says otherwise. No primitive promotes float32 to float64.
@@ -35,7 +36,7 @@ General rules, which every primitive follows unless its docstring says otherwise
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Hashable, Sequence
 from types import ModuleType
 from typing import Any, Literal, NamedTuple, Protocol, TypeAlias
 
@@ -579,5 +580,53 @@ class Backend(Protocol):
             Process-wide state: call it at set-up, never inside the computation. XLA reads
             ``XLA_FLAGS`` only when JAX starts, so on the JAX backend a call that would change
             the setting after the first JAX array is created raises ``RuntimeError``.
+        """
+        ...
+
+    # ------------------------------------------------------------ pytrees
+
+    def register_pytree(
+        self,
+        cls: type,
+        flatten: Callable[[Any], tuple[Sequence[Any], Hashable]],
+        unflatten: Callable[[Any, tuple[Any, ...]], Any],
+    ) -> None:
+        """Register ``cls`` as a pytree node of the backend (Part I, §3.1, rule 9; task T2.9).
+
+        Data and statistics are pytrees, arrays as leaves and metadata static, so that the
+        transformations of the backend accept them and return them: ``jax.jit`` and
+        ``jax.vmap`` take a ``DataClass`` and give one back. L1 and L2 do not call this
+        directly: they call ``estel.backend._registry.register_pytree``, which registers the
+        class on every backend, now on those loaded and later on the others.
+
+        Shapes:
+            ``flatten(obj)`` returns ``(children, aux)``: ``children`` the arrays of ``obj``
+            (or nested pytrees), in a fixed order, ``aux`` its static metadata.
+            ``unflatten(aux, children)``, with ``children`` a tuple of the same length,
+            returns a new object of ``cls``. The order of arguments of ``unflatten`` is
+            JAX's, on every backend.
+        Dtypes:
+            Not applicable: the children keep their dtypes.
+        Values:
+            Afterwards, the tree utilities of the backend see an instance of ``cls`` as the
+            node ``(children, aux)``: ``jax.tree_util.register_pytree_node`` on JAX, so that
+            ``jax.jit``, ``jax.vmap`` and JAX's differentiation accept it;
+            ``torch.utils._pytree.register_pytree_node`` on PyTorch (imported when this is
+            called, falling back to its older name ``_register_pytree_node``), so that
+            ``torch.utils._pytree`` and ``torch.func`` accept it. Nothing else changes:
+            arrays, values and the other primitives behave as before.
+        Gradients:
+            Flow through the children only; ``aux`` carries none.
+        Edge cases:
+            Process-wide and irreversible: call it at set-up, never inside the computation.
+            Registration is per exact class; a subclass needs its own call. ``aux`` must be
+            hashable and compare by value, since JAX caches compiled functions by it: wrap an
+            array of the metadata (a NumPy mask) in an object that does. ``unflatten`` must
+            neither check nor compute on ``children``: the backend calls it with tracers,
+            batched arrays and placeholder objects. A ``cls`` that is not a class raises
+            ``TypeError``; a class already registered with the backend's library raises
+            ``ValueError``. On PyTorch, whose pytree module is private, a version without
+            either registration function raises ``RuntimeError`` saying what to do; the rest
+            of the backend still works.
         """
         ...
