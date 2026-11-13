@@ -3,14 +3,14 @@
 
 RUN := uv run --locked
 
-.PHONY: check lint types lint-imports layers manifest mirrors mirrors-fix maths-ids test test-torch \
-        test-jax version-impact parity-image parity container-runtime
+.PHONY: check lint types lint-imports layers manifest mirrors mirrors-fix maths-ids workflows test \
+        test-torch test-jax version-impact parity-image parity container-runtime
 
 # Backends the tests run on (Part I, §3.1). CI runs one per job: make check TEST_BACKENDS=torch
 TEST_BACKENDS ?= torch jax
 
-check: lint types lint-imports layers manifest mirrors maths-ids test
-	@echo "make check: tier 0 passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, tests float32 + float64 on $(TEST_BACKENDS))"
+check: lint types lint-imports layers manifest mirrors maths-ids workflows test
+	@echo "make check: tier 0 passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, workflows, tests float32 + float64 on $(TEST_BACKENDS))"
 
 lint:
 	$(RUN) ruff check .
@@ -41,6 +41,11 @@ mirrors-fix:
 # --allow-unimplemented until task T2.6 writes the oracle for planar data.
 maths-ids:
 	$(RUN) python tools/check_maths_ids.py --allow-unimplemented
+
+# Review rule E5: actions pinned to a commit SHA, checkouts without persisted credentials,
+# a top-level permissions block in every workflow.
+workflows:
+	$(RUN) python tools/check_workflows.py
 
 test: $(addprefix test-,$(TEST_BACKENDS))
 
