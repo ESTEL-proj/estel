@@ -21,7 +21,7 @@ Nothing in this part is implemented before 1.0.0. It is documented now for two r
 
 This register gathers every development planned after 1.0.0, and every feature or optimisation deferred during the reviews, so that none is forgotten. The ESTEL reference document carries it over into the repository (Part II, §15, P8). Deferred work that is not a feature, and points to discuss later, are traced in Part IV, §24.
 
-The entries are numbered LF1 to LF32 ("later feature"). LF1 to LF22 are grouped in four categories (16.1 to 16.4); LF23 to LF32, added in the review of 12 November 2026, follow in 16.5 with their category. The "Source" column says where each entry comes from: a decision on the Rust-engine note (Q), a review point of 12 November 2026 (Part IV, §22.4), or an open point of the maths tab (OP).
+The entries are numbered LF1 to LF33 ("later feature"). LF1 to LF22 are grouped in four categories (16.1 to 16.4); LF23 to LF32, added in the review of 12 November 2026, and LF33, added in the review of 13 November 2026, follow in 16.5 with their category. The "Source" column says where each entry comes from: a decision on the Rust-engine note (Q), a review point of 12 November 2026 (Part IV, §22.4), or an open point of the maths tab (OP).
 
 ### 16.1 Library structure
 

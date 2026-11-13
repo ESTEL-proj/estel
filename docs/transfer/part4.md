@@ -42,7 +42,7 @@ The plan is sound in its core: a frozen skeleton, versions tied to reference val
 
 ## 22. Decision log
 
-Decisions taken from 4 to 13 November 2026. Tables 22.1 to 22.3 record the decisions up to draft 0.2, updated where later decisions replaced them; 22.4 records the review round of 12 November 2026, point by point.
+Decisions taken from 4 to 13 November 2026. Tables 22.1 to 22.3 record the decisions up to draft 0.2, updated where later decisions replaced them; 22.4 records the review round of 12 November 2026, and decisions of 13 November 2026, point by point.
 
 ### 22.1 Scope and organisation
 
