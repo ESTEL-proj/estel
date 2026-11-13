@@ -2,18 +2,18 @@
 
 [Back to the overview](transfer/overview.md)
 
-**Status:** first draft, 12 November 2026. Extracted from the STL code by reading it; **not yet checked numerically**.
+**Status:** draft, 13 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it; **not yet checked numerically** (task T2.6).
 
 **Role of this file.** This file is the reference version of the mathematics of step 1; it changes only through pull requests that a maintainer requests and merges.
 
-**Scope.** Step 1 (transfer). This version covers planar 2D data. 1D, tensor products, HEALPix and syntheses will follow as further sections of this tab.
+**Scope.** Step 1 (transfer). This version covers planar 2D and 1D data. Tensor products, HEALPix and syntheses will follow as further sections.
 
 **Sources.**
 
-- Scattering statistics: STL-Dev `2D+1D` at `8f51143` (`STL_2D_Kernel_Torch.py`, `ST_Operator.py`, `ST_Statistics.py`, `torch_backend.py`).
-- Power spectra: STL-Dev `master` at `8eaf769` (v1.6.0, `CS_operator_2D_Kernel_Torch`).
+- Planar 2D, scattering statistics and power spectra: STL-Dev `master` at `8eaf769` (v1.6.0: `STL_2D_Kernel_Torch.py`, `ST_Operator.py`, `ST_Statistics.py`, `torch_backend.py`, `CS_operator_2D_Kernel_Torch`).
+- 1D: STL-Dev `2D+1D` at `8f51143` (`STL_1D_Kernel_Torch.py`, and the classes it inherits from in that branch). For the 2D scattering statistics the two branches compute the same values (their code was compared function by function); `master` is the reference.
 
-**Rule.** In step 1 this tab describes what STL computes, including choices that look accidental. Points that need a decision are marked **⚠ OP-n** and listed in the last sub-section of each section (§1.11 for 2D). Each entry gives the definition, its conventions, the STL function it comes from (**Source**), the oracle function that will implement it (**Oracle**, in `estel._spec`) and the tests that use it.
+**Rule.** In step 1 this tab describes what STL computes, including choices that look accidental. Points that need a decision are marked **⚠ OP-n** and listed in the last sub-section of each section (§1.11 for 2D, §2.6 for 1D). Each entry gives the definition, its conventions, the STL function it comes from (**Source**), the oracle function that will implement it (**Oracle**, in `estel._spec`) and the tests that use it.
 
 ## Contents of this tab
 
@@ -30,7 +30,14 @@
   - [1.9 Power spectrum — M-PS-2D (from master, v1.6.0)](#19-power-spectrum--m-ps-2d-from-master-v160): [Frequencies and bins](#frequencies-and-bins) · [Estimators](#estimators) · [Choice of estimator](#choice-of-estimator)
   - [1.10 Defaults — M-DEF](#110-defaults--m-def)
   - [1.11 Open points found in the 2D code](#111-open-points-found-in-the-2d-code): [A. Values and correctness](#a-values-and-correctness) · [B. Conventions to document](#b-conventions-to-document) · [C. Transfer and API](#c-transfer-and-api)
-- [2. 1D](#2-1d) — not started
+- [2. 1D](#2-1d)
+  - [2.0 Data — M-DATA-1D](#20-data--m-data-1d)
+  - [2.1 Wavelets — M-WAV-1D](#21-wavelets--m-wav-1d)
+  - [2.2 Downsampling — M-H-1D](#22-downsampling--m-h-1d)
+  - [2.3 Masks, borders, moments and first layer](#23-masks-borders-moments-and-first-layer)
+  - [2.4 Scattering statistics, normalisation and reductions](#24-scattering-statistics-normalisation-and-reductions)
+  - [2.5 Defaults — M-DEF-1D](#25-defaults--m-def-1d)
+  - [2.6 Open points found in the 1D code](#26-open-points-found-in-the-1d-code)
 - [3. Tensor products](#3-tensor-products) — not started
 - [4. HEALPix](#4-healpix) — not started
 - [5. Syntheses](#5-syntheses) — not started
@@ -72,7 +79,7 @@ The padding is **circular** if `pbc=True`, **replicate** (edge values repeated) 
 
 - A complex kernel applied to a real array is computed as two real correlations (real and imaginary parts).
 - **Consequence.** For the Hermitian kernels of the next entry (ψ\[−m\] = conj(ψ\[m\])) and a real field, the correlation equals the complex conjugate of the true convolution. Moduli are unchanged; the imaginary parts of cross-S2, S3 and S4 have the opposite sign to the textbook convolution definition. ESTEL reproduces the correlation. **⚠ OP-1**
-- **Source:** `WaveletOperator2Dkernel_torch._conv_circular`, `_semicomplex_conv_circular`, `_get_padding_mode`.
+- **Source:** `WaveletOperator2Dkernel_torch._conv2d_circular`, `_semicomplex_conv2d_circular`, `_get_padding_mode`.
 
 #### M-WAV-2D — Bump-steerable wavelets
 
@@ -225,7 +232,7 @@ S_1[c_1,c_2,j,\ell] = \Big\langle \frac{z_{c_1}}{(\lvert z_{c_1}\rvert + \vareps
 
 For c₁ = c₂ this formula reduces to the auto term, up to ε; this defines what a cross-channel S1 means. **⚠ OP-16**
 
-- **Source:** `_compute_ST_loop`; `STL_2D_Kernel_Torch.divide(epsilon=1e-8, pow=0.5)`.
+- **Source:** `ST_Operator.apply` (the scattering loop); `STL_2D_Kernel_Torch.divide(epsilon=1e-8, pow=0.5)`.
 
 #### M-S2
 
@@ -256,7 +263,9 @@ S_4[c_1,c_2,j_1,j_2,j_3,\ell_1,\ell_2,\ell_3] = \Big\langle \big(\psi_{\ell_3} \
 - **S1 and S2:** only c₁ ≤ c₂ is filled; (c₂, c₁) stays NaN, since it is the conjugate.
 - **S3 and S4:** both (c₁, c₂) and (c₂, c₁) are computed and stored.
 - Conjugate duplicates at j₁ = j₂ inside S4 are also stored. This is the canonical-set question, LF20. **⚠ OP-14**
-- **Source:** `_compute_and_store_cross_cov` (`redundant_channels`).
+- **Storage type.** S1 to S4 are stored as complex numbers, including the auto S1 and S2, which are real; `mean` and `var` are real.
+- **Channels without auto-statistics.** A channel whose diagonal entry of `compute_cross_matrix` is False, but which appears in a cross pair, has no auto S1 or S2; with `store_ref`, its normalisation then gives NaN, and STL only warns. A channel in no pair at all is an error. **⚠ OP-30**
+- **Source:** `_compute_and_store_cross_cov` (`redundant_channels`), `ST_Operator.apply`.
 
 **Sihao variant** (`has_fewer_convolutions=True`): not transferred.
 
@@ -279,6 +288,10 @@ With `norm="store_ref"` (the default), the reference is the statistics being com
 | S3\[c₁, c₂, j₂, j₃, ℓ₂, ℓ₃\] | σ\_{c₁}(j₂, ℓ₂) · σ\_{c₂}(j₃, ℓ₃) |
 | S4\[c₁, c₂, j₁, j₂, j₃, ℓ₁, ℓ₂, ℓ₃\] | σ\_{c₁}(j₁, ℓ₁) · σ\_{c₂}(j₂, ℓ₂) |
 | PS\[c₁, c₂, b\] | σᴾˢ\_{c₁}(b) · σᴾˢ\_{c₂}(b), with σᴾˢ\_c(b) = √PS\_ref\[c, c, b\] |
+
+**Other values of `norm`.** `norm="vanilla"` computes the statistics without any normalisation. `norm` must be given: `None` in both the constructor and `apply` is an error. With `store_ref`, passing a reference to `apply` is an error.
+
+**Order of operations.** `apply` normalises first, then applies, in this order and only if requested, `iso`, `angular_ft`, `scale_ft` and the flattening. Normalising after any reduction is an error.
 
 Gradients through the reference: not specified by STL (LF21). **⚠ OP-18**
 
@@ -325,7 +338,7 @@ Flattening removes the structural NaN, then keeps the coefficients where `mask_s
 #### Frequencies and bins
 
 - **Radial frequencies** k ∈ {0, 1/N, …, 0.5} in cycles per pixel, with N\_max = min(N₁, N₂)/2. Each FFT mode (k₁, k₂), in mode units, is assigned to the radial index round(√(k₁² + k₂²)); modes beyond N\_max are dropped. For a rectangular image this mixes mode numbers of two different lengths, so the binning is not isotropic. **⚠ OP-6**
-- **Range.** J\_PS = log₂ N\_max − 1 by default (equal to the ST default J = log₂ N − 2 for square images), J\_min = 0:
+- **Range.** J\_PS = log₂ N\_max − 1 by default (equal to the ST default J = log₂ N − 2 for square images), J\_min = 0. When the scattering operator is given an explicit J, its spectrum uses that J as J\_PS; the default applies only when J is not given:
 
 ```latex
 k_{\min} = \frac{0.5/\sqrt2}{2^{J_{PS}-1}}, \qquad k_{\max} = \frac{0.5/\sqrt2}{2^{J_{\min}}}
@@ -440,7 +453,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-9 | Width factor 2.5 tuned for L = 4 only: the valid range of L to set |
 | OP-10 | Kernels cropped to 5×5 and centred, not renormalised; effective filters are cascades |
 | OP-11 | `var` and every STL "covariance" are non-centred second moments |
-| OP-12 | NaN threshold τ = 0.33; reweighting 1/(1−f) |
+| OP-12 | NaN threshold τ = 0.33 in 2D, 0.5 in 1D; reweighting 1/(1−f) |
 | OP-13 | Borders too large for the array are silently reduced |
 | OP-14 | S1/S2 store c₁ ≤ c₂ only, S3/S4 both orders; conjugate duplicates (LF20) |
 | OP-15 | Scale indices of S3 named (j₁, j₂) in STL's comments, (j₂, j₃) in the code |
@@ -451,6 +464,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-20 | The spectrum code requires even sizes (inverse FFT width) |
 | OP-21 | Spectrum border mask at 60 % of the point-spread energy, hard by default |
 | OP-22 | Orientation convention: θ\_ℓ = πℓ/L + π/2 from axis 1 |
+| OP-30 | A channel with cross statistics but no auto statistics gets NaN after `store_ref` normalisation; STL only warns |
 
 #### C. Transfer and API
 
@@ -463,6 +477,84 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-27 | Missing pixels are filled with NaN during downsampling by default, which breaks gradients; ESTEL uses weights, with identical values, verified by parity cases with masks from phase P2 |
 
 ## 2. 1D
+
+**Source:** STL-Dev `2D+1D` at `8f51143`, the only branch with 1D data. The 1D classes inherit almost everything from the 2D classes of that branch; this section only states what differs. Every entry of section 1 not mentioned below applies to 1D data with a single spatial axis: a pixel is n with 0 ≤ n < N, and every orientation axis has size L.
+
+### 2.0 Data — M-DATA-1D
+
+- **Shape.** Arrays are `(Nb, Nc, N)`. A 1D array is promoted to `(1, 1, N)`; a 2D array is promoted to `(1, Nc, N)`: its first axis is read as channels, not as a batch. **⚠ OP-29**
+- **Size.** N must be divisible by 2^(J−1), as in M-DATA-2D, for the same reason (**⚠ OP-8**).
+- **Default J.** J = ⌊log₂ N⌋ − 2, computed by the data class (`get_wavelet_op`), as in 2D. Only the 1D wavelet operator, called directly, requires J.
+- **Periodicity and missing data.** As in M-DATA-2D. The missing-data mask is one 1D array of shape `(N,)`, shared by every batch element and channel (**⚠ OP-26**).
+- **Spectrum.** STL computes a 1D power spectrum by default (`compute_PS=True`, with its `CS_operator_1D_Kernel_Torch`). ESTEL 1.0.0 has no 1D spectrum (Part II, §9.3): 1D statistics are computed and compared without it (LF23).
+- **Source:** `STL_1D_Kernel_Torch`, `get_wavelet_op` (inherited), `ST_Operator.apply`.
+
+### 2.1 Wavelets — M-WAV-1D
+
+**Filtering** is the correlation of M-CONV-2D along the single axis (`conv1d`), with circular or replicate padding of ⌊K/2⌋ pixels on each side; a complex kernel on real data is two real correlations.
+
+**In Fourier space**, on a grid of N = 256 points (a constant, independent of the data size), with integer frequencies ω ∈ {−N/2, …, N/2 − 1} and centre ξ₀ = N/2:
+
+```latex
+\hat\psi(\omega) = \exp\Big(-\frac{r^2}{1 - r^2}\Big) \ \text{if } r < 1, \qquad \hat\psi(\omega) = 0 \ \text{otherwise}, \qquad r = \frac{\lvert \omega - \xi_0 \rvert}{\xi_0}
+```
+
+- **Differences with M-WAV-2D.** No width factor (c = 1 instead of 2.5), no angular part, no normalisation (neither by the maximum nor by c_L/c_4).
+- **Position of the bump.** ξ₀ = N/2 is the Nyquist frequency. The bump's support, 0 < ω < N, meets the grid only for 1 ≤ ω ≤ N/2 − 1: the filter is the lower half of a bump whose maximum, at Nyquist, is not on the grid. It vanishes at negative frequencies, so it is analytic. **⚠ OP-28**
+- **In pixel space:** as in M-WAV-2D, a single kernel of K = 5 taps: inverse FFT, centred (`fftshift`), cropped to the central K taps, mean subtracted, not renormalised (**⚠ OP-10**), cast to complex. The bank is computed for J scales, but only j = 0 is used; coarser scales come from downsampling, as in 2D.
+- **Orientations.** L = 1 by default; L ∈ {1, 2}. With L = 2 the second filter is the conjugate of the first, ψ₁ = conj(ψ₀), which covers the negative frequencies; tensor products use L = 2 for their 1D blocks. On real data W₁x = conj(W₀x), so the L = 2 statistics are redundant there. With L = 1, `iso` and `angular_ft` change nothing, and OP-5 does not arise.
+- **Morlet.** Also available in the 1D class; not transferred (**⚠ OP-24**).
+- **Source:** `WaveletOperator1Dkernel_torch.bump_steerable_1d`, `bump_steerable_bank`, `_build_wavelet_kernel_from_ifft_crop`, `__init__`; `_conv_circular` (inherited).
+- **Oracle:** `spec_wavelets_1d(L, K)`. **Tests:** kernel values against STL, for L = 1 and L = 2.
+
+### 2.2 Downsampling — M-H-1D
+
+The 1D anti-aliasing kernel is the third row of the 2D table of M-H divided by its sum (0.49241182):
+
+```text
+h = [-0.04879268, 0.05638086, 0.49241182, 0.49241182, 0.05638086, -0.04879268]
+```
+
+It sums to 1, and the 2D kernel of M-H is exactly h ⊗ h (for example 0.49241182² = 0.2424694). The code doubts this choice in a `TODO`; the check above confirms that it is the 1D factor of the 2D kernel.
+
+- **Without a mask:** M-DOWN along one axis: padding 2 before and 3 after (**⚠ OP-2**), stride 2.
+- **With a mask:** M-DOWN-MASK along one axis, with the threshold **τ = 0.5** in 1D (`downsample_nan_weight_threshold=0.5`), instead of 0.33 in 2D. **⚠ OP-12**
+- `sigma_smooth` has no effect, as in 2D (**⚠ OP-25**).
+- **Source:** `WaveletOperator1Dkernel_torch._get_smooth_kernel`, `__init__`; `_downsample_tensor`, `downsample` (inherited).
+
+### 2.3 Masks, borders, moments and first layer
+
+M-MASK, M-BORDER, M-MEAN, M-MOM and M-W1 apply unchanged, with E the support of K = 5 taps and one axis: the fully flexible border widths use ⌊K/2⌋ = 2, and the border is cropped at both ends of the axis.
+
+- **Source:** `_build_reweighting_maps_and_scattering_layer_masks`, `_get_crop_border_size_fully_flexible`, `_crop`, `mean`, `cov` (inherited, written for any number of axes).
+
+### 2.4 Scattering statistics, normalisation and reductions
+
+M-S1 to M-S4, M-CHAN, M-NORM, M-RED-ISO, M-RED-ANG, M-RED-SCALE and M-FLAT apply unchanged, with ℓ ∈ {0, …, L − 1}. The full-grid shapes are S1 and S2 `(Nb, Nc, Nc, J, L)`, S3 `(Nb, Nc, Nc, J, J, L, L)` and S4 `(Nb, Nc, Nc, J, J, J, L, L, L)`; with the default L = 1, every orientation axis has size 1. Without a spectrum, the normalisation has no PS term.
+
+- **Source:** `ST_Operator._compute_ST_loop`, `_finalize_compute`; `ST_Statistics` (`2D+1D`).
+
+### 2.5 Defaults — M-DEF-1D
+
+| Parameter | Default |
+| --- | --- |
+| J | ⌊log₂ N⌋ − 2 (can violate the size constraint, OP-8) |
+| L | 1 (2 for the 1D blocks of tensor products) |
+| K (kernel size) | 5 |
+| Wavelet type | bump-steerable |
+| τ (NaN threshold) | 0.5 |
+| Border method | fully flexible |
+| `compute_PS` | True in STL; unavailable for 1D data in ESTEL 1.0.0 |
+| Other parameters | as in M-DEF |
+
+### 2.6 Open points found in the 1D code
+
+The rule of §1.11 applies. OP-2, OP-8, OP-10, OP-12, OP-24, OP-25 and OP-26 also concern 1D data, as noted above.
+
+| # | Point | Proposal |
+| --- | --- | --- |
+| OP-28 | The 1D wavelet is centred on the Nyquist frequency, so only the lower half of its bump exists on the grid; it has no width factor and no normalisation, unlike the 2D wavelet | reproduce; examine with the wavelet optimisation (LF22) |
+| OP-29 | A 2D array given as 1D data is read as `(Nc, N)`, not `(Nb, N)` | reproduce, document |
 
 ## 3. Tensor products
 
