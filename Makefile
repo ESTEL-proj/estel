@@ -12,8 +12,9 @@ TEST_BACKENDS ?= torch jax
 check: check-tools test
 	@echo "make check: tier 0 passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, workflows, tests float32 + float64 on $(TEST_BACKENDS))"
 
-# Tier 0 without the test suites. CI runs only this on a change confined to docs/, .github/
-# and changes/ (tools/ci_scope.py; task T0.7).
+# Tier 0 without the test suites. CI runs only this on a change confined to the no-test scope
+# of tools/ci_scope.py (docs/, .github/, changes/, root .gitignore, LICENSE, NOTICE, README.md,
+# every AGENTS.md and CLAUDE.md; task T0.7); run it instead of `make check` for such a change.
 check-tools: lint types lint-imports layers manifest mirrors maths-ids workflows
 	@echo "make check-tools: check tools passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, workflows)"
 

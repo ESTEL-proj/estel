@@ -1,5 +1,7 @@
-"""tools/ci_scope.py skips the test suites only when every changed file is under ``docs/``,
-``.github/`` or ``changes/``, and none is a file the tests read (task T0.7)."""
+"""tools/ci_scope.py skips the test suites only when every changed file is in the no-test scope
+(``docs/``, ``.github/``, ``changes/``, the root ``.gitignore``, ``LICENSE``, ``NOTICE`` and
+``README.md``, every ``AGENTS.md`` and ``CLAUDE.md``), and none is a file the tests read
+(task T0.7)."""
 
 from __future__ import annotations
 
@@ -8,12 +10,25 @@ from pathlib import Path
 
 import pytest
 
-from ci_scope import docs_read_by_tests
+from ci_scope import inputs_read_by_tests
 
 from .conftest import REPO, run_tool, write
 
 # A test of the fake repository that reads a document, as tests/backend/test_protocol.py does.
 READS_MATHS = 'REPO = Path(__file__).parents[1]\ntext = (REPO / "docs/maths.md").read_text()\n'
+# A test of the fake repository that reads a nested AGENTS.md through a name bound to its root.
+READS_BACKEND_RULES = (
+    "ROOT = Path(__file__).resolve().parents[1]\n"
+    "HERE = ROOT\n"
+    'rules = (HERE / "src" / "estel" / "backend" / "AGENTS.md").read_text()\n'
+)
+# A test of the fake repository that writes agent files in a temporary repository.
+WRITES_FAKE_AGENT_FILES = (
+    "def test_mirrors(tmp_path):\n"
+    '    write(tmp_path, {"AGENTS.md": "x", "src/estel/backend/AGENTS.md": "y"})\n'
+    '    (tmp_path / "CLAUDE.md").write_text("@AGENTS.md")\n'
+    '    assert (tmp_path / "README.md").exists()\n'
+)
 
 
 def git(root: Path, *args: str) -> None:
@@ -48,8 +63,31 @@ def scope(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
             "tests=false",
             id="all-three",
         ),
+        pytest.param({".gitignore": "x"}, "tests=false", id="gitignore"),
+        pytest.param({"LICENSE": "x"}, "tests=false", id="license"),
+        pytest.param({"NOTICE": "x"}, "tests=false", id="notice"),
+        pytest.param({"README.md": "s"}, "tests=false", id="readme"),
+        pytest.param({"AGENTS.md": "x", "CLAUDE.md": "@AGENTS.md\n"}, "tests=false", id="agents"),
+        pytest.param(
+            {"src/estel/backend/AGENTS.md": "x", "src/estel/backend/CLAUDE.md": "@AGENTS.md\n"},
+            "tests=false",
+            id="nested-agents",
+        ),
+        pytest.param(
+            {"README.md": "s", "docs/a.md": "b", "changes/9.patch.md": "z", "AGENTS.md": "x"},
+            "tests=false",
+            id="mixed-no-test",
+        ),
         pytest.param({"src/estel/a.py": "x = 2\n"}, "tests=true", id="code"),
-        pytest.param({"docs/a.md": "b", "README.md": "s"}, "tests=true", id="docs-and-root"),
+        pytest.param({"docs/a.md": "b", "Makefile": "s"}, "tests=true", id="docs-and-makefile"),
+        pytest.param({"pyproject.toml": "x"}, "tests=true", id="pyproject"),
+        pytest.param({"uv.lock": "x"}, "tests=true", id="uv-lock"),
+        pytest.param({".python-version": "3.12\n"}, "tests=true", id="python-version"),
+        pytest.param({"api/manifest.json": "{}"}, "tests=true", id="manifest"),
+        pytest.param({"src/README.md": "x"}, "tests=true", id="readme-not-at-root"),
+        pytest.param({"tools/LICENSE": "x"}, "tests=true", id="license-not-at-root"),
+        pytest.param({"src/estel/AGENTS.md.bak": "x"}, "tests=true", id="agents-name-in-name-only"),
+        pytest.param({"src/estel/MY_AGENTS.md": "x"}, "tests=true", id="agents-suffix-only"),
         pytest.param({"docs-old/a.md": "b"}, "tests=true", id="prefix-in-name-only"),
         pytest.param({"tests/docs/a.py": "b"}, "tests=true", id="docs-not-at-root"),
     ],
@@ -88,7 +126,7 @@ def test_an_unknown_base_fails_and_says_what_to_do(repo: Path) -> None:
 
 def test_the_tests_of_this_repository_read_maths_md() -> None:
     """tests/backend/test_protocol.py reads docs/maths.md: changing it runs the whole suite."""
-    assert "docs/maths.md" in docs_read_by_tests(REPO)
+    assert "docs/maths.md" in inputs_read_by_tests(REPO)
 
 
 def test_a_change_to_maths_md_runs_the_tests(repo: Path) -> None:
@@ -115,11 +153,41 @@ def test_a_change_to_maths_md_runs_the_tests(repo: Path) -> None:
             id="joined-parts",
         ),
         pytest.param(READS_MATHS, {"docs/other.md": "b"}, "tests=false", id="unread-document"),
+        pytest.param(
+            'text = (REPO / "README.md").read_text()\n',
+            {"README.md": "b"},
+            "tests=true",
+            id="root-file-joined-to-repo",
+        ),
+        pytest.param(
+            'text = Path("LICENSE").read_text()\n', {"LICENSE": "b"}, "tests=true", id="root-file"
+        ),
+        pytest.param(
+            READS_BACKEND_RULES,
+            {"src/estel/backend/AGENTS.md": "b"},
+            "tests=true",
+            id="nested-agents-read",
+        ),
+        pytest.param(
+            READS_BACKEND_RULES,
+            {"src/estel/engines/AGENTS.md": "b"},
+            "tests=false",
+            id="nested-agents-unread",
+        ),
+        pytest.param(
+            WRITES_FAKE_AGENT_FILES,
+            {
+                "AGENTS.md": "b",
+                "CLAUDE.md": "@AGENTS.md\n",
+                "README.md": "b",
+                "src/estel/backend/AGENTS.md": "b",
+            },
+            "tests=false",
+            id="fake-files-in-a-temporary-repository",
+        ),
     ],
 )
-def test_documents_named_by_tests(
-    repo: Path, test: str, change: dict[str, str], expected: str
-) -> None:
+def test_files_named_by_tests(repo: Path, test: str, change: dict[str, str], expected: str) -> None:
     write(repo, {"tests/test_reads.py": test})
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "a test reads a document")
