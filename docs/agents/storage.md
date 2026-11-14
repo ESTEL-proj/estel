@@ -16,6 +16,6 @@ Principle: **compute on structured arrays, store in a flat compact buffer, never
 - **Why.** STL's full grid is mostly NaN: only `j1 ≤ j2 ≤ j3` is filled, the order is componentwise in tensor products, low-pass entries have one orientation, and real families are stored complex. Savings range from 3.9× (2D) to 26× (2D+1D+1D).
 - **Two representations.** Compute: per level `(B, n_slots, *spatial)`, inside `scattering()` only, no NaN (masks are weights). Storage: one real buffer `(B, n_floats)` in `STStatistics`, complex entries as (re, im) pairs, absent entries not stored.
 - **`Layout` and `Segment`**: frozen, hashable descriptions (family, level, named index table, complex flags, offset) usable as JAX static arguments.
-- **Full-grid views** (`stats.family("S4").full_grid()`) are for humans, plots and comparison with 1.0.x; they are never called inside `scattering()`.
+- **Full-grid views** (`stats.full_grid("S4")`) are for humans, plots and comparison with 1.0.x; they are never called inside `scattering()`.
 - **Reductions** (normalisation, `iso`, `angular_ft`, `scale_ft`) become static linear maps applied per segment.
 - **Open points:** the canonical set (keep STL's duplicates or not, LF20) and where the conversion is implemented (R1). The level-wise Gram reorganisation of the loop is adopted only after a benchmark and a human validation.

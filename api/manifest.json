@@ -58,8 +58,86 @@
     "estel.STATISTICS_REFERENCE": {
       "kind": "constant"
     },
+    "estel.STOperator": {
+      "kind": "class",
+      "signature": "(self, data: DataClass, J: int | None=None, L: int | None=None, *, norm: str='store_ref', norm_batch_mean: bool=False, standardize: bool=False, compute_cross_matrix: Any=None, compute_PS: bool | None=None, engine: str='python') -> None"
+    },
+    "estel.STOperator.J": {
+      "kind": "property"
+    },
+    "estel.STOperator.L": {
+      "kind": "property"
+    },
+    "estel.STOperator.apply": {
+      "kind": "method",
+      "signature": "(self, data: DataClass, ref: STStatistics | None=None) -> STStatistics"
+    },
+    "estel.STOperator.filters": {
+      "kind": "property"
+    },
+    "estel.STOperator.from_statistics": {
+      "kind": "method",
+      "signature": "(cls, stats: STStatistics) -> STOperator"
+    },
+    "estel.STOperator.norm": {
+      "kind": "property"
+    },
+    "estel.STOperator.plan": {
+      "kind": "property"
+    },
+    "estel.STOperator.standardize": {
+      "kind": "property"
+    },
+    "estel.STStatistics": {
+      "kind": "class",
+      "signature": "(self) -> None"
+    },
+    "estel.STStatistics.angular_ft": {
+      "kind": "method",
+      "signature": "(self, harmonics: int | None=None) -> STStatistics"
+    },
+    "estel.STStatistics.full_grid": {
+      "kind": "method",
+      "signature": "(self, family: str) -> Any"
+    },
+    "estel.STStatistics.iso": {
+      "kind": "method",
+      "signature": "(self) -> STStatistics"
+    },
+    "estel.STStatistics.load": {
+      "kind": "method",
+      "signature": "(path: str | os.PathLike[str]) -> STStatistics"
+    },
+    "estel.STStatistics.save": {
+      "kind": "method",
+      "signature": "(self, path: str | os.PathLike[str]) -> None"
+    },
+    "estel.STStatistics.scale_ft": {
+      "kind": "method",
+      "signature": "(self, harmonics: int | None=None, dj: int | None=None) -> STStatistics"
+    },
+    "estel.STStatistics.select": {
+      "kind": "method",
+      "signature": "(self, family: str | Sequence[str] | None=None, **index: Any) -> STStatistics"
+    },
+    "estel.STStatistics.to_vector": {
+      "kind": "method",
+      "signature": "(self, mask_st: Any=None) -> Any"
+    },
     "estel.SYNTHESIS_REFERENCE": {
       "kind": "constant"
+    },
+    "estel.ScatteringFilters": {
+      "kind": "class",
+      "signature": "()"
+    },
+    "estel.ScatteringPlan": {
+      "kind": "class",
+      "signature": "()"
+    },
+    "estel.functional.scattering": {
+      "kind": "function",
+      "signature": "(x: DataClass, plan: ScatteringPlan, filters: ScatteringFilters, ref: STStatistics | None=None) -> STStatistics"
     },
     "estel.get_backend": {
       "kind": "function",

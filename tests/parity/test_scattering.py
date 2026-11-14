@@ -5,8 +5,9 @@ The fixtures ``scattering_2d`` (STL `master`) and ``scattering_1d`` (STL `2D+1D`
 statistics, without normalisation and without spectrum, for each configuration of their case
 (``tools/stl_parity/cases/``): periodic and open, with and without missing values, two channels
 with every pair, a custom ``compute_cross_matrix``, standardised data, L = 2 in 1D, and a deep
-open configuration where some means have no valid pixel. ESTEL's internal ``STOperator`` is
-built with the same parameters on the stored input, and every family is compared with
+open configuration where some means have no valid pixel. ESTEL's ``STOperator`` is
+built with the same parameters on the stored input, with ``norm="vanilla"``, and every family
+of the ``STStatistics`` it returns is compared with
 ``assert_parity``: same full-grid shape, NaN at the same positions (structural, channel pairs not
 computed, empty means), values within the tolerances of Part II, §14.3.
 
@@ -25,10 +26,8 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data1D, Data2D, DataClass, _config
+from estel import Data1D, Data2D, DataClass, STOperator, STStatistics, _config
 from estel.backend._protocol import DType
-from estel.scattering._loop import ScatteringValues
-from estel.scattering._operator import STOperator
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
 CASES: dict[str, type[DataClass]] = {"scattering_2d": Data2D, "scattering_1d": Data1D}
@@ -53,7 +52,7 @@ def _configs() -> list[tuple[str, str]]:
 
 def _statistics(
     case: str, name: str, fixture: dict[str, NDArray[Any]]
-) -> tuple[ScatteringValues, dict[str, Any]]:
+) -> tuple[STStatistics, dict[str, Any]]:
     parameters = _parameters(case)
     config = parameters["configs"][name]
     mask = fixture[f"{name}_mask"] > 0 if f"{name}_mask" in fixture else None
@@ -81,20 +80,22 @@ def test_statistics_equal_stl(case: str, name: str, dtype: DType) -> None:
     real, complex_ = expected_kind[dtype]
     # mean has the units of the data and may be zero in theory (standardised data), so its scale
     # is their standard deviation, sqrt(max(var)) (§14.3).
-    mean = np.asarray(values.mean)
+    mean = np.asarray(values.full_grid("mean"))
     assert mean.dtype == np.dtype(real)
     scale = float(np.sqrt(np.max(fixture[f"{name}_var"])))
     assert_parity(mean, fixture[f"{name}_mean"], dtype, scale=scale)
     for family in FAMILIES:
-        actual = np.asarray(getattr(values, family))
+        actual = np.asarray(values.full_grid(family))
         assert actual.dtype == np.dtype(real if family == "var" else complex_), family
         assert_parity(actual, fixture[f"{name}_{family}"], dtype)
     if config.get("standardize", False):
-        for key in ("mean_pre_std", "std_pre_std"):
-            assert_parity(np.asarray(getattr(values, key)), fixture[f"{name}_{key}"], dtype)
+        assert values._standardization is not None
+        for key, removed in zip(
+            ("mean_pre_std", "std_pre_std"), values._standardization, strict=True
+        ):
+            assert_parity(np.asarray(removed), fixture[f"{name}_{key}"], dtype)
     else:
-        assert values.mean_pre_std is None
-        assert values.std_pre_std is None
+        assert values._standardization is None
 
 
 def test_fixtures_cover_the_cells_of_t24() -> None:

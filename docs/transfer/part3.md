@@ -70,7 +70,7 @@ Decisions that change what existing statistics compute.
 | ID | Feature | Why | Builds on (reserved in 1.0.0) | Changes reference values | Version impact | Details | Source |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | LF20 | Canonical coefficient set | no duplicate coefficients | compact layout | yes | reference bump; major decided with the maintainers | §19.8 | Q1, G2, OP-14 |
-| LF21 | Gradient semantics through the reference | implicit differentiation with targets that depend on parameters | `ref` argument | yes, if the default changes | reference bump if default | §20.7 | Q2, G6, OP-18 |
+| LF21 | Gradient semantics through the reference: closed (14 November 2026). It follows from the mode: with store_ref the reference is part of the computation and gradients flow through it; with load_ref it is a constant. Nothing else to design | implicit differentiation with targets that depend on parameters | `ref` argument | yes, if the default changes | reference bump if default | §20.7 | Q2, G6, OP-18 |
 | LF22 | Wavelet optimisation | better filters, satisfying a Littlewood–Paley condition, low-pass filter included (LF6), tested in CI | `WaveletOperator` | yes | reference bump; major decided with the maintainers | §20.6, §20.10 | — |
 
 ### 16.5 Entries added in the reviews of 12 and 13 November 2026

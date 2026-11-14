@@ -9,6 +9,8 @@ second order (Part I, §3.2.3):
   exact zeros (zero-filled missing pixels, constant regions) give no NaN in the gradients;
 * :func:`divide`: STL's ``divide(x, y, epsilon, pow)``, ``x / (y + ε)^pow``, used by the cross
   S1 terms with ``y = |x|``, ``ε = 1e-8`` and ``pow = 1/2`` (M-S1, OP-16);
+* :func:`sum_valid` and :func:`cov_sum_valid`: the weighted sums, before the division, which the
+  loop adds across the partitions of the data (``_global_sum``) and then divides;
 * :func:`mean_valid` and :func:`cov_valid`: the mean of M-NOT, ``sum(w · a) / sum(w)`` over the
   spatial axes, with the weights and the denominator of the plan (``MeanWeights``): missing
   pixels and border crops are weights, never boolean indexing (Part I, §3.1.1). ``cov_valid``
@@ -21,7 +23,7 @@ the loop fills the missing pixels of the field with 0 before anything else (OP-2
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any, NamedTuple
 
 from ..backend import _registry
@@ -74,6 +76,25 @@ def divide(x: Any, y: Any, eps: float = 1e-8, pow: float = 1.0) -> Any:
     return x / (y + eps) ** pow
 
 
+def sum_valid(x: Any, weights: Any, axes: Sequence[int]) -> Any:
+    """The weighted sum of ``x`` over the valid pixels, ``sum(weights · x, axes)``: the
+    numerator of :func:`mean_valid`, before the division by the denominator.
+
+    The scattering loop sums first, adds the partial sums of every partition of the data (the
+    identity in 1.0.0; ``estel.scattering._loop._global_sum``), then divides.
+    """
+    xp = _backend(x).xp
+    return xp.sum(weights * x, axis=tuple(axes))
+
+
+def cov_sum_valid(x: Any, y: Any, weights: Any, axes: Sequence[int]) -> Any:
+    """The weighted sum of ``x · conj(y)`` over the valid pixels: the numerator of
+    :func:`cov_valid`."""
+    xp = _backend(x).xp
+    product = x * xp.conj(y) if _is_complex(xp, y) else x * y
+    return sum_valid(product, weights, axes)
+
+
 def mean_valid(x: Any, weights: Any, denominator: float, axes: Sequence[int]) -> Any:
     """The mean of ``x`` over the valid pixels: ``sum(weights · x, axes) / denominator``
     (maths.md M-NOT, M-MEAN).
@@ -83,8 +104,7 @@ def mean_valid(x: Any, weights: Any, denominator: float, axes: Sequence[int]) ->
     ``axes`` of ``x``; ``denominator`` is its sum, a Python float computed once in the plan
     (``MeanWeights.denominator``). ``x`` must be finite where the weights are 0.
     """
-    xp = _backend(x).xp
-    return xp.sum(weights * x, axis=tuple(axes)) / denominator
+    return sum_valid(x, weights, axes) / denominator
 
 
 def cov_valid(x: Any, y: Any, weights: Any, denominator: float, axes: Sequence[int]) -> Any:
@@ -94,9 +114,11 @@ def cov_valid(x: Any, y: Any, weights: Any, denominator: float, axes: Sequence[i
     centred covariance of step 2 adds first moments (LF33, Part III, §20.11). ``x`` and ``y``
     broadcast together; for a real ``y``, ``conj(y) = y``.
     """
-    xp = _backend(x).xp
-    product = x * xp.conj(y) if _is_complex(xp, y) else x * y
-    return mean_valid(product, weights, denominator, axes)
+    return cov_sum_valid(x, y, weights, axes) / denominator
+
+
+def _identity(x: Any) -> Any:
+    return x
 
 
 class Standardized(NamedTuple):
@@ -110,17 +132,26 @@ class Standardized(NamedTuple):
     """The standard deviation divided by, ``(Nb, Nc)``."""
 
 
-def standardize(x: Any, weights: Any, denominator: float, axes: Sequence[int]) -> Standardized:
+def standardize(
+    x: Any,
+    weights: Any,
+    denominator: float,
+    axes: Sequence[int],
+    global_sum: Callable[[Any], Any] | None = None,
+) -> Standardized:
     """Remove the mean of each map and divide by its standard deviation (maths.md M-MOM; STL
     ``standardize`` with ``mean_field=False``).
 
     ``x`` is ``(Nb, Nc, *spatial)``, real, with the full-resolution weights of the plan
     (``plan.moments``). μ = ⟨x⟩, then sigma² = ⟨(x - μ)²⟩, both over the valid pixels, with
     population normalisation; the result is (x - μ) / sigma. μ and sigma are ``(Nb, Nc)``.
+    ``global_sum``, applied to each weighted sum before its division, adds the partial sums of
+    the partitions of the data (``estel.scattering._loop._global_sum``); none by default.
     """
     xp = _backend(x).xp
+    total = _identity if global_sum is None else global_sum
     expand = (Ellipsis, *([None] * len(axes)))
-    mean = mean_valid(x, weights, denominator, axes)
+    mean = total(sum_valid(x, weights, axes)) / denominator
     centred = x - mean[expand]
-    std = xp.sqrt(cov_valid(centred, centred, weights, denominator, axes))
+    std = xp.sqrt(total(cov_sum_valid(centred, centred, weights, axes)) / denominator)
     return Standardized(x=centred / std[expand], mean=mean, std=std)

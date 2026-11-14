@@ -63,6 +63,12 @@ class DataClass:
     """τ of maths.md M-DOWN-MASK: a downsampled pixel is invalid when its fraction of invalid
     input exceeds it."""
 
+    _geometry: ClassVar[str]
+    """The name of the geometry, a capability the class declares: ``"1d"``, ``"2d"``, the
+    geometries of the engine capabilities (``estel.engines._protocol.GEOMETRIES``). It also
+    names the geometry in saved files (``estel.io``), and :func:`geometry_class` maps it back to
+    the class."""
+
     __slots__ = ("_array", "_backend", "_mask", "_pbc")
 
     _array: Any
@@ -75,6 +81,8 @@ class DataClass:
         per exact class, so each subclass needs its own."""
         super().__init_subclass__(**kwargs)
         _registry.register_pytree(cls, cls._tree_flatten, cls._tree_unflatten)
+        if "_geometry" in cls.__dict__:
+            _GEOMETRIES.update({cls._geometry: cls})
 
     def __init__(self, array: Any, mask: Any = None, *, pbc: bool) -> None:
         cls = type(self)
@@ -305,6 +313,18 @@ class DataClass:
 
 
 # ---------------------------------------------------------------------- geometry hook inputs
+
+
+_GEOMETRIES: dict[str, type[DataClass]] = {}
+"""The geometry classes, by the name they declare (``DataClass._geometry``)."""
+
+
+def geometry_class(name: str) -> type[DataClass]:
+    """The DataClass subclass that declares the geometry ``name`` (``"1d"``, ``"2d"``)."""
+    if name not in _GEOMETRIES:
+        known = ", ".join(repr(n) for n in sorted(_GEOMETRIES))
+        raise ValueError(f"no DataClass declares the geometry {name!r}; known geometries: {known}.")
+    return _GEOMETRIES[name]
 
 
 class DownsampleWeights(NamedTuple):

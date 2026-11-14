@@ -2,8 +2,9 @@
 
 Maps the values of ``engine=`` to the capabilities of each engine. In 1.0.0 the only engine is
 ``"python"``, of differentiation order 2; ``"auto"`` and ``"rust"`` are names of step 2
-(Part III, §18) and raise :class:`EngineUnsupportedError`, as does any other name. The engine
-objects themselves are connected when ``estel.functional.scattering`` becomes public (T2.5).
+(Part III, §18) and raise :class:`EngineUnsupportedError`, as does any other name.
+``STOperator`` resolves its ``engine=`` here and checks the capabilities (T2.5); the Python engine
+is ``estel.functional.scattering`` itself, so no engine object is registered before step 2.
 """
 
 from __future__ import annotations

@@ -72,7 +72,7 @@ Step 1 rebuilds what STL computes inside the architecture of Part I, and proves,
 | `engine=` argument, engine registry and protocol, `diff_order` | only `"python"`, order 2 | the Rust engine (Part III, §18) |
 | `STStatistics` accessors (`family`, `select`, `to_vector`, `full_grid`) | backed by full-grid tensors | the compact layout (Part III, §19), with no API change |
 | `DataHealpix(cell_ids=…, partition=…)` | whole sky by default; partial ranges accepted | MPI in process (Part III, §18.3) |
-| `allreduce` hook in the reductions of L2 | identity | MPI in process (Part III, §18.3) |
+| `_global_sum`, internal: the hook between the weighted pixel sums of the means and their division, called once per level on the stacked sums (issue #17) | identity | MPI in process, as an MPI Allreduce with a sum (Part III, §18.3) |
 | `estel.io`, with a versioned schema | ESTEL format | the JSON formats of STL-Dev-MPI (Part III, §18.3) |
 | `method=` of `CrossSpectrumOperator` for 1D, tensor-product and HEALPix data | accepted names, raising a clear error | LF23, LF24 |
 
@@ -139,12 +139,13 @@ estel/                             # one repository for Python and Rust (Part IV
 │   ├── wavelets/                  # operator.py, _banks.py, _healpix_bank.py,
 │   │                              # _healpix_geometry.py (ported from TorchGeometry)
 │   ├── scattering/                # _plan.py, operator.py, operator_tensor_prod.py
-│   ├── statistics/                # statistics.py, _reductions.py, _normalization.py, io.py,
+│   ├── statistics/                # _statistics.py, _grid.py, _reductions.py, _normalization.py,
 │   │                              # _layout.py (step 2, LF14)
 │   ├── spectra/                   # operator.py, _estimators.py (2D), _bins.py
 │   ├── synthesis/                 # api.py, _loss.py, _init.py, _checkpoints.py
 │   ├── functional/                # pure functions: scattering(), cross_spectrum(), loss()
-│   ├── io/                        # versioned formats; STL-Dev-MPI JSON (step 2)
+│   ├── io/                        # _schema.py: the versioned schema, used by STStatistics.save
+│   │                              # and load; STL-Dev-MPI JSON (step 2)
 │   ├── diagnostics/               # describe, estimate_memory, frequency_response,
 │   │                              # littlewood_paley
 │   ├── plot/  utils/
@@ -267,31 +268,32 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 
 | Function | Tag | Purpose | Origin |
 | --- | --- | --- | --- |
-| `STOperator(data, J=None, L=None, *, norm="store_ref", standardize=False, compute_cross_matrix=None, compute_PS=None, engine="python", **wavelet_kwargs)` | F | Single-domain operator (1D, 2D, HEALPix). Every computation option is set here, once. Reductions and selections are `STStatistics` methods only (rule A6). `compute_PS` is True by default for 2D data and unavailable elsewhere in 1.0.0. `engine` is reserved. `standardize` removes the mean and divides by the standard deviation before the transform, as STL's apply(standardize=True); both values are kept with the statistics | `ST_Operator.__init__` |
-| `STOperator.apply(data, ref=None) -> STStatistics` | F | The only call-time arguments: the data and an optional reference. The normalisation kind is fixed at construction | `ST_Operator.apply` |
-| `STOperator.from_statistics(stats)` | F | Rebuild the operator that produced a statistics object | `from_ST_Statistics` |
+| `STOperator(data, J=None, L=None, *, norm="store_ref", norm_batch_mean=False, standardize=False, compute_cross_matrix=None, compute_PS=None, engine="python")` | F | Single-domain operator (1D, 2D, HEALPix). Every computation option is set here, once. Reductions and selections are `STStatistics` methods only (rule A6). `norm_batch_mean` averages the `store_ref` reference over the batch; False by default, as in STL (maths tab, M-NORM). `compute_PS` is True by default for 2D data and unavailable elsewhere in 1.0.0. `engine` is reserved: only `"python"`, checked in the engine registry. `standardize` removes the mean and divides by the standard deviation before the transform, as STL's apply(standardize=True); both values are kept with the statistics. **Channels:** the number of channels is read from the example data and fixed at construction, with `compute_cross_matrix`: `None` means every pair c₁ ≤ c₂, as STL's code; a given matrix must be Nc × Nc, else a clear error; applying the operator to data with another number of channels raises a clear error | `ST_Operator.__init__` |
+| `STOperator.apply(data, ref=None) -> STStatistics` | F | The only call-time arguments: the data and an optional reference. The normalisation kind is fixed at construction. As in STL, an operator built with `store_ref` keeps the reference of the last statistics it computed, replacing the previous one with a `UserWarning`; the reference is internal (`_NormReference`). With `load_ref`, `ref` is an `STStatistics` computed with `store_ref`; without it, the operator uses the reference it holds. With `store_ref` the reference is part of the computation and gradients flow through it; with `load_ref` it is a constant | `ST_Operator.apply` |
+| `STOperator.from_statistics(stats)` | F | Rebuild the operator that produced a statistics object: the same plan, holding the reference the statistics were normalised with. With `STOperator(data, ...)`, the only public constructors | `from_ST_Statistics` |
+| `STOperator.plan`, `STOperator.filters` | F | The plan and the filters of the operator, the arguments of `estel.functional.scattering` | new |
 | `STOperatorTensorProd(data, J=(…), L=(…), *, lowpass="ST", …)` | F | Tensor-product operator, with STL's low-pass options (`"ST"`, `"PS"`, both, or none). Overrides only the hooks below | `ST_Operator_TensorProd` |
 | `_scale_index_set(plan)` | I | Mother: `j1 ≤ j2 ≤ j3` on integers. Tensor product: the componentwise partial order on multi-indices (§13.2, G3), plus the low-pass index per block | `_scales_S1_S2`, the loops of `_compute_ST_loop` |
 | `_levels(plan)` | I | Resolution levels in execution order. Mother: `0…J`; tensor product: the product of block levels | `_compute_ST_loop` |
 | `_first_layer(x, plan)` | I | W\_j x and \|W\_j x\| at every level, built functionally | `_compute_ST_loop` |
 | `_second_layer(u, plan, level)` | I | The S3 and S4 means at one level, following the structure of STL's loop (Part I, §3.1, rule 8), returned as lists and stacked; no preallocated tensor filled in place (Part I, §3.1.1) | the `cov` calls of the loop |
 | `_normalize(values, plan, ref)` | I | Normalisation only: `store_ref`, `load_ref`, batch mean, with the optional reference. Reductions are `STStatistics` methods. The reference object stores the normalisation scales and, from step 2, the first moments used by centring; the two options are independent (Part III, §20.11) | `_finalize_compute`, `to_norm`, `_normalize_scatcov` |
-| `ScatteringPlan` | N | Static description: J, L, index sets, levels, the low-pass filter (how it is realised and at which level), crop widths derived from the plan's list of operations, masks and reweighting maps, mean denominators, the centring of each covariance (`none` in 1.0.0) and the window policy; hashable | new |
-| `scattering(x, plan, arrays, ref=None)` (in `functional`) | I/F | The pure function behind `apply`, public for `jit`, `grad` and `vmap` users, and for downstream implicit differentiation | new |
+| `ScatteringPlan` | F/N | Static description: J, L, index sets, levels, the low-pass filter (how it is realised and at which level), crop widths derived from the plan's list of operations, masks and reweighting maps, mean denominators, the channel pairs, the normalisation and standardisation options, the centring of each covariance (`none` in 1.0.0) and the window policy; hashable. Public and opaque: its name is in the manifest, it has no public field | new |
+| `ScatteringFilters` | F/N | The numerical arrays of an operator, on its backend and dtype: the filters (wavelets, smoothing kernel) and everything derived to apply them (propagated masks, mean weights, border windows). Public and opaque, as `ScatteringPlan` | new |
+| `scattering(x, plan, filters, ref=None) -> STStatistics` (in `functional`) | F | The pure function behind `apply`, public for `jit`, `grad` and `vmap` users, and for downstream implicit differentiation. `plan` and `filters` are `op.plan` and `op.filters`; `ref` as in `apply`, required with `load_ref`. It keeps nothing: the operator, not the function, stores the `store_ref` reference | new |
 
 ### 12.7 Statistics
 
-`estel/statistics/`. The accessors do not depend on how statistics are stored: in 1.0.0 they read STL-shaped full-grid tensors; in step 2 they read the compact layout, with no API change.
+`estel/statistics/`. The accessors do not depend on how statistics are stored: in 1.0.0 they read STL-shaped full-grid tensors; in step 2 they read the compact layout, with no API change. In ESTEL, "reduction" means only `iso`, `angular_ft` and `scale_ft`.
 
 | Function | Tag | Purpose | Origin |
 | --- | --- | --- | --- |
-| `STStatistics(values, plan, meta)` | F | Pytree: arrays as leaves, plan static | `ST_Statistics.__init__` |
-| `.family(name) -> FamilyView` | F | `"mean"`, `"var"`, `"S1"`, `"S2"`, `"S3"`, `"S4"`, `"PS"` | attributes `.S1 … .S4` |
-| `FamilyView.full_grid()` | F | The full-grid tensor, in STL's shape. The storage itself in 1.0.0; a view rebuilt on demand in step 2 | current storage |
-| `FamilyView.select(**index)` | F | Structural selection by named index: `j1=…`, `l3=…`, `channel=(a, b)`, `block=…`; the result keeps every `STStatistics` method | `select` |
-| `.to_vector(mask_st=None)` | F | Flat real vector for losses, without the structural NaN. `mask_st`, STL's name, is an optional boolean array over that vector: True keeps a coefficient, as in STL. It drops coefficients found unreliable by a boolean test; in a synthesis it is computed once on the target and reused at every iteration | `to_flatten`, `mask_st` |
+| `STStatistics` | F | Returned by `STOperator.apply`, `estel.functional.scattering` and `STStatistics.load`; not built directly. Pytree: arrays as leaves; plan, layout and reductions applied static | `ST_Statistics.__init__` |
+| `.full_grid(family)` | F | The tensor of `family` (`"mean"`, `"var"`, `"S1"` … `"S4"`, later `"PS"`), in STL's shape, NaN where no coefficient exists. The storage itself in 1.0.0; a view rebuilt on demand in step 2 | attributes `.S1 … .S4` |
+| `.select(family=None, **index) -> STStatistics` | F | One selection method. `family` is a name (`"S3"`) or a sequence of names, `None` for all. `**index` restricts along named axes: an int drops the axis, a sequence or a slice keeps it; `channel=(a, b)` is shorthand for `c1=a, c2=b`. A family that does not have a named axis is left out of the result: `select(j3=2)` returns S3 and S4 restricted to j3 = 2, without mean, var, S1 or S2. An axis name that no selected family has raises an error listing the valid names. The axes are `(c,)` for mean and var, `(c1, c2, j, l)` for S1 and S2, `(c1, c2, j2, j3, l2, l3)` for S3 and `(c1, c2, j1, j2, j3, l1, l2, l3)` for S4; `iso` turns the orientations of S3 into `dl` and those of S4 into `dl2, dl3`, `angular_ft` prefixes the axes it transforms with `h`, `scale_ft` turns the scales into `(k, a)` and `(k, a, b)`. The result keeps every `STStatistics` method (`to_vector`, reductions, `full_grid`, `save`) | `select` (a stub in STL) |
+| `.to_vector(mask_st=None)` | F | Flat real vector for losses, STL's `to_flatten(flatten_complex=True)`: families in the order mean, var, S1 … S4, each batch element in turn, complex values as (real, imaginary) pairs, of which only the real part of S1 and S2 (and PS) is kept, as in STL, including for the cross-channel terms (maths tab, M-FLAT, OP-37). The positions where no coefficient exists (structural, empty means, OP-30, missing scales of `scale_ft`) are left out, decided statically. `mask_st`, STL's name, is an optional boolean array over that vector: True keeps a coefficient, as in STL. It drops coefficients found unreliable by a boolean test; in a synthesis it is computed once on the target and reused at every iteration | `to_flatten`, `mask_st` |
 | `.iso()`, `.angular_ft(harmonics)`, `.scale_ft(harmonics, dj)` | F | Each returns a new `STStatistics` | `to_iso`, `to_angular_ft`, `to_scale_ft` |
-| `.save(path)`, `STStatistics.load(path)` | F | npz plus plan JSON, with a schema version and the reference counters | new |
+| `.save(path)`, `STStatistics.load(path)` | F | Through `estel.io`, which owns the versioned schema (`estel/io/_schema.py`): one npz archive with the arrays and a JSON document holding the schema version, the reference counters, the plan's parameters, the layout and the reductions applied. There is no `statistics/io.py` | new |
 | `.to_xarray()` | F | *(step 2, LF13)* Export for inspection | new |
 | `Layout`, `Segment` | I/N | *(step 2, LF14)* The compact layout (Part III, §19) | new |
 

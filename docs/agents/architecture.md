@@ -27,7 +27,7 @@ Two independent choices: the **engine** (`engine=`: `"python"`, later `"rust"`) 
 - A DataClass is an array plus static metadata, registered as a pytree (the array is the only leaf).
 - Masks and their reweighting maps are static, computed at construction, part of the plan.
 - The convolution history is plan data: the plan computes the crop width of every level once.
-- An operator is a frozen plan plus a pure function: `op.apply(data, ref=None)` calls `estel.functional.scattering(x, plan, arrays, ref)`.
+- An operator is a frozen plan plus a pure function: `op.apply(data, ref=None)` calls `estel.functional.scattering(x, plan, filters, ref)`, with `op.plan` and `op.filters`, public and opaque.
 - Every option is set once, at construction; `apply` takes only the data and an optional reference.
 - `estel.STOperator(data, ...)` and `estel.WaveletOperator(data, ...)` are the entry points; class names are PEP 8 CapWords (`STOperator`, `STOperatorTensorProd`, `STStatistics`).
 - `STOperatorTensorProd` overrides a small, fixed set of hooks of the mother class, nothing else.
