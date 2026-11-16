@@ -142,7 +142,7 @@ At construction, an operator builds a `ScatteringPlan` in NumPy: scale and orien
 - **A DataClass is data plus static metadata.** It holds the array and its geometry metadata (pbc, cell ids, block structure). It is registered as a pytree: the array is its only leaf, everything else is static. The same object therefore works in PyTorch and inside `jax.jit`.
 - **Masks are static.** As in STL, a mask of missing data and its reweighting maps are computed once, when the operator is built, and stay fixed for every forward and backward pass. They belong to the static plan and reach the computation as constant arrays. What is forbidden is only to detect missing values, or to choose an estimator, during the computation (§3.1, rule 3).
 - **The convolution history is plan data, not data state.** STL keeps a mutable `conv_history` list on each data object, to know which convolutions were applied and derive the border crop from it. In ESTEL the sequence of convolutions is fixed by the operator, so the `ScatteringPlan` computes the crop width of every level once. A data object carries only immutable metadata (a level index, tuples), which JAX treats as compile-time constants.
-- **An operator is a frozen plan plus a pure function.** `STOperator(...)` builds the plan and the backend arrays (kernels, masks). `op.apply(data, ref=None)` calls `estel.functional.scattering(x, plan, filters, ref)`. That pure function is what `jax.jit`, `jax.grad` and `torch.func` see, and, with L1 and L0, it makes up the Python engine. The method keeps STL's name, `apply`; whether to also offer PyTorch's `__call__` and `forward` is a point to discuss (Part IV, §24.2).
+- **An operator is a frozen plan plus a pure function.** `STOperator(...)` builds the plan and the backend arrays (kernels, masks). `op.apply(data, ref=None)` calls `estel.functional.scattering(x, plan, filters, ref)`. That pure function is what `jax.jit`, `jax.grad` and `torch.func` see, and, with L1 and L0, it makes up the Python engine. The method keeps STL's name, `apply`; whether to also offer PyTorch's `__call__` and `forward` is a point to discuss (Part IV, §22.5, R-A09).
 - **One way to say it (review rule A6).** In STL, `ST_Operator.__init__` and `apply` accept the same options (`norm`, `iso`, `flatten`, `compute_PS`, …), with `None` meaning "inherit from the constructor": two ways to set each option. In ESTEL every option is set once, at construction; `apply` takes only the data and an optional reference. This is also what makes the plan static. A different configuration is a different operator.
 - **One entry point per object.** `estel.STOperator(data, ...)` replaces `data.get_ST_op()`, and `estel.WaveletOperator(data, ...)` replaces `data.get_wavelet_op()`.
 - **Class names follow PEP 8:** CapWords, no underscore. STL's `ST_Operator`, `ST_Operator_TensorProd` and `ST_Statistics` become `STOperator`, `STOperatorTensorProd` and `STStatistics`.
@@ -258,7 +258,7 @@ All differentiation tests run in **float64** on small inputs, one reason the flo
 - **Every engine declares a differentiation order** (`diff_order`). The Python engine has order 2, on PyTorch and on JAX.
 - **Order-1 engines serve synthesis and first-order losses.** The Rust engine, from STL-Dev-MPI, has hand-written VJPs that are not themselves differentiable, so it declares order 1. A request for a JVP, a Hessian-vector product or a double backward then raises an error pointing to `engine="python"`.
 - **Wrapping.** At order 1, an engine is wrapped with `jax.custom_vjp` or a `torch.autograd.Function` marked `once_differentiable`. At order 2, it provides a JVP and a differentiable VJP, so both modes compose.
-- **Roadmap.** Second order is guaranteed for the Python engine, on PyTorch and JAX. For the Rust engine it is written by hand later (LF15, Part III §18.2). Until then, implicit differentiation goes through the Python engine. Whether `engine="auto"` should route second-order requests to the Python engine automatically is a point to discuss (Part IV, §24.2).
+- **Roadmap.** Second order is guaranteed for the Python engine, on PyTorch and JAX. For the Rust engine it is written by hand later (LF15, Part III §18.2). Until then, implicit differentiation goes through the Python engine. Whether `engine="auto"` should route second-order requests to the Python engine automatically is a point to discuss (Part IV, §23, Q5).
 
 ## 4. Mathematics
 
@@ -315,7 +315,7 @@ In step 1, `maths.md` records the mathematics of STL **as it is**, including cho
 | **Reference values** | Fixed seeded inputs and their stored outputs (`tests/reference/*.npz`): the core of "unchanged statistics within one `STATISTICS_REFERENCE`". They include the normalisation references (`var_ref`, the S2 reference, the PS reference), computed on inputs of roughly unit variance, so that a bug in S2 cannot hide behind the normalisation | every PR, every backend and dtype, with the tolerances of §5.2 |
 | Invariances | A rotation by π/2 permutes the 2D orientations; time reversal swaps the 1D wavelet and its conjugate; S1 ∝ \|a\| and S2 ∝ a² for x → a·x; normalised coefficients unchanged for x → a·x, a ≠ 0; coefficients without box and low-pass terms unchanged for x → x + constant; batch independence; channel-permutation equivariance; block-permutation equivariance of tensor products; an all-valid mask equals no mask; a single-block tensor product equals the plain geometry, which is the reference. Exact translation invariance is not tested in 1.0.0: STL's downsampling probably breaks it (LF25) | every PR |
 | Differentiation | The §3.2.2 table, float64 | every PR, CPU |
-| Synthesis | In step 1, only the synthesis API: it runs, writes checkpoints and resumes from them. Synthesis reference outputs, cross-backend criteria and parity come after 1.0.0 (Part IV, §24.1) | every PR (API only) |
+| Synthesis | In step 1, only the synthesis API: it runs, writes checkpoints and resumes from them. Synthesis reference outputs, cross-backend criteria and parity come after 1.0.0 (Part III, §16.7) | every PR (API only) |
 | maths ↔ spec ↔ tests | Every `M-` ID has a `_spec` function and at least one test, and vice versa | every PR |
 | API | `api/manifest.json` up to date; public vs internal (§2.4); every error message names the fix | every PR |
 | Reserved interfaces | Each interface reserved for step 2 (Part II, §9.4) is exercised through its trivial implementation | every PR |
@@ -382,7 +382,7 @@ Nothing leaves the full tier: a test marked `slow` or left out of the fast tier 
 | Tier | Trigger | Where | Budget | Content |
 | --- | --- | --- | --- | --- |
 | 0 | every push and PR; nightly | GitHub-hosted CPU | fast tier ≤ 2 min, full tier ≤ 15 min | ruff, type check, §2.4 checks (including public vs internal), manifest, mirrors, maths IDs, the tests on CPU, differentiation, also on JAX, in parallel jobs (§3.1). PRs run the fast tier of §5.4; `main`, the nightly run and PRs labelled `full-ci` run the full tier: all tests in float32 and float64, the whole suite on both backends. In step 2: CPU build of the Rust wheels |
-| 1 | PR, after tier 0 passes. **Set up after 1.0.0** (Part IV, §24.1) | HPC GPU, constrained (§6.2) | ≤ 20 min wall time, 1 GPU | `pytest -m gpu`: reference values on GPU, determinism (two runs bit-identical), GPU syntheses, benchmark smoke test. In step 2: GPU build of the Rust wheels |
+| 1 | PR, after tier 0 passes. **Set up after 1.0.0** (Part III, §16.7) | HPC GPU, constrained (§6.2) | ≤ 20 min wall time, 1 GPU | `pytest -m gpu`: reference values on GPU, determinism (two runs bit-identical), GPU syntheses, benchmark smoke test. In step 2: GPU build of the Rust wheels |
 | 2 | `bench` label set by humans; release candidates | dedicated, pinned GPU node, outside CI | hours | full benchmark; results committed by a bot to `bench/results/` with a hardware fingerprint |
 
 ### 6.2 Constrained GPU access from CI
@@ -400,7 +400,7 @@ The repository is public, and the code in a PR is written by agents and will run
 - **Results come back as a check status and artifacts only.** The runner holds no write token to the repository.
 - **A pinned node type.** Smoke-benchmark numbers are recorded but never gate a merge, because a shared HPC node is too noisy. Benchmark decisions that affect versions come only from tier 2.
 
-Tier 1 is set up after 1.0.0. The scheduler, the container runtime and the network rules of the gateway node are confirmed then (Part IV, §24.1).
+Tier 1 is set up after 1.0.0. The scheduler, the container runtime and the network rules of the gateway node are confirmed then (Part III, §16.7).
 
 ### 6.3 Benchmarks
 
@@ -414,7 +414,7 @@ Tier 1 is set up after 1.0.0. The scheduler, the container runtime and the netwo
 
 | Bump | When | Who decides |
 | --- | --- | --- |
-| **MAJOR** | a breaking interface change: a removed or renamed function or argument, a changed default; a new geometry. Whether a change of statistics values also forces a major is decided case by case with the maintainers (Part IV, §24.2) | humans (CODEOWNER approval) |
+| **MAJOR** | a breaking interface change: a removed or renamed function or argument, a changed default; a new geometry. Whether a change of statistics values also forces a major is decided case by case with the maintainers (Part IV, §23, Q3) | humans (CODEOWNER approval) |
 | **MINOR** | new features, including opt-in step-2 features and new engine configurations; a significant benchmark gain (§6.3), including making an engine the default for a configuration | automatic; humans set the `bench` label for benchmark-driven minors |
 | **PATCH** | bug fixes that leave reference values unchanged; refactors; docs | automatic |
 
@@ -446,7 +446,7 @@ How the two steps map onto versions:
 **How CI sees a bump of a reference counter.** `STATISTICS_REFERENCE` and `SYNTHESIS_REFERENCE` are integer constants in `src/estel/_reference.py`, a protected file (§5.3), exported by `estel/__init__.py`. `tools/version_impact.py` reads them on the base branch and on the PR:
 
 - a PR that changes `tests/reference/` must increase `STATISTICS_REFERENCE` by exactly one, and a PR that changes `STATISTICS_REFERENCE` must change `tests/reference/`; before 1.0.0 a mismatch is only reported, from 1.0.0 it fails;
-- `SYNTHESIS_REFERENCE` follows the same rule for the synthesis references, once they exist (after 1.0.0, Part IV, §24.1, W2). It stays 0 until then, and goes to 1 with the first synthesis references; at the 1.0.0 freeze, only `STATISTICS_REFERENCE` goes to 1;
+- `SYNTHESIS_REFERENCE` follows the same rule for the synthesis references, once they exist (after 1.0.0, Part III, §16.7, W2). It stays 0 until then, and goes to 1 with the first synthesis references; at the 1.0.0 freeze, only `STATISTICS_REFERENCE` goes to 1;
 - no label is involved: the bump is in the code, visible in the diff, and approved through CODEOWNERS.
 
 Each PR adds a news fragment `changes/<PR>.<major|minor|patch>.md` (towncrier). CI fails if the declared bump is below the required one.

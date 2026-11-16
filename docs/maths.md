@@ -926,6 +926,7 @@ The rule of §1.11 applies.
 - **Start:** a Gaussian white noise of unit variance, or `init_running` if given; then M-SYN-NYQ, if `prefilter_Nyquist=True`.
 - **Missing data:** the missing pixels of the running field are set to 10¹⁰, and their gradient is set to 0 at every iteration, so they never move; they are NaN in the result. **⚠ OP-53**
 - **Randomness:** STL seeds the global generator of PyTorch (`seed`, 26 by default in the user-level functions). ESTEL uses explicit keys (Part I, §3.1, rule 5). **⚠ OP-55**
+- **Taper.** The former point G11 mentioned a Tukey taper of the Gaussian start on non-periodic axes. STL's syntheses at the frozen commits apply none; the only cosine taper is the border mask of the spectrum estimator. **[to verify, T6.0]** whether it comes from another code base (STL-Dev-MPI) and should be reproduced.
 - **Source:** `ScatteringMatchModel.__init__`.
 
 ### 5.3 Nyquist pre-filter — M-SYN-NYQ

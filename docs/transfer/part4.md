@@ -6,10 +6,9 @@
 
 - [21. Critical review: failure modes](#21-critical-review-failure-modes)
 - [22. Decision log](#22-decision-log)
-  - [22.1 Scope and organisation](#221-scope-and-organisation) · [22.2 Architecture and backends](#222-architecture-and-backends) · [22.3 Process](#223-process) · [22.4 Review round of 12 November 2026, and decisions of 13 November 2026](#224-review-round-of-12-november-2026-and-decisions-of-13-november-2026)
-- [23. Open questions](#23-open-questions)
+  - [22.1 Scope and organisation](#221-scope-and-organisation) · [22.2 Architecture and backends](#222-architecture-and-backends) · [22.3 Process](#223-process) · [22.4 Review round of 12 November 2026, and decisions of 13 November 2026](#224-review-round-of-12-november-2026-and-decisions-of-13-november-2026) · [22.5 Review of 16 November 2026](#225-review-of-16-november-2026) · [22.6 Questions of drafts 0.2 to 0.4, answered](#226-questions-of-drafts-02-to-04-answered)
+- [23. Points to settle](#23-points-to-settle)
 - [24. Deferred work and points to discuss later](#24-deferred-work-and-points-to-discuss-later)
-  - [24.1 Deferred work](#241-deferred-work) · [24.2 Points to discuss later](#242-points-to-discuss-later)
 
 ## 21. Critical review: failure modes
 
@@ -38,11 +37,11 @@ The plan is sound in its core: a frozen skeleton, versions tied to reference val
 | F19 | **Reserved interfaces that constrain step 2 wrongly** | An interface designed before its use may not fit it | Keep reserved interfaces minimal and tested; remove or redesign them in a major rather than working around them | accepted |
 | F20 | **The parity harness cannot be rerun** | STL's dependencies drift and its environment can no longer be installed | A pinned container image, archived with the parity report (Part II, §14.2) | mitigated |
 | F21 | **A late, heavy review** | The CODEOWNERS review step 1 as a whole, at its end: problems found late are costly, and the review itself is large | Each phase produces its parity report and test results; the maintainers may look at any phase as soon as it ends; the work breakdown (Part II, §15.2) keeps each change small and traceable | open |
-| F22 | **Deferred points are forgotten** | Many decisions defer work to later steps | Every deferred feature is in the register (Part III, §16), every other deferred item in §24, each with its source; both are carried over into the ESTEL reference document | mitigated |
+| F22 | **Deferred points are forgotten** | Many decisions defer work to later steps | Every deferred feature is in the register (Part III, §16), every other deferred item in Part III, §16.7, each with its source; both are carried over into the ESTEL reference document | mitigated |
 
 ## 22. Decision log
 
-Decisions taken from 4 to 13 November 2026. Tables 22.1 to 22.3 record the decisions up to draft 0.2, updated where later decisions replaced them; 22.4 records the review round of 12 November 2026, and decisions of 13 November 2026, point by point.
+Decisions taken from 4 to 16 November 2026. Tables 22.1 to 22.3 record the decisions up to draft 0.2, updated where later decisions replaced them; 22.4 records the review round of 12 November 2026, and decisions of 13 November 2026, point by point; 22.5 records the review of 16 November 2026, and 22.6 the questions of drafts 0.2 to 0.4, answered.
 
 ### 22.1 Scope and organisation
 
@@ -56,7 +55,7 @@ Decisions taken from 4 to 13 November 2026. Tables 22.1 to 22.3 record the decis
 | Fourier-space wavelets | Obsolete in ESTEL | Q2, comments |
 | Applications | Component separation and inverse problems stay downstream; they need true implicit differentiation | N2 |
 | Utilities | Plotting and diagnostics stay in the core | N24 |
-| Later features | Gathered in Part III, §16; other deferred items in §24; both carried over into the reference document | round 4, S10 |
+| Later features | Gathered in Part III, §16; the deferred work in Part III, §16.7; both carried over into the reference document | round 4, S10 |
 
 ### 22.2 Architecture and backends
 
@@ -162,14 +161,35 @@ Every point of the review list (C: critical before the start, S: needed during s
 | — | Mean of the data | Removed first and stored apart, explicitly; if it is not, the terms ending with a low-pass filter are centred explicitly | Part III, §20.11 |
 | — | T2.5 public interface | norm_batch_mean False as in STL; reference stored in the operator, internal; LF21 closed; functional.scattering(x, plan, filters, ref=None) with ScatteringPlan and ScatteringFilters public and opaque; channels and compute_cross_matrix fixed at construction; MPI hook _global_sum, internal; "reduction" reserved for iso, angular_ft and scale_ft; one select method; to_vector as STL (OP-37) | Part II, §9.4, §11, §12.6, §12.7; Part III, LF21; maths tab, OP-37 |
 
-## 23. Open questions
+### 22.5 Review of 16 November 2026
 
-The questions of draft 0.2 with their answers, and the questions raised on 12 November 2026 (R11 to R13), now answered. R1 and R2 are decided in step 2.
+The review of the scattering chain (86 remarks, R-A00 to R-P17) was distributed: each remark went to the maths tab, to the register (Part III, §16.6), to the points to settle (§23), or here when it was decided. Its ID is kept as the source.
+
+| ID | Point | Decision | Where |
+| --- | --- | --- | --- |
+| — | Lists of the specification | four lists, one purpose each: open points of the mathematics (OP, maths tab), everything later (register, Part III, §16), everything decided (this log), everything still to decide (§23). The G list of Part II, §13.2 is retired; §23 and §24.2 are merged into §23; §24.1 moves to Part III, §16.7 | Part II, §13.2; Part III, §16; §23 |
+| R-A00 | Default channel pairs | `compute_cross_matrix=None` computes every pair c₁ ≤ c₂, as STL's code | maths tab, M-CHAN, OP-38 |
+| R-A01 | Index numbering | STL's numbering, as a rule: indices numbered from the end. j₃, ℓ₃ is the wavelet applied last; j₂, ℓ₂ the arm of S3, also the second arm of S4; j₁, ℓ₁ the extra arm of S4. S3 is an S4 whose first arm is replaced by the field. S1 and S2 keep (j, ℓ) | maths tab, M-S3, M-S4 |
+| R-A02 | `norm` | values `"none"`, `"self"`, `"ref"`; `norm_batch_mean` becomes `ref_batch_mean` | renaming task (Q24) |
+| R-A03 | Spelling of identifiers | American (`normalize`, `standardize`, `center`); prose may stay British | renaming task |
+| R-A04 | Prefix | `STPlan`, `STFilters` | renaming task |
+| R-A05 | Channel pairs | `cross_matrix`, its diagonal selecting the auto terms; `compute_PS` kept | renaming task |
+| R-A06 | `mask_st` | kept, documented: True keeps a coefficient | — |
+| R-A07 | Reductions | `iso`, `angular_fourier`, `scale_cosine` | renaming task |
+| R-A08 | Mother data class | `Data` | renaming task |
+| R-A09 | `apply` | kept, for the symmetry with `WaveletOperator`; a direct call may be added later as a minor change. Closes D1 | — |
+| R-A10 | `standardize` | stays a boolean: it removes the mean and divides by the standard deviation. Part III, §20.11, rule 7 is to correct accordingly | Q17 |
+| R-A11 | `functional.scattering` | first argument named `data` | renaming task |
+| R-Y03 | A reference from another operator | accepted when J, L and the channels match, with a clear error otherwise | PR #68 |
+| G1 | Coefficient count of plain 2D | follow STL: 1,474, since plain 2D has no low-pass term in STL (the deliverable's formula gives 1,476) | Part II, §13.2; LF6 |
+| R-E01, R-N19 | Smoothing table, kernel rotations | recorded as OP-59 and OP-58 | maths tab |
+
+### 22.6 Questions of drafts 0.2 to 0.4, answered
+
+The questions of drafts 0.2 to 0.4 and of 12 November 2026, all answered. R1 and R2, still open, became Q1 and Q2 (§23).
 
 | # | Question | Status | Where |
 | --- | --- | --- | --- |
-| R1 | **Compact layout, implementation.** Should the conversion between structured arrays and the compact buffer be written once, in shared Python on a few generic primitives, or separately in each backend? Proposed: once, with fused kernels only if a benchmark asks for them | deferred: decided in step 2 | Part III, §19.9 |
-| R2 | **Low-pass in S3/S4.** Confirm "all combinations" as the default (+38–112% coefficients); should the restricted variant (+0.3–3.5%) exist as an option? | deferred: decided in step 2 | Part III, §20.1 |
 | R3 | **Utilities in step 1?** | answered: later (LF11) | Part II, §12.10 |
 | R4 | **GPU CI on the cluster** | answered: after 1.0.0; details then | Part I, §6.2; §24.1 |
 | R5 | **Licence** | answered: Apache-2.0 | Part I, §1.5 |
@@ -182,25 +202,42 @@ The questions of draft 0.2 with their answers, and the questions raised on 12 No
 | R12 | **CODEOWNERS.** GitHub handles of Jean-Marc Delouis and Pablo Richard. Answered: `jmdelouis` and `pablo-richard` | answered | Part I, §7.1 |
 | R13 | **Minimum versions.** Confirm Python 3.11, NumPy 2.0, PyTorch 2.6 and array-api-compat 1.11 (JAX 0.5 for the experimental backend; optax 0.2.4 in step 2). Answered: confirmed | answered: confirmed | Part I, §1.6 |
 
+## 23. Points to settle
+
+Everything still to decide, in one table. A point leaves it when it is decided (it then goes to the log, §22) or deferred (to the register, Part III, §16). The source column keeps the earlier IDs.
+
+| ID | Point to settle | With | Before | Source |
+| --- | --- | --- | --- | --- |
+| Q1 | Compact layout: is the conversion between structured arrays and the compact buffer written once, in shared Python on a few generic primitives, or in each backend? | the maintainers | step 2 (LF14) | R1 |
+| Q2 | Low-pass filter in S3 and S4: which combinations (the low-pass filter as the last filter only, +0.3 to +3.5 % coefficients, or also as a first filter, +38 to +112 %), and the half-pixel shift of the even smoothing kernel without the final downsampling | the maintainers | step 2 (LF6) | R2; R-P12 |
+| Q3 | Whether a change of statistics values is also a major version: decided case by case | the maintainers | each case | D2 |
+| Q4 | Budget when a pull request legitimately changes synthesis results: syntheses to convergence, possibly for hours | the maintainers | T6.1 | D3 |
+| Q5 | With `engine="auto"`, route second-order requests to the Python engine while the Rust engine is at order 1 | the maintainers | step 2 (LF3) | D4 |
+| Q6 | The hidden subset of reference inputs, now that the benchmark cases are public | the maintainers | P7 | D5 |
+| Q7 | HEALPix on the sphere only in 1.0.0, the parity harness running STL with `ellipsoid="sphere"` (an ellipsoid later, LF43) | Jean-Marc, Pablo | T5.0 | R-H01; OP-45 |
+| Q8 | float32 inside healpix-analyse: the harness disables the cache; reproduce the float32 kernel, or compare with a patched run | Jean-Marc | T5.0 | R-H02; OP-46 |
+| Q9 | HEALPix design: the list of geometry functions to port with a reference test each; the memory of the gather tables (32-bit indices, tables per pixel batch, the largest `nside` of 1.0.0); the kernel folded into the interpolation as one sparse operator per gauge; the geometry cached on disk | Jean-Marc | T5.0 | R-H03, R-H04, R-H07 |
+| Q10 | HEALPix: confirm that `PatchScattering`, `PyramidScattering`, `LocalScattering`, `S3Multiscale` and `AdjointOps` are not transferred; the edge of a partial sky; the argument name, `depth` or `nside` | Jean-Marc | T5.1 | R-H05, R-H06; OP-50 |
+| Q11 | Tensor products: the loop written as a recursion over blocks with a cache of prefixes, and on the Gram form from the start | Pablo | T3.0 | R-T01, R-T06 |
+| Q12 | Tensor products: the parity matrix of P3 (2D+1D in full, 2D+1D+1D at the smallest sizes that exercise every branch); block names for `select`; confirm the errors on masks and reductions and `lowpass="ST"` in 1.0.0 | Pablo | T3.0 | R-T03, R-T04, R-T05 |
+| Q13 | Document in the reference document that uncentred statistics are biased on short non-periodic blocks, and schedule LF33 early in step 2 | the maintainers | 1.0.0 | R-T02; OP-36, OP-42 |
+| Q14 | The vector of the synthesis loss: a complete real vector (every imaginary part that is not structurally zero), and whether `to_vector` itself becomes complete | the maintainers | T6.0 | R-Y01; OP-37, OP-39 |
+| Q15 | Syntheses: one named concept for `mean_field`; explicit arguments for J − 1, the weights 3.5 and 3.5², the seed | the maintainers | T6.1 | R-Y02, R-Y04 |
+| Q16 | The default length of the L-BFGS history (STL: 50 pairs, 100 numbers per pixel), after a convergence test at 10 and 20 | the maintainers | T6.1 | R-P16 |
+| Q17 | Part III, §20.11: rule 1 amended (the maps that end with a low-pass filter are centred themselves, for stability in single precision), and rule 7 corrected (standardisation: mean and standard deviation) | Erwan | before LF33 | R-E02, R-A10 |
+| Q18 | The strided second layer (LF38) and the strict scale order (LF35): validation on syntheses and inference, then option or default | the maintainers | step 2, H1 | R-P02, R-P15 |
+| Q19 | The scope of the Rust engine, after a benchmark of the reorganised Python engine against STL-Dev-MPI | Jean-Marc | step 2, H2 | R-P09 |
+| Q20 | Partitioned execution (LF34) as the single way to scale out, absorbing LF4 and LF19 | Jean-Marc | step 2, before LF4 | R-P04 |
+| Q21 | `iso`: return the real parts only of the reduced S3 and S4; the meaning of `iso` in 1D with L = 2 | the maintainers | step 2 (LF32) | R-P11; OP-5, OP-40 |
+| Q22 | Group the changes of values of step 2 in one bump of `STATISTICS_REFERENCE` | the maintainers | step 2 | R-P13 |
+| Q23 | The power spectrum: computed by the scattering operator (`compute_PS`), or by its own operator only | the maintainers | P4 | R-S07 |
+| Q24 | The renaming task: apply R-A02 to R-A11 (§22.5) in one pull request; and one `reduce` method instead of three reductions | Erwan | before T2.6 | R-A02 to R-A11; R-S08 |
+| Q25 | The notation of the maths tab: the table of symbols and the collisions (issue #71) | Erwan | 1.0.0 | R-N01 to R-N18 |
+| Q26 | The vocabulary of the code (issue #72) | Erwan | 1.0.0 | R-V01 to R-V10 |
+| Q27 | The structure of `docs/maths.md` and of the specification (issue #73) | Erwan | 1.0.0 | R-S03 to R-S06, R-S09 |
+| Q28 | L0 primitives with no user at the end of phase P6 are removed; the signature of `gather_weighted` is checked against Q9 | the maintainers | end of P6 | R-S02 |
+| Q29 | Preparations in 1.0.0 that change no value: windows with a kind (full, slice, weights), index sets and evaluation positions from the plan, the band orientation as the leading axis of the second-layer maps, families as a list, `estimate_memory` with temporaries and the L-BFGS history, a benchmark with gradients at the freeze (Part III, §19.12) | the maintainers | 1.0.0 | R-S01, R-P01, R-P14 |
+
 ## 24. Deferred work and points to discuss later
 
-Everything decided as "later" that is not a feature — features are in the register, Part III, §16 — with its source. This section is carried over into the ESTEL reference document with 1.0.0.
-
-### 24.1 Deferred work
-
-| ID | Work | When | Source |
-| --- | --- | --- | --- |
-| W1 | Tier-1 GPU CI on the cluster: scheduler, container runtime, network rules of the gateway node (Part I, §6.2) | after 1.0.0 | S8, R4 |
-| W2 | Synthesis tests: per-backend reference outputs, cross-backend acceptance criteria, synthesis parity with STL | after 1.0.0 | S3 |
-| W3 | Cross-backend checks: syntheses matched over a few iterations when the optimisers can be standardised; gradients backend-independent up to numerical precision | after 1.0.0, with JAX (LF1) | S13 |
-| W4 | Tuning guides for syntheses (`docs/agents/tuning/`) | with W2 | C14 |
-
-### 24.2 Points to discuss later
-
-| ID | Point | With | Source |
-| --- | --- | --- | --- |
-| D1 | Keep `apply`, or also offer PyTorch's `__call__` and `forward`, so that operators plug into ML libraries like any module | Pablo | C15 |
-| D2 | Whether a change of statistics values is also a major version: decided case by case | the maintainers | C21 |
-| D3 | Budget when a pull request legitimately changes synthesis results: run syntheses to convergence, possibly for a few hours | the maintainers | S15 |
-| D4 | With `engine="auto"`, route second-order requests to the Python engine automatically while the Rust engine is at order 1 | the maintainers | A8 |
-| D5 | The hidden subset of reference inputs (Part I, §5.1), now that the benchmark cases are public | the maintainers | S16 |
+Moved on 16 November 2026: the deferred work W1 to W4 is in Part III, §16.7; the points to discuss D2 to D5 are Q3 to Q6 in §23; D1 is closed (§22.5, R-A09).
