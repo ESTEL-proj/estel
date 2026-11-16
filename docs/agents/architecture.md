@@ -28,14 +28,14 @@ Two independent choices: the **engine** (`engine=`: `"python"`, later `"rust"`) 
 - Masks and their reweighting maps are static, computed at construction, part of the plan.
 - The convolution history is plan data: the plan computes the crop width of every level once.
 - An operator is a frozen plan plus a pure function: `op.apply(data, ref=None)` calls `estel.functional.scattering(data, plan, filters, ref)`, with `op.plan` and `op.filters`, public and opaque.
-- Everything that depends on the geometry goes through the generic `WaveletOperator`: convolution, downsampling, low-pass filter, level shapes, border and mask rules. `STOperator` does not depend on the geometry; only the wavelet operator calls the geometry hooks of `Data`, which receive the tables of the level.
+- Everything that depends on the geometry goes through the generic `WaveletOperator`: convolution, downsampling, low-pass filter, level shapes, border and mask rules. `STOperator` does not depend on the geometry; only the wavelet operator calls the hooks of filtering and downsampling of `Data` (`_conv`, `_downsample`, `_crop_weights`, `_lowpass`), which receive the tables of the level; the wavelet operator is internal.
 - Every option is set once, at construction; `apply` takes only the data and an optional reference.
-- `estel.STOperator(data, ...)` and `estel.WaveletOperator(data, ...)` are the entry points; class names are PEP 8 CapWords (`STOperator`, `STOperatorTensorProd`, `STStatistics`).
+- `estel.STOperator(data, ...)` is the entry point; class names are PEP 8 CapWords (`STOperator`, `STOperatorTensorProd`, `STStatistics`).
 - `STOperatorTensorProd` overrides a small, fixed set of hooks of the mother class, nothing else.
 
 ## Rules enforced in CI ([§2.4](../transfer/part1.md#24-code-rules-enforced-in-ci))
 
-`make lint-imports` (import-linter contracts) and `make layers` (`tools/check_layers.py`) check: backend imports only under `estel/backend/`; `estel_rust` only under `estel/engines/`; L2 never imports a `Data` subclass; `_spec` imports NumPy only; no class-name comparisons or `__class__` assignment; no in-place array updates in L1/L2 (plan-building NumPy modules excepted). `tools/api_manifest.py --check` enforces public vs internal.
+`make lint-imports` (import-linter contracts) and `make layers` (`tools/check_layers.py`) check: backend imports only under `estel/backend/`; `estel_rust` only under `estel/engines/`; L2 never imports a `Data` subclass; outside `estel.wavelets` and `estel.data`, nothing imports the banks or the mask builders, or calls a hook of filtering or downsampling; `_spec` imports NumPy only; no class-name comparisons or `__class__` assignment; no in-place array updates in L1/L2 (plan-building NumPy modules excepted). `tools/api_manifest.py --check` enforces public vs internal.
 
 ## Do not copy from STL
 

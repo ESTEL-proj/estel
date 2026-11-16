@@ -10,7 +10,10 @@ It follows STL's loop (``ST_Operator.apply`` at `master` ``8eaf769``, ``_compute
 `2D+1D` ``8f51143``): for each scale j3, the first layer W_{j3} x and U_{j3} = |W_{j3} x| at
 level j3, the S1 and S2 means; for each j2 ≤ j3, the second layer ψ_{l3} ⋆ U_{j2} at level j3
 and the S3 means; for each j1 ≤ j2, the S4 means; then the field and every U_{j2} go down one
-level. Nothing is written in place (Part I, §3.1, rule 1): every step returns a new array, the
+level. The convolutions and the downsamplings are those of the wavelet operator
+(``WaveletOperator.apply``, ``downsample``; Part I, §2.3): the loop sees levels, maps and
+weights, and does not depend on the geometry. Nothing is written in place (Part I, §3.1,
+rule 1): every step returns a new array, the
 means are collected in lists, and each family is assembled once, at the end, with
 ``scatter_to_grid`` (§3.1.1). The loops run over scales, levels and channel pairs, as STL's,
 never over pixels or orientations.
@@ -35,8 +38,9 @@ from typing import Any, NamedTuple
 
 from ..backend import _registry
 from ..backend._protocol import Backend
-from ..data._base import Data, DownsampleWeights
+from ..data._base import Data
 from ..data._moments import cov_sum_valid, divide, modulus, standardize, sum_valid
+from ..wavelets._operator import WaveletOperator
 from ._filters import STFilters
 from ._plan import STPlan
 
@@ -108,27 +112,11 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
     backend = _registry.backend_named(data.backend)
     xp = backend.xp
     axes = tuple(range(-data.ndim, 0))
-    nb = data.n_batch
-    L = plan.L  # noqa: N806
     pairs = plan.pairs
+    wavelets = WaveletOperator.from_parts(data, plan.wavelets, filters.wavelets)
 
     def total(x: Any) -> Any:
         return _global_sum(x)
-
-    def conv(x: Any, level: int) -> Any:
-        """ψ ⋆ x for ``x`` of shape ``(Nb, Nc, *O, *spatial)``: ``(Nb, Nc, *O, L, *spatial)``."""
-        lead, spatial = tuple(x.shape[: -data.ndim]), tuple(x.shape[-data.ndim :])
-        flat = xp.reshape(x, (nb, -1, *spatial))
-        out = data._conv(flat, filters.kernels, level)
-        return xp.reshape(out, (*lead, L, *spatial))
-
-    def down(x: Any, maps: tuple[Any, Any] | None, level: int) -> Any:
-        """One downsampling step of ``x``, ``(Nb, Nc, *O, *spatial)`` (M-DOWN, M-DOWN-MASK)."""
-        lead, spatial = tuple(x.shape[: -data.ndim]), tuple(x.shape[-data.ndim :])
-        flat = xp.reshape(x, (nb, -1, *spatial))
-        valid, reweight = (None, None) if maps is None else maps
-        out = data._downsample(flat, DownsampleWeights(filters.smoothing, valid, reweight), level)
-        return xp.reshape(out, (*lead, *tuple(out.shape[2:])))
 
     # The field, finite everywhere: missing pixels are 0, never read (OP-27).
     x = data.array
@@ -148,7 +136,7 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
 
     moduli: dict[int, Any] = {}
     for j3 in plan.levels:
-        w = conv(x, j3)  # W_{j3} x: (Nb, Nc, L, *spatial)
+        w = wavelets.apply(x, j3)  # W_{j3} x: (Nb, Nc, L, *spatial)
         u = modulus(w)  # U_{j3} x
         moduli = {**moduli, j3: u}
 
@@ -176,7 +164,8 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
 
         second: dict[int, Any] = {}
         for j2 in range(j3 + 1):
-            v = conv(moduli[j2], j3)  # ψ_{l3} ⋆ U_{j2} x at level j3: (Nb, Nc, L2, L3, *spatial)
+            # ψ_{l3} ⋆ U_{j2} x at level j3: (Nb, Nc, L2, L3, *spatial)
+            v = wavelets.apply(moduli[j2], j3)
             second = {**second, j2: v}
             if (j2, j3) in plan.s3:
                 weights, denominator = filters.s3[(j2, j3)], plan.s3[(j2, j3)].denominator
@@ -206,10 +195,8 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
         pending = []
 
         if j3 < plan.J - 1:
-            x = down(x, filters.field_down.get(j3), j3)
-            moduli = {
-                j2: down(u2, filters.modulus_down.get((j3, j2)), j3) for j2, u2 in moduli.items()
-            }
+            x = wavelets.downsample(x, j3)
+            moduli = {j2: wavelets.downsample(u2, j3, j2) for j2, u2 in moduli.items()}
 
     nc, J = pairs.n_channels, plan.J  # noqa: N806
     s1 = [_as_complex(backend, v) for v in means["S1"]]

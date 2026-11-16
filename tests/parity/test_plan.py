@@ -23,7 +23,8 @@ import pytest
 from numpy.typing import NDArray
 
 from estel import Data, Data1D, Data2D
-from estel.scattering._plan import MeanWeights, STPlan, border_width, build_plan
+from estel.scattering._plan import STPlan, build_plan
+from estel.wavelets._operator import MeanWeights, border_width
 from tests.parity._compare import load_fixture, read_manifest
 
 CASES: dict[str, type[Data]] = {"plan_2d": Data2D, "plan_1d": Data1D}

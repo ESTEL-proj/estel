@@ -40,16 +40,18 @@ def _padding_mode(data: Data) -> PadMode:
     return "circular" if data.pbc else "replicate"
 
 
-def _planar_conv(self: Data, x: Any, kernels: Any, level: int) -> Any:
+def _planar_conv(self: Data, x: Any, tables: Any, level: int) -> Any:
     """Planar ``_conv``: pad by ⌊K/2⌋ on each side of every spatial axis, then correlate with
-    each kernel (maths.md M-CONV-2D, M-W1, OP-1). ``level`` does not matter: the planar
-    kernels are the same at every level (M-WAV-2D, M-WAV-1D).
+    each kernel (maths.md M-CONV-2D, M-W1, OP-1). The ``tables`` are the kernel bank, and
+    ``level`` does not matter: the planar kernels are the same at every level (M-WAV-2D,
+    M-WAV-1D).
 
     A complex kernel on a real array is two real correlations; on a complex array, four.
     """
     _check_array(self, x, "_conv")
     backend = _registry.backend_named(self.backend)
     xp = backend.xp
+    kernels = tables
     if not _is_complex(xp, kernels) or len(kernels.shape) != self.ndim + 1:
         raise TypeError(
             f"{type(self).__name__}._conv: pass the complex wavelet bank of the geometry, "

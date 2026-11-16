@@ -23,7 +23,6 @@ capabilities of the engine in the engine registry, which in 1.0.0 holds only ``"
 
 from __future__ import annotations
 
-import math
 import warnings
 from typing import Any
 
@@ -37,7 +36,7 @@ from ..functional._scattering import check_data, compute, reference_of
 from ..statistics._arrays import dtype_name
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
-from ._filters import STFilters, build_filters, wavelet_kernels
+from ._filters import STFilters, build_filters
 from ._plan import STPlan, build_plan
 
 _WIDE = ("float64", "complex128")
@@ -99,18 +98,16 @@ class STOperator:
                 f"STOperator takes a Data object, such as estel.Data2D, got {type(data).__name__}."
             )
         _check_compute_ps(compute_PS, data.ndim)
-        n_scales = _default_scales(data) if J is None else J
-        n_orientations = _default_orientations(data) if L is None else L
         plan = build_plan(
             data,
-            n_scales,
-            n_orientations,
+            J,
+            L,
             cross_matrix=_as_numpy(cross_matrix),
             norm=norm,
             ref_batch_mean=ref_batch_mean,
             standardize=standardize,
         )
-        wavelet_kernels(plan.ndim, plan.L)  # validates L for the geometry (M-WAV-1D)
+        plan.wavelets.bank()  # validates L for the geometry (M-WAV-1D)
         if norm != "none":
             _warn_channels_without_auto(plan)
         self._setup(plan, data.backend, default_dtype(), default_device(), engine, None)
@@ -267,20 +264,3 @@ def _check_compute_ps(compute_ps: object, ndim: int) -> None:
             "compute_PS: the 2D power spectra come in task T4.1, and compute_PS is True by "
             "default for 2D data. Pass compute_PS=False."
         )
-
-
-def _default_scales(data: Data) -> int:
-    """J = ⌊log₂ min N⌋ - 2 (maths.md M-DEF, M-DEF-1D), at least 1."""
-    smallest = min(data.shape[2:])
-    n = math.floor(math.log2(smallest)) - 2
-    if n < 1:
-        raise ValueError(
-            f"the default J = ⌊log2 {smallest}⌋ - 2 = {n} is below 1: the data are too small "
-            "for the default (maths.md M-DEF). Pass J explicitly, or use larger data."
-        )
-    return n
-
-
-def _default_orientations(data: Data) -> int:
-    """L = 4 in 2D, 1 in 1D (maths.md M-DEF, M-DEF-1D)."""
-    return 4 if data.ndim == 2 else 1

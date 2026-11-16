@@ -1,8 +1,9 @@
 """Static masks and reweighting maps of planar data (maths.md M-DOWN-MASK, M-MASK).
 
 Built once, in NumPy float64, when an operator is built, from the full-resolution mask of the
-data; never traced, never differentiated (tag N of Part II, §12). The ``STPlan`` holds
-the result and casts it to the operator's dtype (Part I, §2.3).
+data; never traced, never differentiated (tag N of Part II, §12). The static part of the
+wavelet operator (``estel.wavelets._operator``), which the ``STPlan`` holds, keeps the result
+and casts it to the operator's dtype; nothing else reads this module (Part I, §2.3, §2.4).
 
 This reproduces STL's ``_build_reweighting_maps_and_scattering_layer_masks`` (`master`
 ``8eaf769`` for 2D, `2D+1D` ``8f51143`` for 1D), for one padding mode: STL builds the maps of

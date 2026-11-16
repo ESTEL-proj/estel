@@ -256,17 +256,22 @@ class Data:
 
     # ------------------------------------------------------------------ geometry hooks
 
+    # Only ``WaveletOperator`` (``estel.wavelets._operator``) calls the hooks of filtering and
+    # downsampling, _conv, _downsample and _crop_weights (Part I, §2.3, §2.4).
+
     def _spatial_axes(self) -> tuple[int, ...]:
         """The axes the geometry acts on: the last ``ndim`` axes of the array."""
         return tuple(range(2, 2 + self.ndim))
 
-    def _conv(self, x: Any, kernels: Any, level: int) -> Any:
-        """Filter ``x`` with the wavelet ``kernels`` at resolution ``level`` (maths.md M-W1).
+    def _conv(self, x: Any, tables: Any, level: int) -> Any:
+        """Filter ``x`` with the wavelets at resolution ``level`` (maths.md M-W1), with the
+        static ``tables`` of that level, given by ``WaveletOperator``.
 
         ``x`` is an array of this object's backend, ``(Nb, Nc, *spatial)`` at that level, real
-        or complex; ``kernels`` the complex bank of the geometry, cast to the backend and to the
-        complex dtype matching ``x``. The result is complex, with the orientation axis inserted
-        before the spatial axes: ``(Nb, Nc, L, *spatial)``. Each geometry implements it
+        or complex; ``tables`` are, for planar data, the complex bank of the geometry, cast to
+        the backend and to the complex dtype matching ``x``. The result is complex, with the
+        orientation axis inserted before the spatial axes: ``(Nb, Nc, L, *spatial)``. Each
+        geometry implements it
         (planar: ``pad`` + ``conv_axes``, M-CONV-2D).
         """
         raise NotImplementedError(
@@ -279,7 +284,8 @@ class Data:
         M-DOWN, M-DOWN-MASK).
 
         ``x`` is an array of this object's backend, ``(Nb, Nc, *spatial)`` at ``level``, real
-        or complex; ``weights`` the static weights of the step (:class:`DownsampleWeights`).
+        or complex; ``weights`` the static weights of the step (:class:`DownsampleWeights`),
+        given by ``WaveletOperator``.
         The result has the shape of the coarser level and the dtype of ``x``. Each geometry
         implements it (planar: a normalised strided correlation with the smoothing kernel).
         """
@@ -293,9 +299,9 @@ class Data:
 
         A NumPy float64 array of the spatial shape at ``level``: 1 where a pixel enters the
         means, 0 where the crop removes it, ``border`` pixels on each side of every spatial
-        axis. The plan computes ``border`` from the convolutions applied (M-BORDER) and
-        multiplies these weights by the valid pixels of the mask, once, when an operator is
-        built (Part I, §3.1.1). Each geometry implements it (planar: STL's ``_crop``, with its
+        axis. The wavelet operator computes ``border`` from the convolutions applied (M-BORDER)
+        and multiplies these weights by the valid pixels of the mask, once, when an operator
+        is built (Part I, §3.1.1). Each geometry implements it (planar: STL's ``_crop``, with its
         reduction of a border too large for the array, OP-13; HEALPix: no crop).
         """
         raise NotImplementedError(
@@ -332,8 +338,8 @@ class DownsampleWeights(NamedTuple):
     """The static weights of one downsampling step (:meth:`Data._downsample`), as arrays
     of the data's backend, built from the plan.
 
-    ``wavelets`` and ``data`` are independent layers, so the kernel is passed in rather than
-    imported: the operator casts ``smoothing_kernel(ndim)`` once and passes it at every step.
+    ``data`` does not import ``wavelets``, so the kernel is passed in rather than imported:
+    the wavelet operator casts ``smoothing_kernel(ndim)`` once and passes it at every step.
     """
 
     kernel: Any
