@@ -400,10 +400,13 @@ def test_channels_without_auto_statistics_warn_at_construction() -> None:
         STOperator(data, 2, norm="vanilla", compute_cross_matrix=matrix, compute_PS=False)
 
 
+@pytest.mark.slow
 def test_gradients_flow_through_store_ref_not_load_ref(backend: Backend, dtype: DType) -> None:
     """With store_ref the reference is part of the computation; with load_ref it is a
     constant (M-NORM, LF21). Both are finite to second order with missing values and empty
-    means, since nothing absent reaches them."""
+    means, since nothing absent reaches them.
+
+    Slow: Hessian-vector products through two normalised operators (second order)."""
     data = _masked_2d(nb=1, nc=2)
     storing = _operator(data, 4)
     loading = _operator(data, 4, norm="load_ref")
@@ -474,6 +477,7 @@ def test_plan_and_filters_are_opaque_and_static() -> None:
 # ---------------------------------------------------------------------- storage
 
 
+@pytest.mark.dtype
 def test_save_and_load_round_trip(tmp_path: Path, dtype: str) -> None:
     data = _masked_2d(nc=2)
     stats = _operator(data, 4, standardize=True, norm_batch_mean=True).apply(data)

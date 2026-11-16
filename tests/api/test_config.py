@@ -89,7 +89,9 @@ def test_torch_is_selected_without_a_warning() -> None:
     assert _registry.current_backend().name == "torch"
 
 
+@pytest.mark.slow
 def test_jax_is_selectable_with_a_warning_at_every_call() -> None:
+    """Slow: in a PyTorch run, the first selection of JAX starts its CPU client."""
     for _ in range(2):
         with pytest.warns(UserWarning, match="experimental") as record:
             estel.set_backend("jax")
@@ -234,7 +236,9 @@ def test_malformed_devices_are_refused(device: Any) -> None:
     assert _registry._device is None
 
 
+@pytest.mark.slow
 def test_set_backend_checks_the_device(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Slow: selects the other backend, which starts JAX's CPU client in a PyTorch run."""
     current = estel.get_backend()
     _fake_devices(monkeypatch, current, "cpu", "cuda:0")
     _fake_devices(monkeypatch, _other(current), "cpu")
@@ -318,9 +322,12 @@ def _run(code: str, **env: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+@pytest.mark.slow
 @pytest.mark.serial
 class TestFreshProcess:
-    """Defaults, imports and JAX's 64-bit mode, which only a fresh process shows."""
+    """Defaults, imports and JAX's 64-bit mode, which only a fresh process shows.
+
+    Slow: each test starts a fresh Python process that imports PyTorch or JAX."""
 
     def test_defaults_and_no_backend_import(self) -> None:
         result = _run(

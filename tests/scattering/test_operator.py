@@ -63,6 +63,7 @@ def _numpy(stats: STStatistics) -> dict[str, NDArray[Any]]:
 # ---------------------------------------------------------------------- shapes, dtypes, NaN
 
 
+@pytest.mark.dtype
 @pytest.mark.parametrize(("cls", "n", "L"), [(Data2D, 16, 4), (Data1D, 32, 1), (Data1D, 32, 2)])
 def test_full_grids_have_stls_shapes_dtypes_and_nan(
     cls: type[DataClass],
@@ -195,13 +196,16 @@ def test_standardize_returns_the_moments_removed(dtype: str) -> None:
 # ---------------------------------------------------------------------- differentiation
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(("cls", "n"), [(Data2D, 16), (Data1D, 32)])
 def test_gradients_are_finite_with_missing_values(
     cls: type[DataClass], n: int, backend: Backend, dtype: DType
 ) -> None:
     """First and second order through the whole loop, with exact zeros (the missing pixels,
     filled with 0) and NaN in the input there (Part I, §3.2.3): finite, and zero at the missing
-    pixels. Gradient values are checked in T2.7."""
+    pixels. Gradient values are checked in T2.7.
+
+    Slow: a Hessian-vector product through the whole scattering loop (second order)."""
     mask = _hole(n, cls.ndim)
     field = np.where(mask, np.nan, _field((1, 1) + (n,) * cls.ndim))
     data = cls(field, mask=mask, pbc=False)

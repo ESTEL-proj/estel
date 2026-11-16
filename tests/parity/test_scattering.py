@@ -15,6 +15,9 @@ The operator runs in the run's dtype: float64 is the parity check of §14.3 (rto
 its secondary check (rtol 1e-5), both with atol = 0.1 x rtol x max|STL| (issue #66). ``mean``,
 whose theoretical value may be zero (standardised data), takes the standard deviation of the data
 as its scale instead: atol = 0.1 x rtol x sqrt(max(var)) (§14.3).
+
+Slow: the configuration ``scattering_2d`` ``deep_open`` (64 x 64 pixels, J = 4) runs in the full
+tier only (``MARKS``).
 """
 
 from __future__ import annotations
@@ -33,6 +36,19 @@ from tests.parity._compare import assert_parity, load_fixture, read_manifest
 CASES: dict[str, type[DataClass]] = {"scattering_2d": Data2D, "scattering_1d": Data1D}
 FAMILIES = ("var", "S1", "S2", "S3", "S4")
 pytestmark = pytest.mark.maths("M-MOM", "M-W1", "M-S1", "M-S2", "M-S3", "M-S4", "M-CHAN", "M-MEAN")
+# Tiers (Part I, §5.4): the 64 x 64, J = 4 configuration is large, so slow; one representative
+# configuration per dimension also runs in float32, and the 2D one on JAX. The 2D periodic cases
+# of the parity tests share one xdist worker (``--dist loadgroup``), where JAX compiles their
+# operations once: they have the same shapes.
+MARKS = {
+    ("scattering_2d", "deep_open"): (pytest.mark.slow,),
+    ("scattering_2d", "periodic"): (
+        pytest.mark.dtype,
+        pytest.mark.jax_smoke,
+        pytest.mark.xdist_group("parity_2d_periodic"),
+    ),
+    ("scattering_1d", "periodic"): (pytest.mark.dtype,),
+}
 
 
 @pytest.fixture(autouse=True)
@@ -46,8 +62,12 @@ def _parameters(case: str) -> dict[str, Any]:
     return parameters
 
 
-def _configs() -> list[tuple[str, str]]:
-    return [(case, name) for case in sorted(CASES) for name in _parameters(case)["configs"]]
+def _configs() -> list[Any]:
+    return [
+        pytest.param(case, name, marks=MARKS.get((case, name), ()))
+        for case in sorted(CASES)
+        for name in _parameters(case)["configs"]
+    ]
 
 
 def _statistics(

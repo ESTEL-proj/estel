@@ -12,10 +12,14 @@ with ``assert_parity``: same shape, NaN at the same positions, values within the
 Part II, §14.3, in the run's dtype (float64 is the parity check, float32 its secondary check).
 ``mean``, whose theoretical value may be zero, takes the standard deviation of the data as its
 scale: atol = 0.1 x rtol x sqrt(max(var)), with the variance before normalisation (§14.3).
+
+Slow: the configuration ``statistics_2d`` ``deep_open`` (64 x 64 pixels, J = 4) runs in the full
+tier only (``MARKS``).
 """
 
 from __future__ import annotations
 
+import functools
 import warnings
 from typing import Any
 
@@ -37,6 +41,19 @@ REDUCED = {
     "iso_angular_scale": ("S3", "S4"),
 }
 pytestmark = pytest.mark.maths("M-NORM", "M-RED-ISO", "M-RED-ANG", "M-RED-SCALE", "M-FLAT")
+# Tiers (Part I, §5.4): the 64 x 64, J = 4 configuration is large, so slow; one representative
+# configuration per dimension also runs in float32. On JAX the fast tier runs one parity case, of
+# the scattering statistics (tests/parity/test_scattering.py); these run in the full tier. The 2D
+# periodic cases of the parity tests share one xdist worker (``--dist loadgroup``), where JAX
+# compiles their operations once: they have the same shapes.
+MARKS = {
+    ("statistics_2d", "deep_open"): (pytest.mark.slow,),
+    ("statistics_2d", "periodic"): (
+        pytest.mark.dtype,
+        pytest.mark.xdist_group("parity_2d_periodic"),
+    ),
+    ("statistics_1d", "periodic"): (pytest.mark.dtype,),
+}
 
 
 @pytest.fixture(autouse=True)
@@ -50,8 +67,12 @@ def _parameters(case: str) -> dict[str, Any]:
     return parameters
 
 
-def _configs() -> list[tuple[str, str]]:
-    return [(case, name) for case in sorted(CASES) for name in _parameters(case)["configs"]]
+def _configs() -> list[Any]:
+    return [
+        pytest.param(case, name, marks=MARKS.get((case, name), ()))
+        for case in sorted(CASES)
+        for name in _parameters(case)["configs"]
+    ]
 
 
 class _Run:
@@ -93,9 +114,16 @@ class _Run:
         return self.fixture[f"{name}_{key}"]
 
 
+@functools.cache
+def _run(case: str, name: str, dtype: DType) -> _Run:
+    """One run per configuration and dtype, shared by the three tests below, which check different
+    outputs of the same computation; ``dtype`` is the run's, which ``_run_dtype`` sets."""
+    return _Run(case, name)
+
+
 @pytest.mark.parametrize(("case", "name"), _configs())
 def test_normalised_statistics_equal_stl(case: str, name: str, dtype: DType) -> None:
-    run = _Run(case, name)
+    run = _run(case, name, dtype)
     reference = run.operator._reference
     assert reference is not None
     var_ref = run.expected(name, "var_ref")
@@ -112,7 +140,7 @@ def test_normalised_statistics_equal_stl(case: str, name: str, dtype: DType) -> 
 
 @pytest.mark.parametrize(("case", "name"), _configs())
 def test_reduced_statistics_equal_stl(case: str, name: str, dtype: DType) -> None:
-    run = _Run(case, name)
+    run = _run(case, name, dtype)
     for key, families in REDUCED.items():
         for family in families:
             expected = run.expected(name, f"{key}_{family}")
@@ -124,7 +152,7 @@ def test_vectors_equal_stl(case: str, name: str, dtype: DType) -> None:
     """``to_vector`` is STL's ``to_flatten(flatten_complex=True)``, OP-37 included; the
     coefficients it leaves out (structural, OP-3, OP-30, missing scales of ``scale_ft``) are
     decided statically, and are exactly the NaN STL removes."""
-    run = _Run(case, name)
+    run = _run(case, name, dtype)
     assert_parity(np.asarray(run.stored.to_vector()), run.expected(name, "vector"), dtype)
     reduced = run.reduced["iso_angular_scale"].to_vector()
     assert_parity(np.asarray(reduced), run.expected(name, "vector_reduced"), dtype)

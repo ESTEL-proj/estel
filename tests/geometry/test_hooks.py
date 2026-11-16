@@ -62,6 +62,7 @@ def _correlate(
     return np.tensordot(windows, k, axes=(tuple(range(-d, 0)), tuple(range(d))))
 
 
+@pytest.mark.dtype
 @pytest.mark.maths("M-CONV-2D", "M-W1")
 @pytest.mark.parametrize("complex_input", [False, True])
 @pytest.mark.parametrize("pbc", [True, False])

@@ -1,9 +1,23 @@
-# Tier 0 (Part I, §6.1): GitHub-hosted CPU, every push and pull request, at most 15 minutes.
+# Tier 0 (Part I, §6.1): GitHub-hosted CPU, every push and pull request.
 name: tier0
 
+# Two tiers (Part I, §5.4 and §6.1; tests/conftest.py):
+# - fast, on pull requests and pushes to other branches than the default one: the check tools,
+#   the tests not marked slow or serial in float64 on PyTorch and those marked dtype in float32
+#   too, and the tests marked jax_smoke on JAX; the tests of tools/ only when the change touches
+#   tools/, tests/tools/ or pyproject.toml. Each backend runs in one process, beside the check
+#   tools. Budget: 120 s of wall time per job (last step).
+# - full, on the default branch, nightly, by hand, and on a pull request labelled full-ci: every
+#   test, on both backends, in both dtypes, slow tests included.
+# A pull request runs again when a label is added or removed: full-ci switches the tier, and
+# tools/version_impact.py reads the labels.
 on:
   push:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  schedule:
+    - cron: "17 2 * * *"  # nightly, on the default branch
+  workflow_dispatch:
 
 # Least privilege (review rule E5): the token can only read the repository. No job needs more:
 # the version-impact step reads PR labels from the event payload, not from the API.
@@ -11,27 +25,59 @@ permissions:
   contents: read
 
 concurrency:
-  group: tier0-${{ github.ref }}
+  group: tier0-${{ github.event_name == 'schedule' && 'nightly' || github.ref }}
   cancel-in-progress: true
 
-# Two parallel jobs, one per backend (Part I, §3.1 and §6.1). The PyTorch job keeps the name
-# "make check", which the main ruleset requires; the JAX job runs the whole test suite on the
-# experimental JAX backend. The tests run in parallel, in pytest-xdist workers (Makefile).
+# The branch the fast tier compares with, to decide whether it runs the tests of tools/.
+env:
+  ESTEL_TEST_BASE: origin/${{ github.base_ref || github.event.repository.default_branch }}
+
+# Three parallel jobs. "make check" (check tools and PyTorch) and "make check (jax)" are the
+# checks the main ruleset requires. In the full tier the JAX run is split by dtype: "make check
+# (jax)" runs float64 and "make check (jax, float32)" float32; in the fast tier the latter only
+# reports that it has nothing to do.
 #
 # Scope (task T0.7): a pull request, or a push to another branch than the default one, whose
 # files are all in the no-test scope of tools/ci_scope.py (docs/, .github/, changes/; .gitignore,
 # LICENSE, NOTICE and README.md at the root; every AGENTS.md and CLAUDE.md, at any depth) skips
 # the test suites, unless a test reads one of them (docs/maths.md, for example). The PyTorch job
-# then runs only the check tools and the JAX job only reports the skip; both jobs still run and
-# succeed, so the required checks report a result and the PR can merge. Do not move the scope
-# to a job of its own that the others `need`: if it failed, they would be skipped, and a skipped
-# required check counts as passed. A push to the default branch always runs everything.
+# then runs only the check tools and the JAX jobs only report the skip; every job still runs and
+# succeeds, so the required checks report a result and the PR can merge. Do not move the scope
+# or the tier to a job of their own that the others `need`: if it failed, they would be skipped,
+# and a skipped required check counts as passed. The default branch always runs everything.
+#
+# Set-up: the whole virtual environment (and its Python) is cached, keyed on uv.lock, so torch
+# and JAX are not installed again in every job; uv sync only checks it. The JAX fast tier's
+# environment leaves torch out, half the size. mypy's cache is saved by runs of the default branch
+# and restored by every run; a pull request never saves it, so it cannot change what others load.
+# JAX's persistent compilation cache (tests/conftest.py) starts empty in each job and is never
+# saved: XLA compiles for the host's instruction set, JAX keys each entry on the CPU's topology,
+# and GitHub's runners mix many CPU types (eight in ten runs measured), so a restored cache almost
+# never matched. Within a job, the xdist workers share it: what one compiles, the others load.
 jobs:
   check:
     name: make check
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Start the clock
+        run: echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Tier
+        id: tier
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          FULL_CI_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+        run: |
+          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ] || [ "$FULL_CI_LABEL" = true ] \
+             || { [ "$EVENT" = push ] && [ "$REF_NAME" = "$DEFAULT_BRANCH" ]; }; then
+            echo "tier=full" | tee -a "$GITHUB_OUTPUT"
+          else
+            echo "tier=fast" | tee -a "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0  # version_impact.py and ci_scope.py diff against the base branch
@@ -56,18 +102,46 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: "0.13.8"
-          enable-cache: true
+          enable-cache: false  # the environment itself is cached below
+
+      - name: Restore the environment
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .venv
+            ${{ runner.temp }}/uv-python-dir
+          key: venv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('uv.lock', '.python-version') }}
 
       - name: Install the locked environment
         run: uv sync --locked
 
-      - name: make check
-        if: steps.scope.outputs.tests != 'false'
+      - name: Restore mypy's cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .mypy_cache
+          key: mypy-${{ runner.os }}-${{ hashFiles('uv.lock') }}-${{ github.sha }}
+          restore-keys: |
+            mypy-${{ runner.os }}-${{ hashFiles('uv.lock') }}-
+            mypy-${{ runner.os }}-
+
+      - name: make check-tools (full tier or no-test scope)
+        if: steps.scope.outputs.tests == 'false' || steps.tier.outputs.tier == 'full'
+        run: make check-tools
+
+      - name: make check (check tools and PyTorch tests side by side, fast tier)
+        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'fast'
         run: make check TEST_BACKENDS=torch
 
-      - name: make check-tools (no-test scope only)
-        if: steps.scope.outputs.tests == 'false'
-        run: make check-tools
+      - name: Save mypy's cache (default branch only)
+        if: github.ref_name == github.event.repository.default_branch && github.event_name != 'pull_request'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .mypy_cache
+          key: mypy-${{ runner.os }}-${{ hashFiles('uv.lock') }}-${{ github.sha }}
+
+      - name: Tests on PyTorch, full tier (float32 and float64)
+        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
+        run: make test TEST_BACKENDS=torch
 
       - name: Version impact (pull requests only)
         if: github.event_name == 'pull_request'
@@ -79,11 +153,39 @@ jobs:
           uv run --locked python tools/version_impact.py
           --base "origin/$BASE_REF" --pr "$PR_NUMBER" --labels "$PR_LABELS"
 
+      - name: Time budget of the fast tier
+        if: steps.tier.outputs.tier == 'fast'
+        run: |
+          elapsed=$(( $(date +%s) - JOB_START ))
+          echo "This job took $elapsed s; the budget of a fast-tier job is 120 s (Part I, §5.4)."
+          if [ "$elapsed" -gt 120 ]; then
+            echo "::error::Fast tier over budget: $elapsed s > 120 s. Make the slowest tests faster or mark them slow (the summary line of each pytest run names its slowest test); a PR that slows the fast tier by more than 10 % says why in its description."
+            exit 1
+          fi
+
   check-jax:
     name: make check (jax)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Start the clock
+        run: echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Tier
+        id: tier
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          FULL_CI_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+        run: |
+          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ] || [ "$FULL_CI_LABEL" = true ] \
+             || { [ "$EVENT" = push ] && [ "$REF_NAME" = "$DEFAULT_BRANCH" ]; }; then
+            echo "tier=full" | tee -a "$GITHUB_OUTPUT"
+          else
+            echo "tier=fast" | tee -a "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0  # ci_scope.py diffs against the base branch
@@ -109,16 +211,120 @@ jobs:
         if: steps.scope.outputs.tests != 'false'
         with:
           version: "0.13.8"
-          enable-cache: true
+          enable-cache: false
+
+      # The fast tier on JAX never imports PyTorch: its environment leaves torch out, half the size
+      # to restore. The full tier switches to PyTorch in some tests, and needs it.
+      - name: Restore the environment
+        if: steps.scope.outputs.tests != 'false'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .venv
+            ${{ runner.temp }}/uv-python-dir
+          key: venv-${{ runner.os }}-${{ runner.arch }}-${{ steps.tier.outputs.tier == 'fast' && 'no-torch-' || '' }}${{ hashFiles('uv.lock', '.python-version') }}
 
       - name: Install the locked environment
         if: steps.scope.outputs.tests != 'false'
-        run: uv sync --locked
+        env:
+          TIER: ${{ steps.tier.outputs.tier }}
+        run: |
+          if [ "$TIER" = fast ]; then
+            uv sync --locked --no-install-package torch
+          else
+            uv sync --locked
+          fi
 
-      - name: Tests on JAX, float32 and float64
-        if: steps.scope.outputs.tests != 'false'
-        run: make test TEST_BACKENDS=jax
+      - name: Tests on JAX, fast tier (jax_smoke)
+        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'fast'
+        # Workers: in CI, XLA compiles every operation once per job (JAX's cache starts empty, see
+        # above), and the workers share that work. uv run --no-sync: a sync would install torch.
+        run: make test-fast TEST_BACKENDS=jax RUN="uv run --no-sync" PYTEST_WORKERS="$(nproc)"
+
+      - name: Tests on JAX, full tier, float64
+        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
+        run: make test TEST_BACKENDS=jax TEST_DTYPE=float64
 
       - name: No tests (no-test scope only)
         if: steps.scope.outputs.tests == 'false'
         run: echo "Every changed file is in the no-test scope (tools/ci_scope.py); the check tools run in the make check job."
+
+      - name: Time budget of the fast tier
+        if: steps.tier.outputs.tier == 'fast'
+        run: |
+          elapsed=$(( $(date +%s) - JOB_START ))
+          echo "This job took $elapsed s; the budget of a fast-tier job is 120 s (Part I, §5.4)."
+          if [ "$elapsed" -gt 120 ]; then
+            echo "::error::Fast tier over budget: $elapsed s > 120 s. Make the slowest tests faster or mark them slow (the summary line of each pytest run names its slowest test); a PR that slows the fast tier by more than 10 % says why in its description."
+            exit 1
+          fi
+
+  check-jax-float32:
+    name: make check (jax, float32)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Tier
+        id: tier
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          FULL_CI_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+        run: |
+          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ] || [ "$FULL_CI_LABEL" = true ] \
+             || { [ "$EVENT" = push ] && [ "$REF_NAME" = "$DEFAULT_BRANCH" ]; }; then
+            echo "tier=full" | tee -a "$GITHUB_OUTPUT"
+          else
+            echo "tier=fast" | tee -a "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.tier.outputs.tier == 'full'
+        with:
+          fetch-depth: 0  # ci_scope.py diffs against the base branch
+          persist-credentials: false
+
+      - name: Scope of the change
+        if: steps.tier.outputs.tier == 'full'
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            python3 tools/ci_scope.py --base "origin/$BASE_REF" >> "$GITHUB_OUTPUT"
+          elif [ "$REF_NAME" != "$DEFAULT_BRANCH" ]; then
+            python3 tools/ci_scope.py --base "origin/$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
+          else
+            python3 tools/ci_scope.py >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
+        with:
+          version: "0.13.8"
+          enable-cache: false
+
+      - name: Restore the environment
+        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .venv
+            ${{ runner.temp }}/uv-python-dir
+          key: venv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('uv.lock', '.python-version') }}
+
+      - name: Install the locked environment
+        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
+        run: uv sync --locked
+
+      - name: Tests on JAX, full tier, float32
+        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
+        run: make test TEST_BACKENDS=jax TEST_DTYPE=float32
+
+      - name: Nothing to do (fast tier or no-test scope)
+        if: steps.scope.outputs.tests == 'false' || steps.tier.outputs.tier == 'fast'
+        run: echo "The JAX float32 job runs in the full tier only (main, nightly, label full-ci); the fast tier runs the jax_smoke tests in make check (jax)."
