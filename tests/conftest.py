@@ -121,7 +121,7 @@ def pytest_configure(config: pytest.Config) -> None:
         )
     if _tier(config) == "fast":
         _tools_changed()  # once, here: xdist workers inherit the answer
-    _one_thread_per_worker(name)
+    _one_thread_per_process(name, fast=_tier(config) == "fast")
     if name == "jax":
         # JAX keeps float64 only in its process-wide 64-bit mode, which the backend never
         # switches itself (issue #10); the JAX run switches it on at start, for both dtypes.
@@ -206,14 +206,18 @@ def _persistent_jax_cache(config: pytest.Config) -> None:
     jax.config.update("jax_persistent_cache_min_entry_size_bytes", 0)  # type: ignore[no-untyped-call]
 
 
-def _one_thread_per_worker(name: str) -> None:
+def _one_thread_per_process(name: str, fast: bool) -> None:
     """Compute on one thread in each xdist worker: with ``-n auto`` each worker would otherwise
-    start one compute thread per CPU, and the workers would slow each other down. On JAX, in every
-    process of the run, workers or not: XLA's flags are part of the key of JAX's compilation
-    cache, so the fast tier (one process) must use the flags of the full tier (workers), whose
-    run on the default branch saves the cache that pull requests load."""
+    start one compute thread per CPU, and the workers would slow each other down. On PyTorch, in
+    the single process of the fast tier too: its tests run on data too small for threads to help,
+    and on Linux the idle threads of PyTorch's pool spin between two operations, which the CPU
+    time of the per-test budget counts (a spec parity case measured 1.07 s of CPU for 0.34 s of
+    wall time on CI's four cores, over its budget). On JAX, in every process of the run, workers
+    or not: XLA's flags are part of the key of JAX's compilation cache, so the fast tier (one
+    process) must use the flags of the full tier (workers), whose run on the default branch saves
+    the cache that pull requests load."""
     if name == "torch":
-        if "PYTEST_XDIST_WORKER" not in os.environ:
+        if "PYTEST_XDIST_WORKER" not in os.environ and not fast:
             return
         import torch
 
