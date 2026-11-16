@@ -22,6 +22,7 @@ ESTEL computes scattering-transform statistics and simple syntheses. Most change
 12. **Public or internal.** Only names listed in `api/manifest.json` are public. Anything else lives in a private module (`_name.py`) or starts with an underscore.
 13. **Tests are as short as possible.** The fast tier must stay under 2 minutes of wall time on CI and under 1 minute for a local `make check`. A new test runs in under 1 second, on the smallest data that exercises the behaviour (for example 16 x 16 or 32 x 32 pixels, J = 2 or 3); a test that cannot is marked slow, with the reason in its docstring, and runs in the full tier only. Large configurations, second-order gradients, and a second dtype for tests of logic belong to the full tier. Before adding a test, check that no existing test already covers the behaviour. A pull request that makes the fast tier slower by more than 10 % says why in its description, with the before and after times.
 14. **Branches from `origin/main`.** Sessions never check out `main`: run `git fetch origin`, then create the branch from `origin/main` (`git switch -c <branch> origin/main`). Another session's worktree may hold `main`, and git refuses a branch open in two worktrees.
+15. **Read sections, not files.** Read the sections an issue cites, found by their heading or their ID (`grep -n`), not whole specification files. Part III (step 2) and Part IV (the decision log, the risks and the points to settle) are read only when the issue cites them. An issue's inputs cite sections (for example Part II §12.6, maths M-NORM), never a whole part. When a citation is missing or too broad, ask on the issue rather than read everything.
 
 ## Layer map
 
@@ -70,4 +71,4 @@ When every changed file is in the no-test scope (`docs/`, `.github/`, `changes/`
 
 Before editing in `src/estel/backend/`, `src/estel/engines/`, `src/estel/_spec/`, `tests/reference/` or `rust/`, read the `AGENTS.md` of that directory: it holds the local rules.
 
-`docs/agents/architecture.md` (and its "do not copy from STL" section), `jax_rules.md`, `differentiation.md`, `testing.md`, `review_rules.md`, `storage.md`; `docs/maths.md`; `docs/policy/`.
+`docs/agents/architecture.md` (and its "do not copy from STL" section), `jax_rules.md`, `differentiation.md`, `testing.md`, `review_rules.md`, `storage.md`; the sections of `docs/maths.md` an issue cites (golden rule 15); `docs/policy/`.
