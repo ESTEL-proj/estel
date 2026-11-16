@@ -1,0 +1,157 @@
+"""Parity of the normalised and reduced statistics with STL (task T2.5, issue #17; maths.md
+M-NORM, M-RED-ISO, M-RED-ANG, M-RED-SCALE, M-FLAT; OP-3, OP-30, OP-37).
+
+The fixtures ``statistics_2d`` (STL `master`) and ``statistics_1d`` (STL `2D+1D`) hold, for each
+configuration of their case (``tools/stl_parity/cases/``): STL's statistics with
+``norm="store_ref"`` on a target field and the reference its operator stored, the statistics of
+a second field with ``norm="load_ref"`` and that reference, the reductions of the ``store_ref``
+statistics (``iso``, ``angular_ft`` with and without ``iso``, ``iso`` then ``scale_ft``, and the
+three in a row), and the flat vectors of ``to_flatten(flatten_complex=True)``. ESTEL computes the
+same with ``STOperator`` and ``STStatistics`` on the stored inputs, and every array is compared
+with ``assert_parity``: same shape, NaN at the same positions, values within the tolerances of
+Part II, §14.3, in the run's dtype (float64 is the parity check, float32 its secondary check).
+``mean``, whose theoretical value may be zero, takes the standard deviation of the data as its
+scale: atol = 0.1 x rtol x sqrt(max(var)), with the variance before normalisation (§14.3).
+"""
+
+from __future__ import annotations
+
+import warnings
+from typing import Any
+
+import numpy as np
+import pytest
+from numpy.typing import NDArray
+
+from estel import Data1D, Data2D, DataClass, STOperator, STStatistics, _config
+from estel.backend._protocol import DType
+from tests.parity._compare import assert_parity, load_fixture, read_manifest
+
+CASES: dict[str, type[DataClass]] = {"statistics_2d": Data2D, "statistics_1d": Data1D}
+FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
+REDUCED = {
+    "iso": ("S1", "S2", "S3", "S4"),
+    "angular": ("S3", "S4"),
+    "iso_angular": ("S3", "S4"),
+    "iso_scale": ("S3", "S4"),
+    "iso_angular_scale": ("S3", "S4"),
+}
+pytestmark = pytest.mark.maths("M-NORM", "M-RED-ISO", "M-RED-ANG", "M-RED-SCALE", "M-FLAT")
+
+
+@pytest.fixture(autouse=True)
+def _run_dtype(monkeypatch: pytest.MonkeyPatch, dtype: DType) -> None:
+    """Data and operators in the run's dtype."""
+    monkeypatch.setattr(_config, "_dtype", dtype)
+
+
+def _parameters(case: str) -> dict[str, Any]:
+    parameters: dict[str, Any] = read_manifest()[f"{case}.npz"]["parameters"]
+    return parameters
+
+
+def _configs() -> list[tuple[str, str]]:
+    return [(case, name) for case in sorted(CASES) for name in _parameters(case)["configs"]]
+
+
+class _Run:
+    """ESTEL on one configuration: the operators, the statistics and their reductions."""
+
+    def __init__(self, case: str, name: str) -> None:
+        parameters = _parameters(case)
+        self.config = config = parameters["configs"][name]
+        self.fixture = fixture = load_fixture(case)
+        cls = CASES[case]
+        mask = fixture[f"{name}_mask"] > 0 if f"{name}_mask" in fixture else None
+        target = cls(fixture[f"{name}_field"], mask=mask, pbc=config["pbc"])
+        other = cls(fixture[f"{name}_ref_field"], mask=mask, pbc=config["pbc"])
+        matrix = config.get("cross_matrix")
+        options: dict[str, Any] = {
+            "compute_cross_matrix": None if matrix is None else np.array(matrix, dtype=bool),
+            "compute_PS": False if cls.ndim == 2 else None,
+        }
+        J, L = config["J"], config.get("L", parameters["L"])  # noqa: N806
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13, OP-30: tested elsewhere
+            self.operator = STOperator(
+                target, J, L, norm="store_ref", norm_batch_mean=config["norm_batch_mean"], **options
+            )
+            self.stored = self.operator.apply(target)
+            loading = STOperator(target, J, L, norm="load_ref", **options)
+            self.loaded = loading.apply(other, ref=self.stored)
+        h_angle, h_scale, dj = config["harmonics_angle"], config["harmonics_scale"], config["dj"]
+        iso = self.stored.iso()
+        self.reduced: dict[str, STStatistics] = {
+            "iso": iso,
+            "angular": self.stored.angular_ft(h_angle),
+            "iso_angular": iso.angular_ft(h_angle),
+            "iso_scale": iso.scale_ft(h_scale, dj),
+            "iso_angular_scale": iso.angular_ft(h_angle).scale_ft(h_scale, dj),
+        }
+
+    def expected(self, name: str, key: str) -> NDArray[Any]:
+        return self.fixture[f"{name}_{key}"]
+
+
+@pytest.mark.parametrize(("case", "name"), _configs())
+def test_normalised_statistics_equal_stl(case: str, name: str, dtype: DType) -> None:
+    run = _Run(case, name)
+    reference = run.operator._reference
+    assert reference is not None
+    var_ref = run.expected(name, "var_ref")
+    assert_parity(np.asarray(reference.var), var_ref, dtype)
+    assert_parity(np.asarray(reference.s2_sqrt), run.expected(name, "s2_ref"), dtype)
+    for kind, stats in (("store", run.stored), ("load", run.loaded)):
+        # The variance before normalisation, for the scale of mean (§14.3).
+        raw_var = run.expected(name, f"{kind}_var") * var_ref
+        for family in FAMILIES:
+            scale = float(np.sqrt(np.max(raw_var))) if family == "mean" else None
+            expected = run.expected(name, f"{kind}_{family}")
+            assert_parity(np.asarray(stats.full_grid(family)), expected, dtype, scale=scale)
+
+
+@pytest.mark.parametrize(("case", "name"), _configs())
+def test_reduced_statistics_equal_stl(case: str, name: str, dtype: DType) -> None:
+    run = _Run(case, name)
+    for key, families in REDUCED.items():
+        for family in families:
+            expected = run.expected(name, f"{key}_{family}")
+            assert_parity(np.asarray(run.reduced[key].full_grid(family)), expected, dtype)
+
+
+@pytest.mark.parametrize(("case", "name"), _configs())
+def test_vectors_equal_stl(case: str, name: str, dtype: DType) -> None:
+    """``to_vector`` is STL's ``to_flatten(flatten_complex=True)``, OP-37 included; the
+    coefficients it leaves out (structural, OP-3, OP-30, missing scales of ``scale_ft``) are
+    decided statically, and are exactly the NaN STL removes."""
+    run = _Run(case, name)
+    assert_parity(np.asarray(run.stored.to_vector()), run.expected(name, "vector"), dtype)
+    reduced = run.reduced["iso_angular_scale"].to_vector()
+    assert_parity(np.asarray(reduced), run.expected(name, "vector_reduced"), dtype)
+
+
+def test_fixtures_cover_the_cells_of_t25() -> None:
+    """The configurations are useful only if they exercise what they are named for."""
+    for case in CASES:
+        parameters = _parameters(case)
+        configs = parameters["configs"]
+        fixture = load_fixture(case)
+        assert {c["norm_batch_mean"] for c in configs.values()} == {False, True}, case
+        assert any("mask" in c for c in configs.values()), case
+        # Truncations: fewer harmonics than L and than J, and dj below J.
+        assert any(c["harmonics_angle"] < c.get("L", parameters["L"]) for c in configs.values()), (
+            case
+        )
+        assert any(c["harmonics_scale"] < c["J"] for c in configs.values()), case
+        assert any(c["dj"] < c["J"] for c in configs.values()), case
+        # OP-30: channel 1 has no auto statistics, so its cross S1 are NaN after normalisation.
+        matrix = np.array(configs["cross_matrix"]["cross_matrix"])
+        assert not matrix[1, 1], case
+        assert matrix[1, 2], case
+        assert np.isnan(fixture["cross_matrix_store_S1"][0, 1, 2]).all(), case
+        # OP-3: an empty mean reaches scale_ft: a harmonic is NaN at (k, a) with k + a < J,
+        # where the reparametrisation reads a scale pair of the index set.
+        n_scales = configs["deep_open"]["J"]
+        s3 = fixture["deep_open_iso_scale_S3"][0, 0, 0, :, :, 0]
+        inside = np.add.outer(np.arange(s3.shape[0]), np.arange(s3.shape[1])) < n_scales
+        assert np.isnan(s3[inside]).any(), case

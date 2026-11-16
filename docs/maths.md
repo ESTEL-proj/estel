@@ -292,7 +292,7 @@ S_4[c_1,c_2,j_1,j_2,j_3,\ell_1,\ell_2,\ell_3] = \Big\langle \big(\psi_{\ell_3} \
 
 #### M-NORM
 
-With `norm="store_ref"` (the default), the reference is the statistics being computed, and it is **stored in the operator** (`var_ref`, `S2_ref_sqrt_chan_diag`, `PS_ref_sqrt_chan_diag`) and kept for later calls. Each new call with `store_ref` recomputes it and replaces the stored one, with a printed message. With `norm="load_ref"`, the reference stored in the operator is used, unless one is passed to `apply`; it is an error if none exists. The typical use: `store_ref` on the target, then `load_ref` on the fields compared with it, so that all are normalised by the same reference. With `norm_batch_mean=True` (the default), the reference is first averaged over the batch:
+With `norm="store_ref"` (the default), the reference is the statistics being computed, and it is **stored in the operator** (`var_ref`, `S2_ref_sqrt_chan_diag`, `PS_ref_sqrt_chan_diag`) and kept for later calls. Each new call with `store_ref` recomputes it and replaces the stored one, with a printed message. With `norm="load_ref"`, the reference stored in the operator is used, unless one is passed to `apply`; it is an error if none exists. The typical use: `store_ref` on the target, then `load_ref` on the fields compared with it, so that all are normalised by the same reference. With `norm_batch_mean=True`, the reference is first averaged over the batch; the default is `norm_batch_mean=False`, as in STL, whose `ST_Operator.apply` passes False:
 
 ```latex
 \sigma_c(j,\ell) = \sqrt{S_2^{\text{ref}}[c,c,j,\ell]}, \qquad \text{var}^{\text{ref}} = \text{var}
@@ -312,7 +312,7 @@ With `norm="store_ref"` (the default), the reference is the statistics being com
 
 **Order of operations.** `apply` normalises first, then applies, in this order and only if requested, `iso`, `angular_ft`, `scale_ft` and the flattening. Normalising after any reduction is an error.
 
-Gradients through the reference: not specified by STL (LF21). **⚠ OP-18**
+Gradients through the reference follow from the mode (LF21, closed; OP-18): with `store_ref` the reference is part of the computation and gradients flow through it; with `load_ref` it is a constant, through which no gradient flows.
 
 - **Source:** `ST_Statistics.to_norm`, `_normalize_scatcov`, `_get_sqrt_chan_diag`.
 
@@ -348,7 +348,7 @@ Missing entries are set to 0 for the transform and back to NaN afterwards; the f
 
 #### M-FLAT — Flattening
 
-Flattening removes the structural NaN, then keeps the coefficients where `mask_st` is True. With `flatten_complex`, complex coefficients are split into real and imaginary parts, and the null imaginary parts of S1, S2 and PS are dropped.
+Flattening removes the structural NaN, then keeps the coefficients where `mask_st` is True. With `flatten_complex`, complex coefficients are split into real and imaginary parts, and the imaginary parts of S1, S2 and PS are dropped. They are null only for the auto terms: the imaginary part of the cross-channel terms is dropped too. **⚠ OP-37**
 
 - **Source:** `to_flatten`.
 
@@ -439,7 +439,7 @@ Automatic, when the operator is built, from the example data. `pbc=None` counts 
 | Wavelet type | bump-steerable |
 | τ (NaN threshold) | 0.33 |
 | Border method | fully flexible |
-| `norm` | `store_ref`, with `norm_batch_mean=True` |
+| `norm` | `store_ref`, with `norm_batch_mean=False` |
 | `compute_PS` | True |
 | `compute_cross_matrix` | upper triangle (all pairs c₁ ≤ c₂) |
 | `standardize` | False |
@@ -480,7 +480,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-15 | Scale indices of S3 named (j₁, j₂) in STL's comments, (j₂, j₃) in the code |
 | OP-16 | Definition of cross-channel S1, with ε = 10⁻⁸ |
 | OP-17 | `angular_ft` keeps all L harmonics by default, contrary to a code comment |
-| OP-18 | Gradients through the normalisation reference unspecified (LF21) |
+| OP-18 | Gradients through the normalisation reference: decided, they follow from the mode (LF21, closed): with store_ref the reference is part of the computation and gradients flow through it; with load_ref it is a constant |
 | OP-19 | Only the real part of cross-spectra is kept |
 | OP-20 | The spectrum code requires even sizes (inverse FFT width) |
 | OP-21 | Spectrum border mask at 60 % of the point-spread energy, hard by default |
@@ -490,6 +490,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-33 | Gain convention: the analytic wavelets have a maximum gain of 1, so on real data they measure half the energy of their band; Λ counts both signs to compensate. Normalised statistics do not depend on it |
 | OP-34 | Tensor products (section 3, when written): the low-pass filter of a block is silently dropped when the block size is not divisible by 2^(J\_b), because STL obtains it by one more downsampling than the coarsest wavelet |
 | OP-36 | STL computes raw second moments, not covariances; its `cov` has a `remove_mean` argument that was never implemented. This is exact for periodic data without mask. Otherwise the forgotten term M1(A)·conj(M1(B)), relative to the covariance, measured on a test field (orders of magnitude): from 1e-6 at j = 0 to 1e-2 at the coarsest scale for non-periodic data; about ten times more with a mask covering 20 % of the pixels; of order 1 for any term whose last filter is a low-pass filter |
+| OP-37 | When flattening to a real vector, STL keeps only the real part of S1, S2 and PS, assuming they are real; this holds for the auto terms, but the imaginary part of the cross-channel terms is dropped, with the information it carries |
 
 #### C. Transfer and API
 

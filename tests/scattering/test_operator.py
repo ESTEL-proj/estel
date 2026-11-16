@@ -1,11 +1,13 @@
-"""The internal ``STOperator`` and its loop (task T2.4, issue #16; Part II, §12.6; Part I,
+"""``STOperator`` and its loop (tasks T2.4, T2.5, issues #16, #17; Part II, §12.6; Part I,
 §3.1.1; maths.md M-S1 to M-S4, M-CHAN, M-MEAN, OP-3, OP-27, OP-30).
 
 Values are compared with STL in ``tests/parity/test_scattering.py``, in float64. These tests run
 on the run's backend and dtype, and check what parity does not: the full-grid shapes and dtypes
 and the NaN of absent coefficients, that missing values are never read, that the computation is
 pure and batch elements independent, that gradients are finite to second order with missing
-values, and the errors of the constructor and of ``apply``.
+values, and the errors of the constructor and of ``apply``. The statistics are read through
+``STStatistics.full_grid``; the normalisation and the reductions are tested in
+``tests/statistics/``.
 """
 
 from __future__ import annotations
@@ -17,10 +19,9 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data1D, Data2D, DataClass, _config
+from estel import Data1D, Data2D, DataClass, STOperator, STStatistics, _config
 from estel.backend._protocol import Backend, DType
-from estel.scattering._loop import ScatteringValues, channel_pairs
-from estel.scattering._operator import STOperator
+from estel.scattering._plan import channel_pairs
 
 pytestmark = pytest.mark.maths("M-S1", "M-S2", "M-S3", "M-S4", "M-CHAN", "M-MEAN")
 FAMILIES = ("S1", "S2", "S3", "S4")
@@ -50,8 +51,13 @@ def _operator(data: DataClass, J: int | None, **kwargs: Any) -> STOperator:  # n
         return STOperator(data, J, **{**options, **kwargs})
 
 
-def _numpy(values: ScatteringValues) -> dict[str, NDArray[Any]]:
-    return {k: np.asarray(v) for k, v in values._asdict().items() if v is not None}
+def _numpy(stats: STStatistics) -> dict[str, NDArray[Any]]:
+    """Every family as NumPy, and the moments removed by ``standardize`` when there are some."""
+    out = {f: np.asarray(stats.full_grid(f)) for f in ("mean", "var", *FAMILIES)}
+    if stats._standardization is not None:
+        mean, std = stats._standardization
+        out = {**out, "mean_pre_std": np.asarray(mean), "std_pre_std": np.asarray(std)}
+    return out
 
 
 # ---------------------------------------------------------------------- shapes, dtypes, NaN
@@ -203,10 +209,10 @@ def test_gradients_are_finite_with_missing_values(
     xp = backend.xp
 
     def loss(array: Any) -> Any:
-        values = operator.apply(data.with_array(array))
-        total = xp.sum(values.var)
+        stats = operator.apply(data.with_array(array))
+        total = xp.sum(stats.full_grid("var"))
         for family in FAMILIES:
-            pairs = backend.complex_to_real_pairs(getattr(values, family))
+            pairs = backend.complex_to_real_pairs(stats.full_grid(family))
             total = total + xp.sum(xp.where(xp.isnan(pairs), xp.zeros_like(pairs), pairs) ** 2)
         return total
 
@@ -222,18 +228,15 @@ def test_gradients_are_finite_with_missing_values(
 # ---------------------------------------------------------------------- errors
 
 
-def test_norms_other_than_vanilla_come_with_t25() -> None:
+def test_norm_is_checked() -> None:
     data = Data2D(_field((16, 16)), pbc=True)
-    for norm in ("store_ref", "load_ref"):
-        with pytest.raises(NotImplementedError, match=r"T2.5"):
-            STOperator(data, 2, norm=norm, compute_PS=False)
-    with pytest.raises(NotImplementedError, match=r"T2.5"):
-        STOperator(data, 2, compute_PS=False)  # the default, store_ref
     with pytest.raises(ValueError, match="vanilla"):
         STOperator(data, 2, norm="self", compute_PS=False)
+    with pytest.raises(TypeError, match="norm_batch_mean"):
+        STOperator(data, 2, norm_batch_mean=1, compute_PS=False)  # type: ignore[arg-type]
     operator = _operator(data, 2)
-    with pytest.raises(ValueError, match="no reference"):
-        operator.apply(data, ref=object())
+    with pytest.raises(ValueError, match="takes no reference"):
+        operator.apply(data, ref=object())  # type: ignore[arg-type]
 
 
 def test_compute_ps() -> None:
@@ -287,5 +290,8 @@ def test_cross_matrix_errors() -> None:
     operator = _operator(data, 2, compute_cross_matrix=np.ones((3, 3), dtype=bool))
     with pytest.raises(ValueError, match="channel"):
         operator.apply(Data2D(_field((2, 16, 16)), pbc=True))
+    # The number of channels is fixed at construction, with the default matrix too (issue #17).
+    with pytest.raises(ValueError, match="fixed at construction"):
+        _operator(data, 2).apply(Data2D(_field((2, 16, 16)), pbc=True))
     with pytest.raises(TypeError, match="standardize"):
         _operator(data, 2, standardize=1)

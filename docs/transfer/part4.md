@@ -160,6 +160,7 @@ Every point of the review list (C: critical before the start, S: needed during s
 | OP-3 | OP-3 revised | A mean with no valid pixel gives a NaN coefficient, as in STL, decided statically by the plan; ESTEL warns once and raises only if a whole family is empty. The first decision (an error) would have refused many masked operators, since coarse levels often lose all their valid pixels | maths tab, M-MEAN, OP-3; Part II, §9.2 |
 | — | Centred covariances | The scattering covariances are covariances by definition; STL's raw moments are a simplification. 1.0.0 reproduces STL. Step 2 centres by default, only where the plan cannot prove a zero mean, by correcting coefficients; one window per level; band-pass kernels sum to zero by requirement; `centre` and `norm` are independent | Part III, LF33, §20.11; maths tab, OP-36 |
 | — | Mean of the data | Removed first and stored apart, explicitly; if it is not, the terms ending with a low-pass filter are centred explicitly | Part III, §20.11 |
+| — | T2.5 public interface | norm_batch_mean False as in STL; reference stored in the operator, internal; LF21 closed; functional.scattering(x, plan, filters, ref=None) with ScatteringPlan and ScatteringFilters public and opaque; channels and compute_cross_matrix fixed at construction; MPI hook _global_sum, internal; "reduction" reserved for iso, angular_ft and scale_ft; one select method; to_vector as STL (OP-37) | Part II, §9.4, §11, §12.6, §12.7; Part III, LF21; maths tab, OP-37 |
 
 ## 23. Open questions
 

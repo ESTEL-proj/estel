@@ -169,6 +169,7 @@ class Data2D(DataClass):
 
     ndim: ClassVar[int] = 2
     _nan_threshold: ClassVar[float] = 0.33
+    _geometry: ClassVar[str] = "2d"
 
     def __init__(self, array: Any, mask: Any = None, *, pbc: bool) -> None:
         super().__init__(array, mask, pbc=pbc)
@@ -188,6 +189,7 @@ class Data1D(DataClass):
 
     ndim: ClassVar[int] = 1
     _nan_threshold: ClassVar[float] = 0.5
+    _geometry: ClassVar[str] = "1d"
 
     def __init__(self, array: Any, mask: Any = None, *, pbc: bool) -> None:
         super().__init__(array, mask, pbc=pbc)
