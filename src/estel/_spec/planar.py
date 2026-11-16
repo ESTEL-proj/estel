@@ -26,6 +26,7 @@ T4.1.
 
 from __future__ import annotations
 
+import functools
 import math
 from typing import Any
 
@@ -236,8 +237,13 @@ def spec_wavelets_1d(L: int, K: int = KERNEL_SIZE) -> Array:  # noqa: N803
     return np.stack([psi, np.conj(psi)][:L])
 
 
+@functools.cache
 def _wavelets(ndim: int, L: int, K: int) -> Array:  # noqa: N803
-    return spec_wavelets_2d(L, K) if ndim == 2 else spec_wavelets_1d(L, K)
+    """The wavelet bank of M-WAV-2D or M-WAV-1D, built once per ``(ndim, L, K)`` and read-only,
+    so that the cached array cannot be altered."""
+    bank = spec_wavelets_2d(L, K) if ndim == 2 else spec_wavelets_1d(L, K)
+    bank.flags.writeable = False
+    return bank
 
 
 # ---------------------------------------------------------------------- downsampling

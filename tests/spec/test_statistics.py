@@ -125,9 +125,15 @@ def _check_case(
     cross_matrix: NDArray[np.bool_] | None = None,
     ref_batch_mean: bool = False,
     standardize: bool = False,
+    through_apply: bool = True,
 ) -> None:
     """ESTEL against the oracle on one configuration: without normalisation, ``norm="self"``,
-    ``norm="ref"`` on a second field, each chain of ``reductions``, and the vectors."""
+    ``norm="ref"`` on a second field, each chain of ``reductions``, and the vectors.
+
+    The oracle runs on the target without normalisation and on the second field with
+    ``norm="ref"``; the ``norm="self"`` statistics are derived from the first result. With
+    ``through_apply`` each chain of reductions is one more run of ``spec_apply``; without it,
+    the chain is derived from the first result too, which keeps the fast cases short."""
     target, other = _fields(ndim, nb, nc)
     mask = _mask(ndim) if masked else None
     cls = GEOMETRIES[ndim]
@@ -167,24 +173,45 @@ def _check_case(
     assert stored._reference is not None
     assert_parity(np.asarray(stored._reference.var), reference["var"])
     assert_parity(np.asarray(stored._reference.s2_sqrt), reference["sigma"])
-    _compare(stored, spec.spec_normalize(expected, reference), scale)
+    normalized = spec.spec_normalize(expected, reference)
+    _compare(stored, normalized, scale)
     # norm="ref": a second field, normalised by the reference of the first.
     _compare(loaded, oracle(other, norm="ref", ref=reference), scale)
 
-    # The reductions, through the whole of apply (M-ORDER), and the vector of the reduced
-    # statistics (M-FLAT).
+    # The reductions and the vector of the reduced statistics (M-FLAT): through the whole of
+    # apply (M-ORDER), or derived from the first oracle result, function by function.
     for chain in reductions:
         reduced = stored.reduce(**chain)
-        expected = oracle(target, norm="self", ref_batch_mean=ref_batch_mean, flatten=True, **chain)
+        if through_apply:
+            expected = oracle(
+                target, norm="self", ref_batch_mean=ref_batch_mean, flatten=True, **chain
+            )
+        else:
+            expected = _reduced(normalized, chain)
         _compare(reduced, expected, scale)
         assert_parity(np.asarray(reduced.to_vector()), expected["vector"])
+
+
+def _reduced(normalized: dict[str, Any], chain: dict[str, Any]) -> dict[str, Any]:
+    """The oracle's reductions of ``chain`` applied to normalised statistics, in the order of
+    M-ORDER, and the vector of the result."""
+    out = normalized
+    iso = bool(chain.get("iso"))
+    if iso:
+        out = spec.spec_iso(out)
+    if chain.get("angular_fourier"):
+        out = spec.spec_angular_fourier(out, chain.get("angular_harmonics"), after_iso=iso)
+    if chain.get("scale_cosine"):
+        out = spec.spec_scale_cosine(out, chain.get("scale_harmonics"), chain.get("dj"))
+    return {**out, "vector": spec.spec_flatten(out, flatten_complex=True)}
 
 
 @pytest.mark.parametrize("pbc", [True, False], ids=["periodic", "open"])
 @pytest.mark.parametrize("ndim", [2, 1], ids=["2d", "1d"])
 def test_small_case_equals_the_oracle(ndim: int, pbc: bool) -> None:
     """One small case per geometry and periodicity, with a mask, two channels and J = 2: the
-    statistics, both normalisations, and the three reductions in a row, truncated."""
+    statistics, both normalisations, and the three reductions in a row, truncated. Two runs of
+    the oracle; the reductions are derived from the first, function by function."""
     L = 4 if ndim == 2 else 2  # noqa: N806
     chain = {
         "iso": True,
@@ -194,7 +221,7 @@ def test_small_case_equals_the_oracle(ndim: int, pbc: bool) -> None:
         "scale_harmonics": 1,
         "dj": 2,
     }
-    _check_case(ndim, 2, L, pbc, masked=True, reductions=[chain])
+    _check_case(ndim, 2, L, pbc, masked=True, reductions=[chain], through_apply=False)
 
 
 def _chains(J: int, L: int) -> list[dict[str, Any]]:  # noqa: N803
