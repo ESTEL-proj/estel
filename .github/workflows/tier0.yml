@@ -237,7 +237,11 @@ jobs:
 
       - name: Tests on JAX, fast tier (jax_smoke)
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'fast'
-        run: make test-fast TEST_BACKENDS=jax
+        run: |
+          lscpu | grep -E 'Model name|Flags' | cut -c1-200  # TEMPORARY diagnostics
+          ls .pytest_cache/d/jax-compilation-cache 2>/dev/null | wc -l
+          make test-fast TEST_BACKENDS=jax
+          ls .pytest_cache/d/jax-compilation-cache 2>/dev/null | wc -l
 
       - name: Tests on JAX, full tier, float64
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'

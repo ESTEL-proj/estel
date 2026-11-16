@@ -195,9 +195,10 @@ def _persistent_jax_cache(config: pytest.Config) -> None:
     only skips compilations, whose output is the same."""
     import jax
 
-    if config.cache is None:  # pytest -p no:cacheprovider
+    cache = getattr(config, "cache", None)  # absent with -p no:cacheprovider
+    if cache is None:
         return
-    directory = config.cache.mkdir("jax-compilation-cache")
+    directory = cache.mkdir("jax-compilation-cache")
     jax.config.update("jax_compilation_cache_dir", str(directory))  # type: ignore[no-untyped-call]
     jax.config.update("jax_persistent_cache_min_compile_time_secs", 0)  # type: ignore[no-untyped-call]
     jax.config.update("jax_persistent_cache_min_entry_size_bytes", 0)  # type: ignore[no-untyped-call]
