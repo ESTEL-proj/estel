@@ -9,7 +9,7 @@ Summary of [Part I, §5 — Tests, reference values, tolerances](../transfer/par
 | Backend conformance | each L0 primitive vs NumPy float64, values and gradients |
 | Spec parity | ESTEL vs the `_spec` oracle, float64, small inputs, every combination (`make test-spec`) |
 | Reference values | seeded inputs and stored outputs in `tests/reference/*.npz`, including normalisation references; every backend and dtype |
-| Invariances | rotations, time reversal, scaling, constant shift, batch/channel/block permutations, all-valid mask = no mask, single-block tensor product = plain geometry |
+| Invariances | time reversal, scaling, constant shift, batch/channel/block permutations, all-valid mask = no mask, single-block tensor product = plain geometry; rotations come with the joint design of the filters (Part III, §20.10) |
 | Differentiation | the table of [differentiation.md](differentiation.md), float64 |
 | Synthesis | step 1: the API only (runs, checkpoints, resumes) |
 | maths ↔ spec ↔ tests | every `M-` ID has a `_spec` function and a test, and vice versa (`tools/check_maths_ids.py`) |
