@@ -48,6 +48,9 @@ class Definition:
     kind: str  # "function", "class", "constant", "method", "property", "alias"
     signature: str | None = None
     members: dict[str, Definition] = field(default_factory=dict)
+    # Not part of the manifest: the docstring and its place, for tools/check_retired_names.py.
+    docstring: str | None = field(default=None, compare=False)
+    where: str = field(default="", compare=False)
 
 
 @dataclass
@@ -74,24 +77,55 @@ def _decorator_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
     return names
 
 
-def _class_definition(node: ast.ClassDef) -> Definition:
-    definition = Definition(kind="class", signature="()")
-    for item in node.body:
+def _attribute_docstring(body: list[ast.stmt], index: int) -> str | None:
+    """The string literal that follows an assignment, if any (an attribute docstring)."""
+    if index + 1 < len(body):
+        nxt = body[index + 1]
+        if (
+            isinstance(nxt, ast.Expr)
+            and isinstance(nxt.value, ast.Constant)
+            and isinstance(nxt.value.value, str)
+        ):
+            return nxt.value.value
+    return None
+
+
+def _class_definition(node: ast.ClassDef, path: str) -> Definition:
+    definition = Definition(
+        kind="class",
+        signature="()",
+        docstring=ast.get_docstring(node),
+        where=f"{path}:{node.lineno}",
+    )
+    for index, item in enumerate(node.body):
+        where = f"{path}:{item.lineno}"
         if isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef):
             if item.name == "__init__":
                 definition.signature = _signature(item)
+                init_doc = ast.get_docstring(item)
+                if init_doc:  # the constructor documents the class too
+                    definition.docstring = f"{definition.docstring or ''}\n{init_doc}"
             elif not item.name.startswith("_"):
                 decorators = _decorator_names(item)
+                doc = ast.get_docstring(item)
                 if "property" in decorators or "cached_property" in decorators:
-                    definition.members[item.name] = Definition(kind="property")
+                    definition.members[item.name] = Definition(
+                        kind="property", docstring=doc, where=where
+                    )
                 elif decorators & {"setter", "deleter"}:
                     continue
                 else:
-                    definition.members[item.name] = Definition("method", _signature(item))
+                    definition.members[item.name] = Definition(
+                        "method", _signature(item), docstring=doc, where=where
+                    )
         elif isinstance(item, ast.Assign | ast.AnnAssign):
             for name in _assigned_names(item):
                 if not name.startswith("_"):
-                    definition.members[name] = Definition(kind="constant")
+                    definition.members[name] = Definition(
+                        kind="constant",
+                        docstring=_attribute_docstring(node.body, index),
+                        where=where,
+                    )
     return definition
 
 
@@ -112,11 +146,16 @@ def _resolve_relative(module: str, is_package: bool, level: int, target: str | N
 def parse_module(name: str, path: Path) -> Module:
     tree = ast.parse(path.read_text(), filename=str(path))
     module = Module(name=name, is_package=path.name == "__init__.py")
-    for node in tree.body:
+    shown = path.as_posix()
+    shown = shown[shown.index("src/") :] if "src/" in shown else shown
+    for index, node in enumerate(tree.body):
+        where = f"{shown}:{getattr(node, 'lineno', 0)}"
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-            module.definitions[node.name] = Definition("function", _signature(node))
+            module.definitions[node.name] = Definition(
+                "function", _signature(node), docstring=ast.get_docstring(node), where=where
+            )
         elif isinstance(node, ast.ClassDef):
-            module.definitions[node.name] = _class_definition(node)
+            module.definitions[node.name] = _class_definition(node, shown)
         elif isinstance(node, ast.Assign | ast.AnnAssign):
             for target in _assigned_names(node):
                 if target == "__all__" and node.value is not None:
@@ -126,7 +165,11 @@ def parse_module(name: str, path: Path) -> Module:
                         if isinstance(e, ast.Constant) and isinstance(e.value, str)
                     ]
                 else:
-                    module.definitions[target] = Definition(kind="constant")
+                    module.definitions[target] = Definition(
+                        kind="constant",
+                        docstring=_attribute_docstring(tree.body, index),
+                        where=where,
+                    )
         elif isinstance(node, ast.ImportFrom):
             source = _resolve_relative(name, module.is_package, node.level, node.module)
             for alias in node.names:
@@ -176,20 +219,29 @@ def _resolve(
     return None
 
 
-def _entries(qualname: str, definition: Definition) -> Manifest:
+def _flatten(qualname: str, definition: Definition) -> dict[str, Definition]:
+    out = {qualname: definition}
+    for member, member_def in definition.members.items():
+        out.update(_flatten(f"{qualname}.{member}", member_def))
+    return out
+
+
+def _entry(definition: Definition) -> Entry:
     entry: Entry = {"kind": definition.kind}
     if definition.signature is not None:
         entry["signature"] = definition.signature
-    out = {qualname: entry}
-    for member, member_def in definition.members.items():
-        out.update(_entries(f"{qualname}.{member}", member_def))
-    return out
+    return entry
 
 
 def public_api(src: Path) -> Manifest:
     """The manifest implied by the source tree under ``src``."""
+    return {name: _entry(d) for name, d in public_definitions(src).items()}
+
+
+def public_definitions(src: Path) -> dict[str, Definition]:
+    """Every public name, members included, with its definition, sorted by name."""
     modules = read_package(src)
-    api: Manifest = {}
+    api: dict[str, Definition] = {}
     for name, mod in modules.items():
         if is_private_module(name):
             continue
@@ -213,7 +265,7 @@ def public_api(src: Path) -> Manifest:
             elif alias in mod.definitions:
                 public[alias] = mod.definitions[alias]
         for n, d in public.items():
-            api.update(_entries(f"{name}.{n}", d))
+            api.update(_flatten(f"{name}.{n}", d))
     return dict(sorted(api.items()))
 
 

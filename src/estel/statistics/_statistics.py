@@ -146,10 +146,10 @@ class STStatistics:
     # ------------------------------------------------------------------ reading
 
     def full_grid(self, family: str) -> Any:
-        """The tensor of ``family`` (``"mean"``, ``"var"``, ``"S1"`` … ``"S4"``) in STL's full
+        """The tensor of ``family`` (``"mean"``, ``"var"``, ``"S1"`` … ``"S4"``) in its full
         grid shape, NaN where no coefficient exists (Part II, §12.7).
 
-        Without reduction or selection the shapes are STL's: ``(Nb, Nc)`` for mean and var,
+        Without reduction or selection the shapes are: ``(Nb, Nc)`` for mean and var,
         ``(Nb, Nc, Nc, J, L)`` for S1 and S2, ``(Nb, Nc, Nc, J, J, L, L)`` for S3 and
         ``(Nb, Nc, Nc, J, J, J, L, L, L)`` for S4; mean and var are real, S1 to S4 complex.
         """
@@ -196,17 +196,17 @@ class STStatistics:
         return self._replace(values, tuple(grids))
 
     def to_vector(self, mask_st: Any = None) -> Any:
-        """The statistics as one flat real vector, for losses (Part II, §12.7; maths.md M-FLAT;
-        STL ``to_flatten(flatten_complex=True)``).
+        """The statistics as one flat real vector, for losses (Part II, §12.7; maths.md
+        M-FLAT).
 
         Families in the order mean, var, S1, S2, S3, S4; within each, every batch element in
         turn, then the coefficients in the order of the full grid, without the positions where
         no coefficient exists. Complex coefficients give their real and imaginary parts, one
-        after the other, except S1 and S2, of which only the real part is kept, as in STL
-        (OP-37: the imaginary part of the cross-channel terms is dropped). Mean and var give one
-        real value each.
+        after the other, except S1 and S2, of which only the real part is kept (OP-37: the
+        imaginary part of the cross-channel terms is dropped). Mean and var give one real value
+        each.
 
-        ``mask_st`` (STL's name) is an optional boolean array of the length of this vector:
+        ``mask_st`` is an optional boolean array of the length of this vector:
         True keeps a coefficient. It drops coefficients found unreliable by a boolean test; in
         a synthesis it is computed once on the target and reused at every iteration.
         """
@@ -246,13 +246,13 @@ class STStatistics:
         """The statistics reduced by the selected reductions, applied in the order of maths.md
         M-NORM: ``iso``, then ``angular_fourier``, then ``scale_cosine``. Returns new statistics.
 
-        * ``iso`` (M-RED-ISO; STL ``to_iso``): S1 and S2 averaged over the orientations, S3 and
-          S4 averaged over the first orientation at fixed orientation differences modulo L.
-        * ``angular_fourier`` (M-RED-ANG; STL ``to_angular_ft``): an orthonormal DFT over the
+        * ``iso`` (M-RED-ISO): S1 and S2 averaged over the orientations, S3 and S4 averaged
+          over the first orientation at fixed orientation differences modulo L.
+        * ``angular_fourier`` (M-RED-ANG): an orthonormal DFT over the
           orientation axes of S3 and S4 (over the orientation differences after ``iso``),
           keeping the first ``angular_harmonics`` harmonics, between 1 and L; all L by default
           (OP-17). It is allowed without ``iso``.
-        * ``scale_cosine`` (M-RED-SCALE; STL ``to_scale_ft``), which needs ``iso``, as in STL:
+        * ``scale_cosine`` (M-RED-SCALE), which needs ``iso``:
           the scales of S3 and S4 reparametrised as ``(j1, a, b)`` with ``j2 = j1 + a``,
           ``j3 = j1 + b`` and ``0 ≤ a ≤ b < dj``, an orthonormal DCT-II along j1, the first
           ``scale_harmonics`` harmonics kept. ``scale_harmonics`` and ``dj`` lie between 1 and

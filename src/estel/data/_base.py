@@ -180,10 +180,9 @@ class Data:
     def with_array(self, new_array: Any) -> Data:
         """A new object with ``new_array`` in place of the array, and the same metadata.
 
-        This replaces STL's in-place updates (``inplace=True``). ``new_array`` must be an array
-        of the same backend with the shape of :attr:`shape`; it is used as it is, without a
-        copy and without looking at its values, so this works inside traced and
-        differentiated code.
+        Data objects are never updated in place. ``new_array`` must be an array of the same
+        backend with the shape of :attr:`shape`; it is used as it is, without a copy and
+        without looking at its values, so this works inside traced and differentiated code.
         """
         _registry.check_backend(self._backend, new_array, owner=f"this {type(self).__name__}")
         if _registry.backend_of(new_array) is None:
@@ -204,8 +203,8 @@ class Data:
     def copy(self, empty: bool = False) -> Data:
         """A new object with a copy of the array, and the same metadata.
 
-        With ``empty=True`` the array of the copy is filled with zeros (STL sets it to
-        ``None``; an ESTEL object always holds an array of its shape).
+        With ``empty=True`` the array of the copy is filled with zeros: a data object always
+        holds an array of its shape.
         """
         xp = _registry.backend_named(self._backend).xp
         array = xp.zeros_like(self._array) if empty else xp.asarray(self._array, copy=True)
