@@ -239,13 +239,22 @@ jobs:
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'fast'
         run: |
           # TEMPORARY diagnostics: the key components of JAX's cache in two processes
-          for i in 1 2; do
-            JAX_DEBUG_LOG_MODULES=jax._src.cache_key ESTEL_TEST_BACKEND=jax uv run --locked pytest -p no:xdist --tier fast -q "tests/backend/test_conformance.py::TestPad" 2>&1 \
-              | grep -E "hash of serialized" | head -8 | sed -E 's/.*serialized //' > keys$i.txt
-            ls .pytest_cache/d/jax-compilation-cache | wc -l
-          done
-          diff keys1.txt keys2.txt && echo "same keys" || true
-          cat keys1.txt | cut -c1-150
+          cat > /tmp/jaxkey.py <<'PY'
+          import logging, os, sys
+          os.environ["XLA_FLAGS"] = "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
+          import jax, jax.numpy as jnp
+          jax.config.update("jax_enable_x64", True)
+          jax.config.update("jax_compilation_cache_dir", sys.argv[1])
+          jax.config.update("jax_persistent_cache_min_compile_time_secs", 0)
+          jax.config.update("jax_persistent_cache_min_entry_size_bytes", 0)
+          logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format="%(message)s")
+          for name in ("jax._src.cache_key", "jax._src.compilation_cache", "jax._src.compiler"):
+              logging.getLogger(name).setLevel(logging.DEBUG)
+          x = jnp.ones((3, 4), dtype=jnp.float64)
+          jax.block_until_ready(jnp.pad(x, ((1, 1), (0, 2)), mode="wrap") * 2.0)
+          PY
+          mkdir -p /tmp/jc
+          for i in 1 2; do .venv/bin/python /tmp/jaxkey.py /tmp/jc | grep -iE 'hash of serialized|cache hit for|cache miss for' | cut -c1-150 | head -10; echo "--- entries $(ls /tmp/jc | wc -l)"; done
           make test-fast TEST_BACKENDS=jax
 
       - name: Tests on JAX, full tier, float64
