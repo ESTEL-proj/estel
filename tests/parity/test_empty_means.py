@@ -20,11 +20,11 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data1D, Data2D, DataClass
-from estel.scattering._plan import ScatteringPlan, build_plan
+from estel import Data, Data1D, Data2D
+from estel.scattering._plan import STPlan, build_plan
 from tests.parity._compare import load_fixture, read_manifest
 
-CASES: dict[str, type[DataClass]] = {"empty_means_2d": Data2D, "empty_means_1d": Data1D}
+CASES: dict[str, type[Data]] = {"empty_means_2d": Data2D, "empty_means_1d": Data1D}
 pytestmark = pytest.mark.maths("M-MEAN", "M-CHAN")
 
 
@@ -37,7 +37,7 @@ def _configs() -> list[tuple[str, str]]:
     return [(case, name) for case in sorted(CASES) for name in _parameters(case)["configs"]]
 
 
-def _plan(case: str, name: str, fixture: dict[str, NDArray[Any]]) -> ScatteringPlan:
+def _plan(case: str, name: str, fixture: dict[str, NDArray[Any]]) -> STPlan:
     parameters = _parameters(case)
     config = parameters["configs"][name]
     cls = CASES[case]

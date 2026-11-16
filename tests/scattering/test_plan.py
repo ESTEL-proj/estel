@@ -1,8 +1,8 @@
-"""The ``ScatteringPlan``: index sets, levels, borders, masks and mean denominators (task T2.3,
+"""The ``STPlan``: index sets, levels, borders, masks and mean denominators (task T2.3,
 issue #15; maths.md §1.3 to 1.5, M-MEAN).
 
 The plan is NumPy float64 and does not depend on the backend or dtype of the run; the data are
-built on the run's backend only because a DataClass holds a backend array. Comparisons are
+built on the run's backend only because a Data object holds a backend array. Comparisons are
 exact: weights are 0 or 1 and denominators are pixel counts. ``tests/parity/test_plan.py``
 compares the same quantities with STL.
 """
@@ -17,25 +17,25 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data1D, Data2D, DataClass
+from estel import Data, Data1D, Data2D
 from estel.data._masks import build_mask_maps
-from estel.scattering._plan import MeanWeights, ScatteringPlan, border_width, build_plan
+from estel.scattering._plan import MeanWeights, STPlan, border_width, build_plan
 from estel.wavelets._banks import smoothing_kernel
 
-GEOMETRIES: dict[int, type[DataClass]] = {2: Data2D, 1: Data1D}
+GEOMETRIES: dict[int, type[Data]] = {2: Data2D, 1: Data1D}
 
 
-def _data(ndim: int, n: int, pbc: bool, mask: NDArray[np.bool_] | None = None) -> DataClass:
+def _data(ndim: int, n: int, pbc: bool, mask: NDArray[np.bool_] | None = None) -> Data:
     return GEOMETRIES[ndim](np.zeros((n,) * ndim), mask=mask, pbc=pbc)
 
 
-def _plan(data: DataClass, J: int, L: int = 4) -> ScatteringPlan:  # noqa: N803
+def _plan(data: Data, J: int, L: int = 4) -> STPlan:  # noqa: N803
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-13, tested on its own below
         return build_plan(data, J, L)
 
 
-def _all_means(plan: ScatteringPlan) -> list[MeanWeights]:
+def _all_means(plan: STPlan) -> list[MeanWeights]:
     return [plan.moments, *plan.first_layer.values(), *plan.s3.values(), *plan.s4.values()]
 
 
@@ -93,7 +93,7 @@ def test_lowpass_is_the_cascade_of_smoothing_kernels() -> None:
     """Part II, §12.6 and maths.md M-NOT: in 1.0.0 the low-pass filter φ_J is the data
     downsampled J times."""
     plan = _plan(_data(2, 32, pbc=True), 3)
-    assert plan.lowpass_realisation == "smoothing_cascade"
+    assert plan.lowpass_realization == "smoothing_cascade"
     assert plan.lowpass_level == 3
 
 
@@ -383,7 +383,7 @@ def test_sizes_must_be_divisible_by_two_to_the_j_minus_one() -> None:
 
 def test_build_plan_rejects_bad_arguments() -> None:
     data = _data(2, 32, pbc=True)
-    with pytest.raises(TypeError, match="DataClass"):
+    with pytest.raises(TypeError, match="Data"):
         build_plan(np.zeros((32, 32)), 3, 4)  # type: ignore[arg-type]
     with pytest.raises(TypeError, match="integer"):
         build_plan(data, 2.0, 4)  # type: ignore[arg-type]

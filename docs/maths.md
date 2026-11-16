@@ -284,7 +284,7 @@ W_{j,\ell}\, x_c = \psi_\ell \star x_c^{(j)}, \qquad U_{j,\ell}\, x_c = \lvert W
 
 ### 1.7 Scattering statistics — vanilla ScatCov
 
-All means below are masked means at the level of the data (§1.6), with the border of §1.5. Channel pairs (c₁, c₂) are those of `compute_cross_matrix`, by default the upper triangle c₁ ≤ c₂. Storage conventions are in M-CHAN.
+All means below are masked means at the level of the data (§1.6), with the border of §1.5. Channel pairs (c₁, c₂) are those of `cross_matrix` (STL's `compute_cross_matrix`), by default the upper triangle c₁ ≤ c₂. Storage conventions are in M-CHAN.
 
 #### M-S1
 
@@ -329,8 +329,8 @@ S_4[c_1,c_2,j_1,j_2,j_3,\ell_1,\ell_2,\ell_3] = \Big\langle \big(\psi_{\ell_3} \
 - **S3 and S4:** both (c₁, c₂) and (c₂, c₁) are computed and stored.
 - Conjugate duplicates at j₁ = j₂ inside S4 are also stored. This is the canonical-set question, LF20. **⚠ OP-14**
 - **Storage type.** S1 to S4 are stored as complex numbers, including the auto S1 and S2, which are real; `mean` and `var` are real.
-- **Channels without auto-statistics.** A channel whose diagonal entry of `compute_cross_matrix` is False, but which appears in a cross pair, has no auto S1 or S2; with `store_ref`, its normalisation then gives NaN, and STL only warns. A channel in no pair at all is an error. **⚠ OP-30**
-- **Default pairs.** When `compute_cross_matrix` is not given, STL's code uses the upper triangle of the Nc × Nc matrix: every pair c₁ ≤ c₂, so all auto and all cross terms. STL's docstring says "auto-statistics only"; ESTEL follows the code. **⚠ OP-38**
+- **Channels without auto-statistics.** A channel whose diagonal entry of `cross_matrix` is False, but which appears in a cross pair, has no auto S1 or S2; with `norm="self"` (STL's `store_ref`), its normalisation then gives NaN, and STL only warns. A channel in no pair at all is an error. **⚠ OP-30**
+- **Default pairs.** When `cross_matrix` (STL's `compute_cross_matrix`) is not given, STL's code uses the upper triangle of the Nc × Nc matrix: every pair c₁ ≤ c₂, so all auto and all cross terms. STL's docstring says "auto-statistics only"; ESTEL follows the code. **⚠ OP-38**
 - **Source:** `_compute_and_store_cross_cov` (`redundant_channels`), `ST_Operator.apply`.
 
 **Sihao variant** (`has_fewer_convolutions=True`): not transferred.
@@ -339,13 +339,13 @@ S_4[c_1,c_2,j_1,j_2,j_3,\ell_1,\ell_2,\ell_3] = \Big\langle \big(\psi_{\ell_3} \
 
 #### M-ORDER — Order of the operations of `apply`
 
-1. promotion of the array to `(Nb, Nc, …)`, and channel pairs from `compute_cross_matrix`;
+1. promotion of the array to `(Nb, Nc, …)`, and channel pairs from `cross_matrix`;
 2. standardisation, if asked (M-STD);
 3. `mean` and `var` (M-MOM), on the possibly standardised field;
 4. the scattering loop: S1 to S4 (M-S1 to M-S4);
 5. the power spectrum, if asked, on the same field;
 6. normalisation (M-NORM);
-7. reductions, in this order and only if asked: `iso`, `angular_ft`, `scale_ft`;
+7. reductions, in this order and only if asked: `iso`, `angular_fourier`, `scale_cosine` (STL's `to_iso`, `to_angular_ft`, `to_scale_ft`);
 8. flattening, if asked (M-FLAT).
 
 - With standardisation, `mean` is 0 and `var` is 1 up to rounding, by construction.
@@ -353,7 +353,7 @@ S_4[c_1,c_2,j_1,j_2,j_3,\ell_1,\ell_2,\ell_3] = \Big\langle \big(\psi_{\ell_3} \
 
 #### M-NORM
 
-With `norm="store_ref"` (the default), the reference is the statistics being computed, and it is **stored in the operator** (`var_ref`, `S2_ref_sqrt_chan_diag`, `PS_ref_sqrt_chan_diag`) and kept for later calls. Each new call with `store_ref` recomputes it and replaces the stored one, with a printed message. With `norm="load_ref"`, the reference stored in the operator is used, unless one is passed to `apply`; it is an error if none exists. The typical use: `store_ref` on the target, then `load_ref` on the fields compared with it, so that all are normalised by the same reference. With `norm_batch_mean=True`, the reference is first averaged over the batch; the default is `norm_batch_mean=False`, as in STL, whose `ST_Operator.apply` passes False:
+With `norm="self"` (STL's `store_ref`; the default), the reference is the statistics being computed, and it is **stored in the operator** (`var_ref`, `S2_ref_sqrt_chan_diag`, `PS_ref_sqrt_chan_diag`) and kept for later calls. Each new call with `norm="self"` recomputes it and replaces the stored one, with a printed message. With `norm="ref"` (STL's `load_ref`), the reference stored in the operator is used, unless one is passed to `apply`; it is an error if none exists. The typical use: `norm="self"` on the target, then `norm="ref"` on the fields compared with it, so that all are normalised by the same reference. With `ref_batch_mean=True` (STL's `norm_batch_mean`), the reference is first averaged over the batch; the default is `ref_batch_mean=False`, as in STL, whose `ST_Operator.apply` passes False:
 
 ```latex
 \sigma_c(j,\ell) = \sqrt{S_2^{\text{ref}}[c,c,j,\ell]}, \qquad \text{var}^{\text{ref}} = \text{var}
@@ -369,11 +369,11 @@ With `norm="store_ref"` (the default), the reference is the statistics being com
 | S4\[c₁, c₂, j₁, j₂, j₃, ℓ₁, ℓ₂, ℓ₃\] | σ\_{c₁}(j₁, ℓ₁) · σ\_{c₂}(j₂, ℓ₂) |
 | PS\[c₁, c₂, b\] | σᴾˢ\_{c₁}(b) · σᴾˢ\_{c₂}(b), with σᴾˢ\_c(b) = √PS\_ref\[c, c, b\] |
 
-**Other values of `norm`.** `norm="vanilla"` computes the statistics without any normalisation. `norm` must be given: `None` in both the constructor and `apply` is an error. With `store_ref`, passing a reference to `apply` is an error.
+**Other values of `norm`.** `norm="none"` (STL's `vanilla`) computes the statistics without any normalisation. `norm` must be given: `None` in both the constructor and `apply` is an error. With `norm="self"`, passing a reference to `apply` is an error.
 
-**Order of operations.** `apply` normalises first, then applies, in this order and only if requested, `iso`, `angular_ft`, `scale_ft` and the flattening. Normalising after any reduction is an error.
+**Order of operations.** `apply` normalises first, then applies, in this order and only if requested, `iso`, `angular_fourier`, `scale_cosine` and the flattening. Normalising after any reduction is an error.
 
-Gradients through the reference follow from the mode (LF21, closed; OP-18): with `store_ref` the reference is part of the computation and gradients flow through it; with `load_ref` it is a constant, through which no gradient flows.
+Gradients through the reference follow from the mode (LF21, closed; OP-18): with `norm="self"` the reference is part of the computation and gradients flow through it; with `norm="ref"` it is a constant, through which no gradient flows.
 
 - **Source:** `ST_Statistics.to_norm`, `_normalize_scatcov`, `_get_sqrt_chan_diag`.
 
@@ -391,7 +391,7 @@ S_3^{\text{iso}}[\dots,\delta] = \frac{1}{L} \sum_{\ell_2 - \ell_1 \equiv \delta
 
 #### M-RED-ANG — Angular Fourier transform
 
-An orthonormal discrete Fourier transform over the orientation axes of S3 and S4 (`norm="ortho"`), keeping the first `harmonics_angle` harmonics. The default is L, so nothing is truncated, despite a code comment mentioning "zeroth, first and second harmonic". **⚠ OP-17** The same periodicity question as M-RED-ISO applies.
+An orthonormal discrete Fourier transform over the orientation axes of S3 and S4 (`norm="ortho"`), keeping the first `angular_harmonics` (STL's `harmonics_angle`) harmonics. The default is L, so nothing is truncated, despite a code comment mentioning "zeroth, first and second harmonic". **⚠ OP-17** The same periodicity question as M-RED-ISO applies.
 
 - **Source:** `to_angular_ft`.
 
@@ -403,7 +403,7 @@ Only after `iso`. The scales are reparametrised as (j₁, a, b) with j₂ = j₁
 F[k, j] = \alpha_k \cos\Big(\frac{k\pi (j + 1/2)}{J}\Big), \qquad \alpha_0 = \sqrt{1/J},\ \alpha_{k>0} = \sqrt{2/J}
 ```
 
-Missing entries are set to 0 for the transform and back to NaN afterwards; the first `harmonics_scale` harmonics (default J) are kept.
+Missing entries are set to 0 for the transform and back to NaN afterwards; the first `scale_harmonics` (STL's `harmonics_scale`) harmonics (default J) are kept.
 
 - **Source:** `to_scale_ft`.
 
@@ -507,9 +507,9 @@ Automatic, when the operator is built, from the example data. `pbc=None` counts 
 | Wavelet type | bump-steerable |
 | τ (NaN threshold) | 0.33 |
 | Border method | fully flexible |
-| `norm` | `store_ref`, with `norm_batch_mean=False` |
+| `norm` | `"self"` (STL's `store_ref`), with `ref_batch_mean=False` (STL's `norm_batch_mean`) |
 | `compute_PS` | True |
-| `compute_cross_matrix` | upper triangle (all pairs c₁ ≤ c₂) |
+| `cross_matrix` (STL's `compute_cross_matrix`) | upper triangle (all pairs c₁ ≤ c₂) |
 | `standardize` | False |
 | `replace_nan_value` | NaN |
 | PS binning | log-Gaussian, about 3 bins per octave |
@@ -528,7 +528,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-2 | Even-sized smoothing kernel with asymmetric padding (2/3): possible half-pixel shift per level, questioned by a `TODO` | reproduce for parity; revisit in a major |
 | OP-3 | Masked mean divides by zero when no pixel is valid | revised: the coefficient is NaN, as in STL, decided statically by the plan; ESTEL warns once, listing such coefficients, and raises only if a whole family is empty |
 | OP-4 | `pbc=None` breaks the scattering transform but means "periodic" for spectra | require an explicit boolean in ESTEL |
-| OP-5 | `iso` and `angular_ft` average over orientations that cover \[0, π): the real parts of the reduced S3 and S4 are invariant under rotations by multiples of π/L, their imaginary parts are not | reproduce; decide whether `iso` returns the real parts only (LF32) |
+| OP-5 | `iso` and `angular_fourier` average over orientations that cover \[0, π): the real parts of the reduced S3 and S4 are invariant under rotations by multiples of π/L, their imaginary parts are not | reproduce; decide whether `iso` returns the real parts only (LF32) |
 | OP-6 | Radial binning of the spectrum is not isotropic for rectangular images | restrict PS to square images in 1.0.0, or document |
 | OP-7 | `nan_mask` fills missing pixels with the mean before filtering, leaking near mask edges | reproduce, document; better estimator in step 2 |
 | OP-8 | The default J does not ensure that the sizes are divisible by 2^(J−1), so the default operator can fail on sizes that are not powers of two | decided: ESTEL rejects the combination at construction with a clear message; STL fails here, so parity is not concerned |
@@ -549,19 +549,19 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-14 | S1/S2 store c₁ ≤ c₂ only, S3/S4 both orders; conjugate duplicates (LF20) |
 | OP-15 | Scale indices of S3 named (j₁, j₂) in STL's comments, (j₂, j₃) in the code |
 | OP-16 | Definition of cross-channel S1, with ε = 10⁻⁸ |
-| OP-17 | `angular_ft` keeps all L harmonics by default, contrary to a code comment |
-| OP-18 | Gradients through the normalisation reference: decided, they follow from the mode (LF21, closed): with store_ref the reference is part of the computation and gradients flow through it; with load_ref it is a constant |
+| OP-17 | `angular_fourier` (STL's `to_angular_ft`) keeps all L harmonics by default, contrary to a code comment |
+| OP-18 | Gradients through the normalisation reference: decided, they follow from the mode (LF21, closed): with `norm="self"` the reference is part of the computation and gradients flow through it; with `norm="ref"` it is a constant |
 | OP-19 | Only the real part of cross-spectra is kept |
 | OP-20 | The spectrum code requires even sizes (inverse FFT width) |
 | OP-21 | Spectrum border mask at 60 % of the point-spread energy, hard by default |
 | OP-22 | Orientation convention: θ\_ℓ = πℓ/L + π/2 from axis 1 |
-| OP-30 | A channel with cross statistics but no auto statistics gets NaN after `store_ref` normalisation; STL only warns |
+| OP-30 | A channel with cross statistics but no auto statistics gets NaN after `norm="self"` normalisation (STL's `store_ref`); STL only warns |
 | OP-32 | The per-level energy partition P of STL's kernels is only close to 1. Measured on the 5-tap kernels: in 1D, within 0.1 of 1 up to ω = 3π/4, falling to 0.23 at the Nyquist frequency; in 2D (L = 4, J = 5, with φ\_J), Λ lies between 0.22 and 1.76 in the disc of radius π, is anisotropic (more energy on the diagonals than on the axes), and is close to 0 in the corners of the frequency square |
 | OP-33 | Gain convention: the analytic wavelets have a maximum gain of 1, so on real data they measure half the energy of their band; Λ counts both signs to compensate. Normalised statistics do not depend on it |
 | OP-34 | Tensor products (M-LP): the low-pass filter of a block is silently dropped when the block size is not divisible by 2^(J\_a), because STL obtains it by one more downsampling than the coarsest wavelet |
 | OP-36 | STL computes raw second moments, not covariances; its `cov` has a `remove_mean` argument that was never implemented. This is exact for periodic data without mask. Otherwise the forgotten term M1(A)·conj(M1(B)), relative to the covariance, measured on a test field (orders of magnitude): from 1e-6 at j = 0 to 1e-2 at the coarsest scale for non-periodic data; about ten times more with a mask covering 20 % of the pixels; of order 1 for any term whose last filter is a low-pass filter |
 | OP-37 | When flattening to a real vector, STL keeps only the real part of S1, S2 and PS, assuming they are real; this holds for the auto terms, but the imaginary part of the cross-channel terms is dropped, with the information it carries |
-| OP-38 | Default of `compute_cross_matrix`: STL's code computes every pair c₁ ≤ c₂; its docstring says auto statistics only. ESTEL follows the code |
+| OP-38 | Default of `cross_matrix` (STL's `compute_cross_matrix`): STL's code computes every pair c₁ ≤ c₂; its docstring says auto statistics only. ESTEL follows the code |
 | OP-39 | The real flattening drops the imaginary part of the cross-channel S1 and S2; STL's syntheses use the complex flattening, which keeps it, so `to_vector` and the synthesis loss do not see the same coefficients; to decide before T6.1 |
 
 #### C. Transfer and API
@@ -600,7 +600,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 - **Differences with M-WAV-2D.** No width factor (c = 1 instead of 2.5), no angular part, no normalisation (neither by the maximum nor by c_L/c_4).
 - **Position of the bump.** ξ₀ = N/2 is the Nyquist frequency. The bump's support, 0 < ω < N, meets the grid only for 1 ≤ ω ≤ N/2 − 1: the filter is the lower half of a bump whose maximum, at Nyquist, is not on the grid. It vanishes at negative frequencies, so it is analytic. **⚠ OP-28**
 - **In pixel space:** as in M-WAV-2D, a single kernel of K = 5 taps: inverse FFT, centred (`fftshift`), cropped to the central K taps, mean subtracted, not renormalised (**⚠ OP-10**), cast to complex. As in 2D, STL builds it at torch's default dtype (**⚠ OP-31**). The bank is computed for J scales, but only j = 0 is used; coarser scales come from downsampling, as in 2D.
-- **Orientations.** L = 1 by default; L ∈ {1, 2}. With L = 2 the second filter is the conjugate of the first, ψ₁ = conj(ψ₀), which covers the negative frequencies; tensor products use L = 2 for their 1D blocks. On real data W₁x = conj(W₀x), so the L = 2 statistics are redundant there. With L = 1, `iso` and `angular_ft` change nothing, and OP-5 does not arise.
+- **Orientations.** L = 1 by default; L ∈ {1, 2}. With L = 2 the second filter is the conjugate of the first, ψ₁ = conj(ψ₀), which covers the negative frequencies; tensor products use L = 2 for their 1D blocks. On real data W₁x = conj(W₀x), so the L = 2 statistics are redundant there. With L = 1, `iso` and `angular_fourier` change nothing, and OP-5 does not arise.
 - **Morlet.** Also available in the 1D class; not transferred (**⚠ OP-24**).
 - **Source:** `WaveletOperator1Dkernel_torch.bump_steerable_1d`, `bump_steerable_bank`, `_build_wavelet_kernel_from_ifft_crop`, `__init__`; `_conv_circular` (inherited).
 - **Oracle:** `spec_wavelets_1d(L, K)`. **Tests:** kernel values against STL, for L = 1 and L = 2.
@@ -634,7 +634,7 @@ M-MASK, M-BORDER, M-MEAN, M-MOM and M-W1 apply unchanged, with E the support of 
 
 M-S1 to M-S4, M-CHAN, M-NORM, M-RED-ISO, M-RED-ANG, M-RED-SCALE and M-FLAT apply unchanged, with ℓ ∈ {0, …, L − 1}. The full-grid shapes are S1 and S2 `(Nb, Nc, Nc, J, L)`, S3 `(Nb, Nc, Nc, J, J, L, L)` and S4 `(Nb, Nc, Nc, J, J, J, L, L, L)`; with the default L = 1, every orientation axis has size 1. Without a spectrum, the normalisation has no PS term.
 
-**Reductions in 1D.** `iso`, `angular_ft` and `scale_ft` apply to 1D statistics as to 2D ones. With L = 1, `iso` and `angular_ft` change no value. With L = 2, ℓ = 1 is the conjugate filter, not a rotation: `iso` then averages a coefficient with the one built on the conjugate filter, whose meaning is not established. **⚠ OP-40** `scale_ft` requires `iso` first, in 1D as in 2D.
+**Reductions in 1D.** `iso`, `angular_fourier` and `scale_cosine` apply to 1D statistics as to 2D ones. With L = 1, `iso` and `angular_fourier` change no value. With L = 2, ℓ = 1 is the conjugate filter, not a rotation: `iso` then averages a coefficient with the one built on the conjugate filter, whose meaning is not established. **⚠ OP-40** `scale_cosine` requires `iso` first, in 1D as in 2D.
 
 - **Source:** `ST_Operator._compute_ST_loop`, `_finalize_compute`; `ST_Statistics` (`2D+1D`).
 
@@ -769,7 +769,7 @@ Here W\_{j₃,ℓ₃} applied to a field already at level j₃ means the block c
 ### 3.7 Normalisation and reductions — M-NORM-TP
 
 - **Normalisation:** M-NORM with multi-indices. S3 and S4 are normalised with the wavelet scales of the S2 reference only: the low-pass scales of S2 have no counterpart in S3 and S4.
-- **Reductions:** `iso`, `angular_ft` and `scale_ft` are written for one scale and one orientation axis per layer. On tensor-product statistics they fail. ESTEL raises a clear error. **⚠ OP-44**
+- **Reductions:** `iso`, `angular_fourier` and `scale_cosine` are written for one scale and one orientation axis per layer. On tensor-product statistics they fail. ESTEL raises a clear error. **⚠ OP-44**
 - **Flattening:** M-FLAT applies unchanged.
 - **Source:** `ST_Statistics._normalize_scatcov`, `to_iso`, `to_angular_ft`, `to_scale_ft`.
 
@@ -915,7 +915,7 @@ The rule of §1.11 applies.
 1. The target is promoted to `(Nb, Nc, …)`.
 2. If it has no NaN and `prefilter_Nyquist=True` (the default), it is filtered by M-SYN-NYQ.
 3. It is standardised (M-STD) with `mean_field` (True by default): μ and σ are then averaged over the batch.
-4. Its statistics are computed with `norm="store_ref"` and `norm_batch_mean=mean_field`.
+4. Its statistics are computed with `norm="self"` and `ref_batch_mean=mean_field` (STL's `store_ref` and `norm_batch_mean`).
 5. They are reweighted (M-SYN-LOSS) and flattened, with `mean_along_batch=mean_field`.
 
 - **Source:** `optimize_from_maps`.
@@ -938,7 +938,7 @@ In the 2D Fourier plane, with integer frequencies (k₁, k₂), the modes with k
 
 ### 5.4 Loss — M-SYN-LOSS
 
-With Φ(u) the flattened statistics of the running field, computed with `norm="load_ref"` and the target's reference:
+With Φ(u) the flattened statistics of the running field, computed with `norm="ref"` (STL's `load_ref`) and the target's reference:
 
 ```latex
 \mathcal L(u) = \sum_i \big\lvert w_i\, \Phi_i(u) - w_i\, \Phi_i(x_{\text{target}}) \big\rvert^2

@@ -57,7 +57,7 @@ _TO_NUMPY = {"torch": "x.detach().cpu().numpy()", "jax": "numpy.asarray(x)"}
 class BackendMismatchError(TypeError):
     """Arrays of two backends were mixed (Part I, §2.2.3).
 
-    Raised when an operator or a DataClass built with one backend receives an array of
+    Raised when an operator or a ``Data`` object built with one backend receives an array of
     another: ESTEL never converts between backends silently. The message names both backends
     and says how to fix it.
     """
@@ -154,7 +154,7 @@ def backend_named(name: str) -> Backend:
 def register_pytree(cls: type, flatten: _Flatten, unflatten: _Unflatten) -> None:
     """Register ``cls`` as a pytree on every backend (Part I, §3.1, rule 9; task T2.9).
 
-    For L1 and L2, when a class is defined (``DataClass`` registers each of its subclasses);
+    For L1 and L2, when a class is defined (``Data`` registers each of its subclasses);
     internal: not in the manifest. The class is registered at once on every backend already
     loaded, and on each other backend when it is loaded; see ``Backend.register_pytree`` for
     the contract of ``flatten`` and ``unflatten``. On PyTorch, where pytrees serve only

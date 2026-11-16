@@ -1,8 +1,8 @@
 """Scattering: the static plan, the filters, the loop and the operator (Part II, §12.6).
 
-``_plan.py`` holds the ``ScatteringPlan``, the static description of a scattering transform,
+``_plan.py`` holds the ``STPlan``, the static description of a scattering transform,
 built once in NumPy when an operator is built (tag N; Part I, §2.3, §3.1.1); ``_filters.py`` the
-``ScatteringFilters``, its numerical arrays on the backend; ``_loop.py`` the scattering loop, which
+``STFilters``, its numerical arrays on the backend; ``_loop.py`` the scattering loop, which
 computes the statistics without normalisation; and ``_operator.py`` the ``STOperator``. The plan,
 the filters and the operator are exported by ``estel`` (task T2.5).
 """

@@ -7,8 +7,9 @@ configuration of their case (``tools/stl_parity/cases/``): STL's statistics with
 a second field with ``norm="load_ref"`` and that reference, the reductions of the ``store_ref``
 statistics (``iso``, ``angular_ft`` with and without ``iso``, ``iso`` then ``scale_ft``, and the
 three in a row), and the flat vectors of ``to_flatten(flatten_complex=True)``. ESTEL computes the
-same with ``STOperator`` and ``STStatistics`` on the stored inputs, and every array is compared
-with ``assert_parity``: same shape, NaN at the same positions, values within the tolerances of
+same on the stored inputs with ``STOperator`` (``norm="self"`` and ``norm="ref"``) and one call
+of ``STStatistics.reduce`` per chain of STL's reductions, and every array is compared with
+``assert_parity``: same shape, NaN at the same positions, values within the tolerances of
 Part II, §14.3, in the run's dtype (float64 is the parity check, float32 its secondary check).
 ``mean``, whose theoretical value may be zero, takes the standard deviation of the data as its
 scale: atol = 0.1 x rtol x sqrt(max(var)), with the variance before normalisation (§14.3).
@@ -27,11 +28,11 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data1D, Data2D, DataClass, STOperator, STStatistics, _config
+from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
 from estel.backend._protocol import DType
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
-CASES: dict[str, type[DataClass]] = {"statistics_2d": Data2D, "statistics_1d": Data1D}
+CASES: dict[str, type[Data]] = {"statistics_2d": Data2D, "statistics_1d": Data1D}
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
 REDUCED = {
     "iso": ("S1", "S2", "S3", "S4"),
@@ -88,26 +89,38 @@ class _Run:
         other = cls(fixture[f"{name}_ref_field"], mask=mask, pbc=config["pbc"])
         matrix = config.get("cross_matrix")
         options: dict[str, Any] = {
-            "compute_cross_matrix": None if matrix is None else np.array(matrix, dtype=bool),
+            "cross_matrix": None if matrix is None else np.array(matrix, dtype=bool),
             "compute_PS": False if cls.ndim == 2 else None,
         }
         J, L = config["J"], config.get("L", parameters["L"])  # noqa: N806
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13, OP-30: tested elsewhere
+            # STL's store_ref, load_ref and norm_batch_mean are ESTEL's norm="self", norm="ref"
+            # and ref_batch_mean.
             self.operator = STOperator(
-                target, J, L, norm="store_ref", norm_batch_mean=config["norm_batch_mean"], **options
+                target, J, L, norm="self", ref_batch_mean=config["norm_batch_mean"], **options
             )
             self.stored = self.operator.apply(target)
-            loading = STOperator(target, J, L, norm="load_ref", **options)
+            loading = STOperator(target, J, L, norm="ref", **options)
             self.loaded = loading.apply(other, ref=self.stored)
-        h_angle, h_scale, dj = config["harmonics_angle"], config["harmonics_scale"], config["dj"]
-        iso = self.stored.iso()
+        # STL's names map to ESTEL's: to_iso, to_angular_ft(harmonics_angle) and
+        # to_scale_ft(harmonics_scale, dj) are one call of reduce, whatever the chain.
+        angular: dict[str, Any] = {
+            "angular_fourier": True,
+            "angular_harmonics": config["harmonics_angle"],
+        }
+        scale: dict[str, Any] = {
+            "scale_cosine": True,
+            "scale_harmonics": config["harmonics_scale"],
+            "dj": config["dj"],
+        }
+        stored = self.stored
         self.reduced: dict[str, STStatistics] = {
-            "iso": iso,
-            "angular": self.stored.angular_ft(h_angle),
-            "iso_angular": iso.angular_ft(h_angle),
-            "iso_scale": iso.scale_ft(h_scale, dj),
-            "iso_angular_scale": iso.angular_ft(h_angle).scale_ft(h_scale, dj),
+            "iso": stored.reduce(iso=True),
+            "angular": stored.reduce(**angular),
+            "iso_angular": stored.reduce(iso=True, **angular),
+            "iso_scale": stored.reduce(iso=True, **scale),
+            "iso_angular_scale": stored.reduce(iso=True, **angular, **scale),
         }
 
     def expected(self, name: str, key: str) -> NDArray[Any]:
@@ -122,7 +135,7 @@ def _run(case: str, name: str, dtype: DType) -> _Run:
 
 
 @pytest.mark.parametrize(("case", "name"), _configs())
-def test_normalised_statistics_equal_stl(case: str, name: str, dtype: DType) -> None:
+def test_normalized_statistics_equal_stl(case: str, name: str, dtype: DType) -> None:
     run = _run(case, name, dtype)
     reference = run.operator._reference
     assert reference is not None
@@ -150,7 +163,7 @@ def test_reduced_statistics_equal_stl(case: str, name: str, dtype: DType) -> Non
 @pytest.mark.parametrize(("case", "name"), _configs())
 def test_vectors_equal_stl(case: str, name: str, dtype: DType) -> None:
     """``to_vector`` is STL's ``to_flatten(flatten_complex=True)``, OP-37 included; the
-    coefficients it leaves out (structural, OP-3, OP-30, missing scales of ``scale_ft``) are
+    coefficients it leaves out (structural, OP-3, OP-30, missing scales of ``scale_cosine``) are
     decided statically, and are exactly the NaN STL removes."""
     run = _run(case, name, dtype)
     assert_parity(np.asarray(run.stored.to_vector()), run.expected(name, "vector"), dtype)
@@ -177,7 +190,7 @@ def test_fixtures_cover_the_cells_of_t25() -> None:
         assert not matrix[1, 1], case
         assert matrix[1, 2], case
         assert np.isnan(fixture["cross_matrix_store_S1"][0, 1, 2]).all(), case
-        # OP-3: an empty mean reaches scale_ft: a harmonic is NaN at (k, a) with k + a < J,
+        # OP-3: an empty mean reaches scale_cosine: a harmonic is NaN at (k, a) with k + a < J,
         # where the reparametrisation reads a scale pair of the index set.
         n_scales = configs["deep_open"]["J"]
         s3 = fixture["deep_open_iso_scale_S3"][0, 0, 0, :, :, 0]

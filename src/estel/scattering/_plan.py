@@ -1,4 +1,4 @@
-"""The ``ScatteringPlan``: the static description of a scattering transform (Part II, §12.6;
+"""The ``STPlan``: the static description of a scattering transform (Part II, §12.6;
 Part I, §2.3, §3.1.1; task T2.3).
 
 Built once, in NumPy float64, when an operator is built, from the data's static metadata
@@ -20,7 +20,7 @@ What it holds, for STL's loop structure (maths.md §1.6 to 1.7; STL ``ST_Operato
   and scales"). The planar statistics compute no low-pass coefficient (M-S1 to M-S4); the
   tensor-product operator reads it (task T3.2).
 * **The masks and reweighting maps** of the data, ``estel.data._masks.MaskMaps`` (M-DOWN-MASK,
-  M-MASK), and the maps of each downsampling step (:meth:`ScatteringPlan.downsample_maps`).
+  M-MASK), and the maps of each downsampling step (:meth:`STPlan.downsample_maps`).
 * **The weights and denominator of every mean** (:class:`MeanWeights`; M-MEAN, M-BORDER): 1 on
   the pixels that enter the mean, 0 elsewhere, and their sum; and the means that have no
   valid pixel, whose coefficients are NaN (OP-3).
@@ -35,7 +35,7 @@ the scales of the convolutions applied, which in ESTEL is plan data rather than 
 * S4 at ``(j1, j2, j3)``: ``(j1, j3)`` and ``(j2, j3)``, at level ``j3``.
 
 The border of a mean is the larger of its operands' borders (M-BORDER, "fully flexible");
-the geometry turns it into weights (``DataClass._crop_weights``), reducing a border too large
+the geometry turns it into weights (``Data._crop_weights``), reducing a border too large
 for the grid as STL does, with one warning per plan (OP-13). The invalid pixels of a mean are
 the union of its operands' masks (M-MASK, "Covariances"). STL takes the mask of the operand
 with more convolutions instead, assuming that it contains the other one; where it does not
@@ -43,12 +43,12 @@ with more convolutions instead, assuming that it contains the other one; where i
 every pixel is valid.
 
 **Channels and options.** The plan also fixes what STL decides at each call: the number of
-channels and the channel pairs of ``compute_cross_matrix`` (:class:`ChannelPairs`; M-CHAN), the
-normalisation (``norm``, ``norm_batch_mean``; M-NORM) and the standardisation of the data
+channels and the channel pairs of ``cross_matrix`` (:class:`ChannelPairs`; M-CHAN), the
+normalisation (``norm``, ``ref_batch_mean``; M-NORM) and the standardisation of the data
 (M-MOM). They are part of its identity, so that ``estel.functional.scattering`` needs nothing but
 the data, the plan, the filters and an optional reference.
 
-**Public and opaque.** ``ScatteringPlan`` is public as a name only (Part II, §12.6): users get it
+**Public and opaque.** ``STPlan`` is public as a name only (Part II, §12.6): users get it
 from ``STOperator.plan`` and pass it to ``estel.functional.scattering``, and it has no public
 field. Its fields are those of the private base class ``_PlanFields``, read by ESTEL only.
 
@@ -75,7 +75,7 @@ from typing import Any, Literal
 import numpy as np
 from numpy.typing import NDArray
 
-from ..data._base import DataClass, _StaticMask
+from ..data._base import Data, _StaticMask
 from ..data._masks import BoolMap, FloatMap, MaskMaps, build_mask_maps
 from ..wavelets._banks import KERNEL_SIZE, _check_n_orientations, _check_size, smoothing_kernel
 
@@ -83,9 +83,9 @@ History = tuple[int, ...]
 """The scales of the convolutions applied to an operand, in order: ``()`` for the field,
 ``(j,)`` for first-layer data, ``(j2, j3)`` for second-layer data (STL's ``conv_history``)."""
 
-LowpassRealisation = Literal["smoothing_cascade"]
+LowpassRealization = Literal["smoothing_cascade"]
 
-NORMS = ("vanilla", "store_ref", "load_ref")
+NORMS = ("none", "self", "ref")
 """The values of ``norm`` (maths.md M-NORM)."""
 
 ChannelPair = tuple[int, int]
@@ -93,7 +93,8 @@ ChannelPair = tuple[int, int]
 
 @dataclass(frozen=True)
 class ChannelPairs:
-    """The channel pairs of each family, from STL's ``compute_cross_matrix`` (maths.md M-CHAN).
+    """The channel pairs of each family, from ``cross_matrix`` (STL's ``compute_cross_matrix``;
+    maths.md M-CHAN).
 
     Built by :func:`channel_pairs`; static and hashable.
     """
@@ -172,11 +173,11 @@ class MeanWeights:
 
 @dataclass(frozen=True, eq=False)
 class _PlanFields:
-    """The fields of :class:`ScatteringPlan`, internal to ESTEL (the plan is public and
+    """The fields of :class:`STPlan`, internal to ESTEL (the plan is public and
     opaque)."""
 
-    geometry: type[DataClass]
-    """The geometry of the data, the DataClass subclass the plan was built for."""
+    geometry: type[Data]
+    """The geometry of the data, the Data subclass the plan was built for."""
     J: int
     """The number of scales."""
     L: int
@@ -196,13 +197,13 @@ class _PlanFields:
     n_channels: int
     """Nc, fixed when the plan is built."""
     cross_matrix: NDArray[np.bool_]
-    """``compute_cross_matrix``, read-only, ``(Nc, Nc)``, upper triangle (M-CHAN)."""
+    """``cross_matrix``, read-only, ``(Nc, Nc)``, upper triangle (M-CHAN)."""
     pairs: ChannelPairs
     """The channel pairs of each family (M-CHAN)."""
     norm: str
     """The normalisation, one of :data:`NORMS` (M-NORM)."""
-    norm_batch_mean: bool
-    """Whether the ``store_ref`` reference is averaged over the batch (M-NORM)."""
+    ref_batch_mean: bool
+    """Whether the ``norm="self"`` reference is averaged over the batch (M-NORM)."""
     standardize: bool
     """Whether each map is standardised before the transform (M-MOM)."""
     levels: tuple[int, ...]
@@ -215,7 +216,7 @@ class _PlanFields:
     """The index set of S3: ``(j2, j3)``, j2 ≤ j3, in STL's loop order (M-S3)."""
     s4_triples: tuple[tuple[int, int, int], ...]
     """The index set of S4: ``(j1, j2, j3)``, j1 ≤ j2 ≤ j3, in STL's loop order (M-S4)."""
-    lowpass_realisation: LowpassRealisation
+    lowpass_realization: LowpassRealization
     """How the low-pass filter φ_J is realised: in 1.0.0, ``"smoothing_cascade"``, the cascade
     of the smoothing kernels of J downsamplings, as in STL (maths.md M-NOT; Part II, §12.4,
     ``_lowpass``)."""
@@ -286,7 +287,7 @@ class _PlanFields:
         return ~invalid, reweight
 
 
-class ScatteringPlan(_PlanFields):
+class STPlan(_PlanFields):
     """The static description of a scattering transform: an opaque object (Part II, §12.6).
 
     Get it from ``STOperator.plan`` and pass it, with ``STOperator.filters``, to
@@ -300,44 +301,44 @@ class ScatteringPlan(_PlanFields):
         return hash(self._key)
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, ScatteringPlan):
+        if not isinstance(other, STPlan):
             return NotImplemented
         return self._key == other._key
 
 
 def build_plan(
-    data: DataClass,
+    data: Data,
     J: int,  # noqa: N803 (maths.md notation)
     L: int,  # noqa: N803
     *,
     kernel_size: int = KERNEL_SIZE,
     cross_matrix: Any = None,
-    norm: str = "vanilla",
-    norm_batch_mean: bool = False,
+    norm: str = "none",
+    ref_batch_mean: bool = False,
     standardize: bool = False,
-) -> ScatteringPlan:
-    """The ``ScatteringPlan`` of a scattering transform with ``J`` scales and ``L``
+) -> STPlan:
+    """The ``STPlan`` of a scattering transform with ``J`` scales and ``L``
     orientations on data with the geometry, spatial shape, ``pbc``, mask and number of channels
     of ``data``.
 
     ``cross_matrix`` is STL's ``compute_cross_matrix``, a boolean ``(Nc, Nc)`` array, or
     ``None`` for every pair c1 ≤ c2, the upper triangle (M-CHAN, M-DEF); ``norm``,
-    ``norm_batch_mean`` and ``standardize`` are the operator's options (M-NORM, M-MOM). The
+    ``ref_batch_mean`` and ``standardize`` are the operator's options (M-NORM, M-MOM). The
     values of ``data.array`` are not read. Raises a ``ValueError`` when the sizes are not
     divisible by 2^(J-1) (maths.md M-DATA-2D, OP-8), and when a whole family of statistics has
     no mean with a valid pixel (M-MEAN, OP-3). Warns once when some means have no valid pixel,
     listing them (their coefficients are NaN, OP-3), and once when a border is too large for the
     grid and is reduced (M-BORDER, OP-13).
     """
-    if not isinstance(data, DataClass):
+    if not isinstance(data, Data):
         raise TypeError(
-            f"build_plan takes a DataClass, such as estel.Data2D, got {type(data).__name__}."
+            f"build_plan takes a Data object, such as estel.Data2D, got {type(data).__name__}."
         )
     n_scales = _check_scales(J, data)
     n_orientations = _check_n_orientations(L)
     size = _check_size(kernel_size)
     matrix = _cross_matrix(cross_matrix, data.n_channels)
-    _check_options(norm, norm_batch_mean, standardize)
+    _check_options(norm, ref_batch_mean, standardize)
     spatial = data.shape[2:]
     pbc = data.pbc
     levels = tuple(range(n_scales))
@@ -388,7 +389,7 @@ def build_plan(
     _check_empty(means, weights)
 
     static_mask = None if data.mask is None else _StaticMask(data.mask)
-    return ScatteringPlan(
+    return STPlan(
         geometry=type(data),
         J=n_scales,
         L=n_orientations,
@@ -402,14 +403,14 @@ def build_plan(
         cross_matrix=matrix,
         pairs=channel_pairs(matrix),
         norm=norm,
-        norm_batch_mean=bool(norm_batch_mean),
+        ref_batch_mean=bool(ref_batch_mean),
         standardize=bool(standardize),
         levels=levels,
         level_shapes=tuple(tuple(n // 2**d for n in spatial) for d in levels),
         scales=scales,
         s3_pairs=s3_pairs,
         s4_triples=s4_triples,
-        lowpass_realisation="smoothing_cascade",
+        lowpass_realization="smoothing_cascade",
         lowpass_level=n_scales,
         masks=masks,
         moments=weights["moments"],
@@ -435,7 +436,7 @@ def build_plan(
             data.n_channels,
             matrix.tobytes(),
             norm,
-            bool(norm_batch_mean),
+            bool(ref_batch_mean),
             bool(standardize),
         ),
     )
@@ -455,7 +456,7 @@ def _read_only(array: Any) -> NDArray[Any]:
 
 
 def _cross_matrix(matrix: Any, n_channels: int) -> NDArray[np.bool_]:
-    """``compute_cross_matrix`` as a read-only NumPy boolean array, upper triangle; ``None`` is
+    """``cross_matrix`` as a read-only NumPy boolean array, upper triangle; ``None`` is
     every pair c1 ≤ c2. Every channel must appear in a pair (maths.md M-CHAN, M-DEF, OP-30)."""
     if matrix is None:
         upper = np.triu(np.ones((n_channels, n_channels), dtype=bool))
@@ -464,19 +465,19 @@ def _cross_matrix(matrix: Any, n_channels: int) -> NDArray[np.bool_]:
     found = np.asarray(matrix)
     if found.dtype != np.bool_ or found.ndim != 2 or found.shape[0] != found.shape[1]:
         raise TypeError(
-            f"compute_cross_matrix: pass a square boolean array (Nc, Nc); got dtype "
+            f"cross_matrix: pass a square boolean array (Nc, Nc); got dtype "
             f"{found.dtype} and shape {found.shape}."
         )
     if found.shape[0] != n_channels:
         raise ValueError(
-            f"compute_cross_matrix is {found.shape}, but the data have {n_channels} channel(s): "
+            f"cross_matrix is {found.shape}, but the data have {n_channels} channel(s): "
             f"pass a ({n_channels}, {n_channels}) matrix, or None for every pair."
         )
     upper = np.triu(found)
     for c in range(n_channels):
         if not (upper[c, :].any() or upper[:, c].any()):
             raise ValueError(
-                f"compute_cross_matrix: channel {c} has no auto statistics and appears in no "
+                f"cross_matrix: channel {c} has no auto statistics and appears in no "
                 "cross pair (maths.md M-CHAN, OP-30). Set its diagonal entry, or an entry of one "
                 "of its pairs above the diagonal, or remove the channel."
             )
@@ -484,18 +485,18 @@ def _cross_matrix(matrix: Any, n_channels: int) -> NDArray[np.bool_]:
     return upper
 
 
-def _check_options(norm: object, norm_batch_mean: object, standardize: object) -> None:
+def _check_options(norm: object, ref_batch_mean: object, standardize: object) -> None:
     if norm not in NORMS:
         raise ValueError(
             f"norm={norm!r}: pass one of {', '.join(repr(n) for n in NORMS)} (maths.md M-NORM); "
-            '"vanilla" computes the statistics without normalisation.'
+            '"none" computes the statistics without normalisation.'
         )
-    for name, value in (("norm_batch_mean", norm_batch_mean), ("standardize", standardize)):
+    for name, value in (("ref_batch_mean", ref_batch_mean), ("standardize", standardize)):
         if not isinstance(value, bool | np.bool_):
             raise TypeError(f"{name}={value!r}: pass True or False.")
 
 
-def _check_scales(value: object, data: DataClass) -> int:
+def _check_scales(value: object, data: Data) -> int:
     """J as an int: at least 1, and the sizes divisible by 2^(J-1) (maths.md M-DATA-2D,
     M-DATA-1D, OP-8)."""
     if isinstance(value, bool) or not isinstance(value, Integral):
@@ -514,9 +515,7 @@ def _check_scales(value: object, data: DataClass) -> int:
     return n
 
 
-def _crop_weights(
-    data: DataClass, needed: Iterable[tuple[int, int]]
-) -> dict[tuple[int, int], FloatMap]:
+def _crop_weights(data: Data, needed: Iterable[tuple[int, int]]) -> dict[tuple[int, int], FloatMap]:
     """The crop weights of every ``(level, border)`` in ``needed``, from the geometry hook.
 
     STL warns once per operator when it reduces a border too large for the grid (OP-13): the
@@ -597,8 +596,8 @@ def _check_empty(
     listed = "; ".join(means[key][0] for key in empty)
     warnings.warn(
         f"{len(empty)} mean(s) have no pixel left after the missing values and the border crop, "
-        f"so their coefficients are NaN, as in STL, and are not computed (maths.md M-MEAN, "
-        f"OP-3): {listed}. {advice}",
+        f"so their coefficients are NaN and are not computed (maths.md M-MEAN, OP-3): "
+        f"{listed}. {advice}",
         UserWarning,
         stacklevel=3,
     )

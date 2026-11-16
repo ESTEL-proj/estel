@@ -1,7 +1,7 @@
-"""The mother DataClass (Part II, §12.4; Part I, §2.3; maths.md M-DATA-2D, M-DATA-1D).
+"""The mother class ``Data`` (Part II, §12.4; Part I, §2.3; maths.md M-DATA-2D, M-DATA-1D).
 
-A DataClass is one backend array plus static metadata: the periodicity ``pbc`` and the mask of
-missing values. It is immutable: operations return new objects (:meth:`DataClass.with_array`),
+A ``Data`` object is one backend array plus static metadata: the periodicity ``pbc`` and the mask of
+missing values. It is immutable: operations return new objects (:meth:`Data.with_array`),
 never modify one. Subclasses (``Data1D``, ``Data2D`` in ``_planar.py``) set the number of spatial
 axes and the geometry constants, and override only the geometry hooks (tag G of §12.4).
 
@@ -15,9 +15,9 @@ for missing values again (Part I, §3.1, rule 3).
 The values of the array at masked pixels are kept as given (NaN, if the mask came from them).
 They are never read: the statistics use the mask as weights (M-DOWN-MASK, M-MEAN; OP-27).
 
-Every DataClass is a pytree whose only leaf is the array (Part I, §2.3 and §3.1, rule 9; task
+Every ``Data`` object is a pytree whose only leaf is the array (Part I, §2.3 and §3.1, rule 9; task
 T2.9): each subclass is registered when it is defined, on every backend, so that ``jax.jit``
-and ``jax.vmap`` accept a DataClass and return one.
+and ``jax.vmap`` accept a ``Data`` object and return one.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from ..backend import _registry
 _FLOAT_DTYPES = ("float32", "float64")
 
 
-class DataClass:
+class Data:
     """Data plus static metadata: the mother class of every geometry.
 
     Build a geometry instead: ``Data1D`` or ``Data2D``. The mother class holds the shared
@@ -121,7 +121,7 @@ class DataClass:
     @classmethod
     def _from_parts(
         cls, array: Any, mask: NDArray[np.bool_] | None, pbc: bool, backend: str
-    ) -> DataClass:
+    ) -> Data:
         """A new object from parts already validated: no conversion, no check of values, so
         that it works inside traced code."""
         new = cls.__new__(cls)
@@ -177,7 +177,7 @@ class DataClass:
 
     # ------------------------------------------------------------------ functional updates
 
-    def with_array(self, new_array: Any) -> DataClass:
+    def with_array(self, new_array: Any) -> Data:
         """A new object with ``new_array`` in place of the array, and the same metadata.
 
         This replaces STL's in-place updates (``inplace=True``). ``new_array`` must be an array
@@ -201,7 +201,7 @@ class DataClass:
             )
         return self._from_parts(new_array, self._mask, self._pbc, self._backend)
 
-    def copy(self, empty: bool = False) -> DataClass:
+    def copy(self, empty: bool = False) -> Data:
         """A new object with a copy of the array, and the same metadata.
 
         With ``empty=True`` the array of the copy is filled with zeros (STL sets it to
@@ -211,7 +211,7 @@ class DataClass:
         array = xp.zeros_like(self._array) if empty else xp.asarray(self._array, copy=True)
         return self._from_parts(array, self._mask, self._pbc, self._backend)
 
-    def __getitem__(self, key: Any) -> DataClass:
+    def __getitem__(self, key: Any) -> Data:
         """Select batch elements and channels: ``data[b]``, ``data[b, c]``, with ``b`` and
         ``c`` ints or slices.
 
@@ -249,7 +249,7 @@ class DataClass:
         return (self._array,), (mask, self._pbc, self._backend)
 
     @classmethod
-    def _tree_unflatten(cls, aux: tuple[Any, ...], children: tuple[Any, ...]) -> DataClass:
+    def _tree_unflatten(cls, aux: tuple[Any, ...], children: tuple[Any, ...]) -> Data:
         """Rebuild from :meth:`_tree_flatten`, without looking at the leaf: the backend passes
         tracers, batched arrays and placeholders."""
         mask, pbc, backend = aux
@@ -315,20 +315,22 @@ class DataClass:
 # ---------------------------------------------------------------------- geometry hook inputs
 
 
-_GEOMETRIES: dict[str, type[DataClass]] = {}
-"""The geometry classes, by the name they declare (``DataClass._geometry``)."""
+_GEOMETRIES: dict[str, type[Data]] = {}
+"""The geometry classes, by the name they declare (``Data._geometry``)."""
 
 
-def geometry_class(name: str) -> type[DataClass]:
-    """The DataClass subclass that declares the geometry ``name`` (``"1d"``, ``"2d"``)."""
+def geometry_class(name: str) -> type[Data]:
+    """The Data subclass that declares the geometry ``name`` (``"1d"``, ``"2d"``)."""
     if name not in _GEOMETRIES:
         known = ", ".join(repr(n) for n in sorted(_GEOMETRIES))
-        raise ValueError(f"no DataClass declares the geometry {name!r}; known geometries: {known}.")
+        raise ValueError(
+            f"no Data subclass declares the geometry {name!r}; known geometries: {known}."
+        )
     return _GEOMETRIES[name]
 
 
 class DownsampleWeights(NamedTuple):
-    """The static weights of one downsampling step (:meth:`DataClass._downsample`), as arrays
+    """The static weights of one downsampling step (:meth:`Data._downsample`), as arrays
     of the data's backend, built from the plan.
 
     ``wavelets`` and ``data`` are independent layers, so the kernel is passed in rather than
@@ -356,14 +358,14 @@ class _StaticMask:
     ``_StaticMask`` exactly when the two masks have the same shape and values.
 
     JAX hashes and compares the static part of a pytree to reuse compiled functions, and a
-    NumPy array can be neither hashed nor compared to a single bool. Two DataClasses with equal
+    NumPy array can be neither hashed nor compared to a single bool. Two Data objects with equal
     masks then share one compiled function; a different mask compiles a new one, since the
     mask is static.
 
     The hash is computed once, here, and the wrapped mask is read-only, so that the hash can
-    never go stale. A DataClass mask is already a read-only array that owns its data, and is
-    kept as it is; any other mask (writable, or a view whose base may be written) is copied
-    first.
+    never go stale. The mask of a ``Data`` object is already a read-only array that owns its
+    data, and is kept as it is; any other mask (writable, or a view whose base may be written)
+    is copied first.
     """
 
     __slots__ = ("_hash", "mask")
@@ -392,7 +394,7 @@ class _StaticMask:
 # ---------------------------------------------------------------------- validation
 
 
-def _to_backend(array: Any, backend_name: str, cls: type[DataClass]) -> Any:
+def _to_backend(array: Any, backend_name: str, cls: type[Data]) -> Any:
     """``array`` as an array of the current backend, with a real floating dtype."""
     if array is None:
         raise TypeError(f"{cls.__name__} needs an array, got None.")
@@ -421,7 +423,7 @@ def _to_backend(array: Any, backend_name: str, cls: type[DataClass]) -> Any:
     return backend.asarray(values.astype(np.float64), default_dtype(), default_device())
 
 
-def _promote(array: Any, cls: type[DataClass]) -> Any:
+def _promote(array: Any, cls: type[Data]) -> Any:
     """Promote ``array`` to ``(Nb, Nc, *spatial)`` (maths.md M-DATA-2D, M-DATA-1D, OP-29)."""
     shape = tuple(int(n) for n in array.shape)
     accepted = cls._accepted_shapes()
@@ -442,7 +444,7 @@ def _validate_mask(
     nan: NDArray[np.bool_],
     shape: tuple[int, ...],
     backend: Any,
-    cls: type[DataClass],
+    cls: type[Data],
 ) -> NDArray[np.bool_] | None:
     """The mask of missing values, from ``mask`` or from the NaN of the array (OP-26)."""
     spatial = tuple(int(n) for n in shape[2:])

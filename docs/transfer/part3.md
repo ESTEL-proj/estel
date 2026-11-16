@@ -70,7 +70,7 @@ Decisions that change what existing statistics compute.
 | ID | Feature | Why | Builds on (reserved in 1.0.0) | Changes reference values | Version impact | Details | Source |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | LF20 | Canonical coefficient set | no duplicate coefficients | compact layout | yes | reference bump; major decided with the maintainers | §19.8 | Q1, G2, OP-14 |
-| LF21 | Gradient semantics through the reference: closed (14 November 2026). It follows from the mode: with store_ref the reference is part of the computation and gradients flow through it; with load_ref it is a constant. Nothing else to design | implicit differentiation with targets that depend on parameters | `ref` argument | yes, if the default changes | reference bump if default | §20.7 | Q2, G6, OP-18 |
+| LF21 | Gradient semantics through the reference: closed (14 November 2026). It follows from the mode: with `norm="self"` the reference is part of the computation and gradients flow through it; with `norm="ref"` it is a constant. Nothing else to design | implicit differentiation with targets that depend on parameters | `ref` argument | yes, if the default changes | reference bump if default | §20.7 | Q2, G6, OP-18 |
 | LF22 | Wavelet optimisation | better filters, satisfying a Littlewood–Paley condition, low-pass filter included (LF6), tested in CI | `WaveletOperator` | yes | reference bump; major decided with the maintainers | §20.6, §20.10 | — |
 
 ### 16.5 Entries added in the reviews of 12 and 13 November 2026
@@ -82,7 +82,7 @@ They continue the numbering; their category is given in the second column.
 | LF23 | 16.2 New feature | 1D and tensor-product spectra, as in STL `2D+1D`: binned spectra, joint and low-pass bins | spectra for every planar geometry | `method=` names reserved | no (new capability) | Part II, §9.2 | C22 |
 | LF24 | 16.2 New feature | HEALPix spectra (`gaussian_rings`, `alm`, `anafast`), through the Rust anafast (LF5) | spectra on the sphere | `method=` names reserved | no (new capability) | §18.4 | C22, C9 |
 | LF25 | 16.4 Mathematical choice | Exact translation invariance: remove the grid locking between the centring of the downsampling kernel and the stride, without breaking Littlewood–Paley | a property users expect, and a strong test | `smoothing_kernel`, downsampling | yes | §20.8, §20.10 | C19, OP-2 |
-| LF26 | 16.4 Mathematical choice | Reductions on tensor products (`iso`, `angular_ft`, `scale_ft`) redefined: the product orientation mixes rotations with the direction of propagation | meaningful reduced statistics for space–time data | reductions | yes | maths tab, OP-44 | C8, OP-5 |
+| LF26 | 16.4 Mathematical choice | Reductions on tensor products (`iso`, `angular_fourier`, `scale_cosine`) redefined: the product orientation mixes rotations with the direction of propagation | meaningful reduced statistics for space–time data | reductions | yes | maths tab, OP-44 | C8, OP-5 |
 | LF27 | 16.4 Mathematical choice | Relevance of the partial order of tensor-product scales: should some incomparable pairs of scales be measured? | interactions between fine-in-space, coarse-in-time and coarse-in-space, fine-in-time components are never measured | `_scale_index_set` | yes, if the set of scales changes | §20.9 | A12 |
 | LF28 | 16.4 Mathematical choice | A better regularisation of the cross S1 terms than `ε = 1e-8` | the constant is arbitrary and scale-dependent | M-S1 | yes | maths tab, OP-16 | G17, OP-16 |
 | LF29 | 16.3 Optimisation | Small kernels baked in as compiled constants | possible speed-up under compilation | static plan | no | Part I, §3.1, rule 4 | review of 12 November 2026 (Pablo) |
@@ -129,7 +129,7 @@ The whole Python engine — L1, L2, synthesis, utilities — runs on JAX, with `
 
 - The functional rules of Part I, §3.1, checked by AST rules and by running the whole test suite on the experimental JAX backend from phase P1.
 - Static plans built in NumPy (Part I, §2.2.2).
-- DataClasses and statistics registered as pytrees.
+- Data objects and statistics registered as pytrees.
 - No backend import outside L0 (Part I, §2.4).
 
 The JAX backend is therefore the implementation of the L0 protocol in `estel/backend/jax/`, plus its optimizer, with no change elsewhere. Any change it would require in L1 or L2 reveals a breach of the step-1 rules and is fixed as a bug.
@@ -335,7 +335,7 @@ Every stored entry carries its full named coordinates, so selection, plotting an
 
 ### 19.6 Reductions as static linear maps
 
-Normalisation (for a fixed reference), `iso`, `angular_ft` and `scale_ft` are linear in the coefficients. Each is precomputed in NumPy as an (index, weight) table and applied with `segment_sum` or a small matrix product per segment, returning a new layout. They are therefore differentiable, compilable and backend-neutral.
+Normalisation (for a fixed reference), `iso`, `angular_fourier` and `scale_cosine` are linear in the coefficients. Each is precomputed in NumPy as an (index, weight) table and applied with `segment_sum` or a small matrix product per segment, returning a new layout. They are therefore differentiable, compilable and backend-neutral.
 
 ### 19.7 What the compact layout does not solve
 
@@ -538,7 +538,7 @@ The scattering covariances are covariances (maths tab, "Moments and covariances"
 3. **Band-pass kernels sum to zero, by requirement.** Every band-pass kernel is built with a zero sum, and its construction fails if this does not hold within rounding. Rule 2 relies on it: it is a guarantee of the filter bank, not a property looked up kernel by kernel.
 4. **One window per level when centring is active.** All the maps of a level share the most restrictive border and mask, so that M1 and M2 use the same window. Centring is then exact, costs one sum per map, and is a rank-one correction of the level's Gram product (§19.3). This window policy is an option of the plan, which holds the weights of every mean: going back to one window per pair changes values, not the structure of the code.
 5. **A fast path for non-periodic data without mask,** a common case in optimisations: the window is a rectangle, taken as a slice of the arrays, with no weight map.
-6. **Two independent options.** `centre` takes the values `none` (STL, 1.0.0), `self` (the map's own first moments; the default in step 2; gradients flow through them) or `ref` (the first moments of a reference). `norm` does not depend on it. Both may read the same reference object, which stores the normalisation scales and the first moments.
+6. **Two independent options.** `center` takes the values `none` (STL, 1.0.0), `self` (the map's own first moments; the default in step 2; gradients flow through them) or `ref` (the first moments of a reference). `norm` does not depend on it. Both may read the same reference object, which stores the normalisation scales and the first moments.
 7. **The mean of the data** is removed first and stored apart, explicitly, by default. If it is not removed, every term ending with a low-pass filter, S1 included, is centred explicitly: this is never left implicit.
 
 The measured sizes of the forgotten term are in OP-36.

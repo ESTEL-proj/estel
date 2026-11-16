@@ -1,14 +1,15 @@
-"""The reductions of the statistics: ``iso``, ``angular_ft`` and ``scale_ft`` (maths.md
-M-RED-ISO, M-RED-ANG, M-RED-SCALE, OP-5, OP-17; STL ``to_iso``, ``to_angular_ft``,
-``to_scale_ft``; task T2.5).
+"""The reductions of the statistics: ``iso``, ``angular_fourier`` and ``scale_cosine``
+(maths.md M-RED-ISO, M-RED-ANG, M-RED-SCALE, OP-5, OP-17; STL ``to_iso``, ``to_angular_ft``,
+``to_scale_ft``; task T2.5), which ``STStatistics.reduce`` applies in this order.
 
 In ESTEL "reduction" means these three operations only. Each takes the full grids and their
 static layout (``_grid.FamilyGrid``) and returns new ones; nothing is modified. They are linear
 in the coefficients, written with static index tables and the L0 protocol, so that they are
 differentiable on every backend. Where no coefficient exists the result is NaN, as in STL, and
-the layout says so statically: ``iso`` and ``angular_ft`` keep the positions of their inputs,
-since a coefficient exists for every orientation or for none; ``scale_ft`` sets missing inputs to
-0 for the transform and puts NaN back afterwards, at the same positions, as STL does.
+the layout says so statically: ``iso`` and ``angular_fourier`` keep the positions of their
+inputs, since a coefficient exists for every orientation or for none; ``scale_cosine`` sets
+missing inputs to 0 for the transform and puts NaN back afterwards, at the same positions, as
+STL does.
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ ISO_AXES = {"S3": ("dl",), "S4": ("dl2", "dl3")}
 """The orientation axes of S3 and S4 after ``iso``: differences modulo L (M-RED-ISO)."""
 
 SCALE_AXES = {"S3": (("j2", "j3"), ("k", "a")), "S4": (("j1", "j2", "j3"), ("k", "a", "b"))}
-"""The scale axes of S3 and S4 before ``scale_ft``, and after it (M-RED-SCALE)."""
+"""The scale axes of S3 and S4 before ``scale_cosine``, and after it (M-RED-SCALE)."""
 
 
 Values = dict[str, Any]
@@ -113,10 +114,10 @@ def iso(
     return out, tuple(new)
 
 
-# ---------------------------------------------------------------------- angular_ft
+# ---------------------------------------------------------------------- angular_fourier
 
 
-def angular_ft(
+def angular_fourier(
     backend: Backend, values: Values, grids: Grids, harmonics: int, after_iso: bool
 ) -> tuple[Values, Grids]:
     """The angular Fourier transform (M-RED-ANG; STL ``to_angular_ft``): an orthonormal DFT over
@@ -147,7 +148,7 @@ def angular_ft(
     return out, tuple(new)
 
 
-# ---------------------------------------------------------------------- scale_ft
+# ---------------------------------------------------------------------- scale_cosine
 
 
 def cosine_basis(n: int) -> NDArray[np.float64]:
@@ -183,7 +184,7 @@ def _scale_table(
     return index.astype(np.int64), valid
 
 
-def scale_ft(
+def scale_cosine(
     backend: Backend,
     values: Values,
     grids: Grids,

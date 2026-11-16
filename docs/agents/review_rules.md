@@ -39,7 +39,7 @@ Each finding names its rule ID and a severity:
 
 ## B. Implementation
 
-- **B1. Validate once, at one layer.** Inputs are validated when a DataClass or an operator is built, not
+- **B1. Validate once, at one layer.** Inputs are validated when a `Data` object or an operator is built, not
   again in every function. Validation errors say what to do next (X8).
 - **B3. No optimisation without measurement.** Caching, fused kernels, avoided allocations or reorganised
   loops need a benchmark (Part I, §6.3). Suggest the simple version first.

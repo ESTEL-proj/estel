@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data1D, Data2D, DataClass, STOperator, STStatistics, _config
+from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
 from estel.backend._protocol import Backend, DType
 from estel.scattering._plan import channel_pairs
 
@@ -44,8 +44,8 @@ def _hole(n: int, ndim: int) -> NDArray[np.bool_]:
     return mask
 
 
-def _operator(data: DataClass, J: int | None, **kwargs: Any) -> STOperator:  # noqa: N803
-    options: dict[str, Any] = {"norm": "vanilla", "compute_PS": False if data.ndim == 2 else None}
+def _operator(data: Data, J: int | None, **kwargs: Any) -> STOperator:  # noqa: N803
+    options: dict[str, Any] = {"norm": "none", "compute_PS": False if data.ndim == 2 else None}
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13: tested with the plan
         return STOperator(data, J, **{**options, **kwargs})
@@ -66,7 +66,7 @@ def _numpy(stats: STStatistics) -> dict[str, NDArray[Any]]:
 @pytest.mark.dtype
 @pytest.mark.parametrize(("cls", "n", "L"), [(Data2D, 16, 4), (Data1D, 32, 1), (Data1D, 32, 2)])
 def test_full_grids_have_stls_shapes_dtypes_and_nan(
-    cls: type[DataClass],
+    cls: type[Data],
     n: int,
     L: int,  # noqa: N803 (maths.md notation)
     dtype: str,
@@ -127,7 +127,7 @@ def test_custom_cross_matrix(dtype: str) -> None:
     diagonal are ignored, as in STL."""
     matrix = np.array([[True, False, True], [True, False, True], [True, True, True]])
     data = Data2D(_field((1, 3, 16, 16)), pbc=True)
-    values = _numpy(_operator(data, 2, compute_cross_matrix=matrix).apply(data))
+    values = _numpy(_operator(data, 2, cross_matrix=matrix).apply(data))
     computed_s1 = ~np.isnan(values["S1"][0, :, :, 0, 0])
     np.testing.assert_array_equal(
         computed_s1, np.triu(matrix) & ~np.eye(3, dtype=bool) | np.diag([1, 0, 1]).astype(bool)
@@ -149,7 +149,7 @@ def test_channel_pairs_follow_stls_order() -> None:
 
 @pytest.mark.parametrize(("cls", "n"), [(Data2D, 32), (Data1D, 64)])
 @pytest.mark.parametrize("pbc", [True, False])
-def test_missing_values_are_never_read(cls: type[DataClass], n: int, pbc: bool) -> None:
+def test_missing_values_are_never_read(cls: type[Data], n: int, pbc: bool) -> None:
     """NaN, 0 or a huge value at the missing pixels give the same statistics (OP-27)."""
     mask = _hole(n, cls.ndim)
     field = _field((2, 2) + (n,) * cls.ndim)
@@ -199,7 +199,7 @@ def test_standardize_returns_the_moments_removed(dtype: str) -> None:
 @pytest.mark.slow
 @pytest.mark.parametrize(("cls", "n"), [(Data2D, 16), (Data1D, 32)])
 def test_gradients_are_finite_with_missing_values(
-    cls: type[DataClass], n: int, backend: Backend, dtype: DType
+    cls: type[Data], n: int, backend: Backend, dtype: DType
 ) -> None:
     """First and second order through the whole loop, with exact zeros (the missing pixels,
     filled with 0) and NaN in the input there (Part I, §3.2.3): finite, and zero at the missing
@@ -234,10 +234,10 @@ def test_gradients_are_finite_with_missing_values(
 
 def test_norm_is_checked() -> None:
     data = Data2D(_field((16, 16)), pbc=True)
-    with pytest.raises(ValueError, match="vanilla"):
-        STOperator(data, 2, norm="self", compute_PS=False)
-    with pytest.raises(TypeError, match="norm_batch_mean"):
-        STOperator(data, 2, norm_batch_mean=1, compute_PS=False)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="'none', 'self', 'ref'"):
+        STOperator(data, 2, norm="store_ref", compute_PS=False)
+    with pytest.raises(TypeError, match="ref_batch_mean"):
+        STOperator(data, 2, ref_batch_mean=1, compute_PS=False)  # type: ignore[arg-type]
     operator = _operator(data, 2)
     with pytest.raises(ValueError, match="takes no reference"):
         operator.apply(data, ref=object())  # type: ignore[arg-type]
@@ -245,10 +245,10 @@ def test_norm_is_checked() -> None:
 
 def test_compute_ps() -> None:
     with pytest.raises(NotImplementedError, match=r"T4.1"):
-        STOperator(Data2D(_field((16, 16)), pbc=True), 2, norm="vanilla")
+        STOperator(Data2D(_field((16, 16)), pbc=True), 2, norm="none")
     with pytest.raises(ValueError, match="LF23"):
-        STOperator(Data1D(_field((32,)), pbc=True), 2, norm="vanilla", compute_PS=True)
-    STOperator(Data1D(_field((32,)), pbc=True), 2, norm="vanilla", compute_PS=False)
+        STOperator(Data1D(_field((32,)), pbc=True), 2, norm="none", compute_PS=True)
+    STOperator(Data1D(_field((32,)), pbc=True), 2, norm="none", compute_PS=False)
 
 
 def test_defaults_follow_m_def() -> None:
@@ -273,7 +273,7 @@ def test_apply_refuses_other_data(dtype: str) -> None:
     ):
         with pytest.raises(ValueError, match="build a new STOperator"):
             operator.apply(other)
-    with pytest.raises(TypeError, match="DataClass"):
+    with pytest.raises(TypeError, match="Data object"):
         operator.apply(_field((2, 16, 16)))  # type: ignore[arg-type]
     other_dtype = "float64" if dtype == "float32" else "float32"
     with pytest.MonkeyPatch.context() as patch:
@@ -286,12 +286,12 @@ def test_apply_refuses_other_data(dtype: str) -> None:
 def test_cross_matrix_errors() -> None:
     data = Data2D(_field((3, 16, 16)), pbc=True)
     with pytest.raises(ValueError, match="OP-30"):
-        _operator(data, 2, compute_cross_matrix=np.diag([True, False, True]))
+        _operator(data, 2, cross_matrix=np.diag([True, False, True]))
     with pytest.raises(TypeError, match="boolean"):
-        _operator(data, 2, compute_cross_matrix=np.ones((3, 3)))
+        _operator(data, 2, cross_matrix=np.ones((3, 3)))
     with pytest.raises(ValueError, match="channel"):
-        _operator(data, 2, compute_cross_matrix=np.ones((2, 2), dtype=bool))
-    operator = _operator(data, 2, compute_cross_matrix=np.ones((3, 3), dtype=bool))
+        _operator(data, 2, cross_matrix=np.ones((2, 2), dtype=bool))
+    operator = _operator(data, 2, cross_matrix=np.ones((3, 3), dtype=bool))
     with pytest.raises(ValueError, match="channel"):
         operator.apply(Data2D(_field((2, 16, 16)), pbc=True))
     # The number of channels is fixed at construction, with the default matrix too (issue #17).

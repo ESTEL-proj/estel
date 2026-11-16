@@ -21,7 +21,7 @@ Statistics: TypeAlias = Any
 """What the forward pass returns: the statistics, ``STStatistics`` (T2.5)."""
 
 Plan: TypeAlias = Any
-"""The static plan of an operator (``ScatteringPlan`` from T2.3)."""
+"""The static plan of an operator (``STPlan`` from T2.3)."""
 
 Residual: TypeAlias = Any
 """Opaque data the forward pass hands to the VJP. Only the engine that made it reads it."""

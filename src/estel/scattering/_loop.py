@@ -35,10 +35,10 @@ from typing import Any, NamedTuple
 
 from ..backend import _registry
 from ..backend._protocol import Backend
-from ..data._base import DataClass, DownsampleWeights
+from ..data._base import Data, DownsampleWeights
 from ..data._moments import cov_sum_valid, divide, modulus, standardize, sum_valid
-from ._filters import ScatteringFilters
-from ._plan import ScatteringPlan
+from ._filters import STFilters
+from ._plan import STPlan
 
 S1_EPSILON = 1e-8
 """ε of the cross S1 terms, ``z / (|z| + ε)^(1/2)`` (maths.md M-S1, OP-16)."""
@@ -95,9 +95,7 @@ class _Sum(NamedTuple):
 # ---------------------------------------------------------------------- the loop
 
 
-def scattering_values(
-    data: DataClass, plan: ScatteringPlan, filters: ScatteringFilters
-) -> ScatteringValues:
+def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> ScatteringValues:
     """The statistics of ``data`` without normalisation (maths.md M-MOM, M-W1, M-S1 to M-S4),
     STL's ``ST_Operator`` with ``norm="vanilla"`` and no spectrum.
 

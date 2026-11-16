@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data1D, Data2D, DataClass
+from estel import Data, Data1D, Data2D
 from estel.backend._protocol import Backend, DType
 from estel.data._base import DownsampleWeights
 from estel.data._masks import build_mask_maps
@@ -35,7 +35,7 @@ def _assert_close(backend: Backend, actual: Any, expected: NDArray[Any], dtype: 
     np.testing.assert_allclose(got, expected, rtol=rtol, atol=atol * scale)
 
 
-def _geometry(ndim: int, n: int, pbc: bool) -> DataClass:
+def _geometry(ndim: int, n: int, pbc: bool) -> Data:
     return GEOMETRIES[ndim](np.zeros((n,) * ndim), pbc=pbc)
 
 
@@ -175,11 +175,11 @@ def test_downsample_rejects_bad_inputs(backend: Backend, dtype: DType) -> None:
 
 def test_mother_class_hooks_say_to_override() -> None:
     with pytest.raises(NotImplementedError, match="overrides"):
-        DataClass._conv(None, None, None, 0)  # type: ignore[arg-type]
+        Data._conv(None, None, None, 0)  # type: ignore[arg-type]
     with pytest.raises(NotImplementedError, match="overrides"):
-        DataClass._downsample(None, None, None, 0)  # type: ignore[arg-type]
+        Data._downsample(None, None, None, 0)  # type: ignore[arg-type]
     with pytest.raises(NotImplementedError, match="overrides"):
-        DataClass._crop_weights(None, 0, 0)  # type: ignore[arg-type]
+        Data._crop_weights(None, 0, 0)  # type: ignore[arg-type]
 
 
 @pytest.mark.maths("M-BORDER")

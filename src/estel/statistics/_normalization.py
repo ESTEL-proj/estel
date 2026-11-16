@@ -1,10 +1,10 @@
 """The normalisation of the statistics (maths.md M-NORM, OP-18, OP-30; Part II, §12.6
 ``_normalize``; task T2.5).
 
-``norm="store_ref"`` normalises the statistics by themselves: the reference is computed from
-them (:func:`store_reference`), is part of the computation, and gradients flow through it.
-``norm="load_ref"`` normalises them by the reference of other statistics, a constant: gradients
-do not flow into it (LF21, closed). With ``norm_batch_mean``, the ``store_ref`` reference is
+``norm="self"`` normalises the statistics by themselves: the reference is computed from
+them (:func:`self_reference`), is part of the computation, and gradients flow through it.
+``norm="ref"`` normalises them by the reference of other statistics, a constant: gradients
+do not flow into it (LF21, closed). With ``ref_batch_mean``, the ``norm="self"`` reference is
 first averaged over the batch.
 
 The reference (:class:`_NormReference`, internal) holds STL's ``var_ref`` and
@@ -29,26 +29,26 @@ from ._arrays import masked, nan_absent, zero_absent
 from ._grid import FamilyGrid
 
 if TYPE_CHECKING:
-    from ..scattering._plan import ScatteringPlan
+    from ..scattering._plan import STPlan
 
 
 @dataclass(frozen=True, eq=False)
 class _NormReference:
     """The normalisation reference of M-NORM: STL's ``var_ref`` and ``S2_ref_sqrt_chan_diag``.
 
-    Internal (issue #17): the operator stores it with ``store_ref``, and ``load_ref`` reads it
+    Internal (issue #17): the operator stores it with ``norm="self"``, and ``norm="ref"`` reads it
     from the operator or from the statistics passed to ``apply``. From step 2 it also holds the
     first moments of the centred covariances (Part III, §20.11).
     """
 
     var: Any
-    """``var_ref``, ``(Nr, Nc)``, real; Nr = 1 with ``norm_batch_mean``, else the batch size."""
+    """``var_ref``, ``(Nr, Nc)``, real; Nr = 1 with ``ref_batch_mean``, else the batch size."""
     s2_sqrt: Any
     """sigma, STL's ``S2_ref_sqrt_chan_diag``: ``(Nr, Nc, J, L)``, complex, NaN where it does
     not exist."""
     present: NDArray[np.bool_]
     """``(Nc, J)``, static: where sigma exists (``_grid.auto_scales``)."""
-    norm_batch_mean: bool
+    ref_batch_mean: bool
     """Whether the reference was averaged over the batch."""
 
     @property
@@ -57,23 +57,23 @@ class _NormReference:
 
     def static(self) -> tuple[Any, ...]:
         """The static part, hashable: for the pytree of ``STStatistics`` and for ``save``."""
-        return (self.present.shape, self.present.tobytes(), self.norm_batch_mean)
+        return (self.present.shape, self.present.tobytes(), self.ref_batch_mean)
 
     @classmethod
     def from_static(cls, static: tuple[Any, ...], var: Any, s2_sqrt: Any) -> _NormReference:
-        shape, data, norm_batch_mean = static
+        shape, data, ref_batch_mean = static
         present = np.frombuffer(data, dtype=bool).reshape(shape).copy()
         present.flags.writeable = False
-        return cls(var=var, s2_sqrt=s2_sqrt, present=present, norm_batch_mean=norm_batch_mean)
+        return cls(var=var, s2_sqrt=s2_sqrt, present=present, ref_batch_mean=ref_batch_mean)
 
 
-def store_reference(
+def self_reference(
     backend: Backend,
     values: dict[str, Any],
     present: NDArray[np.bool_],
-    norm_batch_mean: bool,
+    ref_batch_mean: bool,
 ) -> _NormReference:
-    """The reference of ``store_ref``, from the statistics being normalised (M-NORM; STL
+    """The reference of ``norm="self"``, from the statistics being normalised (M-NORM; STL
     ``to_norm(norm_type="self")``, ``_get_sqrt_chan_diag``). ``present`` is where sigma exists."""
     xp = backend.xp
     var, s2 = values["var"], values["S2"]
@@ -81,22 +81,20 @@ def store_reference(
     diagonal = xp.stack([s2[:, c, c] for c in range(n_channels)], axis=1)  # (Nb, Nc, J, L)
     where = present[:, :, None]
     diagonal = masked(backend, where, diagonal, xp.ones_like(diagonal))
-    if norm_batch_mean:
+    if ref_batch_mean:
         var = xp.mean(var, axis=0, keepdims=True)
         diagonal = xp.mean(diagonal, axis=0, keepdims=True)
     s2_sqrt = nan_absent(backend, where, xp.sqrt(diagonal))
-    return _NormReference(
-        var=var, s2_sqrt=s2_sqrt, present=present, norm_batch_mean=norm_batch_mean
-    )
+    return _NormReference(var=var, s2_sqrt=s2_sqrt, present=present, ref_batch_mean=ref_batch_mean)
 
 
 def as_constant(backend: Backend, reference: _NormReference) -> _NormReference:
-    """The reference of ``load_ref``: a constant, through which no gradient flows (LF21)."""
+    """The reference of ``norm="ref"``: a constant, through which no gradient flows (LF21)."""
     return _NormReference(
         var=backend.stop_gradient(reference.var),
         s2_sqrt=backend.stop_gradient(reference.s2_sqrt),
         present=reference.present,
-        norm_batch_mean=reference.norm_batch_mean,
+        ref_batch_mean=reference.ref_batch_mean,
     )
 
 
@@ -158,15 +156,13 @@ def normalize(
     return out, tuple(new_grids)
 
 
-def check_reference(
-    reference: _NormReference, plan: ScatteringPlan, n_batch: int, dtype: Any
-) -> None:
+def check_reference(reference: _NormReference, plan: STPlan, n_batch: int, dtype: Any) -> None:
     """Raise unless ``reference`` can normalise the statistics of ``plan``, before they are
     computed (maths.md M-NORM).
 
     The reference must have the J, L and number of channels of the plan, and a normalisation
     scale sigma for every channel the plan normalises: each channel with auto statistics in the
-    plan. A channel the plan meets only in cross pairs has no scale under ``store_ref`` either,
+    plan. A channel the plan meets only in cross pairs has no scale under ``norm="self"`` either,
     and its coefficients stay NaN when the reference has none (OP-30). The size, the mask and
     the periodicity of the data the reference comes from are free: the syntheses normalise by
     the reference of a target of another size. A scale the reference lacks because its mask
@@ -195,15 +191,15 @@ def check_reference(
     if missing:
         raise ValueError(
             f"the reference has no normalisation scale for channel(s) {missing}, which this "
-            "operator normalises (they have auto statistics in compute_cross_matrix): compute "
+            "operator normalises (they have auto statistics in cross_matrix): compute "
             "the reference with their diagonal entries set, so that it holds their auto "
             "statistics (maths.md M-NORM, M-CHAN, OP-30)."
         )
     if reference.n_batch not in (1, n_batch):
         raise ValueError(
             f"the reference was computed on {reference.n_batch} batch elements without "
-            f"norm_batch_mean, and these data have {n_batch}: pass data with {reference.n_batch} "
-            "batch element(s), or compute the reference with norm_batch_mean=True (maths.md "
+            f"ref_batch_mean, and these data have {n_batch}: pass data with {reference.n_batch} "
+            "batch element(s), or compute the reference with ref_batch_mean=True (maths.md "
             "M-NORM)."
         )
     if reference.var.dtype != dtype:

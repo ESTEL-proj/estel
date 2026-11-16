@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from estel import Data1D, Data2D, DataClass, STOperator, _config
+from estel import Data, Data1D, Data2D, STOperator, _config
 from estel.scattering import _loop
 
 
@@ -24,15 +24,15 @@ def _run_dtype(monkeypatch: pytest.MonkeyPatch, dtype: str) -> None:
     monkeypatch.setattr(_config, "_dtype", dtype)
 
 
-def _operator(data: DataClass, J: int, **kwargs: Any) -> STOperator:  # noqa: N803
+def _operator(data: Data, J: int, **kwargs: Any) -> STOperator:  # noqa: N803
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         return STOperator(
-            data, J, norm="vanilla", compute_PS=False if data.ndim == 2 else None, **kwargs
+            data, J, norm="none", compute_PS=False if data.ndim == 2 else None, **kwargs
         )
 
 
-def _vector(data: DataClass, operator: STOperator) -> Any:
+def _vector(data: Data, operator: STOperator) -> Any:
     return np.asarray(operator.apply(data).to_vector())
 
 
