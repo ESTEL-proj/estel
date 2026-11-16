@@ -18,10 +18,10 @@ from numpy.typing import NDArray
 
 from ..backend import _registry
 from ..backend._protocol import PadMode
-from ._base import DataClass, DownsampleWeights
+from ._base import Data, DownsampleWeights
 
 
-def _check_array(data: DataClass, x: Any, hook: str) -> None:
+def _check_array(data: Data, x: Any, hook: str) -> None:
     """``x`` is an array of ``data``'s backend with the axes ``(Nb, Nc, *spatial)``."""
     _registry.check_backend(data.backend, x, owner=f"{type(data).__name__}.{hook}")
     if len(x.shape) != 2 + data.ndim:
@@ -35,12 +35,12 @@ def _is_complex(xp: Any, x: Any) -> bool:
     return bool(xp.isdtype(x.dtype, "complex floating"))
 
 
-def _padding_mode(data: DataClass) -> PadMode:
+def _padding_mode(data: Data) -> PadMode:
     """Circular if ``pbc``, replicate otherwise (maths.md M-CONV-2D, M-DOWN)."""
     return "circular" if data.pbc else "replicate"
 
 
-def _planar_conv(self: DataClass, x: Any, kernels: Any, level: int) -> Any:
+def _planar_conv(self: Data, x: Any, kernels: Any, level: int) -> Any:
     """Planar ``_conv``: pad by ⌊K/2⌋ on each side of every spatial axis, then correlate with
     each kernel (maths.md M-CONV-2D, M-W1, OP-1). ``level`` does not matter: the planar
     kernels are the same at every level (M-WAV-2D, M-WAV-1D).
@@ -73,7 +73,7 @@ def _planar_conv(self: DataClass, x: Any, kernels: Any, level: int) -> Any:
     return backend.real_pairs_to_complex(xp.stack([real, imag], axis=-1))
 
 
-def _planar_downsample(self: DataClass, x: Any, weights: DownsampleWeights, level: int) -> Any:
+def _planar_downsample(self: Data, x: Any, weights: DownsampleWeights, level: int) -> Any:
     """Planar ``_downsample``: one step of maths.md M-DOWN, normalised as in M-DOWN-MASK when
     the data have missing values.
 
@@ -122,7 +122,7 @@ def _planar_downsample(self: DataClass, x: Any, weights: DownsampleWeights, leve
     return out if reweight is None else out * reweight
 
 
-def _planar_crop_weights(self: DataClass, level: int, border: int) -> NDArray[np.float64]:
+def _planar_crop_weights(self: Data, level: int, border: int) -> NDArray[np.float64]:
     """Planar ``_crop_weights``: 0 on ``border`` pixels at both ends of every spatial axis of
     the grid at ``level``, 1 elsewhere (maths.md M-BORDER; STL ``_crop``).
 
@@ -159,10 +159,10 @@ def _planar_crop_weights(self: DataClass, level: int, border: int) -> NDArray[np
     return np.pad(inner, width)
 
 
-class Data2D(DataClass):
+class Data2D(Data):
     """2D planar data, shape ``(Nb, Nc, N1, N2)``.
 
-    ``Data2D(array, mask=None, *, pbc)``: see :class:`estel.DataClass` for the parameters.
+    ``Data2D(array, mask=None, *, pbc)``: see :class:`estel.Data` for the parameters.
     A 2D array is promoted to ``(1, 1, N1, N2)``, a 3D array to ``(1, Nc, N1, N2)``
     (maths.md M-DATA-2D).
     """
@@ -179,10 +179,10 @@ class Data2D(DataClass):
     _crop_weights = _planar_crop_weights
 
 
-class Data1D(DataClass):
+class Data1D(Data):
     """1D planar data, shape ``(Nb, Nc, N)``.
 
-    ``Data1D(array, mask=None, *, pbc)``: see :class:`estel.DataClass` for the parameters.
+    ``Data1D(array, mask=None, *, pbc)``: see :class:`estel.Data` for the parameters.
     A 1D array is promoted to ``(1, 1, N)``; a 2D array to ``(1, Nc, N)``, its first axis read
     as channels, not as a batch, as in STL (maths.md M-DATA-1D, OP-29).
     """

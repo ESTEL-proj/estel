@@ -5,6 +5,42 @@
       "kind": "class",
       "signature": "()"
     },
+    "estel.Data": {
+      "kind": "class",
+      "signature": "(self, array: Any, mask: Any=None, *, pbc: bool) -> None"
+    },
+    "estel.Data.array": {
+      "kind": "property"
+    },
+    "estel.Data.backend": {
+      "kind": "property"
+    },
+    "estel.Data.copy": {
+      "kind": "method",
+      "signature": "(self, empty: bool=False) -> Data"
+    },
+    "estel.Data.mask": {
+      "kind": "property"
+    },
+    "estel.Data.n_batch": {
+      "kind": "property"
+    },
+    "estel.Data.n_channels": {
+      "kind": "property"
+    },
+    "estel.Data.ndim": {
+      "kind": "constant"
+    },
+    "estel.Data.pbc": {
+      "kind": "property"
+    },
+    "estel.Data.shape": {
+      "kind": "property"
+    },
+    "estel.Data.with_array": {
+      "kind": "method",
+      "signature": "(self, new_array: Any) -> Data"
+    },
     "estel.Data1D": {
       "kind": "class",
       "signature": "(self, array: Any, mask: Any=None, *, pbc: bool) -> None"
@@ -19,48 +55,16 @@
     "estel.Data2D.ndim": {
       "kind": "constant"
     },
-    "estel.DataClass": {
-      "kind": "class",
-      "signature": "(self, array: Any, mask: Any=None, *, pbc: bool) -> None"
-    },
-    "estel.DataClass.array": {
-      "kind": "property"
-    },
-    "estel.DataClass.backend": {
-      "kind": "property"
-    },
-    "estel.DataClass.copy": {
-      "kind": "method",
-      "signature": "(self, empty: bool=False) -> DataClass"
-    },
-    "estel.DataClass.mask": {
-      "kind": "property"
-    },
-    "estel.DataClass.n_batch": {
-      "kind": "property"
-    },
-    "estel.DataClass.n_channels": {
-      "kind": "property"
-    },
-    "estel.DataClass.ndim": {
-      "kind": "constant"
-    },
-    "estel.DataClass.pbc": {
-      "kind": "property"
-    },
-    "estel.DataClass.shape": {
-      "kind": "property"
-    },
-    "estel.DataClass.with_array": {
-      "kind": "method",
-      "signature": "(self, new_array: Any) -> DataClass"
-    },
     "estel.STATISTICS_REFERENCE": {
       "kind": "constant"
     },
+    "estel.STFilters": {
+      "kind": "class",
+      "signature": "()"
+    },
     "estel.STOperator": {
       "kind": "class",
-      "signature": "(self, data: DataClass, J: int | None=None, L: int | None=None, *, norm: str='store_ref', norm_batch_mean: bool=False, standardize: bool=False, compute_cross_matrix: Any=None, compute_PS: bool | None=None, engine: str='python') -> None"
+      "signature": "(self, data: Data, J: int | None=None, L: int | None=None, *, norm: str='self', ref_batch_mean: bool=False, standardize: bool=False, cross_matrix: Any=None, compute_PS: bool | None=None, engine: str='python') -> None"
     },
     "estel.STOperator.J": {
       "kind": "property"
@@ -70,7 +74,7 @@
     },
     "estel.STOperator.apply": {
       "kind": "method",
-      "signature": "(self, data: DataClass, ref: STStatistics | None=None) -> STStatistics"
+      "signature": "(self, data: Data, ref: STStatistics | None=None) -> STStatistics"
     },
     "estel.STOperator.filters": {
       "kind": "property"
@@ -88,33 +92,29 @@
     "estel.STOperator.standardize": {
       "kind": "property"
     },
+    "estel.STPlan": {
+      "kind": "class",
+      "signature": "()"
+    },
     "estel.STStatistics": {
       "kind": "class",
       "signature": "(self) -> None"
-    },
-    "estel.STStatistics.angular_ft": {
-      "kind": "method",
-      "signature": "(self, harmonics: int | None=None) -> STStatistics"
     },
     "estel.STStatistics.full_grid": {
       "kind": "method",
       "signature": "(self, family: str) -> Any"
     },
-    "estel.STStatistics.iso": {
-      "kind": "method",
-      "signature": "(self) -> STStatistics"
-    },
     "estel.STStatistics.load": {
       "kind": "method",
       "signature": "(path: str | os.PathLike[str]) -> STStatistics"
     },
+    "estel.STStatistics.reduce": {
+      "kind": "method",
+      "signature": "(self, *, iso: bool=False, angular_fourier: bool=False, angular_harmonics: int | None=None, scale_cosine: bool=False, scale_harmonics: int | None=None, dj: int | None=None) -> STStatistics"
+    },
     "estel.STStatistics.save": {
       "kind": "method",
       "signature": "(self, path: str | os.PathLike[str]) -> None"
-    },
-    "estel.STStatistics.scale_ft": {
-      "kind": "method",
-      "signature": "(self, harmonics: int | None=None, dj: int | None=None) -> STStatistics"
     },
     "estel.STStatistics.select": {
       "kind": "method",
@@ -127,17 +127,9 @@
     "estel.SYNTHESIS_REFERENCE": {
       "kind": "constant"
     },
-    "estel.ScatteringFilters": {
-      "kind": "class",
-      "signature": "()"
-    },
-    "estel.ScatteringPlan": {
-      "kind": "class",
-      "signature": "()"
-    },
     "estel.functional.scattering": {
       "kind": "function",
-      "signature": "(x: DataClass, plan: ScatteringPlan, filters: ScatteringFilters, ref: STStatistics | None=None) -> STStatistics"
+      "signature": "(data: Data, plan: STPlan, filters: STFilters, ref: STStatistics | None=None) -> STStatistics"
     },
     "estel.get_backend": {
       "kind": "function",

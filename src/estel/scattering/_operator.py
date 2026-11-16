@@ -5,17 +5,17 @@ An operator is a frozen plan plus a pure function (Part I, §2.3): ``STOperator(
 builds the static plan (``build_plan``) and the filters (``build_filters``), cast once to the
 default dtype, and ``apply(data, ref=None)`` calls ``estel.functional.scattering``. Every option
 is set once, at construction (review rule A6): the number of channels and
-``compute_cross_matrix`` too, read from the example data (issue #17). The operator records its
+``cross_matrix`` too, read from the example data (issue #17). The operator records its
 backend, dtype and the static metadata of the data it was built for (geometry, spatial shape,
 ``pbc``, mask, number of channels), and refuses other data.
 
-**The reference.** As in STL (maths.md M-NORM), an operator built with ``norm="store_ref"``
+**The reference.** As in STL (maths.md M-NORM), an operator built with ``norm="self"``
 keeps the reference of the last statistics it computed, and replaces it, with a
 ``UserWarning``, at each call. The reference is internal (``_NormReference``). An operator built
-with ``norm="load_ref"`` normalises by the reference of the ``STStatistics`` passed to
-``apply(data, ref=...)``, computed with ``store_ref``, or else by the one it holds, from
-:meth:`STOperator.from_statistics`. With ``store_ref`` the reference is part of the computation
-and gradients flow through it; with ``load_ref`` it is a constant (LF21, closed).
+with ``norm="ref"`` normalises by the reference of the ``STStatistics`` passed to
+``apply(data, ref=...)``, computed with ``norm="self"``, or else by the one it holds, from
+:meth:`STOperator.from_statistics`. With ``norm="self"`` the reference is part of the computation
+and gradients flow through it; with ``norm="ref"`` it is a constant (LF21, closed).
 
 **Engines.** ``engine=`` is reserved (Part II, §9.4): the operator checks the name and the
 capabilities of the engine in the engine registry, which in 1.0.0 holds only ``"python"``.
@@ -31,14 +31,14 @@ import numpy as np
 
 from .._config import FloatDType, default_device, default_dtype
 from ..backend import _registry
-from ..data._base import DataClass
+from ..data._base import Data
 from ..engines import _registry as _engines
 from ..functional._scattering import check_data, compute, reference_of
 from ..statistics._arrays import dtype_name
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
-from ._filters import ScatteringFilters, build_filters, wavelet_kernels
-from ._plan import ScatteringPlan, build_plan
+from ._filters import STFilters, build_filters, wavelet_kernels
+from ._plan import STPlan, build_plan
 
 _WIDE = ("float64", "complex128")
 
@@ -59,16 +59,16 @@ class STOperator:
         The number of orientations; by default 4 in 2D and 1 in 1D. In 1D, L is 1 or 2 (the
         second filter is the conjugate of the first, M-WAV-1D).
     norm:
-        ``"store_ref"`` (the default): normalise the statistics by themselves, and keep the
-        reference; ``"load_ref"``: normalise by the reference of other statistics;
-        ``"vanilla"``: no normalisation (M-NORM).
-    norm_batch_mean:
-        With ``store_ref``, average the reference over the batch first; False by default, as in
-        STL (M-NORM).
+        ``"self"`` (the default; STL's ``store_ref``): normalise the statistics by themselves,
+        and keep the reference; ``"ref"`` (STL's ``load_ref``): normalise by the reference of
+        other statistics; ``"none"`` (STL's ``vanilla``): no normalisation (M-NORM).
+    ref_batch_mean:
+        With ``norm="self"``, average the reference over the batch first; False by default, as
+        in STL, where it is ``norm_batch_mean`` (M-NORM).
     standardize:
         Remove the mean and divide by the standard deviation of each map before the transform,
         as STL's ``apply(standardize=True)`` (M-MOM); both values are kept with the statistics.
-    compute_cross_matrix:
+    cross_matrix:
         A boolean ``(Nc, Nc)`` array: the diagonal entry of a channel asks for its auto
         statistics, the entry ``[c1, c2]``, c1 < c2, for the cross statistics of the pair; the
         entries below the diagonal are ignored, as in STL. By default every pair, the upper
@@ -83,20 +83,20 @@ class STOperator:
 
     def __init__(
         self,
-        data: DataClass,
+        data: Data,
         J: int | None = None,  # noqa: N803 (maths.md notation)
         L: int | None = None,  # noqa: N803
         *,
-        norm: str = "store_ref",
-        norm_batch_mean: bool = False,
+        norm: str = "self",
+        ref_batch_mean: bool = False,
         standardize: bool = False,
-        compute_cross_matrix: Any = None,
+        cross_matrix: Any = None,
         compute_PS: bool | None = None,  # noqa: N803 (STL's name)
         engine: str = "python",
     ) -> None:
-        if not isinstance(data, DataClass):
+        if not isinstance(data, Data):
             raise TypeError(
-                f"STOperator takes a DataClass, such as estel.Data2D, got {type(data).__name__}."
+                f"STOperator takes a Data object, such as estel.Data2D, got {type(data).__name__}."
             )
         _check_compute_ps(compute_PS, data.ndim)
         n_scales = _default_scales(data) if J is None else J
@@ -105,13 +105,13 @@ class STOperator:
             data,
             n_scales,
             n_orientations,
-            cross_matrix=_as_numpy(compute_cross_matrix),
+            cross_matrix=_as_numpy(cross_matrix),
             norm=norm,
-            norm_batch_mean=norm_batch_mean,
+            ref_batch_mean=ref_batch_mean,
             standardize=standardize,
         )
         wavelet_kernels(plan.ndim, plan.L)  # validates L for the geometry (M-WAV-1D)
-        if norm != "vanilla":
+        if norm != "none":
             _warn_channels_without_auto(plan)
         self._setup(plan, data.backend, default_dtype(), default_device(), engine, None)
 
@@ -135,7 +135,7 @@ class STOperator:
 
     def _setup(
         self,
-        plan: ScatteringPlan,
+        plan: STPlan,
         backend: str,
         dtype: FloatDType,
         device: Any,
@@ -155,12 +155,12 @@ class STOperator:
     # ------------------------------------------------------------------ accessors
 
     @property
-    def plan(self) -> ScatteringPlan:
+    def plan(self) -> STPlan:
         """The static plan of the transform, for ``estel.functional.scattering``."""
         return self._plan
 
     @property
-    def filters(self) -> ScatteringFilters:
+    def filters(self) -> STFilters:
         """The filters and the arrays derived to apply them, for
         ``estel.functional.scattering``."""
         return self._filters
@@ -177,8 +177,8 @@ class STOperator:
 
     @property
     def norm(self) -> str:
-        """The normalisation of the statistics: ``"store_ref"``, ``"load_ref"`` or
-        ``"vanilla"``."""
+        """The normalisation of the statistics: ``"self"``, ``"ref"`` or
+        ``"none"``."""
         return self._plan.norm
 
     @property
@@ -188,32 +188,32 @@ class STOperator:
 
     # ------------------------------------------------------------------ apply
 
-    def apply(self, data: DataClass, ref: STStatistics | None = None) -> STStatistics:
+    def apply(self, data: Data, ref: STStatistics | None = None) -> STStatistics:
         """The statistics of ``data`` (maths.md §1.6 to 1.8), as ``STStatistics``.
 
         ``data`` must have the geometry, spatial shape, ``pbc``, mask and number of channels of
         the example the operator was built from, its backend, and its dtype; the batch size may
-        differ. ``ref`` is for ``norm="load_ref"`` only: statistics computed with
-        ``norm="store_ref"``, whose reference normalises these; without it, the operator uses
-        the reference it holds (from :meth:`from_statistics`). With ``norm="store_ref"`` the
+        differ. ``ref`` is for ``norm="ref"`` only: statistics computed with
+        ``norm="self"``, whose reference normalises these; without it, the operator uses
+        the reference it holds (from :meth:`from_statistics`). With ``norm="self"`` the
         operator keeps the reference of the result, replacing the one it held, with a
         ``UserWarning``.
         """
         check_data(data, self._plan, self._filters)
         reference = reference_of(ref, self._plan) if ref is not None else None
-        if reference is None and self._plan.norm == "load_ref":
+        if reference is None and self._plan.norm == "ref":
             reference = self._reference
             if reference is None:
                 raise ValueError(
-                    'STOperator.apply: norm="load_ref" needs a reference, and this operator '
-                    'holds none. Pass ref=, statistics computed with norm="store_ref", or build '
+                    'STOperator.apply: norm="ref" needs a reference, and this operator '
+                    'holds none. Pass ref=, statistics computed with norm="self", or build '
                     "the operator with STOperator.from_statistics (maths.md M-NORM)."
                 )
         stats = compute(data, self._plan, self._filters, reference)
-        if self._plan.norm == "store_ref":
+        if self._plan.norm == "self":
             if self._reference is not None:
                 warnings.warn(
-                    'STOperator.apply: norm="store_ref" replaces the reference this operator '
+                    'STOperator.apply: norm="self" replaces the reference this operator '
                     "held by that of the new statistics, as STL does (maths.md M-NORM).",
                     UserWarning,
                     stacklevel=2,
@@ -225,7 +225,7 @@ class STOperator:
         plan = self._plan
         return (
             f"STOperator(J={plan.J}, L={plan.L}, norm={plan.norm!r}, "
-            f"norm_batch_mean={plan.norm_batch_mean}, standardize={plan.standardize}, "
+            f"ref_batch_mean={plan.ref_batch_mean}, standardize={plan.standardize}, "
             f"spatial_shape={plan.spatial_shape}, n_channels={plan.n_channels}, "
             f"pbc={plan.pbc}, backend={self._backend!r}, dtype={self._dtype!r})"
         )
@@ -235,17 +235,17 @@ class STOperator:
 
 
 def _as_numpy(matrix: Any) -> Any:
-    """``compute_cross_matrix`` as NumPy when it is an array of a backend."""
+    """``cross_matrix`` as NumPy when it is an array of a backend."""
     name = _registry.backend_of(matrix)
     return matrix if name is None else _registry.backend_named(name).to_numpy(matrix)
 
 
-def _warn_channels_without_auto(plan: ScatteringPlan) -> None:
-    """STL's warning of ``store_ref`` (maths.md M-CHAN, OP-30), given once, at construction."""
+def _warn_channels_without_auto(plan: STPlan) -> None:
+    """STL's warning of ``norm="self"`` (maths.md M-CHAN, OP-30), given once, at construction."""
     missing = [c for c in range(plan.n_channels) if c not in plan.pairs.auto]
     if missing:
         warnings.warn(
-            f"compute_cross_matrix: channel(s) {missing} have no auto statistics, so no "
+            f"cross_matrix: channel(s) {missing} have no auto statistics, so no "
             "normalisation scale: their cross statistics are NaN after normalisation, as in STL "
             "(maths.md M-CHAN, OP-30). Set their diagonal entries to normalise them.",
             UserWarning,
@@ -270,7 +270,7 @@ def _check_compute_ps(compute_ps: object, ndim: int) -> None:
         )
 
 
-def _default_scales(data: DataClass) -> int:
+def _default_scales(data: Data) -> int:
     """J = ⌊log₂ min N⌋ - 2 (maths.md M-DEF, M-DEF-1D), at least 1."""
     smallest = min(data.shape[2:])
     n = math.floor(math.log2(smallest)) - 2
@@ -282,6 +282,6 @@ def _default_scales(data: DataClass) -> int:
     return n
 
 
-def _default_orientations(data: DataClass) -> int:
+def _default_orientations(data: Data) -> int:
     """L = 4 in 2D, 1 in 1D (maths.md M-DEF, M-DEF-1D)."""
     return 4 if data.ndim == 2 else 1

@@ -4,9 +4,9 @@ M-RED-SCALE, M-FLAT, OP-3, OP-30, OP-37).
 
 Values are compared with STL in ``tests/parity/test_statistics.py``, in float64. These tests run
 on the run's backend and dtype, and check what parity does not: that the static layout predicts
-every NaN, the semantics of ``select`` and ``to_vector(mask_st)``, the order of the reductions
-and their errors, the life of the reference in the operator, the gradients through it, the
-round trip through ``estel.io``, and the pytree registration.
+every NaN, the semantics of ``select`` and ``to_vector(mask_st)``, the errors of ``reduce``,
+the life of the reference in the operator, the gradients through it, the round trip through
+``estel.io``, and the pytree registration.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import pytest
 from numpy.typing import NDArray
 
 import estel
-from estel import Data1D, Data2D, DataClass, STOperator, STStatistics, _config
+from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
 from estel.backend._protocol import Backend, DType
 from estel.io import _schema
 from tests._backends import backend_name
@@ -42,7 +42,7 @@ def _field(shape: tuple[int, ...], seed: int = 0) -> NDArray[np.float64]:
     return field
 
 
-def _operator(data: DataClass, J: int, **kwargs: Any) -> STOperator:  # noqa: N803
+def _operator(data: Data, J: int, **kwargs: Any) -> STOperator:  # noqa: N803
     options: dict[str, Any] = {"compute_PS": False if data.ndim == 2 else None}
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13, OP-30
@@ -78,19 +78,19 @@ def _check_layout(stats: STStatistics) -> None:
 
 def test_layout_predicts_every_nan() -> None:
     """Structural NaN, empty means (OP-3), channels without auto statistics after normalisation
-    (OP-30), missing scales of scale_ft: all static, through every operation."""
+    (OP-30), missing scales of scale_cosine: all static, through every operation."""
     data = _masked_2d(nc=3)
     matrix = np.array([[True, False, True], [False, False, True], [False, False, True]])
-    for norm in ("vanilla", "store_ref"):
-        stats = _operator(data, 4, norm=norm, compute_cross_matrix=matrix).apply(data)
+    for norm in ("none", "self"):
+        stats = _operator(data, 4, norm=norm, cross_matrix=matrix).apply(data)
         assert stats._plan.empty_s3_pairs
         for reduced in (
             stats,
-            stats.iso(),
-            stats.angular_ft(2),
-            stats.iso().angular_ft(3),
-            stats.iso().scale_ft(3, 3),
-            stats.iso().angular_ft().scale_ft(),
+            stats.reduce(iso=True),
+            stats.reduce(angular_fourier=True, angular_harmonics=2),
+            stats.reduce(iso=True, angular_fourier=True, angular_harmonics=3),
+            stats.reduce(iso=True, scale_cosine=True, scale_harmonics=3, dj=3),
+            stats.reduce(iso=True, angular_fourier=True, scale_cosine=True),
             stats.select(j3=[1, 3]),
             stats.select("S4", channel=(0, 2), l1=1),
         ):
@@ -148,8 +148,8 @@ def test_select_restricts_along_named_axes() -> None:
 
     # The result keeps every method: reductions along untouched axes, and to_vector.
     np.testing.assert_array_equal(
-        _numpy(stats.select(c1=[0], c2=[2]).iso().full_grid("S3")),
-        _numpy(stats.iso().select(c1=[0], c2=[2]).full_grid("S3")),
+        _numpy(stats.select(c1=[0], c2=[2]).reduce(iso=True).full_grid("S3")),
+        _numpy(stats.reduce(iso=True).select(c1=[0], c2=[2]).full_grid("S3")),
     )
     assert _numpy(pair.to_vector()).ndim == 1
 
@@ -176,7 +176,7 @@ def test_select_errors() -> None:
     with pytest.raises(TypeError, match="sequence of integers"):
         stats.select(j=[[0]])
     with pytest.raises(ValueError, match="apply the reductions before selecting"):
-        stats.select(l2=[0, 1]).iso()
+        stats.select(l2=[0, 1]).reduce(iso=True)
 
 
 # ---------------------------------------------------------------------- to_vector
@@ -198,7 +198,15 @@ def _vector_from_grids(stats: STStatistics) -> NDArray[Any]:
 def test_to_vector_is_stls_flattening(backend: Backend) -> None:
     data = _masked_2d(nc=2)
     stats = _operator(data, 4).apply(data)
-    for reduced in (stats, stats.iso().angular_ft(2).scale_ft(2, 3), stats.select(j2=1)):
+    reduced_all = stats.reduce(
+        iso=True,
+        angular_fourier=True,
+        angular_harmonics=2,
+        scale_cosine=True,
+        scale_harmonics=2,
+        dj=3,
+    )
+    for reduced in (stats, reduced_all, stats.select(j2=1)):
         vector = _numpy(reduced.to_vector())
         np.testing.assert_array_equal(vector, _vector_from_grids(reduced))
         assert np.isfinite(vector).all()
@@ -223,30 +231,36 @@ def test_to_vector_mask_st(backend: Backend) -> None:
 # ---------------------------------------------------------------------- reductions
 
 
-def test_reductions_follow_stls_order() -> None:
+def test_reduce_errors_and_axis_names() -> None:
+    """Each error of reduce says what to do instead (R-S08); the reduced axes are named."""
     data = Data2D(_field((1, 1, 16, 16)), pbc=True)
     stats = _operator(data, 2).apply(data)
-    iso = stats.iso()
-    with pytest.raises(ValueError, match="already went through iso"):
-        iso.iso()
-    with pytest.raises(ValueError, match="already went through angular_ft"):
-        stats.angular_ft().iso()
-    with pytest.raises(ValueError, match="apply iso"):
-        stats.scale_ft()
-    with pytest.raises(ValueError, match="already went through angular_ft"):
-        iso.angular_ft().angular_ft()
-    with pytest.raises(ValueError, match="already went through scale_ft"):
-        iso.scale_ft().angular_ft()
-    with pytest.raises(ValueError, match="already went through scale_ft"):
-        iso.scale_ft().scale_ft()
+    with pytest.raises(ValueError, match="no reduction selected"):
+        stats.reduce()
+    alone: list[tuple[dict[str, Any], str]] = [
+        ({"angular_harmonics": 2}, "angular_fourier"),
+        ({"iso": True, "scale_harmonics": 2}, "scale_cosine"),
+        ({"iso": True, "dj": 1}, "scale_cosine"),
+    ]
+    for kwargs, transform in alone:
+        with pytest.raises(ValueError, match=f"pass {transform}=True as well"):
+            stats.reduce(**kwargs)
+    with pytest.raises(ValueError, match="without iso=True"):
+        stats.reduce(scale_cosine=True)
+    with pytest.raises(ValueError, match=r"already reduced \(iso\); call reduce once"):
+        stats.reduce(iso=True).reduce(angular_fourier=True)
     with pytest.raises(ValueError, match="between 1 and L = 4"):
-        stats.angular_ft(5)
+        stats.reduce(angular_fourier=True, angular_harmonics=5)
     with pytest.raises(ValueError, match="between 1 and J = 2"):
-        iso.scale_ft(dj=0)
-    names = {g.name: g.axes for g in iso.angular_ft().scale_ft()._grids}
+        stats.reduce(iso=True, scale_cosine=True, dj=0)
+    with pytest.raises(TypeError, match="True or False"):
+        stats.reduce(iso=1)  # type: ignore[arg-type]
+    reduced = stats.reduce(iso=True, angular_fourier=True, scale_cosine=True)
+    names = {g.name: g.axes for g in reduced._grids}
     assert names["S3"] == ("c1", "c2", "k", "a", "hdl")
     assert names["S4"] == ("c1", "c2", "k", "a", "b", "hdl2", "hdl3")
-    assert {g.name: g.axes for g in stats.angular_ft()._grids}["S3"][-2:] == ("hl2", "hl3")
+    angular = stats.reduce(angular_fourier=True)
+    assert {g.name: g.axes for g in angular._grids}["S3"][-2:] == ("hl2", "hl3")
 
 
 def test_iso_is_the_sum_of_m_red_iso(dtype: str) -> None:
@@ -254,7 +268,7 @@ def test_iso_is_the_sum_of_m_red_iso(dtype: str) -> None:
     (M-RED-ISO), written here with NumPy."""
     data = Data2D(_field((1, 1, 32, 32)), pbc=True)
     stats = _operator(data, 3).apply(data)
-    iso = stats.iso()
+    iso = stats.reduce(iso=True)
     s1 = _numpy(stats.full_grid("S1"))
     np.testing.assert_allclose(
         _numpy(iso.full_grid("S1")), s1.mean(axis=-1), rtol=_tol(dtype), atol=_tol(dtype)
@@ -271,10 +285,10 @@ def test_iso_is_the_sum_of_m_red_iso(dtype: str) -> None:
 # ---------------------------------------------------------------------- normalisation
 
 
-def test_store_ref_keeps_and_replaces_the_reference(dtype: str) -> None:
+def test_norm_self_keeps_and_replaces_the_reference(dtype: str) -> None:
     data = Data2D(_field((2, 2, 32, 32)), pbc=True)
     operator = _operator(data, 3)
-    assert operator.norm == "store_ref"
+    assert operator.norm == "self"
     first = operator.apply(data)
     assert operator._reference is first._reference
     np.testing.assert_allclose(_numpy(first.full_grid("var")), 1.0, rtol=10 * _tol(dtype))
@@ -285,15 +299,15 @@ def test_store_ref_keeps_and_replaces_the_reference(dtype: str) -> None:
     assert operator._reference is second._reference
 
 
-def test_norm_batch_mean(dtype: str) -> None:
+def test_ref_batch_mean(dtype: str) -> None:
     data = Data1D(_field((3, 1, 64)), pbc=True)
-    stats = _operator(data, 3, norm_batch_mean=True).apply(data)
+    stats = _operator(data, 3, ref_batch_mean=True).apply(data)
     reference = stats._reference
     assert reference is not None
     assert tuple(reference.var.shape) == (1, 1)
     np.testing.assert_allclose(
         _numpy(reference.var)[0],
-        _numpy(_operator(data, 3, norm="vanilla").apply(data).full_grid("var")).mean(axis=0),
+        _numpy(_operator(data, 3, norm="none").apply(data).full_grid("var")).mean(axis=0),
         rtol=_tol(dtype),
     )
     per_element = _operator(data, 3).apply(data)._reference
@@ -301,12 +315,12 @@ def test_norm_batch_mean(dtype: str) -> None:
     assert tuple(per_element.var.shape) == (3, 1)
 
 
-def test_load_ref(dtype: str) -> None:
+def test_norm_ref(dtype: str) -> None:
     data = Data2D(_field((2, 2, 32, 32)), pbc=False)
     other = data.with_array(data.array * 3 + 1)
     target = _operator(data, 3).apply(data)
-    loading = _operator(data, 3, norm="load_ref")
-    # The target normalised by its own reference is its store_ref statistics.
+    loading = _operator(data, 3, norm="ref")
+    # The target normalised by its own reference is its norm="self" statistics.
     again = loading.apply(data, ref=target)
     for family in FAMILIES:
         np.testing.assert_allclose(
@@ -319,13 +333,13 @@ def test_load_ref(dtype: str) -> None:
     loaded = loading.apply(other, ref=target)
     # from_statistics: an operator holding the reference of its statistics.
     rebuilt = STOperator.from_statistics(loaded)
-    assert rebuilt.norm == "load_ref"
+    assert rebuilt.norm == "ref"
     np.testing.assert_array_equal(
         _numpy(rebuilt.apply(other).to_vector()), _numpy(loaded.to_vector())
     )
     with pytest.raises(ValueError, match="holds none"):
         loading.apply(other)
-    with pytest.raises(ValueError, match='computed with norm="load_ref"'):
+    with pytest.raises(ValueError, match='computed with norm="ref"'):
         loading.apply(other, ref=loaded)
     with pytest.raises(TypeError, match="STStatistics"):
         loading.apply(other, ref=object())  # type: ignore[arg-type]
@@ -335,9 +349,9 @@ def test_load_ref(dtype: str) -> None:
     loading.apply(other, ref=smaller)  # broadcasts
     three = Data2D(_field((3, 2, 32, 32)), pbc=False)
     with pytest.raises(ValueError, match="batch element"):
-        _operator(three, 3, norm="load_ref").apply(three, ref=target)
+        _operator(three, 3, norm="ref").apply(three, ref=target)
     with pytest.raises(ValueError, match="same J, L and channels"):
-        _operator(data, 2, norm="load_ref").apply(data, ref=target)
+        _operator(data, 2, norm="ref").apply(data, ref=target)
 
 
 def test_reference_of_other_data_is_accepted(dtype: str) -> None:
@@ -346,8 +360,8 @@ def test_reference_of_other_data_is_accepted(dtype: str) -> None:
     target = _masked_2d(nb=1, nc=2)  # 64 x 64, a hole, open
     reference = _operator(target, 3).apply(target)
     data = Data2D(_field((2, 2, 32, 32), seed=1), pbc=True)  # 32 x 32, no mask, periodic
-    loading = _operator(data, 3, norm="load_ref")
-    raw = _operator(data, 3, norm="vanilla").apply(data)
+    loading = _operator(data, 3, norm="ref")
+    raw = _operator(data, 3, norm="none").apply(data)
     stored = reference._reference
     assert stored is not None
     expected_var = _numpy(raw.full_grid("var")) / _numpy(stored.var)
@@ -381,9 +395,9 @@ def test_reference_of_another_plan_is_refused(
     ``apply`` and ``functional.scattering``, naming what differs."""
     source = Data2D(_field((1, nc, 32, 32)), pbc=True)
     cross = None if matrix is None else np.array(matrix)
-    reference = _operator(source, J, L=L, compute_cross_matrix=cross).apply(source)
+    reference = _operator(source, J, L=L, cross_matrix=cross).apply(source)
     data = Data2D(_field((1, 2, 32, 32), seed=1), pbc=True)
-    loading = _operator(data, 3, norm="load_ref")
+    loading = _operator(data, 3, norm="ref")
     with pytest.raises(ValueError, match=message):
         loading.apply(data, ref=reference)
     with pytest.raises(ValueError, match=message):
@@ -394,22 +408,22 @@ def test_channels_without_auto_statistics_warn_at_construction() -> None:
     data = Data2D(_field((1, 3, 16, 16)), pbc=True)
     matrix = np.array([[True, False, True], [False, False, True], [False, False, True]])
     with pytest.warns(UserWarning, match=r"channel\(s\) \[1\]"):
-        STOperator(data, 2, compute_cross_matrix=matrix, compute_PS=False)
+        STOperator(data, 2, cross_matrix=matrix, compute_PS=False)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        STOperator(data, 2, norm="vanilla", compute_cross_matrix=matrix, compute_PS=False)
+        STOperator(data, 2, norm="none", cross_matrix=matrix, compute_PS=False)
 
 
 @pytest.mark.slow
-def test_gradients_flow_through_store_ref_not_load_ref(backend: Backend, dtype: DType) -> None:
-    """With store_ref the reference is part of the computation; with load_ref it is a
+def test_gradients_flow_through_norm_self_not_norm_ref(backend: Backend, dtype: DType) -> None:
+    """With norm="self" the reference is part of the computation; with norm="ref" it is a
     constant (M-NORM, LF21). Both are finite to second order with missing values and empty
     means, since nothing absent reaches them.
 
     Slow: Hessian-vector products through two normalised operators (second order)."""
     data = _masked_2d(nb=1, nc=2)
     storing = _operator(data, 4)
-    loading = _operator(data, 4, norm="load_ref")
+    loading = _operator(data, 4, norm="ref")
     xp = backend.xp
 
     def store_loss(array: Any) -> Any:
@@ -432,7 +446,7 @@ def test_gradients_flow_through_store_ref_not_load_ref(backend: Backend, dtype: 
     assert np.isfinite(grad_load).all()
     assert np.isfinite(hessian_v).all()
     np.testing.assert_array_equal(grad_store[..., data.mask], 0.0)
-    # The two losses agree at this point, their gradients do not: store_ref differentiates
+    # The two losses agree at this point, their gradients do not: norm="self" differentiates
     # the reference as well.
     assert np.abs(grad_store - grad_load).max() > 1e-3 * np.abs(grad_load).max()
 
@@ -442,7 +456,7 @@ def test_gradients_flow_through_store_ref_not_load_ref(backend: Backend, dtype: 
 
 def test_functional_scattering_is_apply(backend: Backend) -> None:
     data = Data1D(_field((2, 2, 64)), pbc=False)
-    operator = _operator(data, 3, norm="vanilla")
+    operator = _operator(data, 3, norm="none")
     stats = estel.functional.scattering(data, operator.plan, operator.filters)
     np.testing.assert_array_equal(
         _numpy(stats.to_vector()), _numpy(operator.apply(data).to_vector())
@@ -450,7 +464,7 @@ def test_functional_scattering_is_apply(backend: Backend) -> None:
     storing = _operator(data, 3)
     stored = estel.functional.scattering(data, storing.plan, storing.filters)
     assert storing._reference is None  # the pure function keeps nothing
-    loading = _operator(data, 3, norm="load_ref")
+    loading = _operator(data, 3, norm="ref")
     with pytest.raises(ValueError, match="needs a reference"):
         estel.functional.scattering(data, loading.plan, loading.filters)
     loaded = estel.functional.scattering(data, loading.plan, loading.filters, ref=stored)
@@ -466,12 +480,12 @@ def test_functional_scattering_is_apply(backend: Backend) -> None:
 def test_plan_and_filters_are_opaque_and_static() -> None:
     data = Data2D(_field((1, 2, 16, 16)), pbc=True)
     first, second = _operator(data, 2), _operator(data, 2)
-    assert isinstance(first.plan, estel.ScatteringPlan)
-    assert isinstance(first.filters, estel.ScatteringFilters)
+    assert isinstance(first.plan, estel.STPlan)
+    assert isinstance(first.filters, estel.STFilters)
     assert first.plan == second.plan
     assert hash(first.plan) == hash(second.plan)
-    assert first.plan != _operator(data, 2, norm="vanilla").plan
-    assert first.plan != _operator(data, 2, compute_cross_matrix=np.eye(2, dtype=bool)).plan
+    assert first.plan != _operator(data, 2, norm="none").plan
+    assert first.plan != _operator(data, 2, cross_matrix=np.eye(2, dtype=bool)).plan
 
 
 # ---------------------------------------------------------------------- storage
@@ -480,8 +494,15 @@ def test_plan_and_filters_are_opaque_and_static() -> None:
 @pytest.mark.dtype
 def test_save_and_load_round_trip(tmp_path: Path, dtype: str) -> None:
     data = _masked_2d(nc=2)
-    stats = _operator(data, 4, standardize=True, norm_batch_mean=True).apply(data)
-    reduced = stats.iso().angular_ft(2).scale_ft(3, 2).select(c1=[0, 1])
+    stats = _operator(data, 4, standardize=True, ref_batch_mean=True).apply(data)
+    reduced = stats.reduce(
+        iso=True,
+        angular_fourier=True,
+        angular_harmonics=2,
+        scale_cosine=True,
+        scale_harmonics=3,
+        dj=2,
+    ).select(c1=[0, 1])
     for original in (stats, reduced):
         path = tmp_path / "stats.npz"
         original.save(path)
@@ -522,10 +543,11 @@ def test_load_checks_the_schema(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     _schema.write(tmp_path / "other.npz", "estel.other", {}, {})
     with pytest.raises(ValueError, match=r"not 'estel\.statistics'"):
         STStatistics.load(tmp_path / "other.npz")
-    monkeypatch.setattr(_schema, "SCHEMA_VERSION", 2)
-    with pytest.raises(ValueError, match="schema version 1"):
+    written = _schema.SCHEMA_VERSION
+    monkeypatch.setattr(_schema, "SCHEMA_VERSION", written + 1)
+    with pytest.raises(ValueError, match=f"schema version {written}"):
         STStatistics.load(path)
-    monkeypatch.setattr(_schema, "SCHEMA_VERSION", 1)
+    monkeypatch.setattr(_schema, "SCHEMA_VERSION", written)
     monkeypatch.setattr(_schema, "STATISTICS_REFERENCE", 7)
     with pytest.warns(UserWarning, match="STATISTICS_REFERENCE"):
         STStatistics.load(path)

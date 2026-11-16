@@ -1,4 +1,4 @@
-"""Unit tests of the DataClasses (Part II, §12.4; maths.md M-DATA-2D, M-DATA-1D; T2.1).
+"""Unit tests of the data classes (Part II, §12.4; maths.md M-DATA-2D, M-DATA-1D; T2.1).
 
 Run on the backend and dtype of the test run (``backend`` and ``dtype`` fixtures).
 """
@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 import estel
-from estel import Data1D, Data2D, DataClass
+from estel import Data, Data1D, Data2D
 from estel._config import default_dtype
 from estel.backend._protocol import Backend, DType
 
@@ -39,7 +39,7 @@ def _field(shape: tuple[int, ...], seed: int = 0) -> np.ndarray:
     ],
 )
 def test_arrays_are_promoted_to_batch_channel_spatial(
-    cls: type[DataClass], shape: tuple[int, ...], promoted: tuple[int, ...], backend: Backend
+    cls: type[Data], shape: tuple[int, ...], promoted: tuple[int, ...], backend: Backend
 ) -> None:
     field = _field(shape)
     data = cls(field, pbc=True)
@@ -54,7 +54,7 @@ def test_arrays_are_promoted_to_batch_channel_spatial(
 @pytest.mark.parametrize(
     ("cls", "shape"), [(Data2D, (8,)), (Data2D, (1, 1, 1, 8, 8)), (Data1D, (1, 1, 1, 8))]
 )
-def test_other_numbers_of_axes_are_rejected(cls: type[DataClass], shape: tuple[int, ...]) -> None:
+def test_other_numbers_of_axes_are_rejected(cls: type[Data], shape: tuple[int, ...]) -> None:
     with pytest.raises(ValueError, match="accepted shapes"):
         cls(np.zeros(shape), pbc=True)
 
@@ -127,7 +127,7 @@ def test_pbc_is_stored_as_a_bool(pbc: Any) -> None:
 
 def test_the_mother_class_has_no_geometry() -> None:
     with pytest.raises(TypeError, match=r"Data1D or estel\.Data2D"):
-        DataClass(np.zeros((4, 4)), pbc=True)
+        Data(np.zeros((4, 4)), pbc=True)
 
 
 # ---------------------------------------------------------------------- masks

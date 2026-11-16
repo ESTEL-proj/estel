@@ -170,16 +170,16 @@ The review of the scattering chain (86 remarks, R-A00 to R-P17) was distributed:
 | — | Lists of the specification | four lists, one purpose each: open points of the mathematics (OP, maths tab), everything later (register, Part III, §16), everything decided (this log), everything still to decide (§23). The G list of Part II, §13.2 is retired; §23 and §24.2 are merged into §23; §24.1 moves to Part III, §16.7 | Part II, §13.2; Part III, §16; §23 |
 | R-A00 | Default channel pairs | `compute_cross_matrix=None` computes every pair c₁ ≤ c₂, as STL's code | maths tab, M-CHAN, OP-38 |
 | R-A01 | Index numbering | STL's numbering, as a rule: indices numbered from the end. j₃, ℓ₃ is the wavelet applied last; j₂, ℓ₂ the arm of S3, also the second arm of S4; j₁, ℓ₁ the extra arm of S4. S3 is an S4 whose first arm is replaced by the field. S1 and S2 keep (j, ℓ) | maths tab, M-S3, M-S4 |
-| R-A02 | `norm` | values `"none"`, `"self"`, `"ref"`; `norm_batch_mean` becomes `ref_batch_mean` | renaming task (Q24) |
-| R-A03 | Spelling of identifiers | American (`normalize`, `standardize`, `center`); prose may stay British | renaming task |
-| R-A04 | Prefix | `STPlan`, `STFilters` | renaming task |
-| R-A05 | Channel pairs | `cross_matrix`, its diagonal selecting the auto terms; `compute_PS` kept | renaming task |
+| R-A02 | `norm` | values `"none"`, `"self"`, `"ref"`; `norm_batch_mean` becomes `ref_batch_mean` | PR #76 |
+| R-A03 | Spelling of identifiers | American (`normalize`, `standardize`, `center`); prose may stay British | PR #76 |
+| R-A04 | Prefix | `STPlan`, `STFilters` | PR #76 |
+| R-A05 | Channel pairs | `cross_matrix`, its diagonal selecting the auto terms; `compute_PS` kept | PR #76 |
 | R-A06 | `mask_st` | kept, documented: True keeps a coefficient | — |
-| R-A07 | Reductions | `iso`, `angular_fourier`, `scale_cosine` | renaming task |
-| R-A08 | Mother data class | `Data` | renaming task |
+| R-A07, R-S08 | Reductions | one method `reduce(*, iso=False, angular_fourier=False, angular_harmonics=None, scale_cosine=False, scale_harmonics=None, dj=None)` instead of three: it applies the selected reductions in the order of M-NORM (`iso`, then `angular_fourier`, then `scale_cosine`) in one call; harmonics and `dj` default to all; `scale_cosine` needs `iso`, as in STL; reduced statistics are not reduced again | PR #76 |
+| R-A08 | Mother data class | `Data` | PR #76 |
 | R-A09 | `apply` | kept, for the symmetry with `WaveletOperator`; a direct call may be added later as a minor change. Closes D1 | — |
 | R-A10 | `standardize` | stays a boolean: it removes the mean and divides by the standard deviation. Part III, §20.11, rule 7 is to correct accordingly | Q17 |
-| R-A11 | `functional.scattering` | first argument named `data` | renaming task |
+| R-A11 | `functional.scattering` | first argument named `data` | PR #76 |
 | R-Y03 | A reference from another operator | accepted when J, L and the channels match, with a clear error otherwise | PR #68 |
 | G1 | Coefficient count of plain 2D | follow STL: 1,474, since plain 2D has no low-pass term in STL (the deliverable's formula gives 1,476) | Part II, §13.2; LF6 |
 | R-E01, R-N19 | Smoothing table, kernel rotations | recorded as OP-59 and OP-58 | maths tab |
@@ -231,7 +231,6 @@ Everything still to decide, in one table. A point leaves it when it is decided (
 | Q21 | `iso`: return the real parts only of the reduced S3 and S4; the meaning of `iso` in 1D with L = 2 | the maintainers | step 2 (LF32) | R-P11; OP-5, OP-40 |
 | Q22 | Group the changes of values of step 2 in one bump of `STATISTICS_REFERENCE` | the maintainers | step 2 | R-P13 |
 | Q23 | The power spectrum: computed by the scattering operator (`compute_PS`), or by its own operator only | the maintainers | P4 | R-S07 |
-| Q24 | The renaming task: apply R-A02 to R-A11 (§22.5) in one pull request; and one `reduce` method instead of three reductions | Erwan | before T2.6 | R-A02 to R-A11; R-S08 |
 | Q25 | The notation of the maths tab: the table of symbols and the collisions (issue #71) | Erwan | 1.0.0 | R-N01 to R-N18 |
 | Q26 | The vocabulary of the code (issue #72) | Erwan | 1.0.0 | R-V01 to R-V10 |
 | Q27 | The structure of `docs/maths.md` and of the specification (issue #73) | Erwan | 1.0.0 | R-S03 to R-S06, R-S09 |

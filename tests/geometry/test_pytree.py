@@ -1,7 +1,7 @@
-"""DataClasses are pytrees whose only leaf is the array (Part I, §2.3 and §3.1, rule 9; T2.9).
+"""Data objects are pytrees whose only leaf is the array (Part I, §2.3 and §3.1, rule 9; T2.9).
 
 Run on the backend and dtype of the test run. ``backend.jit`` is ``jax.jit`` on JAX and the
-identity on PyTorch, so the tests that use it check both: JAX traces the DataClass, PyTorch
+identity on PyTorch, so the tests that use it check both: JAX traces the Data, PyTorch
 behaves as before. The tests that name a backend's tree utilities run only in its run.
 """
 
@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from estel import Data1D, Data2D, DataClass
+from estel import Data, Data1D, Data2D
 from estel.backend._protocol import Backend, DType
 from estel.data._base import _StaticMask
 from tests._backends import backend_name
@@ -32,7 +32,7 @@ def _mask(shape: tuple[int, ...], *missing: tuple[int, ...]) -> np.ndarray:
     return mask
 
 
-def _same_metadata(a: DataClass, b: DataClass) -> bool:
+def _same_metadata(a: Data, b: Data) -> bool:
     masks_equal = (a.mask is None and b.mask is None) or (
         a.mask is not None and b.mask is not None and np.array_equal(a.mask, b.mask)
     )
@@ -48,7 +48,7 @@ CASES = [
 
 @pytest.mark.parametrize(("cls", "shape", "missing"), CASES)
 def test_jit_takes_a_dataclass_and_returns_one(
-    backend: Backend, dtype: DType, cls: type[DataClass], shape: tuple[int, ...], missing: Any
+    backend: Backend, dtype: DType, cls: type[Data], shape: tuple[int, ...], missing: Any
 ) -> None:
     values = _field(shape)
     spatial = shape[-cls.ndim :]
@@ -118,7 +118,7 @@ def test_static_mask_copies_a_read_only_view_of_a_writable_array() -> None:
 
 
 def test_static_mask_keeps_the_mask_of_a_dataclass() -> None:
-    """A DataClass mask is read-only and owns its data: wrapped without a copy."""
+    """The mask of a Data object is read-only and owns its data: wrapped without a copy."""
     data = Data2D(_field((4, 4)), mask=_mask((4, 4), (0, 0)), pbc=True)
     assert data.mask is not None
     assert _StaticMask(data.mask).mask is data.mask
@@ -135,7 +135,7 @@ def test_jax_compiles_once_per_mask(dtype: DType) -> None:
     traces: list[int] = []
 
     @jax.jit
-    def double(d: Data2D) -> DataClass:
+    def double(d: Data2D) -> Data:
         traces.append(1)
         return d.with_array(2 * d.array)
 
@@ -152,7 +152,7 @@ def test_jax_compiles_once_per_mask(dtype: DType) -> None:
 @jax_only
 @pytest.mark.parametrize(("cls", "shape", "missing"), CASES)
 def test_vmap_takes_a_dataclass_and_returns_one(
-    backend: Backend, dtype: DType, cls: type[DataClass], shape: tuple[int, ...], missing: Any
+    backend: Backend, dtype: DType, cls: type[Data], shape: tuple[int, ...], missing: Any
 ) -> None:
     import jax
 

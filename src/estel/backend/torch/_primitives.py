@@ -122,10 +122,10 @@ def _axis(axis: int, ndim: int) -> int:
 
 
 def _axes(axes: Sequence[int], ndim: int) -> list[int]:
-    normalised = [_axis(a, ndim) for a in axes]
-    if len(set(normalised)) != len(normalised):
+    normalized = [_axis(a, ndim) for a in axes]
+    if len(set(normalized)) != len(normalized):
         raise ValueError(f"axes {list(axes)} repeat an axis: name each axis once.")
-    return normalised
+    return normalized
 
 
 # ------------------------------------------------------------------ global configuration
@@ -166,7 +166,7 @@ class TorchBackend:
         if not isinstance(np_array, np.ndarray):
             raise TypeError(
                 f"asarray takes a numpy.ndarray, got {type(np_array).__name__}. Arrays of a "
-                "backend are converted at the DataClass boundary, not through asarray."
+                "backend are converted at the Data boundary, not through asarray."
             )
         if dtype not in _DTYPES:
             raise ValueError(f"dtype {dtype!r} is not one of {sorted(_DTYPES)}.")

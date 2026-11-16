@@ -1,7 +1,7 @@
 """Moments over valid pixels, the safe modulus and STL's regularised division (Part II, §12.4;
 maths.md M-NOT, M-MEAN, M-MOM, M-S1; task T2.4).
 
-The internal functions of the mother DataClass that the scattering loop calls: one
+The internal functions of the mother class Data that the scattering loop calls: one
 implementation for every geometry, written on the L0 protocol, functional and differentiable to
 second order (Part I, §3.2.3):
 
@@ -36,7 +36,7 @@ def _backend(x: Any) -> Backend:
     if name is None:
         raise TypeError(
             f"expected an array of a backend of ESTEL, got {type(x).__name__}: convert NumPy "
-            "inputs at the boundary, with a DataClass."
+            "inputs at the boundary, with a Data object."
         )
     return _registry.backend_named(name)
 
@@ -152,6 +152,6 @@ def standardize(
     total = _identity if global_sum is None else global_sum
     expand = (Ellipsis, *([None] * len(axes)))
     mean = total(sum_valid(x, weights, axes)) / denominator
-    centred = x - mean[expand]
-    std = xp.sqrt(total(cov_sum_valid(centred, centred, weights, axes)) / denominator)
-    return Standardized(x=centred / std[expand], mean=mean, std=std)
+    centered = x - mean[expand]
+    std = xp.sqrt(total(cov_sum_valid(centered, centered, weights, axes)) / denominator)
+    return Standardized(x=centered / std[expand], mean=mean, std=std)

@@ -4,12 +4,12 @@ M-W1, M-S1 to M-S4, M-CHAN, M-MEAN; OP-3, OP-26, OP-27, OP-30).
 The fixtures ``scattering_2d`` (STL `master`) and ``scattering_1d`` (STL `2D+1D`) hold STL's
 statistics, without normalisation and without spectrum, for each configuration of their case
 (``tools/stl_parity/cases/``): periodic and open, with and without missing values, two channels
-with every pair, a custom ``compute_cross_matrix``, standardised data, L = 2 in 1D, and a deep
+with every pair, a custom ``cross_matrix``, standardised data, L = 2 in 1D, and a deep
 open configuration where some means have no valid pixel. ESTEL's ``STOperator`` is
-built with the same parameters on the stored input, with ``norm="vanilla"``, and every family
-of the ``STStatistics`` it returns is compared with
-``assert_parity``: same full-grid shape, NaN at the same positions (structural, channel pairs not
-computed, empty means), values within the tolerances of Part II, §14.3.
+built with the same parameters on the stored input, with ``norm="none"`` (STL's ``vanilla``),
+and every family of the ``STStatistics`` it returns is compared with ``assert_parity``: same
+full-grid shape, NaN at the same positions (structural, channel pairs not computed, empty
+means), values within the tolerances of Part II, §14.3.
 
 The operator runs in the run's dtype: float64 is the parity check of §14.3 (rtol 1e-10), float32
 its secondary check (rtol 1e-5), both with atol = 0.1 x rtol x max|STL| (issue #66). ``mean``,
@@ -29,11 +29,11 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data1D, Data2D, DataClass, STOperator, STStatistics, _config
+from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
 from estel.backend._protocol import DType
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
-CASES: dict[str, type[DataClass]] = {"scattering_2d": Data2D, "scattering_1d": Data1D}
+CASES: dict[str, type[Data]] = {"scattering_2d": Data2D, "scattering_1d": Data1D}
 FAMILIES = ("var", "S1", "S2", "S3", "S4")
 pytestmark = pytest.mark.maths("M-MOM", "M-W1", "M-S1", "M-S2", "M-S3", "M-S4", "M-CHAN", "M-MEAN")
 # Tiers (Part I, §5.4): the 64 x 64, J = 4 configuration is large, so slow; one representative
@@ -84,9 +84,9 @@ def _statistics(
             data,
             config["J"],
             config.get("L", parameters["L"]),
-            norm="vanilla",
+            norm="none",
             standardize=config.get("standardize", False),
-            compute_cross_matrix=None if matrix is None else np.array(matrix, dtype=bool),
+            cross_matrix=None if matrix is None else np.array(matrix, dtype=bool),
             compute_PS=False,
         )
     return operator.apply(data), config

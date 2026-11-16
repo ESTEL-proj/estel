@@ -4,7 +4,7 @@ Summary of [Part I, §2.3 — Object model](../transfer/part1.md#23-object-model
 
 ## In 1.0.0 (step 1)
 
-- **Data.** A DataClass holds one array plus immutable geometry metadata (pbc, cell ids, block structure, level index); it is a pytree whose only leaf is the array. Operations return new objects (`with_array`); nothing is modified in place, and there is no `conv_history`.
+- **Data.** A `Data` object holds one array plus immutable geometry metadata (pbc, cell ids, block structure, level index); it is a pytree whose only leaf is the array. Operations return new objects (`with_array`); nothing is modified in place, and there is no `conv_history`.
 - **Masks** of missing data and their reweighting maps are computed once, at construction, and stored in the static plan; they reach the computation as constant weight arrays.
 - **Statistics** keep STL's full-grid storage (NaN where no coefficient exists), but only **behind accessors that do not depend on it** (Part II, §12.7). Code outside `STStatistics` must use the accessors, never index the full grid directly, so that the compact layout can replace it without changing a signature or a value (LF14).
 - **No full-grid tensor inside the computation** (review rule X5): the loop computes per-level values, stacks them, and assembles the full-grid view once, at the end, with `scatter_to_grid`.
@@ -17,5 +17,5 @@ Principle: **compute on structured arrays, store in a flat compact buffer, never
 - **Two representations.** Compute: per level `(B, n_slots, *spatial)`, inside `scattering()` only, no NaN (masks are weights). Storage: one real buffer `(B, n_floats)` in `STStatistics`, complex entries as (re, im) pairs, absent entries not stored.
 - **`Layout` and `Segment`**: frozen, hashable descriptions (family, level, named index table, complex flags, offset) usable as JAX static arguments.
 - **Full-grid views** (`stats.full_grid("S4")`) are for humans, plots and comparison with 1.0.x; they are never called inside `scattering()`.
-- **Reductions** (normalisation, `iso`, `angular_ft`, `scale_ft`) become static linear maps applied per segment.
+- **Reductions** (normalisation, `iso`, `angular_fourier`, `scale_cosine`) become static linear maps applied per segment.
 - **Open points:** the canonical set (keep STL's duplicates or not, LF20) and where the conversion is implemented (R1). The level-wise Gram reorganisation of the loop is adopted only after a benchmark and a human validation.

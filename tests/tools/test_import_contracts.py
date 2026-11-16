@@ -84,7 +84,7 @@ def test_clean_layered_package_keeps_every_contract(tmp_path: Path) -> None:
                 "estel/statistics/__init__.py": "",
                 "estel/statistics/stats.py": "from estel.data import _planar\n",
             },
-            "L2 talks to the DataClass mother class, never to a subclass",
+            "L2 talks to the Data mother class, never to a subclass",
             id="l2-imports-subclass",
         ),
         pytest.param(

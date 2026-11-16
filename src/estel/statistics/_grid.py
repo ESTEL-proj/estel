@@ -4,10 +4,10 @@ coefficient exists (Part II, §12.7; maths.md M-CHAN, M-MEAN, M-FLAT; task T2.5)
 In 1.0.0 the statistics are STL's full-grid tensors, NaN where no coefficient exists: the
 structural NaN (j1 ≤ j2 ≤ j3, the channel pairs not computed, M-CHAN), the means with no valid
 pixel (OP-3), the cross statistics of a channel without auto statistics after normalisation
-(OP-30), and the harmonics of ``scale_ft`` built from missing scales (M-RED-SCALE). Every one of
-them is known when the operator is built, from the plan alone. :class:`FamilyGrid` records them
-as a static boolean array, ``present``, so that ``to_vector`` and the reductions never look for
-NaN in the values (Part I, §3.1, rule 3), and so that gradients never meet them.
+(OP-30), and the harmonics of ``scale_cosine`` built from missing scales (M-RED-SCALE). Every
+one of them is known when the operator is built, from the plan alone. :class:`FamilyGrid`
+records them as a static boolean array, ``present``, so that ``to_vector`` and the reductions
+never look for NaN in the values (Part I, §3.1, rule 3), and so that gradients never meet them.
 
 The axes have names, used by ``STStatistics.select`` (Part II, §12.7):
 
@@ -17,10 +17,10 @@ The axes have names, used by ``STStatistics.select`` (Part II, §12.7):
 * ``S4``: ``(c1, c2, j1, j2, j3, l1, l2, l3)``.
 
 ``iso`` replaces the orientations of S1 and S2 by nothing, those of S3 by ``dl`` (l3 - l2 mod
-L) and those of S4 by ``dl2``, ``dl3`` (l2 - l1, l3 - l1 mod L); ``angular_ft`` prefixes each
-orientation axis it transforms with ``h`` (``hl2``, ``hdl``, …); ``scale_ft`` replaces the scales
-of S3 by ``(k, a)`` and those of S4 by ``(k, a, b)`` (M-RED-ISO, M-RED-ANG, M-RED-SCALE). The
-batch axis comes first in every array and is not named.
+L) and those of S4 by ``dl2``, ``dl3`` (l2 - l1, l3 - l1 mod L); ``angular_fourier`` prefixes
+each orientation axis it transforms with ``h`` (``hl2``, ``hdl``, …); ``scale_cosine`` replaces
+the scales of S3 by ``(k, a)`` and those of S4 by ``(k, a, b)`` (M-RED-ISO, M-RED-ANG,
+M-RED-SCALE). The batch axis comes first in every array and is not named.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from ..scattering._plan import ScatteringPlan
+from ..scattering._plan import STPlan
 
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
 """The families of ESTEL 1.0.0, in STL's order (``to_flatten``); PS joins them in T4.1."""
@@ -111,7 +111,7 @@ def _full(
     return FamilyGrid(name=name, axes=axes, coords=coords, present=present, is_complex=is_complex)
 
 
-def base_grids(plan: ScatteringPlan) -> tuple[FamilyGrid, ...]:
+def base_grids(plan: STPlan) -> tuple[FamilyGrid, ...]:
     """The layout of the statistics without normalisation (maths.md M-MOM, M-S1 to M-S4,
     M-CHAN, OP-3): what the scattering loop computes, from the plan alone."""
     nc, J, L = plan.n_channels, plan.J, plan.L  # noqa: N806
@@ -146,7 +146,7 @@ def base_grids(plan: ScatteringPlan) -> tuple[FamilyGrid, ...]:
     )
 
 
-def auto_scales(plan: ScatteringPlan) -> NDArray[np.bool_]:
+def auto_scales(plan: STPlan) -> NDArray[np.bool_]:
     """``(Nc, J)``: where the auto S2 exists, so where the normalisation scale sigma_c(j, l) of
     M-NORM is defined: the channels with auto statistics, at the scales with valid pixels."""
     present = np.array(

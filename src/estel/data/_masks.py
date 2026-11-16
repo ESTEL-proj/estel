@@ -1,7 +1,7 @@
 """Static masks and reweighting maps of planar data (maths.md M-DOWN-MASK, M-MASK).
 
 Built once, in NumPy float64, when an operator is built, from the full-resolution mask of the
-data; never traced, never differentiated (tag N of Part II, §12). The ``ScatteringPlan`` holds
+data; never traced, never differentiated (tag N of Part II, §12). The ``STPlan`` holds
 the result and casts it to the operator's dtype (Part I, §2.3).
 
 This reproduces STL's ``_build_reweighting_maps_and_scattering_layer_masks`` (`master`

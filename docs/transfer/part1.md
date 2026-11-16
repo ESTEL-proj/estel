@@ -79,7 +79,7 @@ The engine layer hands each computation to one engine. Inside the Python engine,
 - **Engine layer.** Chooses which engine runs the whole computation, from `engine=` and the capabilities each engine declares (§2.2.4). Every engine returns the same `STStatistics` and must reproduce the same reference values.
 - **Python engine** (`engine="python"`, the only one in step 1), made of three layers:
   - **L2, skeleton.** The scattering loop, statistics, reductions and synthesis driver, in plain Python, backend-neutral.
-  - **L1, geometry.** Written once on top of L0. Each DataClass provides a small set of geometry hooks; the mother class holds everything else.
+  - **L1, geometry.** Written once on top of L0. Each `Data` subclass provides a small set of geometry hooks; the mother class holds everything else.
   - **L0, primitives.** About twenty functions in fourteen groups (Part II, §12.3), the only code that imports a backend: PyTorch, and JAX as an experimental backend from P1, chosen with `set_backend()`.
 - **Rust engine** (`engine="rust"`, step 2). The Rust code of STL-Dev-MPI, moved into the ESTEL repository, runs the whole computation by itself, for the configurations it declares (Part III, §18). It has no L2, L1 or L0, and uses neither PyTorch nor JAX operations. It is an engine rather than a backend on purpose (§2.2.4).
 - **Static plan.** Everything that depends only on shapes and parameters, built once in NumPy when an operator is constructed, and used by both engines. Masks of missing data and their reweighting maps are part of it (§2.3).
@@ -111,13 +111,13 @@ The primitives are written against the Python Array API standard, through `array
 
 #### 2.2.2 Static plans
 
-At construction, an operator builds a `ScatteringPlan` in NumPy: scale and orientation index sets, wavelet and low-pass kernels, crop widths per level, mask footprints, spectrum bins, HEALPix stencils. The plan is immutable and hashable. In PyTorch it simply avoids recomputation; in JAX it is a compile-time constant, which is what allows `jax.jit` to compile the whole computation. Large arrays of the plan are passed to the computation as arguments, never baked in as constants.
+At construction, an operator builds an `STPlan` in NumPy: scale and orientation index sets, wavelet and low-pass kernels, crop widths per level, mask footprints, spectrum bins, HEALPix stencils. The plan is immutable and hashable. In PyTorch it simply avoids recomputation; in JAX it is a compile-time constant, which is what allows `jax.jit` to compile the whole computation. Large arrays of the plan are passed to the computation as arguments, never baked in as constants.
 
 #### 2.2.3 Backend selection
 
 - **A global default, read when an operator is built.** `estel.set_backend("jax")` sets the default; every operator records the backend it was built with.
 - **Mixing raises an error.** A torch tensor passed to a JAX-built operator raises `BackendMismatchError`, whose message says how to fix it.
-- **Inputs are converted at the boundary.** DataClass constructors accept NumPy and backend arrays and convert them to the current backend. They never convert silently from one backend to another.
+- **Inputs are converted at the boundary.** `Data` constructors accept NumPy and backend arrays and convert them to the current backend. They never convert silently from one backend to another.
 
 #### 2.2.4 Engines
 
@@ -139,10 +139,10 @@ At construction, an operator builds a `ScatteringPlan` in NumPy: scale and orien
 
 ### 2.3 Object model
 
-- **A DataClass is data plus static metadata.** It holds the array and its geometry metadata (pbc, cell ids, block structure). It is registered as a pytree: the array is its only leaf, everything else is static. The same object therefore works in PyTorch and inside `jax.jit`.
+- **A `Data` object is data plus static metadata.** It holds the array and its geometry metadata (pbc, cell ids, block structure). It is registered as a pytree: the array is its only leaf, everything else is static. The same object therefore works in PyTorch and inside `jax.jit`.
 - **Masks are static.** As in STL, a mask of missing data and its reweighting maps are computed once, when the operator is built, and stay fixed for every forward and backward pass. They belong to the static plan and reach the computation as constant arrays. What is forbidden is only to detect missing values, or to choose an estimator, during the computation (§3.1, rule 3).
-- **The convolution history is plan data, not data state.** STL keeps a mutable `conv_history` list on each data object, to know which convolutions were applied and derive the border crop from it. In ESTEL the sequence of convolutions is fixed by the operator, so the `ScatteringPlan` computes the crop width of every level once. A data object carries only immutable metadata (a level index, tuples), which JAX treats as compile-time constants.
-- **An operator is a frozen plan plus a pure function.** `STOperator(...)` builds the plan and the backend arrays (kernels, masks). `op.apply(data, ref=None)` calls `estel.functional.scattering(x, plan, filters, ref)`. That pure function is what `jax.jit`, `jax.grad` and `torch.func` see, and, with L1 and L0, it makes up the Python engine. The method keeps STL's name, `apply`, for the symmetry with `WaveletOperator`; a direct call `op(data)` may be added later as a minor change (Part IV, §22.5, R-A09).
+- **The convolution history is plan data, not data state.** STL keeps a mutable `conv_history` list on each data object, to know which convolutions were applied and derive the border crop from it. In ESTEL the sequence of convolutions is fixed by the operator, so the `STPlan` computes the crop width of every level once. A data object carries only immutable metadata (a level index, tuples), which JAX treats as compile-time constants.
+- **An operator is a frozen plan plus a pure function.** `STOperator(...)` builds the plan and the backend arrays (kernels, masks). `op.apply(data, ref=None)` calls `estel.functional.scattering(data, plan, filters, ref)`. That pure function is what `jax.jit`, `jax.grad` and `torch.func` see, and, with L1 and L0, it makes up the Python engine. The method keeps STL's name, `apply`, for the symmetry with `WaveletOperator`; a direct call `op(data)` may be added later as a minor change (Part IV, §22.5, R-A09).
 - **One way to say it (review rule A6).** In STL, `ST_Operator.__init__` and `apply` accept the same options (`norm`, `iso`, `flatten`, `compute_PS`, …), with `None` meaning "inherit from the constructor": two ways to set each option. In ESTEL every option is set once, at construction; `apply` takes only the data and an optional reference. This is also what makes the plan static. A different configuration is a different operator.
 - **One entry point per object.** `estel.STOperator(data, ...)` replaces `data.get_ST_op()`, and `estel.WaveletOperator(data, ...)` replaces `data.get_wavelet_op()`.
 - **Class names follow PEP 8:** CapWords, no underscore. STL's `ST_Operator`, `ST_Operator_TensorProd` and `ST_Statistics` become `STOperator`, `STOperatorTensorProd` and `STStatistics`.
@@ -156,7 +156,7 @@ Each rule is enforced by a mechanical check — `import-linter` contracts and a 
 | --- | --- |
 | `torch`, `jax`, `optax` imported only under `estel/backend/` | import-linter "forbidden" contract |
 | `estel_rust` imported only under `estel/engines/` (step 2) | import-linter "forbidden" contract |
-| L2 never imports a DataClass subclass; it talks to the mother-class interface | import-linter "layers" contract |
+| L2 never imports a `Data` subclass; it talks to the mother-class interface | import-linter "layers" contract |
 | `estel._spec` imports NumPy only, and nothing from `estel` | import-linter "independence" contract |
 | No `type(x).__name__ ==` comparisons, no assignment to `__class__` | AST check |
 | No in-place array mutation in L1/L2 (`x[...] =`, `out=`, `.add_`, `inplace=True`, `x += y`, `del x[...]`, `__setitem__`). The NumPy modules that build the static plan (tag N in Part II, §12) are exempt from this rule only, through an explicit list in the checker: they run once, at construction, and are never traced or differentiated | AST check |
@@ -178,14 +178,14 @@ Each rule is enforced by a mechanical check — `import-linter` contracts and a 
 These rules apply to L1 and L2 from the first commit of step 1. From phase P1, ESTEL also has an experimental JAX backend for L0, in `src/estel/backend/jax/`, which passes the same conformance suite as PyTorch, and CI runs the whole test suite on both backends, in parallel jobs: on every merge to `main`, nightly, and on PRs labelled `full-ci`; other PRs run the JAX smoke subset of §5.4. Any PyTorch idiom that settles into L1 or L2 therefore fails at once. JAX is opt-in and experimental in 1.0.0 (§2.2.5). The rules are copied into `docs/agents/jax_rules.md`.
 
 1. **Functional code only.** Build per-level results in Python lists (§3.1.1), then `concat` or `stack` them. No preallocation filled by index, no `out=`, no `inplace=`. This applies to the code that computes the statistics; the NumPy code that builds the static plan, run once at construction, may write in place (§2.4).
-2. **Static shapes.** Everything shape-related — index sets, crop widths, stencils, bins — lives in the `ScatteringPlan`, built in NumPy and passed as a static argument.
-3. **No decisions on array values inside traced code.** No `if x.isnan().any()`, no `.item()`, no `float(x)`, no `print(x)`. NaN detection and estimator selection happen when the DataClass or the operator is constructed; the masks and reweighting maps they produce are then static data of the plan (§2.3).
+2. **Static shapes.** Everything shape-related — index sets, crop widths, stencils, bins — lives in the `STPlan`, built in NumPy and passed as a static argument.
+3. **No decisions on array values inside traced code.** No `if x.isnan().any()`, no `.item()`, no `float(x)`, no `print(x)`. NaN detection and estimator selection happen when the `Data` object or the operator is constructed; the masks and reweighting maps they produce are then static data of the plan (§2.3).
 4. **Large constants are arguments, not closures.** Kernels, masks and stencils are passed as arrays to the computation (`filters` in `scattering(x, plan, filters)`), so they are not baked into the compiled program. Whether baking small kernels in as compiled constants would be faster is a step-2 question (LF29).
 5. **Explicit randomness.** Every random function takes a key or a seed (`make_key(seed)`).
 6. **Complex convolutions are two real convolutions**, as STL's `_semicomplex_conv` already does. Kernels are stored as real pairs. Whether complex-to-complex convolutions would be faster in tensor products is a step-2 question (LF30).
 7. **float32 by default, float64 on request.** Every computation must run in float32, the default, as well as in float64: no hard-coded float64 constant, no silent change of dtype; kernels, masks and plan arrays are cast to the operator's dtype when it is built, and the tests run in both. `set_default_dtype("float64")` enables float64 on every backend; on JAX it switches on `jax_enable_x64`, and raises an error if JAX already ran in float32 in that process.
 8. **Short Python loops, for JAX.** JAX unrolls Python loops when it traces the code, so their length drives compile time, which is part of the benchmark with a budget per case. Step 1 keeps the structure of STL's scattering loop, which limits memory and avoids recomputation, especially for tensor products, and only writes it in functional style. Any reorganisation of the loop belongs to step 2, and is adopted only after a realistic benchmark and a human validation (Part III, §19.3).
-9. **Data and statistics are pytrees.** `DataClass` and `STStatistics` are registered as pytrees (arrays as leaves, metadata static), so that `jax.vmap` and `jax.jit` accept them.
+9. **Data and statistics are pytrees.** `Data` and `STStatistics` are registered as pytrees (arrays as leaves, metadata static), so that `jax.vmap` and `jax.jit` accept them.
 
 #### 3.1.1 The scattering loop without in-place updates
 

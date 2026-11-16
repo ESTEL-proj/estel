@@ -1,4 +1,4 @@
-"""``ScatteringFilters``: the numerical arrays of a scattering transform (Part II, §12.6; task
+"""``STFilters``: the numerical arrays of a scattering transform (Part II, §12.6; task
 T2.5).
 
 The filters, the wavelet bank and the smoothing kernel (maths.md M-WAV-2D, M-WAV-1D,
@@ -9,7 +9,7 @@ of the coefficients. They are backend arrays in the operator's dtype, built once
 (:func:`build_filters`) and passed to the computation as an argument rather than baked in
 (Part I, §3.1, rules 4 and 7).
 
-``ScatteringFilters`` is public as a name only (Part II, §12.6): users get it from
+``STFilters`` is public as a name only (Part II, §12.6): users get it from
 ``STOperator.filters`` and pass it to ``estel.functional.scattering``. Its fields are those of
 the private base class ``_FilterFields``. It is a named tuple, so JAX takes it as a pytree whose
 leaves are the arrays.
@@ -27,13 +27,13 @@ from .._config import FloatDType
 from ..backend import _registry
 from ..backend._protocol import DType
 from ..wavelets._banks import bump_steerable_1d, bump_steerable_2d, smoothing_kernel
-from ._plan import ScatteringPlan
+from ._plan import STPlan
 
 COMPLEX: dict[FloatDType, DType] = {"float32": "complex64", "float64": "complex128"}
 
 
 class _FilterFields(NamedTuple):
-    """The fields of :class:`ScatteringFilters`, internal to ESTEL."""
+    """The fields of :class:`STFilters`, internal to ESTEL."""
 
     kernels: Any
     """The complex wavelet bank, ``(L, *kernel)`` (M-WAV-2D, M-WAV-1D)."""
@@ -64,7 +64,7 @@ class _FilterFields(NamedTuple):
     """The grid positions ``(c1, c2, j1, j2, j3)`` of the S4 values (:func:`s4_keys`)."""
 
 
-class ScatteringFilters(_FilterFields):
+class STFilters(_FilterFields):
     """The filters of a scattering transform and the arrays derived to apply them: an opaque
     object (Part II, §12.6).
 
@@ -79,7 +79,7 @@ class ScatteringFilters(_FilterFields):
 # ---------------------------------------------------------------------- static coefficient keys
 
 
-def first_layer_keys(plan: ScatteringPlan) -> list[tuple[int, int, int]]:
+def first_layer_keys(plan: STPlan) -> list[tuple[int, int, int]]:
     """The ``(c1, c2, j)`` of S1 (and of S2) the loop computes, in its order: for each scale
     with valid pixels, the auto channels, then the cross pairs."""
     pairs = plan.pairs
@@ -90,12 +90,12 @@ def first_layer_keys(plan: ScatteringPlan) -> list[tuple[int, int, int]]:
     ]
 
 
-def s3_keys(plan: ScatteringPlan) -> list[tuple[int, int, int, int]]:
+def s3_keys(plan: STPlan) -> list[tuple[int, int, int, int]]:
     """The ``(c1, c2, j2, j3)`` of S3 the loop computes, in its order."""
     return [(c1, c2, j2, j3) for j2, j3 in plan.s3 for c1, c2 in plan.pairs.ordered]
 
 
-def s4_keys(plan: ScatteringPlan) -> list[tuple[int, int, int, int, int]]:
+def s4_keys(plan: STPlan) -> list[tuple[int, int, int, int, int]]:
     """The ``(c1, c2, j1, j2, j3)`` of S4 the loop computes, in its order."""
     return [(c1, c2, j1, j2, j3) for j1, j2, j3 in plan.s4 for c1, c2 in plan.pairs.ordered]
 
@@ -125,9 +125,7 @@ def wavelet_kernels(ndim: int, n_orientations: int) -> NDArray[np.complex128]:
     raise ValueError(f"STOperator handles 1D and 2D planar data; got {ndim} spatial axes.")
 
 
-def build_filters(
-    plan: ScatteringPlan, backend_name: str, dtype: FloatDType, device: Any
-) -> ScatteringFilters:
+def build_filters(plan: STPlan, backend_name: str, dtype: FloatDType, device: Any) -> STFilters:
     """The filters of ``plan`` on the backend ``backend_name``, cast once to ``dtype`` on
     ``device`` (Part I, §3.1, rules 4 and 7)."""
     backend = _registry.backend_named(backend_name)
@@ -151,7 +149,7 @@ def build_filters(
     down_levels = range(plan.J - 1)
     field_down = {d: maps(d) for d in down_levels}
     modulus_down = {(d, j): maps(d, j) for d in down_levels for j in range(d + 1)}
-    return ScatteringFilters(
+    return STFilters(
         kernels=backend.asarray(wavelet_kernels(plan.ndim, plan.L), COMPLEX[dtype], device),
         smoothing=real(smoothing_kernel(plan.ndim)),
         valid=None if plan.masks is None else boolean(~plan.masks.full_res),

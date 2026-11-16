@@ -154,7 +154,7 @@ def test_smoothing_kernel_2d_is_stls_table() -> None:
     assert h2[2, 2] == 0.2424694
 
 
-def test_smoothing_kernel_1d_is_the_third_row_normalised() -> None:
+def test_smoothing_kernel_1d_is_the_third_row_normalized() -> None:
     """M-SMOOTH-1D: the third row of the 2D table divided by its sum (0.49241182 at the centre)."""
     h1 = smoothing_kernel(1)
     row = smoothing_kernel(2)[2]

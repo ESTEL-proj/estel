@@ -124,7 +124,7 @@ class Backend(Protocol):
             None: the result is a constant (a leaf).
         Edge cases:
             ``np_array`` must be a ``numpy.ndarray``; anything else raises ``TypeError``
-            (convert backend arrays at the DataClass boundary instead). Casting towards a
+            (convert backend arrays at the Data boundary instead). Casting towards a
             narrower kind (complex to float, float to int, anything to bool) raises
             ``TypeError``, since it would drop information silently. On the JAX backend,
             float64, complex128 and int64 need JAX's process-wide 64-bit mode
@@ -595,7 +595,7 @@ class Backend(Protocol):
 
         Data and statistics are pytrees, arrays as leaves and metadata static, so that the
         transformations of the backend accept them and return them: ``jax.jit`` and
-        ``jax.vmap`` take a ``DataClass`` and give one back. L1 and L2 do not call this
+        ``jax.vmap`` take a ``Data`` object and give one back. L1 and L2 do not call this
         directly: they call ``estel.backend._registry.register_pytree``, which registers the
         class on every backend, now on those loaded and later on the others.
 

@@ -14,10 +14,10 @@ EMPTY = json.dumps({"schema": 1, "public": {}})
 PACKAGE = {
     "src/estel/__init__.py": "from ._config import set_backend\nfrom . import data\n",
     "src/estel/_config.py": "def set_backend(name: str) -> None:\n    pass\n",
-    "src/estel/data/__init__.py": "from ._base import DataClass as DataClass\n",
+    "src/estel/data/__init__.py": "from ._base import Data as Data\n",
     "src/estel/data/_base.py": (
         "import numpy as np\n"
-        "class DataClass:\n"
+        "class Data:\n"
         "    def __init__(self, array, *, pbc=True):\n        pass\n"
         "    def with_array(self, array):\n        pass\n"
         "    def _hook(self):\n        pass\n"
@@ -27,9 +27,9 @@ PACKAGE = {
 }
 
 MANIFEST = {
-    "estel.data.DataClass": {"kind": "class", "signature": "(self, array, *, pbc=True)"},
-    "estel.data.DataClass.shape": {"kind": "property"},
-    "estel.data.DataClass.with_array": {"kind": "method", "signature": "(self, array)"},
+    "estel.data.Data": {"kind": "class", "signature": "(self, array, *, pbc=True)"},
+    "estel.data.Data.shape": {"kind": "property"},
+    "estel.data.Data.with_array": {"kind": "method", "signature": "(self, array)"},
     "estel.set_backend": {"kind": "function", "signature": "(name: str) -> None"},
 }
 

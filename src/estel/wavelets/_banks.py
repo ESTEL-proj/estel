@@ -105,7 +105,7 @@ def _steerable_constant(n: int) -> float:
     return float(2 ** (n - 1) * math.factorial(n - 1) / math.sqrt(n * math.factorial(2 * (n - 1))))
 
 
-def _centred_frequencies(n: int) -> NDArray[np.float64]:
+def _centered_frequencies(n: int) -> NDArray[np.float64]:
     """The integer frequencies of an n-point grid, zero in the centre: -n/2 … n/2 - 1."""
     return np.fft.fftshift(np.fft.fftfreq(n) * n)
 
@@ -131,7 +131,7 @@ def _check_zero_sum(kernels: NDArray[np.complexfloating], ndim: int, name: str) 
             )
 
 
-def _crop_centre(
+def _crop_center(
     kernel: NDArray[np.complex128], size: int, ndim: int, name: str
 ) -> NDArray[np.complex128]:
     """Inverse FFT over the last ``ndim`` axes, centred, cropped to ``size`` around the centre,
@@ -150,7 +150,7 @@ def _crop_centre(
 def _fourier_bump_steerable_2d(n_orientations: int, n: int = FOURIER_GRID) -> NDArray[np.float64]:
     """psi_l for l = 0 … L-1 at the first scale, shape (L, n, n), zero frequency at (0, 0)
     (M-WAV-2D; STL's ``bump_steerable_bank`` at j = 0)."""
-    omega = _centred_frequencies(n)
+    omega = _centered_frequencies(n)
     grid = np.stack(np.meshgrid(omega, omega, indexing="ij"), axis=-1)
     xi0 = n / (2.0 * math.sqrt(2.0))
     scale = _steerable_constant(n_orientations) / _steerable_constant(4)
@@ -183,7 +183,7 @@ def bump_steerable_2d(L: int, size: int = KERNEL_SIZE) -> NDArray[np.complex128]
     """
     n_orientations = _check_n_orientations(L)
     size = _check_size(size)
-    return _crop_centre(
+    return _crop_center(
         _fourier_bump_steerable_2d(n_orientations).astype(np.complex128),
         size,
         ndim=2,
@@ -195,7 +195,7 @@ def _fourier_bump_steerable_1d(xi0: float, n: int = FOURIER_GRID) -> NDArray[np.
     """psi at the first scale, shape (n,), zero frequency at 0 (M-WAV-1D; STL's
     ``bump_steerable_bank`` at j = 0): the bump with c = 1, no angular part and no
     normalisation."""
-    omega = _centred_frequencies(n)
+    omega = _centered_frequencies(n)
     bump: NDArray[np.float64] = np.fft.fftshift(_bump(np.abs(omega - xi0) / xi0, 1.0))
     return bump
 
@@ -224,7 +224,7 @@ def bump_steerable_1d(
         )
     if not isinstance(conjugate, bool | np.bool_):
         raise TypeError(f"conjugate={conjugate!r}: pass True (L = 2) or False (L = 1).")
-    kernel = _crop_centre(
+    kernel = _crop_center(
         _fourier_bump_steerable_1d(float(xi0)).astype(np.complex128)[None],
         size,
         ndim=1,

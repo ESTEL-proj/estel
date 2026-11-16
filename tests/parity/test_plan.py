@@ -22,11 +22,11 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data1D, Data2D, DataClass
-from estel.scattering._plan import MeanWeights, ScatteringPlan, border_width, build_plan
+from estel import Data, Data1D, Data2D
+from estel.scattering._plan import MeanWeights, STPlan, border_width, build_plan
 from tests.parity._compare import load_fixture, read_manifest
 
-CASES: dict[str, type[DataClass]] = {"plan_2d": Data2D, "plan_1d": Data1D}
+CASES: dict[str, type[Data]] = {"plan_2d": Data2D, "plan_1d": Data1D}
 pytestmark = pytest.mark.maths("M-BORDER", "M-MASK", "M-MEAN")
 
 
@@ -54,7 +54,7 @@ def _stl_order(J: int) -> list[tuple[str, tuple[tuple[int, ...], ...], int, Any]
     return order
 
 
-def _lookup(plan: ScatteringPlan, key: Any) -> MeanWeights:
+def _lookup(plan: STPlan, key: Any) -> MeanWeights:
     if key == "moments":
         return plan.moments
     family, *index = key
@@ -65,7 +65,7 @@ def _lookup(plan: ScatteringPlan, key: Any) -> MeanWeights:
     return plan.s4[(index[0], index[1], index[2])]
 
 
-def _data(case: str, name: str, fixture: dict[str, NDArray[Any]]) -> tuple[DataClass, int]:
+def _data(case: str, name: str, fixture: dict[str, NDArray[Any]]) -> tuple[Data, int]:
     config = _parameters(case)["configs"][name]
     cls = CASES[case]
     shape = (config["N"],) * cls.ndim
@@ -73,7 +73,7 @@ def _data(case: str, name: str, fixture: dict[str, NDArray[Any]]) -> tuple[DataC
     return cls(np.zeros(shape), mask=mask, pbc=config["pbc"]), config["J"]
 
 
-def _build(data: DataClass, J: int, L: int) -> ScatteringPlan:  # noqa: N803
+def _build(data: Data, J: int, L: int) -> STPlan:  # noqa: N803
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-13, checked in tests/scattering
         return build_plan(data, J, L)

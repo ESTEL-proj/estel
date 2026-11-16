@@ -148,7 +148,7 @@ broken_contract_guidance = "An engine runs L2; go through estel.functional or es
 
 [[tool.importlinter.contracts]]
 id = "l2-mother-class-only"
-name = "L2 talks to the DataClass mother class, never to a subclass"
+name = "L2 talks to the Data mother class, never to a subclass"
 type = "optional_forbidden"
 source_modules = [
     "estel.scattering",
@@ -162,7 +162,7 @@ forbidden_modules = [
     "estel.data._tensor_prod",
 ]
 allow_indirect_imports = true
-broken_contract_guidance = "Use the DataClass interface of estel.data._base; add a geometry hook there if L2 needs something new."
+broken_contract_guidance = "Use the Data interface of estel.data._base; add a geometry hook there if L2 needs something new."
 
 [[tool.importlinter.contracts]]
 id = "layers"

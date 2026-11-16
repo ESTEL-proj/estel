@@ -9,8 +9,8 @@ it. It is immutable: every method returns a new object.
 
 The accessors do not depend on this storage (Part II, §12.7; ``docs/agents/storage.md``):
 ``select`` and ``full_grid`` read the statistics, ``to_vector`` flattens them for losses, and
-``iso``, ``angular_ft`` and ``scale_ft`` reduce them. In step 2 the compact layout (Part III,
-§19) replaces the full grids behind the same methods.
+``reduce`` applies the reductions ``iso``, ``angular_fourier`` and ``scale_cosine``. In step 2
+the compact layout (Part III, §19) replaces the full grids behind the same methods.
 
 It is a pytree on every backend (Part I, §3.1, rule 9; T2.9): the arrays are its leaves; the
 plan, the layout and the reductions applied are static.
@@ -31,22 +31,25 @@ from ..backend import _registry
 from ..backend._protocol import Backend
 from ..data._base import geometry_class
 from ..io import _schema
-from ..scattering._plan import ScatteringPlan, build_plan
+from ..scattering._plan import STPlan, build_plan
 from ._arrays import constant
 from ._grid import REAL_PART_ONLY, FamilyGrid
 from ._normalization import _NormReference
-from ._reductions import ISO_AXES, ORIENTATION_AXES, SCALE_AXES, angular_ft, iso, scale_ft
+from ._reductions import ORIENTATION_AXES, SCALE_AXES
+from ._reductions import angular_fourier as reduce_angular_fourier
+from ._reductions import iso as reduce_iso
+from ._reductions import scale_cosine as reduce_scale_cosine
 
 
 class _Reductions(NamedTuple):
-    """The reductions applied, in STL's order (M-NORM, "Order of operations")."""
+    """The reductions applied by ``reduce``, in the order of M-NORM ("Order of operations")."""
 
     iso: bool = False
     """Whether ``iso`` was applied."""
-    angular_ft: int | None = None
-    """The harmonics kept by ``angular_ft``, or ``None``."""
-    scale_ft: tuple[int, int] | None = None
-    """``(harmonics, dj)`` of ``scale_ft``, or ``None``."""
+    angular_fourier: int | None = None
+    """The harmonics kept by ``angular_fourier``, or ``None``."""
+    scale_cosine: tuple[int, int] | None = None
+    """``(harmonics, dj)`` of ``scale_cosine``, or ``None``."""
 
 
 _NO_REDUCTION = _Reductions()
@@ -59,14 +62,14 @@ class STStatistics:
     The families are ``"mean"``, ``"var"``, ``"S1"``, ``"S2"``, ``"S3"`` and ``"S4"`` (maths.md
     M-MOM, M-S1 to M-S4), each an array of the backend whose first axis is the batch. Read them
     with :meth:`full_grid` and :meth:`select`, flatten them with :meth:`to_vector`, reduce them
-    with :meth:`iso`, :meth:`angular_ft` and :meth:`scale_ft`, and store them with :meth:`save`
-    and :meth:`load`. Every method returns a new object; nothing is modified.
+    with :meth:`reduce`, and store them with :meth:`save` and :meth:`load`. Every method returns
+    a new object; nothing is modified.
 
     The named axes, after the batch axis, are ``(c,)`` for mean and var, ``(c1, c2, j, l)`` for
     S1 and S2, ``(c1, c2, j2, j3, l2, l3)`` for S3 and ``(c1, c2, j1, j2, j3, l1, l2, l3)`` for
     S4. ``iso`` turns the orientations of S3 into ``dl`` and those of S4 into ``dl2, dl3``;
-    ``angular_ft`` prefixes the orientation axes it transforms with ``h``; ``scale_ft`` turns the
-    scales of S3 into ``(k, a)`` and those of S4 into ``(k, a, b)``.
+    ``angular_fourier`` prefixes the orientation axes it transforms with ``h``; ``scale_cosine``
+    turns the scales of S3 into ``(k, a)`` and those of S4 into ``(k, a, b)``.
     """
 
     __slots__ = (
@@ -81,7 +84,7 @@ class STStatistics:
 
     _backend: str
     _grids: tuple[FamilyGrid, ...]
-    _plan: ScatteringPlan
+    _plan: STPlan
     _reductions: _Reductions
     _reference: _NormReference | None
     _standardization: tuple[Any, Any] | None
@@ -90,7 +93,7 @@ class STStatistics:
     def __init__(self) -> None:
         raise TypeError(
             "STStatistics are computed, not built: use STOperator(data, ...).apply(data), "
-            "estel.functional.scattering(x, plan, filters), or STStatistics.load(path)."
+            "estel.functional.scattering(data, plan, filters), or STStatistics.load(path)."
         )
 
     @classmethod
@@ -98,7 +101,7 @@ class STStatistics:
         cls,
         values: dict[str, Any],
         grids: tuple[FamilyGrid, ...],
-        plan: ScatteringPlan,
+        plan: STPlan,
         backend: str,
         *,
         reductions: _Reductions = _NO_REDUCTION,
@@ -134,8 +137,7 @@ class STStatistics:
 
     def __setattr__(self, name: str, value: Any) -> None:
         raise AttributeError(
-            "STStatistics are immutable: every method returns new statistics (select, iso, "
-            "angular_ft, scale_ft)."
+            "STStatistics are immutable: every method returns new statistics (select, reduce)."
         )
 
     def __delattr__(self, name: str) -> None:
@@ -231,64 +233,99 @@ class STStatistics:
 
     # ------------------------------------------------------------------ reductions
 
-    def iso(self) -> STStatistics:
-        """Isotropic statistics (maths.md M-RED-ISO; STL ``to_iso``): S1 and S2 averaged over
-        the orientations, S3 and S4 averaged over the first orientation at fixed orientation
-        differences modulo L. Before ``angular_ft`` and ``scale_ft``; returns new statistics."""
-        state = self._reductions
-        if state.iso or state.angular_ft is not None or state.scale_ft is not None:
-            done = "iso" if state.iso else "angular_ft" if state.angular_ft else "scale_ft"
-            raise ValueError(
-                f"iso(): these statistics already went through {done}; iso comes first, before "
-                "angular_ft and scale_ft (maths.md M-NORM, order of operations)."
-            )
-        self._check_complete(ORIENTATION_AXES, self._plan.L, "iso", "orientation")
-        values, grids = iso(self._backend_object(), self._values, self._grids, self._plan.L)
-        return self._replace(values, grids, reductions=state._replace(iso=True))
+    def reduce(
+        self,
+        *,
+        iso: bool = False,
+        angular_fourier: bool = False,
+        angular_harmonics: int | None = None,
+        scale_cosine: bool = False,
+        scale_harmonics: int | None = None,
+        dj: int | None = None,
+    ) -> STStatistics:
+        """The statistics reduced by the selected reductions, applied in the order of maths.md
+        M-NORM: ``iso``, then ``angular_fourier``, then ``scale_cosine``. Returns new statistics.
 
-    def angular_ft(self, harmonics: int | None = None) -> STStatistics:
-        """The angular Fourier transform of S3 and S4 (maths.md M-RED-ANG; STL
-        ``to_angular_ft``): an orthonormal DFT over their orientation axes (over the orientation
-        differences after ``iso``), keeping the first ``harmonics`` harmonics, between 1 and L;
-        all L by default (OP-17). Before ``scale_ft``; returns new statistics."""
-        state = self._reductions
-        if state.angular_ft is not None or state.scale_ft is not None:
-            done = "angular_ft" if state.angular_ft is not None else "scale_ft"
-            raise ValueError(
-                f"angular_ft(): these statistics already went through {done}; angular_ft comes "
-                "after iso and before scale_ft (maths.md M-NORM, order of operations)."
-            )
-        L = self._plan.L  # noqa: N806
-        count = _check_count("angular_ft", "harmonics", harmonics, L, "L")
-        axes = ISO_AXES if state.iso else ORIENTATION_AXES
-        self._check_complete(
-            {k: v for k, v in axes.items() if k in ("S3", "S4")}, L, "angular_ft", "orientation"
-        )
-        values, grids = angular_ft(
-            self._backend_object(), self._values, self._grids, count, state.iso
-        )
-        return self._replace(values, grids, reductions=state._replace(angular_ft=count))
+        * ``iso`` (M-RED-ISO; STL ``to_iso``): S1 and S2 averaged over the orientations, S3 and
+          S4 averaged over the first orientation at fixed orientation differences modulo L.
+        * ``angular_fourier`` (M-RED-ANG; STL ``to_angular_ft``): an orthonormal DFT over the
+          orientation axes of S3 and S4 (over the orientation differences after ``iso``),
+          keeping the first ``angular_harmonics`` harmonics, between 1 and L; all L by default
+          (OP-17). It is allowed without ``iso``.
+        * ``scale_cosine`` (M-RED-SCALE; STL ``to_scale_ft``), which needs ``iso``, as in STL:
+          the scales of S3 and S4 reparametrised as ``(j1, a, b)`` with ``j2 = j1 + a``,
+          ``j3 = j1 + b`` and ``0 ≤ a ≤ b < dj``, an orthonormal DCT-II along j1, the first
+          ``scale_harmonics`` harmonics kept. ``scale_harmonics`` and ``dj`` lie between 1 and
+          J, and are J by default.
 
-    def scale_ft(self, harmonics: int | None = None, dj: int | None = None) -> STStatistics:
-        """The scale cosine transform of S3 and S4 (maths.md M-RED-SCALE; STL
-        ``to_scale_ft``), after ``iso``: the scales reparametrised as ``(j1, a, b)`` with
-        ``j2 = j1 + a``, ``j3 = j1 + b`` and ``0 ≤ a ≤ b < dj``, an orthonormal DCT-II along j1,
-        the first ``harmonics`` harmonics kept. ``harmonics`` and ``dj`` lie between 1 and J,
-        and are J by default. Returns new statistics."""
+        Reduce once, with every reduction wanted: reduced statistics are not reduced again.
+        """
         state = self._reductions
-        if not state.iso:
+        if state != _NO_REDUCTION:
             raise ValueError(
-                "scale_ft(): apply iso() first; the scale transform is defined on isotropic "
-                "statistics, as in STL (maths.md M-RED-SCALE)."
+                f"reduce(): these statistics were already reduced ({_applied(state)}); call "
+                "reduce once, on statistics that were not reduced, with every reduction wanted, "
+                "for example reduce(iso=True, angular_fourier=True, scale_cosine=True)."
             )
-        if state.scale_ft is not None:
-            raise ValueError("scale_ft(): these statistics already went through scale_ft.")
-        J = self._plan.J  # noqa: N806
-        count = _check_count("scale_ft", "harmonics", harmonics, J, "J")
-        width = _check_count("scale_ft", "dj", dj, J, "J")
-        self._check_complete({k: v[0] for k, v in SCALE_AXES.items()}, J, "scale_ft", "scale")
-        values, grids = scale_ft(self._backend_object(), self._values, self._grids, J, count, width)
-        return self._replace(values, grids, reductions=state._replace(scale_ft=(count, width)))
+        for name, flag in (
+            ("iso", iso),
+            ("angular_fourier", angular_fourier),
+            ("scale_cosine", scale_cosine),
+        ):
+            if not isinstance(flag, bool | np.bool_):
+                raise TypeError(f"reduce({name}={flag!r}): pass True or False.")
+        for name, value, transform, selected in (
+            ("angular_harmonics", angular_harmonics, "angular_fourier", angular_fourier),
+            ("scale_harmonics", scale_harmonics, "scale_cosine", scale_cosine),
+            ("dj", dj, "scale_cosine", scale_cosine),
+        ):
+            if value is not None and not selected:
+                raise ValueError(
+                    f"reduce({name}={value!r}) without {transform}=True: pass {transform}=True "
+                    f"as well, or leave {name} out."
+                )
+        if not (iso or angular_fourier or scale_cosine):
+            raise ValueError(
+                "reduce(): no reduction selected; pass iso=True, angular_fourier=True or "
+                "scale_cosine=True (with iso=True), or use the statistics as they are."
+            )
+        if scale_cosine and not iso:
+            raise ValueError(
+                "reduce(scale_cosine=True) without iso=True: the scale cosine transform is "
+                "defined on isotropic statistics, as in STL (maths.md M-RED-SCALE); pass "
+                "iso=True as well."
+            )
+        L, J = self._plan.L, self._plan.J  # noqa: N806
+        n_angular = _check_count("angular_harmonics", angular_harmonics, L, "L")
+        n_scale = _check_count("scale_harmonics", scale_harmonics, J, "J")
+        width = _check_count("dj", dj, J, "J")
+        if iso:
+            self._check_complete(ORIENTATION_AXES, L, "iso", "orientation")
+        elif angular_fourier:
+            self._check_complete(
+                {k: v for k, v in ORIENTATION_AXES.items() if k in ("S3", "S4")},
+                L,
+                "angular_fourier",
+                "orientation",
+            )
+        if scale_cosine:
+            scales = {k: v[0] for k, v in SCALE_AXES.items()}
+            self._check_complete(scales, J, "scale_cosine", "scale")
+
+        backend = self._backend_object()
+        values, grids = self._values, self._grids
+        if iso:
+            values, grids = reduce_iso(backend, values, grids, L)
+        if angular_fourier:
+            values, grids = reduce_angular_fourier(backend, values, grids, n_angular, iso)
+        if scale_cosine:
+            values, grids = reduce_scale_cosine(backend, values, grids, J, n_scale, width)
+        reductions = _Reductions(
+            iso=iso,
+            angular_fourier=n_angular if angular_fourier else None,
+            scale_cosine=(n_scale, width) if scale_cosine else None,
+        )
+        return self._replace(values, grids, reductions=reductions)
 
     # ------------------------------------------------------------------ storage
 
@@ -338,7 +375,7 @@ class STStatistics:
         for grid in self._grids:
             if grid.name in axes and not grid.is_complete(axes[grid.name], size):
                 raise ValueError(
-                    f"{method}(): {grid.name} lacks some of its {kind} axes "
+                    f"reduce({method}=True): {grid.name} lacks some of its {kind} axes "
                     f"{', '.join(axes[grid.name])} after select; apply the reductions before "
                     "selecting along those axes."
                 )
@@ -384,7 +421,7 @@ class STStatistics:
                 "nan_threshold": plan.nan_threshold,
                 "n_channels": plan.n_channels,
                 "norm": plan.norm,
-                "norm_batch_mean": plan.norm_batch_mean,
+                "ref_batch_mean": plan.ref_batch_mean,
                 "standardize": plan.standardize,
             },
             "families": [
@@ -398,12 +435,12 @@ class STStatistics:
             ],
             "reductions": {
                 "iso": state.iso,
-                "angular_ft": state.angular_ft,
-                "scale_ft": None if state.scale_ft is None else list(state.scale_ft),
+                "angular_fourier": state.angular_fourier,
+                "scale_cosine": None if state.scale_cosine is None else list(state.scale_cosine),
             },
             "reference": None
             if self._reference is None
-            else {"norm_batch_mean": self._reference.norm_batch_mean},
+            else {"ref_batch_mean": self._reference.ref_batch_mean},
         }
         return arrays, content
 
@@ -447,18 +484,9 @@ class STStatistics:
             f"{g.name}{tuple(int(n) for n in self._values[g.name].shape)}" for g in self._grids
         )
         state = self._reductions
-        applied = [
-            n
-            for n, on in (
-                ("iso", state.iso),
-                ("angular_ft", state.angular_ft is not None),
-                ("scale_ft", state.scale_ft is not None),
-            )
-            if on
-        ]
         return (
             f"STStatistics({shapes}; norm={self._plan.norm!r}"
-            + (f", reductions={'+'.join(applied)}" if applied else "")
+            + (f", reductions={_applied(state)}" if state != _NO_REDUCTION else "")
             + f", backend={self._backend!r})"
         )
 
@@ -473,12 +501,22 @@ def _is_int(value: object) -> bool:
     return isinstance(value, Integral) and not isinstance(value, bool)
 
 
-def _check_count(method: str, name: str, value: object, largest: int, symbol: str) -> int:
+def _applied(state: _Reductions) -> str:
+    """The reductions of ``state``, joined by ``+``, for messages and ``repr``."""
+    applied = (
+        ("iso", state.iso),
+        ("angular_fourier", state.angular_fourier is not None),
+        ("scale_cosine", state.scale_cosine is not None),
+    )
+    return "+".join(name for name, on in applied if on)
+
+
+def _check_count(name: str, value: object, largest: int, symbol: str) -> int:
     if value is None:
         return largest
     if not _is_int(value) or not 1 <= int(cast(int, value)) <= largest:
         raise ValueError(
-            f"{method}({name}={value!r}): pass an integer between 1 and {symbol} = {largest}, or "
+            f"reduce({name}={value!r}): pass an integer between 1 and {symbol} = {largest}, or "
             f"None for {symbol}."
         )
     return int(cast(int, value))
@@ -587,7 +625,7 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
             kernel_size=spec["kernel_size"],
             cross_matrix=arrays["plan__cross_matrix"].astype(bool),
             norm=spec["norm"],
-            norm_batch_mean=spec["norm_batch_mean"],
+            ref_batch_mean=spec["ref_batch_mean"],
             standardize=spec["standardize"],
         )
     if plan.nan_threshold != spec["nan_threshold"]:
@@ -620,7 +658,7 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
             var=to_backend(arrays["reference__var"]),
             s2_sqrt=to_backend(arrays["reference__s2_sqrt"]),
             present=present,
-            norm_batch_mean=bool(content["reference"]["norm_batch_mean"]),
+            ref_batch_mean=bool(content["reference"]["ref_batch_mean"]),
         )
     standardization = None
     if "standardization__mean" in arrays:
@@ -631,8 +669,8 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
     state = content["reductions"]
     reductions = _Reductions(
         iso=bool(state["iso"]),
-        angular_ft=state["angular_ft"],
-        scale_ft=None if state["scale_ft"] is None else tuple(state["scale_ft"]),
+        angular_fourier=state["angular_fourier"],
+        scale_cosine=None if state["scale_cosine"] is None else tuple(state["scale_cosine"]),
     )
     return STStatistics._create(
         values,

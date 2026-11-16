@@ -239,7 +239,7 @@ def _warm_up(backend: Backend) -> None:
         importlib.import_module("estel.backend.jax._primitives")
 
 
-def _parametrised_names(metafunc: pytest.Metafunc) -> set[str]:
+def _parametrized_names(metafunc: pytest.Metafunc) -> set[str]:
     names: set[str] = set()
     for mark in metafunc.definition.iter_markers("parametrize"):
         argnames = mark.args[0] if mark.args else mark.kwargs["argnames"]
@@ -253,7 +253,7 @@ def _parametrised_names(metafunc: pytest.Metafunc) -> set[str]:
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """Parametrise the ``dtype`` fixture with the dtypes of the run. A test that parametrises
     ``dtype`` itself keeps its own values, in every tier."""
-    if "dtype" not in metafunc.fixturenames or "dtype" in _parametrised_names(metafunc):
+    if "dtype" not in metafunc.fixturenames or "dtype" in _parametrized_names(metafunc):
         return
     metafunc.config.stash.setdefault(_RUN_DTYPE_TESTS, set()).add(metafunc.definition.nodeid)
     metafunc.parametrize("dtype", _run_dtypes())

@@ -1,4 +1,4 @@
-"""The internal moment functions of the DataClass (task T2.4, issue #16; Part II, §12.4;
+"""The internal moment functions of the Data (task T2.4, issue #16; Part II, §12.4;
 maths.md M-NOT, M-MEAN, M-MOM, M-S1): the safe modulus, STL's regularised division, the means
 over valid pixels and the standardisation, against NumPy float64, on the run's backend and dtype.
 """
@@ -64,7 +64,7 @@ def test_modulus_has_finite_derivatives_at_zero(backend: Backend, dtype: DType) 
     )  # 0 + 2.5 + 0.5
 
 
-def test_divide_is_stls_regularised_division(backend: Backend, dtype: DType) -> None:
+def test_divide_is_stls_regularized_division(backend: Backend, dtype: DType) -> None:
     rng = np.random.default_rng(1)
     z = _complex(rng, (4, 5))
     y = np.abs(z)

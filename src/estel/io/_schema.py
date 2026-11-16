@@ -31,8 +31,10 @@ from numpy.typing import NDArray
 
 from .._reference import STATISTICS_REFERENCE, SYNTHESIS_REFERENCE
 
-SCHEMA_VERSION = 1
-"""The version of the schema written by this version of ESTEL."""
+SCHEMA_VERSION = 2
+"""The version of the schema written by this version of ESTEL. Version 2 renamed the values of
+``norm`` (``"none"``, ``"self"``, ``"ref"``), ``ref_batch_mean`` and the reductions
+(``angular_fourier``, ``scale_cosine``); files of version 1 are not read."""
 
 META = "__meta__"
 """The name of the member holding the JSON document."""

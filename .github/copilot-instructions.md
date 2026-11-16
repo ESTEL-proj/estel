@@ -36,7 +36,7 @@ ESTEL computes scattering-transform statistics and simple syntheses. Most change
 | Oracle | `src/estel/_spec/` | NumPy only, nothing from `estel` |
 | Rust engine (step 2) | `rust/` | — (local rules in `rust/AGENTS.md`) |
 
-The static plan (`ScatteringPlan`) is built in NumPy when an operator is constructed. Masks and their reweighting maps are part of it: they are static.
+The static plan (`STPlan`) is built in NumPy when an operator is constructed. Masks and their reweighting maps are part of it: they are static.
 
 ## Numerical rules (summary; details in `docs/agents/jax_rules.md`)
 

@@ -7,7 +7,7 @@ These rules apply to L1 and L2 from the first commit of step 1. From phase P1, E
 ## Rules
 
 1. **Functional code only.** Build per-level results in Python lists, then `concat` or `stack`. No preallocation filled by index, no `out=`, no `inplace=`. (Plan-building NumPy code, run once at construction, is exempt.)
-2. **Static shapes.** Index sets, crop widths, stencils, bins and mean denominators live in the `ScatteringPlan`, built in NumPy and passed as a static argument.
+2. **Static shapes.** Index sets, crop widths, stencils, bins and mean denominators live in the `STPlan`, built in NumPy and passed as a static argument.
 3. **No decisions on array values in traced code.** No `if x.isnan().any()`, `.item()`, `float(x)`, `print(x)`. NaN detection and estimator selection happen at construction; their masks and maps are static plan data.
 4. **Large constants are arguments**, not closures: kernels, masks and stencils are passed in `arrays`.
 5. **Explicit randomness.** Every random function takes a key or a seed (`make_key(seed)`).
