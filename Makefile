@@ -5,7 +5,8 @@
 # as CI does on main, nightly and on a pull request labelled full-ci: both backends, both dtypes,
 # slow tests included.
 
-RUN := uv run --locked
+# CI's JAX fast-tier job runs with RUN="uv run --no-sync": its environment leaves torch out.
+RUN ?= uv run --locked
 
 .PHONY: check check-full check-tools lint types lint-imports layers manifest mirrors mirrors-fix \
         maths-ids workflows test test-fast test-torch test-jax test-fast-torch test-fast-jax \

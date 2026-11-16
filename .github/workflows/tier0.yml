@@ -215,6 +215,8 @@ jobs:
           version: "0.13.8"
           enable-cache: false
 
+      # The fast tier on JAX never imports PyTorch: its environment leaves torch out, half the size
+      # to restore. The full tier switches to PyTorch in some tests, and needs it.
       - name: Restore the environment
         if: steps.scope.outputs.tests != 'false'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -222,11 +224,18 @@ jobs:
           path: |
             .venv
             ${{ runner.temp }}/uv-python-dir
-          key: venv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('uv.lock', '.python-version') }}
+          key: venv-${{ runner.os }}-${{ runner.arch }}-${{ steps.tier.outputs.tier == 'fast' && 'no-torch-' || '' }}${{ hashFiles('uv.lock', '.python-version') }}
 
       - name: Install the locked environment
         if: steps.scope.outputs.tests != 'false'
-        run: uv sync --locked
+        env:
+          TIER: ${{ steps.tier.outputs.tier }}
+        run: |
+          if [ "$TIER" = fast ]; then
+            uv sync --locked --no-install-package torch
+          else
+            uv sync --locked
+          fi
 
       - name: CPU of the runner, for JAX's compilation cache
         id: cpu
@@ -254,10 +263,11 @@ jobs:
         # With a compilation cache for this CPU one process is fastest; without one, XLA compiles
         # every operation, and parallel workers share that work.
         run: |
+          # uv run --no-sync: a sync would install torch again.
           if [ -n "$CACHE_KEY" ]; then
-            make test-fast TEST_BACKENDS=jax
+            make test-fast TEST_BACKENDS=jax RUN="uv run --no-sync"
           else
-            make test-fast TEST_BACKENDS=jax PYTEST_WORKERS="$(nproc)"
+            make test-fast TEST_BACKENDS=jax RUN="uv run --no-sync" PYTEST_WORKERS="$(nproc)"
           fi
 
       - name: Tests on JAX, full tier, float64
