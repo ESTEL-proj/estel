@@ -28,6 +28,7 @@ Two independent choices: the **engine** (`engine=`: `"python"`, later `"rust"`) 
 - Masks and their reweighting maps are static, computed at construction, part of the plan.
 - The convolution history is plan data: the plan computes the crop width of every level once.
 - An operator is a frozen plan plus a pure function: `op.apply(data, ref=None)` calls `estel.functional.scattering(data, plan, filters, ref)`, with `op.plan` and `op.filters`, public and opaque.
+- Everything that depends on the geometry goes through the generic `WaveletOperator`: convolution, downsampling, low-pass filter, level shapes, border and mask rules. `STOperator` does not depend on the geometry; only the wavelet operator calls the geometry hooks of `Data`, which receive the tables of the level.
 - Every option is set once, at construction; `apply` takes only the data and an optional reference.
 - `estel.STOperator(data, ...)` and `estel.WaveletOperator(data, ...)` are the entry points; class names are PEP 8 CapWords (`STOperator`, `STOperatorTensorProd`, `STStatistics`).
 - `STOperatorTensorProd` overrides a small, fixed set of hooks of the mother class, nothing else.

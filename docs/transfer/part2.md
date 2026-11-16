@@ -221,7 +221,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 
 ### 12.4 Data classes
 
-`estel/data/`. The mother class holds all shared logic; subclasses override only the **G** hooks.
+`estel/data/`. The mother class holds all shared logic; subclasses override only the **G** hooks, which only `WaveletOperator` calls (§12.5; Part I, §2.3).
 
 | Function | Tag | Purpose | Origin |
 | --- | --- | --- | --- |
@@ -234,8 +234,8 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `standardize`, `unstandardize` | I |  | `standardize` |
 | `propagate_mask_conv(mask, footprint)` | I | An output is masked when its kernel footprint touches a masked input | `_build_reweighting_maps…`, `_find_mask` |
 | `_spatial_axes()` | G | Axes the geometry acts on | the `# conv_dims dependant` markers |
-| `_conv(x, kernels, level)` | G | Planar: `pad` + `conv_axes`. HEALPix: `gather_weighted` with the stencils ported from `TorchGeometry` | `apply` of each wavelet operator |
-| `_downsample(x, weights, level)` | G | Planar: strided normalised convolution with the smoothing kernel. HEALPix: decimation with `gather_weighted`, then parent binning with `segment_sum` | `_downsample_tensor`, `_down_one_level`, `_downsample_masked` |
+| `_conv(x, tables, level)` | G | Filtering by the wavelets at `level`, with the static tables of that level given by `WaveletOperator`. Planar: `pad` + `conv_axes` with the kernel bank, the same at every level. HEALPix: `gather_weighted` with the stencils of the level, ported from `TorchGeometry` | `apply` of each wavelet operator |
+| `_downsample(x, weights, level)` | G | One step from `level` to `level + 1`, with the static weights of the step given by `WaveletOperator`. Planar: strided normalised convolution with the smoothing kernel. HEALPix: decimation with `gather_weighted`, then parent binning with `segment_sum` | `_downsample_tensor`, `_down_one_level`, `_downsample_masked` |
 | `_crop_weights(level, border)` | G | Planar: removal of non-periodic borders, widths from the plan. HEALPix: identity | `_crop`, `_get_crop_border_size_*` |
 | `_lowpass(x, plan, block)` | G | Applies the low-pass filter described by the plan. In 1.0.0, as in STL: the data downsampled J times, returned unchanged, since the low-pass filter is the cascade of the smoothing kernels. Later: the smoothing kernel at level J−1 without the final downsampling, or a dedicated kernel (LF6, Part III §20.10) | `Tensor_Product_Kernel_Torch.lowpass` |
 | `_nyquist_filter(x)` | G | Pre-filter before synthesis | `apply_nyquist_filter`, `apply_bandlimit` |
@@ -251,10 +251,10 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 
 | Function | Tag | Purpose | Origin |
 | --- | --- | --- | --- |
-| `WaveletOperator(data, J, L=None, wavelet="bump_steerable")` | F | Generic operator, without a data class in its name. Builds the bank with a branch on `data.ndim` (1D, 2D) or the HEALPix geometry. Validates its parameters at construction (J compatible with the data size, an integer L ≥ 1, as STL accepts) | `WaveletOperator2Dkernel_torch`, `…1Dkernel_torch`, `…HealpixKernel_torch` |
-| `.apply(data, j)` | F | ψ\_j ⋆ x at level j: complex output, L orientations | `apply` |
-| `.lowpass(data, j)` | F | φ\_j ⋆ x | `lowpass`, `lowpass_dg` |
-| `.downsample(data, level_out)` | F | Normalised downsampling to a coarser level | `downsample` |
+| `WaveletOperator(data, J, L=None, wavelet="bump_steerable")` | F | Generic operator, without a data class in its name, and the only way to the geometry (Part I, §2.3): level by level, the convolution by the wavelets, the downsampling, the low-pass filter, the shape of each level, and the rules of borders (M-BORDER) and of mask propagation (M-MASK). `STOperator` builds one, and its plan and loop go through it; a tensor product composes those of its blocks. A static part in the plan, arrays in the filters, pure functions. Builds the bank with a branch on `data.ndim` (1D, 2D) or the HEALPix geometry. Validates its parameters at construction (J compatible with the data size, an integer L ≥ 1, as STL accepts) | `WaveletOperator2Dkernel_torch`, `…1Dkernel_torch`, `…HealpixKernel_torch` |
+| `.apply(data, j)` | F | ψ\_j ⋆ x at level j: complex output, L orientations. `data` must already be at level j, the level it carries (Part I, §2.3); data at any other level raise a clear error that says to bring them to level j with `downsample` first. The same function as the loop's | `apply` |
+| `.lowpass(data, j)` | F | φ\_j ⋆ x: the last step of the low-pass filter, on data that must already be at level j − 1 (Part I, §2.3), with a clear error otherwise. In 1.0.0, as in STL, one smoothing step with its downsampling, so that φ\_j is the cascade of the smoothing kernels (M-LP); in step 2, the smoothing without the final downsampling (LF6) | `lowpass`, `lowpass_dg` |
+| `.downsample(data, level_out)` | F | Normalised downsampling to a coarser level; the result carries `level_out` | `downsample` |
 | `bump_steerable_2d(L, size)`, `bump_steerable_1d(xi0, size, conjugate)` | N | Kernels built in NumPy, cropped to 5×5 or 5 taps. STL's kernels are reproduced as they are. They do not satisfy the Littlewood–Paley condition exactly, so 1.0.0 does not test it; a Littlewood–Paley requirement, tested in CI, comes with the wavelet optimisation (LF22); that test includes the low-pass filter, without which the Littlewood–Paley sum is not meaningful (LF6). Every band-pass kernel sums to zero by construction (its mean is subtracted), and the construction checks it: the centring rule of step 2 relies on it (Part III, §20.11) | `_build_bump_steerable_wavelet_kernel`, `bump_steerable_bank` (ported from the Fourier-space class) |
 | `smoothing_kernel(ndim)` | N | Smoothing kernel, the anti-aliasing filter applied before each downsampling; STL's unused `sigma_smooth` is dropped | `_get_smooth_kernel` |
 | `healpix_kernel_weights(depth, L, kernel_size)` | N | Gauge-oriented kernel weights | `_wavelet_kernel` |
@@ -278,8 +278,8 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `_first_layer(x, plan)` | I | W\_j x and \|W\_j x\| at every level, built functionally | `_compute_ST_loop` |
 | `_second_layer(u, plan, level)` | I | The S3 and S4 means at one level, following the structure of STL's loop (Part I, §3.1, rule 8), returned as lists and stacked; no preallocated tensor filled in place (Part I, §3.1.1) | the `cov` calls of the loop |
 | `_normalize(values, plan, ref)` | I | Normalisation only: `norm="self"`, `norm="ref"`, batch mean, with the optional reference. Reductions are `STStatistics` methods. The reference object stores the normalisation scales and, from step 2, the first moments used by centring; the two options are independent (Part III, §20.11) | `_finalize_compute`, `to_norm`, `_normalize_scatcov` |
-| `STPlan` | F/N | Static description: J, L, index sets, levels, the low-pass filter (how it is realised and at which level), crop widths derived from the plan's list of operations, masks and reweighting maps, mean denominators, the channel pairs, the normalisation and standardisation options, the centring of each covariance (`none` in 1.0.0) and the window policy; hashable. Public and opaque: its name is in the manifest, it has no public field | new |
-| `STFilters` | F/N | The numerical arrays of an operator, on its backend and dtype: the filters (wavelets, smoothing kernel) and everything derived to apply them (propagated masks, mean weights, border windows). Public and opaque, as `STPlan` | new |
+| `STPlan` | F/N | Static description: J, L, index sets, the static part of the `WaveletOperator` (the levels and their shapes, the low-pass filter and how it is realised, the rules of borders and masks, and the tables they give), crop widths derived from the plan's list of operations, masks and reweighting maps, mean denominators, the channel pairs, the normalisation and standardisation options, the centring of each covariance (`none` in 1.0.0) and the window policy; hashable. Public and opaque: its name is in the manifest, it has no public field | new |
+| `STFilters` | F/N | The numerical arrays of an operator, on its backend and dtype: the arrays of the `WaveletOperator` (wavelets, smoothing kernel, geometry tables) and everything derived to apply them (propagated masks, mean weights, border windows). Public and opaque, as `STPlan` | new |
 | `scattering(data, plan, filters, ref=None) -> STStatistics` (in `functional`) | F | The pure function behind `apply`, public for `jit`, `grad` and `vmap` users, and for downstream implicit differentiation. `plan` and `filters` are `op.plan` and `op.filters`; `ref` as in `apply`, required with `norm="ref"`. It keeps nothing: the operator, not the function, stores the `norm="self"` reference | new |
 
 ### 12.7 Statistics
@@ -467,13 +467,13 @@ Each task becomes a GitHub issue, to be picked by an agent. A task names its inp
 | T2.7 | P2 | Differentiation tests, to second order | Part I, §3.2 | gradcheck and gradgradcheck green in float64 |
 | T2.8 | P2 | Invariance tests | Part I, §5.1 | invariance family green |
 | T2.9 | P2 | Pytree registration: an L0 primitive `register_pytree(cls, flatten, unflatten)` on both backends, used to register `Data` now and `STStatistics` later (Part I, §3.1, rule 9). On JAX through `jax.tree_util`; on PyTorch through `torch.utils._pytree`, imported lazily with a fallback, and only a warning if no such API exists, since nothing in ESTEL needs pytrees on PyTorch; on JAX, any registration error is raised | Part I, §3.1 rule 9; §12.3, §12.4 | `jax.jit` and `jax.vmap` accept a `Data` object and return one; the PyTorch behaviour is unchanged; conformance test on both backends |
-| T2.10 | P2 | Public `WaveletOperator` (§12.5): `apply`, `lowpass`, `downsample` at a given level; decides how a data object knows its resolution level | §12.4, §12.5; maths M-WAV-2D, M-WAV-1D | public and tested; its results equal the loop's convolutions |
+| T2.10 | P2 | `WaveletOperator` (§12.5), the only way to the geometry (Part I, §2.3): `STOperator`, its plan and its loop go through it, with no geometry formula left in `scattering/`; the geometry hooks receive the tables of the level; `Data` carries its resolution level; public `apply`, `lowpass`, `downsample` | Part I, §2.3; §12.4 to §12.6; maths M-WAV-2D, M-WAV-1D, M-DOWN, M-DOWN-MASK, M-MASK, M-BORDER | statistics unchanged: STL parity and spec parity green, no tolerance changed; public and tested; its results equal the loop's convolutions |
 | T3.0 | P3 | Write the tensor-product section of the maths tab, with the partial order of scales written out explicitly (M-IDX-TP) | STL `2D+1D`; §13.2 | reviewed by a maintainer before T3.2 |
-| T3.1 | P3 | `DataTensorProd`, dispatch along each block's axes | §12.4 | unit tests; benchmark against `swapaxes` recorded |
+| T3.1 | P3 | `DataTensorProd`, dispatch along each block's axes; its `WaveletOperator` composed from those of the blocks | §12.4, §12.5 | unit tests; benchmark against `swapaxes` recorded |
 | T3.2 | P3 | `STOperatorTensorProd`, low-pass and box term | maths, tensor-product section | parity on tensor products |
 | T4.1 | P4 | 2D spectrum estimators and automatic selection | maths §1.9; §12.8 | parity with `master` |
 | T5.0 | P5 | Write the HEALPix section of the maths tab | STL `HealpixUpdate`; STL-Dev-MPI `CLAUDE.md` §3 | reviewed by a maintainer before T5.1 |
-| T5.1 | P5 | Port of the `TorchGeometry` tables; `DataHealpix`, with its reserved `partition` argument (from T1.4) | maths, HEALPix section; §9.3 | tables equal healpix-analyse's; parity with `HealpixUpdate` |
+| T5.1 | P5 | Port of the `TorchGeometry` tables, behind `WaveletOperator`; `DataHealpix`, with its reserved `partition` argument (from T1.4) | maths, HEALPix section; §9.3, §12.5 | tables equal healpix-analyse's; parity with `HealpixUpdate` |
 | T6.0 | P6 | Write the synthesis section of the maths tab: Gaussian start, Nyquist pre-filter, loss | STL `Synthesis.py` | reviewed by a maintainer before T6.1 |
 | T6.1 | P6 | Synthesis API with checkpoints | §12.9 | API tests: a run writes checkpoints and resumes from them |
 | T6.2 | P6 | Utilities and diagnostics | §12.10 | unit tests |
