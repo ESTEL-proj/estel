@@ -41,12 +41,13 @@ Each part opens in its own tab, with a detailed contents at its top.
   - 22\. Decision log
   - 23\. Open questions
   - 24\. Deferred work and points to discuss later
-- maths.md — Mathematics of step 1 (draft; its sections have their own numbering)
+- maths.md — Mathematics of step 1 (sections 1 (2D) and 2 (1D) written from the code; sections 3 (tensor products), 4 (HEALPix) and 5 (syntheses) drafts, each verified by the first task of its phase (T3.0, T5.0, T6.0); its sections have their own numbering)
   - 1\. Planar 2D
-  - 2\. 1D (not started)
-  - 3\. Tensor products (not started)
-  - 4\. HEALPix (not started)
-  - 5\. Syntheses (not started)
+  - 2\. 1D
+  - 3\. Tensor products
+  - 4\. HEALPix
+  - 5\. Syntheses
+- maths_step2.md — Mathematics proposed for step 2
 - Appendices
   - A. Glossary
   - B. References

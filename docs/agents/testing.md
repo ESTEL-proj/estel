@@ -48,6 +48,6 @@ The tests run in parallel, in `pytest-xdist` workers (`make test`; `PYTEST_WORKE
 
 ## Protection ([§5.3](../transfer/part1.md#53-protection-of-reference-values))
 
-- CODEOWNERS protects reference data and tolerances, the transfer specification (`docs/transfer/**`), the oracle and `docs/maths.md`, policy and API, context files, and infrastructure (full list in the root `AGENTS.md`).
+- CODEOWNERS protects reference data and tolerances, the transfer specification (`docs/transfer/**`), the oracle, `docs/maths.md` and `docs/maths_step2.md`, policy and API, context files, and infrastructure (full list in the root `AGENTS.md`).
 - `tests/reference/MANIFEST.sha256` is checked in CI. From 1.0.0, changing a reference file needs a `STATISTICS_REFERENCE` bump with CODEOWNER approval, or CI fails; before 1.0.0 the change is only reported.
 - CI fails if the number of tests drops, or if a new `skip`/`xfail` appears without the `test-change` label. Never weaken, skip or delete a test to make CI pass.

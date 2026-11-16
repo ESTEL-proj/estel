@@ -13,6 +13,7 @@ From draft 0.4 (12 November 2026), this folder and [`docs/maths.md`](../maths.md
 | [`part4.md`](part4.md) | Part IV — Review and decisions (§21–§24) |
 | [`appendices.md`](appendices.md) | Appendices: glossary, references, version notes |
 | [`../maths.md`](../maths.md) | The mathematics of step 1, with the `M-` IDs that `estel._spec` implements |
+| [`../maths_step2.md`](../maths_step2.md) | The mathematics proposed for step 2 |
 
 ## How they change
 
