@@ -185,6 +185,7 @@ The review of the scattering chain (86 remarks, R-A00 to R-P17) was distributed:
 | G1 | Coefficient count of plain 2D | follow STL: 1,474, since plain 2D has no low-pass term in STL (the deliverable's formula gives 1,476) | Part II, §13.2; LF6 |
 | R-E01, R-N19 | Smoothing table, kernel rotations | recorded as OP-59 and OP-58 | maths tab |
 | — | Wavelet operator | the only way to the geometry: one generic `WaveletOperator` provides, level by level, the convolution, the downsampling, the low-pass filter, the shapes of the levels and the rules of borders and masks; `STOperator`, its plan and its loop do not depend on the geometry; the code of each geometry stays in its `Data` hooks and table builders, called by the wavelet operator only; this replaces the public wrapper first planned for T2.10 | Part I, §2.1, §2.3; Part II, §12.4 to §12.6, T2.10, T3.1, T5.1 |
+| — | Invariance under rotations | not tested in 1.0.0: STL's 2D kernels match a rotation by π/2 only to 3e-3 to 9e-3 (OP-58), so the test comes with the joint design of the filters, with the conjugation of the orientations that leave [0, π). The other invariances of Part I, §5.1 are tested in T2.8, where they hold to rounding with STL's definitions: not for the scaling of the cross S1 (OP-16), nor for the constant shift of 2D data with a mask (OP-59) | Part I, §5.1; Part III, §20.10 |
 
 ### 22.6 Questions of drafts 0.2 to 0.4, answered
 
