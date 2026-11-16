@@ -480,7 +480,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-15 | Scale indices of S3 named (j₁, j₂) in STL's comments, (j₂, j₃) in the code |
 | OP-16 | Definition of cross-channel S1, with ε = 10⁻⁸ |
 | OP-17 | `angular_ft` keeps all L harmonics by default, contrary to a code comment |
-| OP-18 | Gradients through the normalisation reference unspecified (LF21) |
+| OP-18 | Gradients through the normalisation reference: decided, they follow from the mode (LF21, closed): with store_ref the reference is part of the computation and gradients flow through it; with load_ref it is a constant |
 | OP-19 | Only the real part of cross-spectra is kept |
 | OP-20 | The spectrum code requires even sizes (inverse FFT width) |
 | OP-21 | Spectrum border mask at 60 % of the point-spread energy, hard by default |

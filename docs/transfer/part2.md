@@ -395,7 +395,7 @@ The points fall into four groups, handled differently. They keep their IDs G1 to
 | ID | Point | In step 1 | Related |
 | --- | --- | --- | --- |
 | G2 | The canonical set: complex-conjugate duplicates at `j1 = j2`, and both channel orders, are stored and counted twice by the loss | STL's set, as is | LF20; OP-14 |
-| G6 | Normalisation: whether gradients flow through the reference | STL's behaviour | LF21; OP-18 |
+| G6 | Normalisation: whether gradients flow through the reference | STL's behaviour, which follows from the mode (store_ref: gradients flow; load_ref: constant) | LF21 (closed); OP-18 |
 | G9 | Low-pass filters in S3/S4 | absent, as in STL | LF6 |
 | G10 | Negative bins of the non-periodic spectrum estimator | reproduced | LF7; OP-21 |
 
