@@ -8,10 +8,13 @@
 * **Tests.** Tests cite IDs with ``@pytest.mark.maths("M-S1", ...)`` (or a module-level
   ``pytestmark``); each cited ID is defined.
 * **Coverage** (the other direction): every defined ID has at least one ``_spec`` function and
-  at least one test.
+  at least one test, except those listed below as not yet implemented.
 
-``--allow-unimplemented`` skips the coverage step. ``make check`` passes it until the oracle
-for planar data exists (task T2.6, Part II, §15.2); removing it then is part of that task.
+**Not yet implemented.** The oracle covers sections 1 (planar 2D) and 2 (1D) of
+``docs/maths.md`` (task T2.6, issue #18). ``NOT_YET_IMPLEMENTED_SECTIONS`` and
+``NOT_YET_IMPLEMENTED_IDS`` list what the coverage step accepts without an oracle function or a
+test, each with the task that implements it; that task removes its own entries. An entry that
+names nothing, or whose IDs all have an oracle function and a test, is an error: remove it.
 """
 
 from __future__ import annotations
@@ -27,6 +30,17 @@ REPO = Path(__file__).resolve().parents[1]
 MATHS = Path("docs/maths.md")
 SPEC = Path("src/estel/_spec")
 TESTS = Path("tests")
+# What the coverage step accepts as not yet implemented, with the task that implements it and
+# removes the entry (decision of the maintainer on issue #18).
+NOT_YET_IMPLEMENTED_SECTIONS = {
+    "3": "T3.2",  # tensor products
+    "4": "T5.1",  # HEALPix
+    "5": "T6.1",  # syntheses
+}
+NOT_YET_IMPLEMENTED_IDS = {
+    "M-PS-2D": "T4.1",  # the 2D power spectrum
+}
+SECTION_RE = re.compile(r"^##\s+(\d+)\.")
 ID_RE = re.compile(r"(?<![\w-])M-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*(?![\w-])")
 HEADING_RE = re.compile(r"^#{1,6}\s")
 
@@ -46,6 +60,62 @@ def defined_ids(text: str) -> tuple[Counter[str], set[str]]:
             defined.update(ID_RE.findall(line))
         cited.update(ID_RE.findall(line))
     return defined, cited
+
+
+def id_sections(text: str) -> dict[str, str]:
+    """``{id: section}``: the number of the top-level section (``## 3. Tensor products``) whose
+    headings define each ID; ``""`` before the first numbered section."""
+    sections: dict[str, str] = {}
+    section = ""
+    in_fence = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence or not HEADING_RE.match(line):
+            continue
+        numbered = SECTION_RE.match(line)
+        if numbered:
+            section = numbered.group(1)
+        for mid in ID_RE.findall(line):
+            sections.setdefault(mid, section)
+    return sections
+
+
+def not_yet_implemented(
+    sections: dict[str, str], covered: set[str]
+) -> tuple[dict[str, str], list[str]]:
+    """``{id: task}`` for the IDs the lists accept without an oracle function or a test, and the
+    errors of the lists themselves: an entry that names nothing, or that is no longer needed."""
+    pending: dict[str, str] = {}
+    errors = []
+    for section, task in NOT_YET_IMPLEMENTED_SECTIONS.items():
+        members = sorted(mid for mid, found in sections.items() if found == section)
+        if not members:
+            errors.append(
+                f"NOT_YET_IMPLEMENTED_SECTIONS lists section {section} ({task}), but no ID of "
+                f"{MATHS} is defined there. Remove the entry from tools/check_maths_ids.py."
+            )
+        elif all(mid in covered for mid in members):
+            errors.append(
+                f"NOT_YET_IMPLEMENTED_SECTIONS lists section {section} ({task}), but every ID of "
+                "that section has an oracle function and a test. Remove the entry from "
+                "tools/check_maths_ids.py."
+            )
+        pending.update(dict.fromkeys(members, task))
+    for mid, task in NOT_YET_IMPLEMENTED_IDS.items():
+        if mid not in sections:
+            errors.append(
+                f"NOT_YET_IMPLEMENTED_IDS lists {mid} ({task}), which {MATHS} does not define. "
+                "Remove the entry from tools/check_maths_ids.py."
+            )
+        elif mid in covered:
+            errors.append(
+                f"NOT_YET_IMPLEMENTED_IDS lists {mid} ({task}), which has an oracle function and "
+                "a test. Remove the entry from tools/check_maths_ids.py."
+            )
+        pending[mid] = task
+    return pending, errors
 
 
 def spec_ids(spec_dir: Path, root: Path) -> tuple[dict[str, set[str]], list[str]]:
@@ -107,11 +177,12 @@ def cited_by_tests(tests_dir: Path, root: Path) -> dict[str, set[str]]:
     return found
 
 
-def check(root: Path, allow_unimplemented: bool) -> list[str]:
+def check(root: Path) -> list[str]:
     maths = root / MATHS
     if not maths.exists():
         return [f"{MATHS} is missing. Restore it from main."]
-    defined_counts, cited = defined_ids(maths.read_text())
+    text = maths.read_text()
+    defined_counts, cited = defined_ids(text)
     defined = set(defined_counts)
     errors = []
 
@@ -135,32 +206,33 @@ def check(root: Path, allow_unimplemented: bool) -> list[str]:
         for where in sorted(tests[mid]):
             errors.append(f"{where} marks {mid}, which {MATHS} does not define. Use a defined ID.")
 
-    if not allow_unimplemented:
-        for mid in sorted(defined - spec.keys()):
-            errors.append(
-                f"{mid} has no oracle function. Add one to {SPEC}/ whose docstring cites {mid}."
-            )
-        for mid in sorted(defined - tests.keys()):
-            errors.append(f"{mid} has no test. Mark a test with @pytest.mark.maths({mid!r}).")
+    pending, list_errors = not_yet_implemented(id_sections(text), spec.keys() & tests.keys())
+    errors += list_errors
+    for mid in sorted(defined - spec.keys() - pending.keys()):
+        errors.append(
+            f"{mid} has no oracle function. Add one to {SPEC}/ whose docstring cites {mid}."
+        )
+    for mid in sorted(defined - tests.keys() - pending.keys()):
+        errors.append(f"{mid} has no test. Mark a test with @pytest.mark.maths({mid!r}).")
     return errors
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", type=Path, default=REPO, help="repository root")
-    parser.add_argument(
-        "--allow-unimplemented",
-        action="store_true",
-        help="skip the coverage step (IDs without an oracle function or a test)",
-    )
     args = parser.parse_args(argv)
-    errors = check(args.root, args.allow_unimplemented)
+    errors = check(args.root)
     for error in errors:
         print(f"check_maths_ids: {error}", file=sys.stderr)
     if not errors:
-        defined, _ = defined_ids((args.root / MATHS).read_text())
-        note = " (coverage not checked: --allow-unimplemented)" if args.allow_unimplemented else ""
-        print(f"check_maths_ids: OK, {len(defined)} IDs{note}.")
+        text = (args.root / MATHS).read_text()
+        defined, _ = defined_ids(text)
+        pending, _ = not_yet_implemented(id_sections(text), set())
+        waiting = len(defined.keys() & pending.keys())
+        print(
+            f"check_maths_ids: OK, {len(defined)} IDs: {len(defined) - waiting} with an oracle "
+            f"function and a test, {waiting} listed as not yet implemented."
+        )
     return 1 if errors else 0
 
 

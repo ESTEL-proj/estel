@@ -10,7 +10,7 @@ RUN ?= uv run --locked
 
 .PHONY: check check-full check-tools lint types lint-imports layers manifest mirrors mirrors-fix \
         maths-ids retired-names workflows test test-fast test-torch test-jax test-fast-torch test-fast-jax \
-        version-impact parity-image parity parity-fixtures container-runtime
+        test-spec version-impact parity-image parity parity-fixtures container-runtime
 
 # Backends the tests run on (Part I, §3.1). CI runs one per job: make test-fast TEST_BACKENDS=torch
 TEST_BACKENDS ?= torch jax
@@ -81,9 +81,10 @@ mirrors:
 mirrors-fix:
 	$(RUN) python tools/check_agent_mirrors.py --fix
 
-# --allow-unimplemented until task T2.6 writes the oracle for planar data.
+# Every M- ID of docs/maths.md has an oracle function and a test, except those the tool lists as
+# not yet implemented (sections 3 to 5 and M-PS-2D), which their tasks remove from the list.
 maths-ids:
-	$(RUN) python tools/check_maths_ids.py --allow-unimplemented
+	$(RUN) python tools/check_maths_ids.py
 
 # Public names retired by a renaming task stay out of the specification, AGENTS.md and the
 # docstrings of public names (Part IV, §22.5, R-A12); the list is in the tool.
@@ -115,6 +116,13 @@ test-torch test-jax test-fast-torch test-fast-jax: BACKEND = $(lastword $(subst 
 test-torch test-jax test-fast-torch test-fast-jax:
 	ESTEL_TEST_BACKEND=$(BACKEND) $(DTYPE_ENV) $(RUN) pytest -n $(PYTEST_WORKERS) --dist loadgroup --tier $(TIER) -m "not serial"
 	$(if $(filter full,$(TIER)),ESTEL_TEST_BACKEND=$(BACKEND) $(DTYPE_ENV) $(RUN) pytest -p no:xdist --tier full -m serial)
+
+# Spec parity (Part I, §5.1; task T2.6): ESTEL against the oracle estel._spec, in float64, on
+# PyTorch. The fast tier, one small case per geometry and periodicity, is also part of
+# `make check`; the full matrix, part of `make check-full`: make test-spec SPEC_TIER=full
+SPEC_TIER ?= fast
+test-spec:
+	ESTEL_TEST_BACKEND=torch $(RUN) pytest tests/spec -n $(PYTEST_WORKERS) --dist loadgroup --tier $(SPEC_TIER) -m "not serial"
 
 # STL parity harness (Part II, §14; tools/stl_parity/README.md). Step 1 only, not in tier 0.
 CONTAINER ?= docker
