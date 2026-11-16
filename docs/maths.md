@@ -312,7 +312,7 @@ With `norm="store_ref"` (the default), the reference is the statistics being com
 
 **Order of operations.** `apply` normalises first, then applies, in this order and only if requested, `iso`, `angular_ft`, `scale_ft` and the flattening. Normalising after any reduction is an error.
 
-Gradients through the reference: not specified by STL (LF21). **⚠ OP-18**
+Gradients through the reference follow from the mode (LF21, closed; OP-18): with `store_ref` the reference is part of the computation and gradients flow through it; with `load_ref` it is a constant, through which no gradient flows.
 
 - **Source:** `ST_Statistics.to_norm`, `_normalize_scatcov`, `_get_sqrt_chan_diag`.
 

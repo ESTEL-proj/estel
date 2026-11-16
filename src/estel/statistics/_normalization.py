@@ -19,7 +19,7 @@ masks, so that no NaN reaches the gradients.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -27,6 +27,9 @@ from numpy.typing import NDArray
 from ..backend._protocol import Backend
 from ._arrays import masked, nan_absent, zero_absent
 from ._grid import FamilyGrid
+
+if TYPE_CHECKING:
+    from ..scattering._plan import ScatteringPlan
 
 
 @dataclass(frozen=True, eq=False)
@@ -155,29 +158,56 @@ def normalize(
     return out, tuple(new_grids)
 
 
-def check_compatible(reference: _NormReference, values: dict[str, Any]) -> None:
-    """Raise unless ``reference`` can normalise statistics shaped as ``values``: same channels,
-    scales and orientations, and a batch of 1 or of the same size, as STL broadcasts."""
-    s2 = values["S2"]
-    nb, nc = int(s2.shape[0]), int(s2.shape[1])
-    expected = (nc, *(int(n) for n in s2.shape[3:]))
-    found = tuple(int(n) for n in reference.s2_sqrt.shape[1:])
-    if found != expected:
+def check_reference(
+    reference: _NormReference, plan: ScatteringPlan, n_batch: int, dtype: Any
+) -> None:
+    """Raise unless ``reference`` can normalise the statistics of ``plan``, before they are
+    computed (maths.md M-NORM).
+
+    The reference must have the J, L and number of channels of the plan, and a normalisation
+    scale sigma for every channel the plan normalises: each channel with auto statistics in the
+    plan. A channel the plan meets only in cross pairs has no scale under ``store_ref`` either,
+    and its coefficients stay NaN when the reference has none (OP-30). The size, the mask and
+    the periodicity of the data the reference comes from are free: the syntheses normalise by
+    the reference of a target of another size. A scale the reference lacks because its mask
+    left it empty gives NaN, as in STL (OP-3). The batch is 1 or that of the data, as STL
+    broadcasts; the dtype is that of the operator.
+    """
+    found_nc, found_j = (int(n) for n in reference.present.shape)
+    found_l = int(reference.s2_sqrt.shape[-1])
+    mismatches = [
+        f"{name} = {found} (the operator has {expected})"
+        for name, found, expected in (
+            ("J", found_j, plan.J),
+            ("L", found_l, plan.L),
+            ("the number of channels", found_nc, plan.n_channels),
+        )
+        if found != expected
+    ]
+    if mismatches:
         raise ValueError(
-            f"the reference has (Nc, J, L) = {found}, but these statistics have {expected}: "
-            "normalise with a reference computed by an operator with the same channels, J and L "
+            f"the reference has {', '.join(mismatches)}: normalise with statistics computed by an "
+            "operator with the same J, L and channels; their size, mask and pbc may differ "
             "(maths.md M-NORM)."
         )
-    if reference.n_batch not in (1, nb):
+    with_scale: NDArray[np.bool_] = np.any(reference.present, axis=1)
+    missing = [c for c in plan.pairs.auto if not with_scale[c]]
+    if missing:
+        raise ValueError(
+            f"the reference has no normalisation scale for channel(s) {missing}, which this "
+            "operator normalises (they have auto statistics in compute_cross_matrix): compute "
+            "the reference with their diagonal entries set, so that it holds their auto "
+            "statistics (maths.md M-NORM, M-CHAN, OP-30)."
+        )
+    if reference.n_batch not in (1, n_batch):
         raise ValueError(
             f"the reference was computed on {reference.n_batch} batch elements without "
-            f"norm_batch_mean, and these data have {nb}: pass data with {reference.n_batch} "
+            f"norm_batch_mean, and these data have {n_batch}: pass data with {reference.n_batch} "
             "batch element(s), or compute the reference with norm_batch_mean=True (maths.md "
             "M-NORM)."
         )
-    if reference.var.dtype != values["var"].dtype:
+    if reference.var.dtype != dtype:
         raise TypeError(
-            f"the reference is {reference.var.dtype}, but these statistics are "
-            f"{values['var'].dtype}: compute both with the same default dtype "
-            "(estel.set_default_dtype)."
+            f"the reference is {reference.var.dtype}, but the operator computes in {dtype}: "
+            "compute both with the same default dtype (estel.set_default_dtype)."
         )

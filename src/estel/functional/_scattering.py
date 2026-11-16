@@ -21,7 +21,7 @@ from ..statistics._grid import auto_scales, base_grids
 from ..statistics._normalization import (
     _NormReference,
     as_constant,
-    check_compatible,
+    check_reference,
     normalize,
     store_reference,
 )
@@ -49,7 +49,8 @@ def scattering(
 
 
 def reference_of(ref: object, plan: ScatteringPlan) -> _NormReference | None:
-    """The reference held by ``ref``, checked against the normalisation of ``plan``."""
+    """The reference held by ``ref``, checked against the normalisation of ``plan``; its J,
+    L and channels are checked against the plan by :func:`compute`, before the loop."""
     if ref is None:
         if plan.norm == "load_ref":
             raise ValueError(
@@ -119,19 +120,20 @@ def compute(
     """:func:`scattering` with the reference already extracted: the loop, then the
     normalisation of the plan."""
     check_data(x, plan, filters)
+    if plan.norm == "load_ref":
+        if reference is None:
+            raise ValueError(
+                'norm="load_ref" needs a reference: pass ref=, statistics computed with '
+                'norm="store_ref" (maths.md M-NORM).'
+            )
+        check_reference(reference, plan, int(x.shape[0]), filters.smoothing.dtype)
     backend = _registry.backend_named(x.backend)
     found = scattering_values(x, plan, filters)
     values = {name: getattr(found, name) for name in ("mean", "var", "S1", "S2", "S3", "S4")}
     grids = base_grids(plan)
     if plan.norm == "store_ref":
         reference = store_reference(backend, values, auto_scales(plan), plan.norm_batch_mean)
-    elif plan.norm == "load_ref":
-        if reference is None:
-            raise ValueError(
-                'norm="load_ref" needs a reference: pass ref=, statistics computed with '
-                'norm="store_ref" (maths.md M-NORM).'
-            )
-        check_compatible(reference, values)
+    elif plan.norm == "load_ref" and reference is not None:  # checked before the loop
         reference = as_constant(backend, reference)
     else:
         reference = None

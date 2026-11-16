@@ -32,7 +32,7 @@ Backends and engines: nothing the user sees, everything the code is built on.
 | LF1 | JAX backend | `jit`, `vmap`, TPU and GPU, functional ecosystem | L0 protocol, functional rules | no | minor (JAX made stable; experimental since 1.0.0) | §17 | Q9, Q10 |
 | LF2 | HEALPix on JAX | HEALPix on every backend | `gather_weighted`, `segment_sum`, the NumPy tables ported in step 1 | no | minor | §17.4 | C9 |
 | LF3 | Rust engine (`estel-rust`, built from `rust/` in the ESTEL repository; CPU and GPU) | about 10× faster and 9× lighter in memory at nside 128 | `engine=` argument, engine protocol | no | minor; default for a configuration = benchmark-gated minor | §18 | Q14, Q20, C11, C12, C16 |
-| LF4 | MPI in process | nside 1024–2048 and beyond | `partition`, `allreduce` hook | no | minor | §18.3 | Q16 |
+| LF4 | MPI in process | nside 1024–2048 and beyond | `partition`, `_global_sum` hook | no | minor | §18.3 | Q16 |
 | LF5 | Rust HEALPix anafast (`estel-sht`) | differentiable spherical-harmonic spectra on CPU and GPU | HEALPix spectrum names reserved | no (new capability) | minor | §18.4 | Q17, Q18 |
 
 ### 16.2 New features for the user
@@ -172,7 +172,7 @@ Distributed memory is one reason the engine was written in Rust. Each rank holds
 ESTEL integrates MPI in two stages (Q16):
 
 1. **Out of process (1.x).** Distributed runs use the STL-Dev-MPI binaries under `mpirun` or Slurm. ESTEL reads and writes their plan, statistics and map formats through `estel.io`, so that a target can be prepared and a result checked in ESTEL.
-2. **In process.** ESTEL runs under `mpirun` with mpi4py, an optional dependency. Each rank holds a `DataHealpix` slice (`partition=`, the STL-Dev-MPI partition: contiguous NESTED ranges, coarsest levels replicated). `scattering()` returns the global statistics on every rank, and the VJP the rank's slice of the gradient. Because 1.0.0 reserves `partition` and the `allreduce` hook, this stage needs no API change. A test checks that 1, 2 and 4 ranks agree within 1e-13.
+2. **In process.** ESTEL runs under `mpirun` with mpi4py, an optional dependency. Each rank holds a `DataHealpix` slice (`partition=`, the STL-Dev-MPI partition: contiguous NESTED ranges, coarsest levels replicated). `scattering()` returns the global statistics on every rank, and the VJP the rank's slice of the gradient. Because 1.0.0 reserves `partition` and the `_global_sum` hook, this stage needs no API change. A test checks that 1, 2 and 4 ranks agree within 1e-13.
 
 ### 18.4 HEALPix spectra in Rust
 
@@ -293,7 +293,7 @@ Every stored entry carries its full named coordinates, so selection, plotting an
 
 ### 19.5 Full-grid views
 
-`stats.family("S4").full_grid()` builds, with scatter\_to\_grid, the tensor on the complete grid of indices, with NaN at the positions where no coefficient exists and, on request, the conjugate duplicates by conjugation. It serves humans, plots and comparisons with 1.0.x results. It is never called inside `scattering()`, and a test asserts it.
+`stats.full_grid("S4")` builds, with scatter\_to\_grid, the tensor on the complete grid of indices, with NaN at the positions where no coefficient exists and, on request, the conjugate duplicates by conjugation. It serves humans, plots and comparisons with 1.0.x results. It is never called inside `scattering()`, and a test asserts it.
 
 ### 19.6 Reductions as static linear maps
 

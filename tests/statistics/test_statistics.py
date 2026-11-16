@@ -336,8 +336,58 @@ def test_load_ref(dtype: str) -> None:
     three = Data2D(_field((3, 2, 32, 32)), pbc=False)
     with pytest.raises(ValueError, match="batch element"):
         _operator(three, 3, norm="load_ref").apply(three, ref=target)
-    with pytest.raises(ValueError, match="same channels, J and L"):
+    with pytest.raises(ValueError, match="same J, L and channels"):
         _operator(data, 2, norm="load_ref").apply(data, ref=target)
+
+
+def test_reference_of_other_data_is_accepted(dtype: str) -> None:
+    """A reference computed on data of another size, mask and periodicity normalises these
+    statistics, through ``apply`` and ``functional.scattering``: the syntheses need it."""
+    target = _masked_2d(nb=1, nc=2)  # 64 x 64, a hole, open
+    reference = _operator(target, 3).apply(target)
+    data = Data2D(_field((2, 2, 32, 32), seed=1), pbc=True)  # 32 x 32, no mask, periodic
+    loading = _operator(data, 3, norm="load_ref")
+    raw = _operator(data, 3, norm="vanilla").apply(data)
+    stored = reference._reference
+    assert stored is not None
+    expected_var = _numpy(raw.full_grid("var")) / _numpy(stored.var)
+    for loaded in (
+        loading.apply(data, ref=reference),
+        estel.functional.scattering(data, loading.plan, loading.filters, ref=reference),
+    ):
+        np.testing.assert_allclose(
+            _numpy(loaded.full_grid("var")), expected_var, rtol=_tol(dtype), atol=0
+        )
+        _check_layout(loaded)
+
+
+@pytest.mark.parametrize(
+    ("J", "L", "nc", "matrix", "message"),
+    [
+        (2, 4, 2, None, r"J = 2 \(the operator has 3\)"),
+        (3, 2, 2, None, r"L = 2 \(the operator has 4\)"),
+        (3, 4, 3, None, r"number of channels = 3 \(the operator has 2\)"),
+        (3, 4, 2, [[True, True], [False, False]], r"no normalisation scale for channel\(s\) \[1\]"),
+    ],
+)
+def test_reference_of_another_plan_is_refused(
+    J: int,  # noqa: N803
+    L: int,  # noqa: N803
+    nc: int,
+    matrix: list[list[bool]] | None,
+    message: str,
+) -> None:
+    """A reference without the J, L or channels the operator normalises raises, through
+    ``apply`` and ``functional.scattering``, naming what differs."""
+    source = Data2D(_field((1, nc, 32, 32)), pbc=True)
+    cross = None if matrix is None else np.array(matrix)
+    reference = _operator(source, J, L=L, compute_cross_matrix=cross).apply(source)
+    data = Data2D(_field((1, 2, 32, 32), seed=1), pbc=True)
+    loading = _operator(data, 3, norm="load_ref")
+    with pytest.raises(ValueError, match=message):
+        loading.apply(data, ref=reference)
+    with pytest.raises(ValueError, match=message):
+        estel.functional.scattering(data, loading.plan, loading.filters, ref=reference)
 
 
 def test_channels_without_auto_statistics_warn_at_construction() -> None:
