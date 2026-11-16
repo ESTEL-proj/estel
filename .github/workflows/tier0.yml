@@ -31,7 +31,6 @@ concurrency:
 # The branch the fast tier compares with, to decide whether it runs the tests of tools/.
 env:
   ESTEL_TEST_BASE: origin/${{ github.base_ref || github.event.repository.default_branch }}
-  ESTEL_TOOLS_CHANGED: "0"  # TEMPORARY, for a measurement of PR #69; reverted in the next commit
 
 # Three parallel jobs. "make check" (check tools and PyTorch) and "make check (jax)" are the
 # checks the main ruleset requires. In the full tier the JAX run is split by dtype: "make check
@@ -114,11 +113,6 @@ jobs:
       - name: Install the locked environment
         run: uv sync --locked
 
-      - name: TEMPORARY CPU and JAX topology diagnostics
-        run: |
-          grep -m1 'model name' /proc/cpuinfo; grep -m1 '^flags' /proc/cpuinfo | md5sum; nproc
-          .venv/bin/python -c "import jax; from jax._src.lib import xla_client; print('fingerprint', xla_client.get_topology_for_devices(list(jax.devices())).fingerprint())"
-
       - name: Restore mypy's cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -137,7 +131,7 @@ jobs:
         run: make check TEST_BACKENDS=torch
 
       - name: Save mypy's cache (default branch only)
-        if: true
+        if: github.ref_name == github.event.repository.default_branch && github.event_name != 'pull_request'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .mypy_cache
@@ -230,11 +224,6 @@ jobs:
         if: steps.scope.outputs.tests != 'false'
         run: uv sync --locked
 
-      - name: TEMPORARY CPU and JAX topology diagnostics
-        run: |
-          grep -m1 'model name' /proc/cpuinfo; grep -m1 '^flags' /proc/cpuinfo | md5sum; nproc
-          .venv/bin/python -c "import jax; from jax._src.lib import xla_client; print('fingerprint', xla_client.get_topology_for_devices(list(jax.devices())).fingerprint())"
-
       - name: Restore JAX's compilation cache
         if: steps.scope.outputs.tests != 'false'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -247,32 +236,14 @@ jobs:
 
       - name: Tests on JAX, fast tier (jax_smoke)
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'fast'
-        run: |
-          # TEMPORARY diagnostics: the key components of JAX's cache in two processes
-          cat > /tmp/jaxkey.py <<'PY'
-          import logging, os, sys
-          os.environ["XLA_FLAGS"] = "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
-          import jax, jax.numpy as jnp
-          jax.config.update("jax_enable_x64", True)
-          jax.config.update("jax_compilation_cache_dir", sys.argv[1])
-          jax.config.update("jax_persistent_cache_min_compile_time_secs", 0)
-          jax.config.update("jax_persistent_cache_min_entry_size_bytes", 0)
-          logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format="%(message)s")
-          for name in ("jax._src.cache_key", "jax._src.compilation_cache", "jax._src.compiler"):
-              logging.getLogger(name).setLevel(logging.DEBUG)
-          x = jnp.ones((3, 4), dtype=jnp.float64)
-          jax.block_until_ready(jnp.pad(x, ((1, 1), (0, 2)), mode="wrap") * 2.0)
-          PY
-          mkdir -p /tmp/jc
-          for i in 1 2; do .venv/bin/python /tmp/jaxkey.py /tmp/jc | grep -iE 'hash of serialized|cache hit for|cache miss for' | cut -c1-150 | head -10; echo "--- entries $(ls /tmp/jc | wc -l)"; done
-          make test-fast TEST_BACKENDS=jax
+        run: make test-fast TEST_BACKENDS=jax
 
       - name: Tests on JAX, full tier, float64
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
         run: make test TEST_BACKENDS=jax TEST_DTYPE=float64
 
       - name: Save JAX's compilation cache (default branch only)
-        if: steps.scope.outputs.tests != 'false' && true
+        if: steps.scope.outputs.tests != 'false' && github.ref_name == github.event.repository.default_branch && github.event_name != 'pull_request'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .pytest_cache/d/jax-compilation-cache
@@ -369,7 +340,7 @@ jobs:
         run: make test TEST_BACKENDS=jax TEST_DTYPE=float32
 
       - name: Save JAX's compilation cache (default branch only)
-        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full' && true
+        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full' && github.ref_name == github.event.repository.default_branch && github.event_name != 'pull_request'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .pytest_cache/d/jax-compilation-cache
