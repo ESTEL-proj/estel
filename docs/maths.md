@@ -16,7 +16,7 @@
 - HEALPix: STL-Dev `HealpixUpdate` at `90eb1a9` (`STL_Healpix_Kernel_Torch.py`, `TorchGeometry.py`), with healpix-analyse at `aac5e26` (`convol.py`, `down.py`).
 - Syntheses: STL-Dev `master` at `8eaf769` (`Synthesis.py`).
 
-**Rule.** In step 1 this tab describes what STL computes, including choices that look accidental. Points that need a decision are marked **⚠ OP-n** and listed in the last sub-section of each section (§1.11 for 2D, §2.6 for 1D). Each entry gives the definition, its conventions, the STL function it comes from (**Source**), the oracle function that will implement it (**Oracle**, in `estel._spec`) and the tests that use it.
+**Rule.** In step 1 this tab describes what STL computes, including choices that look accidental. Points that need a decision are marked **⚠ OP-n** and listed in the last sub-section of each section: §1.11 (2D), §2.6 (1D), §3.10 (tensor products), §4.6 (HEALPix) and §5.9 (syntheses). Each entry gives the definition, its conventions, the STL function it comes from (**Source**), the oracle function that will implement it (**Oracle**, in `estel._spec`) and the tests that use it.
 
 ## Contents of this tab
 
@@ -558,7 +558,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-30 | A channel with cross statistics but no auto statistics gets NaN after `store_ref` normalisation; STL only warns |
 | OP-32 | The per-level energy partition P of STL's kernels is only close to 1. Measured on the 5-tap kernels: in 1D, within 0.1 of 1 up to ω = 3π/4, falling to 0.23 at the Nyquist frequency; in 2D (L = 4, J = 5, with φ\_J), Λ lies between 0.22 and 1.76 in the disc of radius π, is anisotropic (more energy on the diagonals than on the axes), and is close to 0 in the corners of the frequency square |
 | OP-33 | Gain convention: the analytic wavelets have a maximum gain of 1, so on real data they measure half the energy of their band; Λ counts both signs to compensate. Normalised statistics do not depend on it |
-| OP-34 | Tensor products (section 3, when written): the low-pass filter of a block is silently dropped when the block size is not divisible by 2^(J\_b), because STL obtains it by one more downsampling than the coarsest wavelet |
+| OP-34 | Tensor products (M-LP): the low-pass filter of a block is silently dropped when the block size is not divisible by 2^(J\_a), because STL obtains it by one more downsampling than the coarsest wavelet |
 | OP-36 | STL computes raw second moments, not covariances; its `cov` has a `remove_mean` argument that was never implemented. This is exact for periodic data without mask. Otherwise the forgotten term M1(A)·conj(M1(B)), relative to the covariance, measured on a test field (orders of magnitude): from 1e-6 at j = 0 to 1e-2 at the coarsest scale for non-periodic data; about ten times more with a mask covering 20 % of the pixels; of order 1 for any term whose last filter is a low-pass filter |
 | OP-37 | When flattening to a real vector, STL keeps only the real part of S1, S2 and PS, assuming they are real; this holds for the auto terms, but the imaginary part of the cross-channel terms is dropped, with the information it carries |
 | OP-38 | Default of `compute_cross_matrix`: STL's code computes every pair c₁ ≤ c₂; its docstring says auto statistics only. ESTEL follows the code |
@@ -615,7 +615,7 @@ The 1D smoothing kernel, the anti-aliasing filter applied before each downsampli
 s = [-0.04879268, 0.05638086, 0.49241182, 0.49241182, 0.05638086, -0.04879268]
 ```
 
-It sums to 1 exactly, and the 2D smoothing kernel of M-SMOOTH-2D is s ⊗ s to 2e-8 relative, the precision of STL's literals (OP-59) (for example 0.49241182² = 0.2424694). The code doubts this choice in a `TODO`; the check above confirms that it is the 1D factor of the 2D kernel.
+It sums to 1 exactly. The 2D smoothing kernel of M-SMOOTH-2D is s ⊗ s to 2e-8 relative, the precision of STL's literals (for example 0.49241182² = 0.2424694; OP-59). The code doubts this choice in a `TODO`; this shows that s is the 1D factor of the 2D kernel, up to that precision.
 
 **Downsampling** with this kernel:
 
