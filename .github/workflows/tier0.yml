@@ -238,10 +238,15 @@ jobs:
       - name: Tests on JAX, fast tier (jax_smoke)
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'fast'
         run: |
-          lscpu | grep -E 'Model name|Flags' | cut -c1-200  # TEMPORARY diagnostics
-          ls .pytest_cache/d/jax-compilation-cache 2>/dev/null | wc -l
+          # TEMPORARY diagnostics: the key components of JAX's cache in two processes
+          for i in 1 2; do
+            JAX_DEBUG_LOG_MODULES=jax._src.cache_key ESTEL_TEST_BACKEND=jax uv run --locked pytest -p no:xdist --tier fast -q "tests/backend/test_conformance.py::TestPad" 2>&1 \
+              | grep -E "hash of serialized" | head -8 | sed -E 's/.*serialized //' > keys$i.txt
+            ls .pytest_cache/d/jax-compilation-cache | wc -l
+          done
+          diff keys1.txt keys2.txt && echo "same keys" || true
+          cat keys1.txt | cut -c1-150
           make test-fast TEST_BACKENDS=jax
-          ls .pytest_cache/d/jax-compilation-cache 2>/dev/null | wc -l
 
       - name: Tests on JAX, full tier, float64
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
