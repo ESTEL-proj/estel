@@ -348,8 +348,8 @@ Calibration, written in `TOLERANCES.md`: run every backend, device and dtype on 
   - reference data and tolerances: `tests/reference/**`, `tests/tolerances.toml`;
   - the reference counters: `src/estel/_reference.py`;
   - the STL parity fixtures: `tests/parity/fixtures/**`;
-  - the specification: `docs/transfer/**` and `docs/maths.md`, changed only through pull requests that a maintainer requests and merges;
-  - the oracle and the mathematics: `src/estel/_spec/**`, `docs/maths.md`;
+  - the specification: `docs/transfer/**`, `docs/maths.md` and `docs/maths_step2.md`, changed only through pull requests that a maintainer requests and merges;
+  - the oracle and the mathematics: `src/estel/_spec/**`, `docs/maths.md`, `docs/maths_step2.md`;
   - policy and API: `docs/policy/**`, `api/manifest.json`;
   - context files: `AGENTS.md`, `CLAUDE.md`, their mirrors, `docs/agents/review_rules.md`;
   - infrastructure: `.github/**`, `tools/make_reference.py`, `bench/thresholds.toml`;

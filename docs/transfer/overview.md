@@ -47,6 +47,7 @@ Each part opens in its own tab, with a detailed contents at its top.
   - 3\. Tensor products (not started)
   - 4\. HEALPix (not started)
   - 5\. Syntheses (not started)
+- maths_step2.md — Mathematics proposed for step 2
 - Appendices
   - A. Glossary
   - B. References
