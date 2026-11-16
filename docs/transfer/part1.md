@@ -295,8 +295,8 @@ In step 1, `maths.md` records the mathematics of STL **as it is**, including cho
 | M-MOM | mean, var | 1 |
 | M-S1 … M-S4 | Vanilla ScatCov, including cross-channel terms and the regularised division of the cross S1 term | 1 |
 | M-TP | Tensor products: multi-index scales, the componentwise partial order, product orientations, low-pass φ and box term per block, as in STL | 1 |
-| M-NORM | store\_ref, load\_ref, batch mean | 1 |
-| M-RED | iso, angular\_ft, scale\_ft | 1 |
+| M-NORM | norm="self", norm="ref", batch mean | 1 |
+| M-RED | iso, angular\_fourier, scale\_cosine | 1 |
 | M-PS | Spectra per geometry: 2D estimators of v1.6.0, in 1.0.0 the 2D estimators only; 1D, tensor-product and HEALPix spectra in step 2 (LF23, LF24) | 1 |
 | M-SYN | Loss, weights, Gaussian start, Tukey taper, frozen pixels, Nyquist pre-filter | 1 |
 | M-LP34 | Low-pass filters in every geometry and in S3/S4 | 2 |
@@ -367,7 +367,7 @@ The tests run in two tiers (`tests/conftest.py`, `pytest --tier fast|full`):
 
 | Tier | When | What |
 | --- | --- | --- |
-| fast | every PR and every push to a branch other than `main` (CI); `make check` (locally) | the check tools; on PyTorch, every test not marked `slow` or `serial` in float64, and the tests marked `dtype` in float32 too (dtype propagation through every public function, a few representative parity cases, the precision tests); on the experimental JAX backend, the tests marked `jax_smoke` (the L0 conformance suite and one parity case, of the scattering statistics, which runs the whole loop), in float64. The tests of the check tools (`tests/tools/`) run only when the change touches `tools/`, `tests/tools/` or `pyproject.toml`; every PR runs the tools themselves on the repository. Each backend runs in one process, beside the check tools: the start-up of a process (importing PyTorch and its first gradient) costs more than the fast tier's tests |
+| fast | every PR and every push to a branch other than `main` (CI); `make check` (locally) | the check tools; on PyTorch, every test not marked `slow` or `serial` in float64, and the tests marked `dtype` in float32 too (dtype propagation through every public function, a few representative parity cases, the precision tests); on the experimental JAX backend, the tests marked `jax_smoke` (the L0 conformance suite and one parity case, of the scattering statistics, which runs the whole loop), in float64. The tests of the check tools (`tests/tools/`) run only when the change touches `tools/`, `tests/tools/` or `pyproject.toml`; every PR runs the tools themselves on the repository. Each backend runs in one process, beside the check tools: the start-up of a process (importing PyTorch and its first gradient) costs more than the fast tier's tests. The exception is a PyTorch run that includes the tests of the check tools, which uses one worker per core: these tests start many subprocesses, and the workers cost about 4 s on such a PR |
 | full | every push to `main`, nightly, a PR labelled `full-ci` (CI); `make check-full` (locally) | the check tools and every test, `slow` included, on both backends, in float32 and float64 |
 
 Nothing leaves the full tier: a test marked `slow` or left out of the fast tier still runs on every merge to `main` and every night. What is enforced:
