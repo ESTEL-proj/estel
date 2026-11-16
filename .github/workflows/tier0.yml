@@ -50,8 +50,11 @@ env:
 # and JAX are not installed again in every job; uv sync only checks it. mypy's cache and JAX's
 # persistent compilation cache (tests/conftest.py) are saved by runs of the default branch and
 # restored by every run; a pull request never saves them, so it cannot change what others load.
-# After a change of uv.lock, JAX's cache falls back to the last one saved: an entry of another
-# JAX version is never hit, since JAX keys each entry on its version and the compiled program.
+# JAX's cache is keyed on the runner's CPU: XLA compiles for the host's instruction set, JAX keys
+# each entry on that CPU's topology fingerprint, and GitHub's runners mix several CPU types, so a
+# run restores only what a run of the default branch compiled on the same type of CPU. After a
+# change of uv.lock it falls back to the last cache of that CPU: an entry of another JAX version is
+# never hit, since JAX keys each entry on its version too.
 jobs:
   check:
     name: make check
@@ -224,19 +227,37 @@ jobs:
         if: steps.scope.outputs.tests != 'false'
         run: uv sync --locked
 
+      - name: CPU of the runner, for JAX's compilation cache
+        id: cpu
+        if: steps.scope.outputs.tests != 'false'
+        run: |
+          fingerprint=$(.venv/bin/python -c "import jax; from jax._src.lib import xla_client; print(xla_client.get_topology_for_devices(list(jax.devices())).fingerprint())" 2>/dev/null) \
+            || fingerprint=$({ grep -m1 'model name' /proc/cpuinfo; grep -m1 '^flags' /proc/cpuinfo; } | md5sum | cut -c1-20)
+          echo "fingerprint=$fingerprint" | tee -a "$GITHUB_OUTPUT"
+
       - name: Restore JAX's compilation cache
+        id: jaxcache
         if: steps.scope.outputs.tests != 'false'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .pytest_cache/d/jax-compilation-cache
-          key: jax-${{ runner.os }}-${{ hashFiles('uv.lock') }}-${{ github.job }}-${{ github.sha }}
+          key: jax-${{ runner.os }}-${{ steps.cpu.outputs.fingerprint }}-${{ hashFiles('uv.lock') }}-${{ github.job }}-${{ github.sha }}
           restore-keys: |
-            jax-${{ runner.os }}-${{ hashFiles('uv.lock') }}-${{ github.job }}-
-            jax-${{ runner.os }}-
+            jax-${{ runner.os }}-${{ steps.cpu.outputs.fingerprint }}-${{ hashFiles('uv.lock') }}-${{ github.job }}-
+            jax-${{ runner.os }}-${{ steps.cpu.outputs.fingerprint }}-
 
       - name: Tests on JAX, fast tier (jax_smoke)
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'fast'
-        run: make test-fast TEST_BACKENDS=jax
+        env:
+          CACHE_KEY: ${{ steps.jaxcache.outputs.cache-matched-key }}
+        # With a compilation cache for this CPU one process is fastest; without one, XLA compiles
+        # every operation, and parallel workers share that work.
+        run: |
+          if [ -n "$CACHE_KEY" ]; then
+            make test-fast TEST_BACKENDS=jax
+          else
+            make test-fast TEST_BACKENDS=jax PYTEST_WORKERS="$(nproc)"
+          fi
 
       - name: Tests on JAX, full tier, float64
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
@@ -247,7 +268,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .pytest_cache/d/jax-compilation-cache
-          key: jax-${{ runner.os }}-${{ hashFiles('uv.lock') }}-${{ github.job }}-${{ github.sha }}
+          key: jax-${{ runner.os }}-${{ steps.cpu.outputs.fingerprint }}-${{ hashFiles('uv.lock') }}-${{ github.job }}-${{ github.sha }}
 
       - name: No tests (no-test scope only)
         if: steps.scope.outputs.tests == 'false'
@@ -325,15 +346,24 @@ jobs:
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
         run: uv sync --locked
 
+      - name: CPU of the runner, for JAX's compilation cache
+        id: cpu
+        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
+        run: |
+          fingerprint=$(.venv/bin/python -c "import jax; from jax._src.lib import xla_client; print(xla_client.get_topology_for_devices(list(jax.devices())).fingerprint())" 2>/dev/null) \
+            || fingerprint=$({ grep -m1 'model name' /proc/cpuinfo; grep -m1 '^flags' /proc/cpuinfo; } | md5sum | cut -c1-20)
+          echo "fingerprint=$fingerprint" | tee -a "$GITHUB_OUTPUT"
+
       - name: Restore JAX's compilation cache
+        id: jaxcache
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .pytest_cache/d/jax-compilation-cache
-          key: jax-${{ runner.os }}-${{ hashFiles('uv.lock') }}-${{ github.job }}-${{ github.sha }}
+          key: jax-${{ runner.os }}-${{ steps.cpu.outputs.fingerprint }}-${{ hashFiles('uv.lock') }}-${{ github.job }}-${{ github.sha }}
           restore-keys: |
-            jax-${{ runner.os }}-${{ hashFiles('uv.lock') }}-${{ github.job }}-
-            jax-${{ runner.os }}-
+            jax-${{ runner.os }}-${{ steps.cpu.outputs.fingerprint }}-${{ hashFiles('uv.lock') }}-${{ github.job }}-
+            jax-${{ runner.os }}-${{ steps.cpu.outputs.fingerprint }}-
 
       - name: Tests on JAX, full tier, float32
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
@@ -344,7 +374,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .pytest_cache/d/jax-compilation-cache
-          key: jax-${{ runner.os }}-${{ hashFiles('uv.lock') }}-${{ github.job }}-${{ github.sha }}
+          key: jax-${{ runner.os }}-${{ steps.cpu.outputs.fingerprint }}-${{ hashFiles('uv.lock') }}-${{ github.job }}-${{ github.sha }}
 
       - name: Nothing to do (fast tier or no-test scope)
         if: steps.scope.outputs.tests == 'false' || steps.tier.outputs.tier == 'fast'
