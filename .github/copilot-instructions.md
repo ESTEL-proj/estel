@@ -51,7 +51,7 @@ The static plan (`ScatteringPlan`) is built in NumPy when an operator is constru
 
 `tests/reference/**`, `tests/tolerances.toml`, `src/estel/_reference.py`, `tests/parity/fixtures/**`, `docs/transfer/**`, `src/estel/_spec/**`, `docs/maths.md`, `docs/maths_step2.md`, `docs/policy/**`, `api/manifest.json`, `AGENTS.md`, `CLAUDE.md` and their mirrors, `docs/agents/review_rules.md`, `.github/**`, `tools/make_reference.py`, `bench/thresholds.toml`; in step 2, the Rust binding and the capability schema.
 
-`docs/transfer/`, `docs/maths.md` and `docs/maths_step2.md` are the specification of ESTEL (`docs/transfer/README.md`). They are protected, and change only when a maintainer asks for it; never edit them on your own initiative. It holds proposals for step 2, protected like the rest, but nothing in it is implemented unless a task says so; implement from `docs/maths.md`.
+`docs/transfer/`, `docs/maths.md` and `docs/maths_step2.md` are the specification of ESTEL (`docs/transfer/README.md`). They are protected, and change only when a maintainer asks for it; never edit them on your own initiative. `docs/maths_step2.md` holds proposals for step 2, protected like the rest, but nothing in it is implemented unless a task says so; implement from `docs/maths.md`.
 
 ## Commands
 
