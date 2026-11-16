@@ -46,6 +46,13 @@ import warnings
 from collections.abc import Generator
 from pathlib import Path
 
+# One thread for NumPy's linear algebra, set before NumPy is imported, in every process of the
+# run. The tests run on small arrays, where threads do not help; and on Linux the idle threads of
+# OpenBLAS spin between two calls, which the CPU time of the per-test budget counts: a spec parity
+# case, whose oracle is NumPy, measured 1.0 s of CPU for 0.34 s of wall time on CI's four cores,
+# over its budget, with PyTorch on one thread or not. A value already set is kept.
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
 import numpy as np
 import pytest
 
