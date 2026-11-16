@@ -31,6 +31,9 @@ from tests.backend.test_conformance import (
     register_pair,
 )
 
+# What the conformance suite cannot say without naming JAX: part of the JAX smoke subset.
+pytestmark = pytest.mark.jax_smoke
+
 
 def test_satisfies_the_protocol() -> None:
     backend: Backend = JaxBackend()  # checked by mypy
@@ -135,9 +138,12 @@ def test_lbfgs_names_its_step() -> None:
         )
 
 
+@pytest.mark.slow
 @pytest.mark.serial
 class TestDeterministic:
-    """``--xla_gpu_deterministic_ops`` in ``XLA_FLAGS``, read by XLA once, when JAX starts."""
+    """``--xla_gpu_deterministic_ops`` in ``XLA_FLAGS``, read by XLA once, when JAX starts.
+
+    Slow: each test starts a fresh Python process that imports JAX, which takes seconds."""
 
     def _run(self, code: str, flags: str | None) -> subprocess.CompletedProcess[str]:
         env = {k: v for k, v in os.environ.items() if k != "XLA_FLAGS"}

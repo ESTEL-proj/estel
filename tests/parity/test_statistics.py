@@ -12,6 +12,9 @@ with ``assert_parity``: same shape, NaN at the same positions, values within the
 Part II, §14.3, in the run's dtype (float64 is the parity check, float32 its secondary check).
 ``mean``, whose theoretical value may be zero, takes the standard deviation of the data as its
 scale: atol = 0.1 x rtol x sqrt(max(var)), with the variance before normalisation (§14.3).
+
+Slow: the configuration ``statistics_2d`` ``deep_open`` (64 x 64 pixels, J = 4) runs in the full
+tier only (``MARKS``).
 """
 
 from __future__ import annotations
@@ -37,6 +40,13 @@ REDUCED = {
     "iso_angular_scale": ("S3", "S4"),
 }
 pytestmark = pytest.mark.maths("M-NORM", "M-RED-ISO", "M-RED-ANG", "M-RED-SCALE", "M-FLAT")
+# Tiers (Part I, §5.4): the 64 x 64, J = 4 configuration is large, so slow; one representative
+# configuration per dimension also runs in float32, and the 2D one on JAX.
+MARKS = {
+    ("statistics_2d", "deep_open"): (pytest.mark.slow,),
+    ("statistics_2d", "periodic"): (pytest.mark.dtype, pytest.mark.jax_smoke),
+    ("statistics_1d", "periodic"): (pytest.mark.dtype,),
+}
 
 
 @pytest.fixture(autouse=True)
@@ -50,8 +60,12 @@ def _parameters(case: str) -> dict[str, Any]:
     return parameters
 
 
-def _configs() -> list[tuple[str, str]]:
-    return [(case, name) for case in sorted(CASES) for name in _parameters(case)["configs"]]
+def _configs() -> list[Any]:
+    return [
+        pytest.param(case, name, marks=MARKS.get((case, name), ()))
+        for case in sorted(CASES)
+        for name in _parameters(case)["configs"]
+    ]
 
 
 class _Run:

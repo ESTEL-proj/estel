@@ -32,6 +32,10 @@ import pytest
 from estel.backend._protocol import Backend, DType
 from tests._backends import BACKENDS, backend_name
 
+# The L0 conformance suite runs in both dtypes in the fast tier (precision against NumPy
+# float64, dtype propagation through every primitive) and on JAX (Part I, §5.4).
+pytestmark = [pytest.mark.dtype, pytest.mark.jax_smoke]
+
 Array = Any
 NDArray = np.ndarray[Any, Any]
 
@@ -1011,9 +1015,12 @@ class TestLbfgs:
             )
 
 
+@pytest.mark.slow
 @pytest.mark.serial
 def test_deterministic_can_be_switched(backend: Backend) -> None:
-    """At set-up, in a fresh process: JAX reads its flag only before it starts (issue #10)."""
+    """At set-up, in a fresh process: JAX reads its flag only before it starts (issue #10).
+
+    Slow: the fresh Python process imports the backend, which takes seconds."""
     module, _, cls = BACKENDS[backend_name()].partition(":")
     code = (
         f"from {module} import {cls}\n"

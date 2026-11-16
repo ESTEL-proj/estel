@@ -14,7 +14,8 @@ from numpy.typing import NDArray
 from estel.backend._protocol import Backend, DType
 from estel.data._moments import cov_valid, divide, mean_valid, modulus, standardize
 
-pytestmark = pytest.mark.maths("M-MEAN", "M-MOM")
+# Precision tests against NumPy float64: float32 runs in the fast tier too (Part I, §5.4).
+pytestmark = [pytest.mark.maths("M-MEAN", "M-MOM"), pytest.mark.dtype]
 RTOL = {"float32": 1e-5, "float64": 1e-12}
 COMPLEX: dict[str, DType] = {"float32": "complex64", "float64": "complex128"}
 

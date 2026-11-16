@@ -175,7 +175,7 @@ Each rule is enforced by a mechanical check — `import-linter` contracts and a 
 
 ### 3.1 Functional, JAX-ready style
 
-These rules apply to L1 and L2 from the first commit of step 1. From phase P1, ESTEL also has an experimental JAX backend for L0, in `src/estel/backend/jax/`, which passes the same conformance suite as PyTorch, and CI runs the whole test suite on both backends, in two parallel jobs. Any PyTorch idiom that settles into L1 or L2 therefore fails at once. JAX is opt-in and experimental in 1.0.0 (§2.2.5). The rules are copied into `docs/agents/jax_rules.md`.
+These rules apply to L1 and L2 from the first commit of step 1. From phase P1, ESTEL also has an experimental JAX backend for L0, in `src/estel/backend/jax/`, which passes the same conformance suite as PyTorch, and CI runs the whole test suite on both backends, in parallel jobs: on every merge to `main`, nightly, and on PRs labelled `full-ci`; other PRs run the JAX smoke subset of §5.4. Any PyTorch idiom that settles into L1 or L2 therefore fails at once. JAX is opt-in and experimental in 1.0.0 (§2.2.5). The rules are copied into `docs/agents/jax_rules.md`.
 
 1. **Functional code only.** Build per-level results in Python lists (§3.1.1), then `concat` or `stack` them. No preallocation filled by index, no `out=`, no `inplace=`. This applies to the code that computes the statistics; the NumPy code that builds the static plan, run once at construction, may write in place (§2.4).
 2. **Static shapes.** Everything shape-related — index sets, crop widths, stencils, bins — lives in the `ScatteringPlan`, built in NumPy and passed as a static argument.
@@ -326,6 +326,8 @@ In step 1, `maths.md` records the mathematics of STL **as it is**, including cho
 
 **Reference values** are produced by `tools/make_reference.py` from `_spec` in float64, never from ESTEL itself. In step 1 they are also checked against STL, run in float64 (Part II, §14.5).
 
+"Every PR" in this table reads with the tiers of §5.4: a PR runs the fast tier, and what it leaves out (the tests marked `slow`, the float32 runs of the tests not marked `dtype`, JAX outside `jax_smoke`) runs on every merge to `main`, nightly, and on a PR labelled `full-ci`.
+
 ### 5.2 Tolerances
 
 `tests/tolerances.toml` (protected) has one entry per dtype, device class and family. Comparisons are made on **normalised** coefficients (divided by the reference S2 scale), so that `atol` means the same for every family; the reference S2 scale is itself a reference value, compared with its own tolerance (§5.1). Starting values, calibrated before the freeze:
@@ -357,13 +359,29 @@ Calibration, written in `TOLERANCES.md`: run every backend, device and dtype on 
 - **CI fails if the number of tests drops**, or if a new `skip` or `xfail` appears without the `test-change` label. These are the usual ways an agent "fixes" a red test.
 - **Nightly mutation testing** (`mutmut`) on L2 measures how strong the tests are.
 
+### 5.4 Test speed: the fast and the full tier
+
+Tests are as short as possible. The fast tier must stay under 2 minutes of wall time on CI and under 1 minute for a local `make check`. A new test runs in under 1 second, on the smallest data that exercises the behaviour (for example 16 x 16 or 32 x 32 pixels, J = 2 or 3); a test that cannot is marked slow, with the reason in its docstring, and runs in the full tier only. Large configurations, second-order gradients, and a second dtype for tests of logic belong to the full tier. Before adding a test, check that no existing test already covers the behaviour. A pull request that makes the fast tier slower by more than 10 % says why in its description, with the before and after times.
+
+The tests run in two tiers (`tests/conftest.py`, `pytest --tier fast|full`):
+
+| Tier | When | What |
+| --- | --- | --- |
+| fast | every PR and every push to a branch other than `main` (CI); `make check` (locally) | the check tools; on PyTorch, every test not marked `slow` in float64, and the tests marked `dtype` in float32 too (dtype propagation through every public function, a few representative parity cases, the precision tests); on the experimental JAX backend, the tests marked `jax_smoke` (the L0 conformance suite and one parity case per family) |
+| full | every push to `main`, nightly, a PR labelled `full-ci` (CI); `make check-full` (locally) | the check tools and every test, `slow` included, on both backends, in float32 and float64 |
+
+Nothing leaves the full tier: a test marked `slow` or left out of the fast tier still runs on every merge to `main` and every night. What is enforced:
+
+- **Per test.** In the fast tier, a test that takes more than 1 second (set-up and call) fails, with a message saying to make it faster or to mark it `slow`. The time is CPU time, the test's subprocesses included, so that the load of the other parallel workers does not count; a wall-time limit five times larger catches a test that waits. CI is the reference machine: a laptop with efficiency cores measures up to three times more under load, so outside CI a test fails at 2 seconds and the run lists those between 1 and 2. On the experimental JAX backend, whose eager mode loads one compiled executable per operation the first time a process builds an operator, the smoke subset has 5 seconds; the same parity cases run on PyTorch within 1 second. A test marked `slow` without a docstring sentence starting with `Slow:` that gives the reason fails at collection.
+- **In total.** `make check` fails above 60 seconds of wall time; in CI, each job of the fast tier fails above 120 seconds. Each pytest run ends with a summary line: its tier, its number of tests, their total time and the slowest one.
+
 ## 6. CI, GPU access, benchmarks
 
 ### 6.1 Tiers
 
 | Tier | Trigger | Where | Budget | Content |
 | --- | --- | --- | --- | --- |
-| 0 | every push and PR | GitHub-hosted CPU | ≤ 15 min | ruff, type check, §2.4 checks (including public vs internal), manifest, mirrors, maths IDs, all tests on CPU in float32 and float64, differentiation, the whole suite also on JAX, in a parallel job (§3.1). In step 2: CPU build of the Rust wheels |
+| 0 | every push and PR; nightly | GitHub-hosted CPU | fast tier ≤ 2 min, full tier ≤ 15 min | ruff, type check, §2.4 checks (including public vs internal), manifest, mirrors, maths IDs, the tests on CPU, differentiation, also on JAX, in parallel jobs (§3.1). PRs run the fast tier of §5.4; `main`, the nightly run and PRs labelled `full-ci` run the full tier: all tests in float32 and float64, the whole suite on both backends. In step 2: CPU build of the Rust wheels |
 | 1 | PR, after tier 0 passes. **Set up after 1.0.0** (Part IV, §24.1) | HPC GPU, constrained (§6.2) | ≤ 20 min wall time, 1 GPU | `pytest -m gpu`: reference values on GPU, determinism (two runs bit-identical), GPU syntheses, benchmark smoke test. In step 2: GPU build of the Rust wheels |
 | 2 | `bench` label set by humans; release candidates | dedicated, pinned GPU node, outside CI | hours | full benchmark; results committed by a bot to `bench/results/` with a hardware fingerprint |
 

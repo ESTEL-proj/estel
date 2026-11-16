@@ -1,8 +1,8 @@
 """The backends the test suite runs on (Part I, §3.1 and §6.1).
 
-Tier 0 runs the whole suite once per backend, in parallel jobs: ``ESTEL_TEST_BACKEND`` names
-the backend of a run (``torch`` by default), as ``ESTEL_TEST_DTYPE`` names its dtype; ``make
-check`` runs every backend in float32 and float64. Adding a backend means adding it to
+Each pytest run has one backend, as each tier-0 job does: ``ESTEL_TEST_BACKEND`` names it
+(``torch`` by default); both dtypes run in the same process (``tests/conftest.py``). Adding a
+backend means adding it to
 ``BACKENDS`` and passing the conformance suite (``src/estel/backend/AGENTS.md``).
 """
 

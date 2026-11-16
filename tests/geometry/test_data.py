@@ -83,6 +83,7 @@ def test_integer_input_is_converted(backend: Backend) -> None:
     np.testing.assert_array_equal(_np(backend, data.array)[0, 0], np.arange(8))
 
 
+@pytest.mark.dtype
 def test_backend_arrays_keep_their_dtype(backend: Backend, dtype: DType) -> None:
     array = backend.asarray(_field((4, 4)), dtype)
     data = Data2D(array, pbc=True)

@@ -97,6 +97,7 @@ def test_outputs_share_no_memory_with_inputs(dtype: DType) -> None:
     np.testing.assert_array_equal(array, np.arange(6.0).reshape(2, 3).astype(dtype))
 
 
+@pytest.mark.dtype
 def test_asarray_uses_the_default_device(dtype: DType) -> None:
     x = TorchBackend().asarray(np.ones(3), dtype)
     assert x.device == torch.get_default_device()

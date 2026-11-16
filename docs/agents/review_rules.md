@@ -75,6 +75,14 @@ Each finding names its rule ID and a severity:
 - **C9. Expected errors are parametrised** next to the valid cases, with `pytest.raises(..., match=...)`.
 - **C10. Tolerances.** Default tolerances, or values from `tests/tolerances.toml` with a comment citing it;
   variables named `actual` and `expected`.
+- **C11. Tests are as short as possible** (Part I, §5.4; golden rule 13). A new test runs in under 1 second,
+  on the smallest data that exercises the behaviour (for example 16 x 16 or 32 x 32 pixels, J = 2 or 3); one
+  that cannot is marked `slow`, with the reason in its docstring (`Slow: ...`). Large configurations,
+  second-order gradients and a second dtype for tests of logic belong to the full tier; mark `dtype` only a
+  test of dtype propagation or precision. Check that no existing test already covers the behaviour. A PR that
+  makes the fast tier slower by more than 10 % says why in its description, with the before and after
+  times; flag it as must-fix otherwise. CI enforces the per-test budget and the total budget of the fast
+  tier; this rule covers what it cannot see: data larger than needed, duplicated coverage, a misplaced mark.
 
 ## D. Documentation
 
