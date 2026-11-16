@@ -50,10 +50,10 @@ env:
 # and JAX are not installed again in every job; uv sync only checks it. The JAX fast tier's
 # environment leaves torch out, half the size. mypy's cache is saved by runs of the default branch
 # and restored by every run; a pull request never saves it, so it cannot change what others load.
-# JAX's persistent compilation cache (tests/conftest.py) is not used in CI: XLA compiles for the
-# host's instruction set, JAX keys each entry on the CPU's topology, and GitHub's runners mix many
-# CPU types (eight in ten runs measured), so a restored cache almost never matched. Locally, on one
-# machine, it brings the JAX fast tier from about 40 s to 9 s.
+# JAX's persistent compilation cache (tests/conftest.py) starts empty in each job and is never
+# saved: XLA compiles for the host's instruction set, JAX keys each entry on the CPU's topology,
+# and GitHub's runners mix many CPU types (eight in ten runs measured), so a restored cache almost
+# never matched. Within a job, the xdist workers share it: what one compiles, the others load.
 jobs:
   check:
     name: make check
@@ -237,8 +237,8 @@ jobs:
 
       - name: Tests on JAX, fast tier (jax_smoke)
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'fast'
-        # Workers: in CI, XLA compiles every operation (no JAX cache, see above). uv run --no-sync:
-        # a sync would install torch again.
+        # Workers: in CI, XLA compiles every operation once per job (JAX's cache starts empty, see
+        # above), and the workers share that work. uv run --no-sync: a sync would install torch.
         run: make test-fast TEST_BACKENDS=jax RUN="uv run --no-sync" PYTEST_WORKERS="$(nproc)"
 
       - name: Tests on JAX, full tier, float64

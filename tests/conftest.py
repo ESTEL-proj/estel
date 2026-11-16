@@ -190,15 +190,13 @@ def _tools_changed() -> bool:
 
 
 def _persistent_jax_cache(config: pytest.Config) -> None:
-    """Keep what XLA compiles in ``.pytest_cache``, so that the next run, and the other workers,
-    load it instead of compiling it again: the JAX fast tier takes 9 s instead of 40. It changes
-    no result: the cache only skips compilations, whose output is the same. Not in CI (``CI``
-    set): XLA compiles for the host's CPU, JAX keys each entry on it, and GitHub's runners mix
-    many CPU types, so a cache restored there almost never matched."""
+    """Keep what XLA compiles in ``.pytest_cache``, so that the other workers of the run, and the
+    next runs, load it instead of compiling it again: locally the JAX fast tier takes 9 s instead
+    of 40. It changes no result: the cache only skips compilations, whose output is the same. In
+    CI it starts empty in each job, since XLA compiles for the host's CPU, JAX keys each entry on
+    it, and GitHub's runners mix many CPU types; the workers of a job still share it."""
     import jax
 
-    if os.environ.get("CI"):
-        return
     cache = getattr(config, "cache", None)  # absent with -p no:cacheprovider
     if cache is None:
         return
