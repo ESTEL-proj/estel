@@ -196,7 +196,7 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
 
         if j3 < plan.J - 1:
             x = wavelets.downsample(x, j3)
-            moduli = {j2: wavelets.downsample(u2, j3, j2) for j2, u2 in moduli.items()}
+            moduli = {j2: wavelets.downsample(u2, j3, (j2,)) for j2, u2 in moduli.items()}
 
     nc, J = pairs.n_channels, plan.J  # noqa: N806
     s1 = [_as_complex(backend, v) for v in means["S1"]]

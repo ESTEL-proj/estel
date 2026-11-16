@@ -69,7 +69,7 @@ def test_apply_is_the_hook_conv_with_the_bank_of_the_geometry(
     assert tuple(w.shape) == (2, 3, L, *(N,) * ndim)
     _equal(backend, w, data._conv(x, kernels, 0))
 
-    u = operator.downsample(modulus(w), 0, convolved_at=0)
+    u = operator.downsample(modulus(w), 0, history=(0,))
     v = operator.apply(u, 1)
     half = (N // 2,) * ndim
     assert tuple(v.shape) == (2, 3, L, L, *half)
@@ -86,7 +86,7 @@ def test_downsample_is_the_hook_step_with_the_maps_of_its_level(
 ) -> None:
     """``downsample(x, level)`` is ``_downsample`` with the smoothing kernel and, with missing
     values, the valid pixels and the reweighting of that step: those of the field, or those of
-    first-layer data convolved at ``convolved_at``."""
+    first-layer data, with the ``history`` of the map."""
     data = _data(ndim, pbc=False, masked=masked)
     operator = WaveletOperator(data, 3, 1)
     x = data.array
@@ -118,9 +118,9 @@ def test_downsample_is_the_hook_step_with_the_maps_of_its_level(
     assert tuple(x2.shape) == (2, 3, *(N // 4,) * ndim)
 
     u = modulus(operator.apply(x, 0))[:, :, 0]
-    u1 = operator.downsample(u, 0, convolved_at=0)
+    u1 = operator.downsample(u, 0, history=(0,))
     _equal(backend, u1, data._downsample(u, step("layer1", "wav_reweight", 0, (1, 0)), 0))
-    u2 = operator.downsample(u1, 1, convolved_at=0)
+    u2 = operator.downsample(u1, 1, history=(0,))
     expected = data._downsample(u1, step("wav_invalid", "wav_reweight", (1, 0), (2, 0)), 1)
     _equal(backend, u2, expected)
 
@@ -181,8 +181,12 @@ def test_wavelet_operator_rejects_bad_arguments(backend: Backend) -> None:
         operator.apply(x, 3)
     with pytest.raises(ValueError, match="levels 0 … 1"):
         operator.downsample(x, 2)
-    with pytest.raises(ValueError, match="convolved_at"):
-        operator.downsample(x, 0, convolved_at=1)
+    with pytest.raises(ValueError, match=r"history=\(1,\)"):
+        operator.downsample(x, 0, history=(1,))
+    with pytest.raises(ValueError, match="never downsampled"):
+        operator.downsample(x, 0, history=(0, 0))
+    with pytest.raises(TypeError, match="tuple of the"):
+        operator.downsample(x, 0, history=0)  # type: ignore[arg-type]
     static = WaveletOperator.from_parts(data, operator.plan)
     with pytest.raises(ValueError, match="static part only"):
         static.apply(x, 0)

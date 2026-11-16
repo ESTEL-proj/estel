@@ -37,7 +37,7 @@ def _two_layers(backend: Backend, cls: type[Data]) -> tuple[Any, Callable[[Any],
     xp = backend.xp
 
     def function(x: Any) -> Any:
-        u = operator.downsample(modulus(operator.apply(x, 0)), 0, convolved_at=0)
+        u = operator.downsample(modulus(operator.apply(x, 0)), 0, history=(0,))
         v = backend.complex_to_real_pairs(operator.apply(u, 1))
         return xp.concat([xp.reshape(v, (-1,)), xp.reshape(operator.downsample(x, 0), (-1,))])
 

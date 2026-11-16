@@ -328,19 +328,21 @@ def test_downsample_maps_are_the_steps_of_stls_downsample() -> None:
     assert step is not None
     np.testing.assert_array_equal(step[0], ~maps.smooth_invalid[1])
     np.testing.assert_array_equal(step[1], maps.smooth_reweight[2])
-    step = plan.wavelets.downsample_maps(0, convolved_at=0)
+    step = plan.wavelets.downsample_maps(0, history=(0,))
     assert step is not None
     np.testing.assert_array_equal(step[0], ~maps.layer1[0])
     np.testing.assert_array_equal(step[1], maps.wav_reweight[(1, 0)])
-    step = plan.wavelets.downsample_maps(1, convolved_at=0)
+    step = plan.wavelets.downsample_maps(1, history=(0,))
     assert step is not None
     np.testing.assert_array_equal(step[0], ~maps.wav_invalid[(1, 0)])
     np.testing.assert_array_equal(step[1], maps.wav_reweight[(2, 0)])
-    assert _plan(_data(2, 64, pbc=False), 3).wavelets.downsample_maps(1, convolved_at=1) is None
+    assert _plan(_data(2, 64, pbc=False), 3).wavelets.downsample_maps(1, history=(1,)) is None
     with pytest.raises(ValueError, match="levels 0"):
         plan.wavelets.downsample_maps(2)
-    with pytest.raises(ValueError, match="convolved_at"):
-        plan.wavelets.downsample_maps(0, convolved_at=1)
+    with pytest.raises(ValueError, match=r"history=\(1,\)"):
+        plan.wavelets.downsample_maps(0, history=(1,))
+    with pytest.raises(ValueError, match="second-layer data"):
+        plan.wavelets.downsample_maps(1, history=(0, 1))
 
 
 # ---------------------------------------------------------------------- static, hashable

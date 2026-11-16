@@ -218,49 +218,58 @@ class WaveletPlan:
         (M-MASK; STL ``_find_mask``), or ``None`` when no value is missing."""
         return None if self.masks is None else _invalid(self.masks, history, level)
 
-    def check_downsample(self, level: object, convolved_at: object = None) -> None:
-        """Raise unless a downsampling step from ``level`` exists for the field
-        (``convolved_at=None``) or for first-layer data convolved at ``convolved_at``."""
+    def check_downsample(self, level: object, history: object = ()) -> None:
+        """Raise unless a downsampling step from ``level`` exists for a map with the
+        ``history`` given: ``()`` for the field, ``(j,)`` for first-layer data convolved at
+        scale ``j ≤ level``. Second-layer data, a history of two scales, are never
+        downsampled."""
         if not _is_index(level) or not 0 <= level < self.J - 1:  # type: ignore[operator]
             raise ValueError(
                 f"downsample(level={level!r}): the loop downsamples from the levels 0 … "
                 f"{self.J - 2} (J = {self.J})."
             )
-        if convolved_at is not None and (
-            not _is_index(convolved_at) or not 0 <= convolved_at <= level  # type: ignore[operator]
-        ):
+        if not isinstance(history, tuple) or not all(_is_index(j) for j in history):
+            raise TypeError(
+                f"downsample(level={level}, history={history!r}): a history is the tuple of the "
+                "scales of the convolutions applied to the map: () for the field, (j,) for "
+                "first-layer data convolved at scale j (maths.md M-DOWN-MASK)."
+            )
+        if len(history) >= 2:
             raise ValueError(
-                f"downsample(level={level}, convolved_at={convolved_at!r}): first-layer "
-                f"data convolved at scale j are downsampled from level j on, so pass None (the "
-                f"field) or a scale between 0 and {level}."
+                f"downsample(level={level}, history={history!r}): second-layer data, convolved "
+                "twice, are never downsampled: their means are taken at the level of the second "
+                "convolution (maths.md M-S3, M-S4). Pass () for the field, or (j,) for "
+                "first-layer data convolved at scale j."
+            )
+        if history and not 0 <= history[0] <= level:
+            raise ValueError(
+                f"downsample(level={level}, history={history!r}): first-layer data convolved "
+                f"at scale j are downsampled from level j on, so pass () (the field) or (j,) "
+                f"with a scale j between 0 and {level}."
             )
 
-    def downsample_maps(
-        self, level: int, convolved_at: int | None = None
-    ) -> tuple[BoolMap, FloatMap] | None:
+    def downsample_maps(self, level: int, history: History = ()) -> tuple[BoolMap, FloatMap] | None:
         """The static maps of one downsampling step, from ``level`` to ``level + 1``
         (maths.md M-DOWN-MASK; STL ``downsample``), or ``None`` when no value is missing.
 
-        ``convolved_at`` is ``None`` for the field, or the scale ``j ≤ level`` at which
-        first-layer data were convolved. Returns the valid input pixels, of the spatial shape
-        at ``level``, and the reweighting 1 / (1 - f) of the output, of the shape at
+        ``history`` holds the scales of the convolutions applied to the map being downsampled:
+        ``()`` for the field, ``(j,)`` for first-layer data convolved at scale ``j ≤ level``
+        (the two families of maps of M-DOWN-MASK). Returns the valid input pixels, of the spatial
+        shape at ``level``, and the reweighting 1 / (1 - f) of the output, of the shape at
         ``level + 1``, 0 at invalid outputs: the ``valid`` and ``reweight`` of
         ``DownsampleWeights``, before they are cast.
         """
-        self.check_downsample(level, convolved_at)
+        self.check_downsample(level, history)
         if self.masks is None:
             return None
         masks = self.masks
-        if convolved_at is None:
+        if not history:
             invalid = masks.full_res if level == 0 else masks.smooth_invalid[level]
             reweight = masks.smooth_reweight[level + 1]
         else:
-            invalid = (
-                masks.layer1[convolved_at]
-                if level == convolved_at
-                else masks.wav_invalid[(level, convolved_at)]
-            )
-            reweight = masks.wav_reweight[(level + 1, convolved_at)]
+            (j,) = history
+            invalid = masks.layer1[j] if level == j else masks.wav_invalid[(level, j)]
+            reweight = masks.wav_reweight[(level + 1, j)]
         return ~invalid, reweight
 
 
@@ -355,7 +364,7 @@ class WaveletFilters(NamedTuple):
     entry without missing values (``WaveletPlan.downsample_maps(d)``)."""
     modulus_down: Mapping[tuple[int, int], tuple[Any, Any]]
     """Per ``(d, j)``, j ≤ d < J-1, the maps of first-layer data convolved at j from d to d+1,
-    or no entry without missing values (``WaveletPlan.downsample_maps(d, j)``)."""
+    or no entry without missing values (``WaveletPlan.downsample_maps(d, (j,))``)."""
 
 
 def build_wavelet_filters(
@@ -365,8 +374,8 @@ def build_wavelet_filters(
     ``device`` (Part I, §3.1, rules 4 and 7)."""
     backend = _registry.backend_named(backend_name)
 
-    def maps(level: int, convolved_at: int | None = None) -> tuple[Any, Any] | None:
-        found = plan.downsample_maps(level, convolved_at)
+    def maps(level: int, history: History = ()) -> tuple[Any, Any] | None:
+        found = plan.downsample_maps(level, history)
         if found is None:
             return None
         valid = backend.asarray(np.asarray(found[0], dtype=bool), "bool", device)
@@ -375,7 +384,7 @@ def build_wavelet_filters(
 
     down_levels = range(plan.J - 1)
     field_down = {d: maps(d) for d in down_levels}
-    modulus_down = {(d, j): maps(d, j) for d in down_levels for j in range(d + 1)}
+    modulus_down = {(d, j): maps(d, (j,)) for d in down_levels for j in range(d + 1)}
     return WaveletFilters(
         kernels=backend.asarray(plan.bank(), COMPLEX[dtype], device),
         smoothing=backend.asarray(smoothing_kernel(plan.ndim), dtype, device),
@@ -526,22 +535,24 @@ class WaveletOperator:
         out = self._data._conv(flat, filters.kernels, j)
         return xp.reshape(out, (*lead, plan.L, *spatial))
 
-    def downsample(self, x: Any, level: int, convolved_at: int | None = None) -> Any:
+    def downsample(self, x: Any, level: int, history: History = ()) -> Any:
         """One normalised downsampling step of ``x``, from ``level`` to ``level + 1``, with the
         masks and reweighting maps of the plan (maths.md M-DOWN, M-DOWN-MASK).
 
         ``x`` is ``(Nb, Nc, *O, *spatial)`` at ``level``; the result has the spatial shape of
-        ``level + 1``. ``convolved_at`` says which maps apply when values are missing: ``None``
-        for the field, or the scale ``j ≤ level`` at which first-layer data were convolved
-        (M-MASK). Calls the hook ``_downsample`` with the weights of the step. Pure.
+        ``level + 1``. ``history`` holds the scales of the convolutions applied to ``x``, and
+        says which maps apply when values are missing: ``()`` for the field, ``(j,)`` for
+        first-layer data convolved at scale ``j ≤ level`` (M-DOWN-MASK, M-MASK). Second-layer
+        data are never downsampled. Calls the hook ``_downsample`` with the weights of the
+        step. Pure.
         """
         plan, filters = self._plan, self._arrays("downsample")
-        plan.check_downsample(level, convolved_at)
+        plan.check_downsample(level, history)
         lead, spatial = self._split(x, level, "downsample")
-        if convolved_at is None:
+        if not history:
             maps = filters.field_down.get(level)
         else:
-            maps = filters.modulus_down.get((level, convolved_at))
+            maps = filters.modulus_down.get((level, history[0]))
         valid, reweight = (None, None) if maps is None else maps
         xp = _registry.backend_named(self._data.backend).xp
         flat = xp.reshape(x, (lead[0], -1, *spatial))
