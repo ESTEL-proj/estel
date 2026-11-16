@@ -264,11 +264,15 @@ jobs:
         # every operation, and parallel workers share that work.
         run: |
           # uv run --no-sync: a sync would install torch again.
+          ls .pytest_cache/d/jax-compilation-cache 2>/dev/null | wc -l  # TEMPORARY diagnostics
+          JAX_DEBUG_LOG_MODULES=jax._src.compilation_cache ESTEL_TEST_BACKEND=jax uv run --no-sync pytest -p no:xdist -p no:logging -s --tier fast -q tests/backend/test_conformance.py -k "TestLinearPrimitives and test_values" 2>&1 | grep -ciE "cache hit for" || true
+          JAX_DEBUG_LOG_MODULES=jax._src.compilation_cache ESTEL_TEST_BACKEND=jax uv run --no-sync pytest -p no:xdist -p no:logging -s --tier fast -q tests/backend/test_conformance.py -k "TestLinearPrimitives and test_values" 2>&1 | grep -ciE "cache miss for" || true
           if [ -n "$CACHE_KEY" ]; then
             make test-fast TEST_BACKENDS=jax RUN="uv run --no-sync"
           else
             make test-fast TEST_BACKENDS=jax RUN="uv run --no-sync" PYTEST_WORKERS="$(nproc)"
           fi
+          ls .pytest_cache/d/jax-compilation-cache 2>/dev/null | wc -l  # TEMPORARY diagnostics
 
       - name: Tests on JAX, full tier, float64
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
