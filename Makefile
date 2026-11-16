@@ -20,9 +20,22 @@ TEST_BACKENDS ?= torch jax
 CHECK_BUDGET ?= 60
 CHECK_BUDGET_ADVICE := The summary line of each pytest run names its slowest test; pytest --tier fast --durations=20 lists more. Make them faster or mark them slow; a PR that slows the fast tier by more than 10 % says why in its description, with the before and after times.
 
+# The parts of `make check` run side by side, each in one process (the fast tier runs its tests
+# without xdist workers, tests/conftest.py), and each part's output follows when it ends.
+CHECK_PARTS = check-tools $(addprefix test-fast-,$(TEST_BACKENDS))
+CHECK_LOGS := .pytest_cache/make-check
+
 check:
-	@start=$$(date +%s); \
-	$(MAKE) --no-print-directory check-tools test-fast || exit $$?; \
+	@start=$$(date +%s); mkdir -p $(CHECK_LOGS); pids=""; \
+	for part in $(CHECK_PARTS); do \
+		$(MAKE) --no-print-directory $$part > $(CHECK_LOGS)/$$part.log 2>&1 & pids="$$pids $$!"; \
+	done; \
+	failed=""; set -- $$pids; \
+	for part in $(CHECK_PARTS); do \
+		wait $$1 || failed="$$failed $$part"; shift; \
+		echo "--- make $$part"; cat $(CHECK_LOGS)/$$part.log; \
+	done; \
+	if [ -n "$$failed" ]; then echo "make check: failed:$$failed"; exit 1; fi; \
 	elapsed=$$(( $$(date +%s) - start )); \
 	if [ $$elapsed -gt $$(( 2 * $(CHECK_BUDGET) )) ]; then \
 		echo "make check: $$elapsed s, over twice its budget of $(CHECK_BUDGET) s (Part I, §5.4). $(CHECK_BUDGET_ADVICE)"; \
@@ -79,23 +92,23 @@ workflows:
 test: $(addprefix test-,$(TEST_BACKENDS))
 test-fast: $(addprefix test-fast-,$(TEST_BACKENDS))
 
-# pytest-xdist workers of the parallel pass (task T0.7): a number, or auto (one per CPU). On Apple
-# silicon, one per performance core: workers on the efficiency cores slow the run down.
-PYTEST_WORKERS ?= $(or $(shell sysctl -n hw.perflevel0.physicalcpu 2>/dev/null),auto)
+# pytest-xdist workers of the parallel pass (task T0.7): a number, or auto, which
+# tests/conftest.py resolves (pytest_xdist_auto_num_workers): none in the fast tier when it leaves
+# the tools tests out, otherwise one per CPU (one per performance core on Apple silicon).
+PYTEST_WORKERS ?= auto
 # One dtype only, in the full tier (CI splits the JAX run in two jobs): make test-jax TEST_DTYPE=float32
 TEST_DTYPE ?=
 DTYPE_ENV := $(if $(TEST_DTYPE),ESTEL_TEST_DTYPE=$(TEST_DTYPE))
 
 # One run per backend, float32 and float64 in the same process (tests/conftest.py); the JAX run
-# switches JAX's 64-bit mode on at start. Each run has two passes: the tests in parallel, then the
-# tests marked serial (fresh processes, process-wide settings) alone, in one process. pytest exits
-# with 5 when a pass selects no test, as the serial pass of the fast tier may: that is a success.
+# switches JAX's 64-bit mode on at start. The tests run in parallel, in xdist workers; in the full
+# tier, the tests marked serial (fresh processes, process-wide settings) then run alone, in one
+# process. The fast tier leaves them out: a process of their own costs more than they do.
 test-torch test-jax test-fast-torch test-fast-jax: TIER = $(if $(findstring fast,$@),fast,full)
 test-torch test-jax test-fast-torch test-fast-jax: BACKEND = $(lastword $(subst -, ,$@))
 test-torch test-jax test-fast-torch test-fast-jax:
-	ESTEL_TEST_BACKEND=$(BACKEND) $(DTYPE_ENV) $(RUN) pytest -n $(PYTEST_WORKERS) --tier $(TIER) -m "not serial"
-	ESTEL_TEST_BACKEND=$(BACKEND) $(DTYPE_ENV) $(RUN) pytest -p no:xdist --tier $(TIER) -m serial; \
-	status=$$?; [ $$status -eq 0 ] || [ $$status -eq 5 ]
+	ESTEL_TEST_BACKEND=$(BACKEND) $(DTYPE_ENV) $(RUN) pytest -n $(PYTEST_WORKERS) --dist loadgroup --tier $(TIER) -m "not serial"
+	$(if $(filter full,$(TIER)),ESTEL_TEST_BACKEND=$(BACKEND) $(DTYPE_ENV) $(RUN) pytest -p no:xdist --tier full -m serial)
 
 # STL parity harness (Part II, §14; tools/stl_parity/README.md). Step 1 only, not in tier 0.
 CONTAINER ?= docker

@@ -23,7 +23,7 @@ Every test runs in float32 and float64 (the `dtype` fixture, parametrised by `te
 
 Tests are as short as possible (golden rule 13; review rule C11). Two tiers, `pytest --tier fast|full`:
 
-- **fast** (`make check`, under 60 s; CI on a PR, under 120 s per job): the tests not marked `slow`; on PyTorch in float64, plus float32 for the tests marked `dtype`; on JAX only the tests marked `jax_smoke`.
+- **fast** (`make check`, under 60 s; CI on a PR, under 120 s per job): the tests not marked `slow` or `serial`; on PyTorch in float64, plus float32 for the tests marked `dtype`; on JAX only the tests marked `jax_smoke`, in float64. `tests/tools/` runs only when the change touches `tools/`, `tests/tools/` or `pyproject.toml` (compared with `ESTEL_TEST_BASE`, `origin/main` by default; `ESTEL_TOOLS_CHANGED=1` forces it). Each backend runs in one process and `make check` runs the check tools and both backends side by side: a worker's start-up (about 6 s for PyTorch) costs more than the tests it would share.
 - **full** (`make check-full`, a bare `pytest`; CI on `main`, nightly, and on a PR labelled `full-ci`): everything, both backends, both dtypes.
 
 Markers:

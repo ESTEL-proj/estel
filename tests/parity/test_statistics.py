@@ -19,6 +19,7 @@ tier only (``MARKS``).
 
 from __future__ import annotations
 
+import functools
 import warnings
 from typing import Any
 
@@ -41,10 +42,16 @@ REDUCED = {
 }
 pytestmark = pytest.mark.maths("M-NORM", "M-RED-ISO", "M-RED-ANG", "M-RED-SCALE", "M-FLAT")
 # Tiers (Part I, §5.4): the 64 x 64, J = 4 configuration is large, so slow; one representative
-# configuration per dimension also runs in float32, and the 2D one on JAX.
+# configuration per dimension also runs in float32, and the 2D one on JAX. The 2D periodic cases
+# of the parity tests share one xdist worker (``--dist loadgroup``), where JAX compiles their
+# operations once: they have the same shapes.
 MARKS = {
     ("statistics_2d", "deep_open"): (pytest.mark.slow,),
-    ("statistics_2d", "periodic"): (pytest.mark.dtype, pytest.mark.jax_smoke),
+    ("statistics_2d", "periodic"): (
+        pytest.mark.dtype,
+        pytest.mark.jax_smoke,
+        pytest.mark.xdist_group("parity_2d_periodic"),
+    ),
     ("statistics_1d", "periodic"): (pytest.mark.dtype,),
 }
 
@@ -107,9 +114,16 @@ class _Run:
         return self.fixture[f"{name}_{key}"]
 
 
+@functools.cache
+def _run(case: str, name: str, dtype: DType) -> _Run:
+    """One run per configuration and dtype, shared by the three tests below, which check different
+    outputs of the same computation; ``dtype`` is the run's, which ``_run_dtype`` sets."""
+    return _Run(case, name)
+
+
 @pytest.mark.parametrize(("case", "name"), _configs())
 def test_normalised_statistics_equal_stl(case: str, name: str, dtype: DType) -> None:
-    run = _Run(case, name)
+    run = _run(case, name, dtype)
     reference = run.operator._reference
     assert reference is not None
     var_ref = run.expected(name, "var_ref")
@@ -126,7 +140,7 @@ def test_normalised_statistics_equal_stl(case: str, name: str, dtype: DType) -> 
 
 @pytest.mark.parametrize(("case", "name"), _configs())
 def test_reduced_statistics_equal_stl(case: str, name: str, dtype: DType) -> None:
-    run = _Run(case, name)
+    run = _run(case, name, dtype)
     for key, families in REDUCED.items():
         for family in families:
             expected = run.expected(name, f"{key}_{family}")
@@ -138,7 +152,7 @@ def test_vectors_equal_stl(case: str, name: str, dtype: DType) -> None:
     """``to_vector`` is STL's ``to_flatten(flatten_complex=True)``, OP-37 included; the
     coefficients it leaves out (structural, OP-3, OP-30, missing scales of ``scale_ft``) are
     decided statically, and are exactly the NaN STL removes."""
-    run = _Run(case, name)
+    run = _run(case, name, dtype)
     assert_parity(np.asarray(run.stored.to_vector()), run.expected(name, "vector"), dtype)
     reduced = run.reduced["iso_angular_scale"].to_vector()
     assert_parity(np.asarray(reduced), run.expected(name, "vector_reduced"), dtype)

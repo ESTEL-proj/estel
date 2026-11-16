@@ -79,13 +79,16 @@ explicit_package_bases = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["tools"]
-addopts = ["--strict-markers", "--strict-config", "-ra"]
+# No test uses hypothesis yet: its plugin would cost 0.6 s in every pytest process (Part I, §5.4).
+# Remove "-p no:hypothesispytest" with the first @given.
+addopts = ["--strict-markers", "--strict-config", "-ra", "-p", "no:hypothesispytest"]
 markers = [
     "maths(*ids): the docs/maths.md IDs (M-...) this test checks; read by tools/check_maths_ids.py",
-    "serial: runs alone, in a pass without xdist workers (`make test`): the test starts fresh processes or switches a process-wide setting",
+    "serial: runs alone, in a pass without xdist workers, in the full tier only (`make check-full`): the test starts fresh processes or switches a process-wide setting",
     "slow: full tier only (`make check-full`; CI on main, nightly, label full-ci): the test cannot run in under 1 s; its docstring says why, in a sentence starting with 'Slow:' (Part I, section 5.4)",
     "dtype: also runs in float32 in the fast tier (`make check`): dtype propagation, representative parity cases, precision tests",
     "jax_smoke: runs on the experimental JAX backend in the fast tier: the L0 conformance suite and one parity case per family",
+    "xdist_group(name): tests that share one pytest-xdist worker (--dist loadgroup); registered here too for the runs without xdist",
 ]
 
 # ---------------------------------------------------------------- import rules (Part I, §2.4)

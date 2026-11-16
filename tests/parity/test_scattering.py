@@ -37,10 +37,16 @@ CASES: dict[str, type[DataClass]] = {"scattering_2d": Data2D, "scattering_1d": D
 FAMILIES = ("var", "S1", "S2", "S3", "S4")
 pytestmark = pytest.mark.maths("M-MOM", "M-W1", "M-S1", "M-S2", "M-S3", "M-S4", "M-CHAN", "M-MEAN")
 # Tiers (Part I, §5.4): the 64 x 64, J = 4 configuration is large, so slow; one representative
-# configuration per dimension also runs in float32, and the 2D one on JAX.
+# configuration per dimension also runs in float32, and the 2D one on JAX. The 2D periodic cases
+# of the parity tests share one xdist worker (``--dist loadgroup``), where JAX compiles their
+# operations once: they have the same shapes.
 MARKS = {
     ("scattering_2d", "deep_open"): (pytest.mark.slow,),
-    ("scattering_2d", "periodic"): (pytest.mark.dtype, pytest.mark.jax_smoke),
+    ("scattering_2d", "periodic"): (
+        pytest.mark.dtype,
+        pytest.mark.jax_smoke,
+        pytest.mark.xdist_group("parity_2d_periodic"),
+    ),
     ("scattering_1d", "periodic"): (pytest.mark.dtype,),
 }
 

@@ -55,7 +55,7 @@ The static plan (`ScatteringPlan`) is built in NumPy when an operator is constru
 
 | Command | What |
 |---|---|
-| `make check` | the fast tier of tier 0, as CI runs it on a pull request: lint, types, layer checks, manifest, mirrors, maths IDs, the tests not marked slow (float64, and float32 for those marked `dtype`; JAX: those marked `jax_smoke`); fails above 60 s |
+| `make check` | the fast tier of tier 0, as CI runs it on a pull request: lint, types, layer checks, manifest, mirrors, maths IDs, the tests not marked slow or serial (float64, and float32 for those marked `dtype`; JAX: those marked `jax_smoke`; `tests/tools/` only when tools change); about 20 s, budget 60 s |
 | `make check-full` | the full tier, as CI runs it on `main`, nightly and with the `full-ci` label: every test, both backends, float32 and float64 |
 | `make check-tools` | tier 0 without the test suites: every check tool of `make check` |
 | `make mirrors-fix` | regenerate `.github/copilot-instructions.md` after changing `AGENTS.md` |
