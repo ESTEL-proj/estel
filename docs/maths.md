@@ -2,7 +2,7 @@
 
 [Back to the overview](transfer/overview.md)
 
-**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it; **not yet checked numerically** (task T2.6). Sections 3 (tensor products), 4 (HEALPix) and 5 (syntheses) are drafts written in the same way; each is verified by the first task of its phase (T3.0, T5.0, T6.0).
+**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it, and checked numerically by the oracle `estel._spec`, which agrees with ESTEL to the parity tolerance (task T2.6); ESTEL itself agrees with STL's fixtures. Sections 3 (tensor products), 4 (HEALPix) and 5 (syntheses) are drafts written in the same way; each is verified by the first task of its phase (T3.0, T5.0, T6.0).
 
 **Role of this file.** This file is the reference version of the mathematics of step 1; it changes only through pull requests that a maintainer requests and merges.
 
@@ -212,7 +212,7 @@ With a mask, each step is "normalised": invalid input pixels are set to 0, the r
 x^{(j+1)} = \big(\text{M-DOWN of } x^{(j)} \cdot \mathbb 1_{\text{valid}}\big) \cdot \frac{1}{1 - f^{(j+1)}}
 ```
 
-where f⁽ʲ⁺¹⁾ is the fraction of invalid input contributing to each output pixel: the invalid mask, as 0/1, downsampled with the same smoothing kernel.
+where f⁽ʲ⁺¹⁾ is the fraction of invalid input contributing to each output pixel: the invalid mask of x⁽ʲ⁾, after its own thresholding, as 0/1, downsampled with the same smoothing kernel; it is not the fraction f⁽ʲ⁾ downsampled again.
 
 - **Threshold.** An output pixel is declared invalid if f > τ, with τ = 0.33 (`downsample_nan_weight_threshold`). **⚠ OP-12**
 - **Invalid output pixels** are filled with `replace_nan_value`, NaN by default; the code notes that this breaks back-propagation. ESTEL uses weights instead of NaN values; statistics only read valid pixels, so the values are unchanged. **⚠ OP-27**
@@ -237,7 +237,7 @@ Without periodicity, pixels near the borders are contaminated by the padding, an
 - **one convolution at scale j**, data at level d: β = ⌈ 2^(j−d) · ⌊K/2⌋ ⌉;
 - **two convolutions** at j₂ then j₃, data at level d: β₁ = ⌈ 2^(j₂−j₃) · ⌊K/2⌋ ⌉, then β = ⌈ 2^(j₃−d) · (β₁ + ⌊K/2⌋) ⌉.
 
-The two other methods in the code (`largest_scale_second_layer`, `layer_flexible`) are not the default. A covariance uses the larger border of its two arguments. If the border is too large for the array, it is silently reduced to ⌊(min N − 1)/2⌋, with a printed warning, once. **⚠ OP-13**
+The two other methods in the code (`largest_scale_second_layer`, `layer_flexible`) are not the default. A covariance uses the larger border of its two arguments. If the border is too large for the array, that is if 2β ≥ min N at that level, it is silently reduced to ⌊(min N − 1)/2⌋, with a printed warning, once. **⚠ OP-13**
 
 - **Source:** `_get_crop_border_size_fully_flexible`, `_crop`, `mean`, `cov`.
 
@@ -383,7 +383,7 @@ Gradients through the reference follow from the mode (LF21, closed; OP-18): with
 - **S3 and S4:** averaged over the first orientation, at fixed orientation differences modulo L:
 
 ```latex
-S_3^{\text{iso}}[\dots,\delta] = \frac{1}{L} \sum_{\ell_2 - \ell_1 \equiv \delta\ (\mathrm{mod}\ L)} S_3[\dots,\ell_1,\ell_2], \qquad S_4^{\text{iso}}[\dots,\delta_2,\delta_3] = \frac{1}{L} \sum_{\ell_1} S_4[\dots,\ell_1, \ell_1+\delta_2, \ell_1+\delta_3]
+S_3^{\text{iso}}[\dots,\delta] = \frac{1}{L} \sum_{\ell_3 - \ell_2 \equiv \delta\ (\mathrm{mod}\ L)} S_3[\dots,\ell_2,\ell_3], \qquad S_4^{\text{iso}}[\dots,\delta_2,\delta_3] = \frac{1}{L} \sum_{\ell_1} S_4[\dots,\ell_1, \ell_1+\delta_2, \ell_1+\delta_3]
 ```
 
 - **Conjugation.** The orientations cover \[0, π). For a real field, the filter at ℓ + L (rotated by π) gives the conjugate response: W\_{ℓ+L} x = conj(W\_ℓ x). The sums above mix no value with a conjugate of another: each orientation of the last wavelet appears once in each sum, and only the orientations of the arms wrap, which the modulus makes periodic with no conjugate (tested against STL to 1e-18). What is true is narrower: a rotation of the field by a multiple of π/L brings one orientation of the last wavelet back conjugated, so the real parts of the reduced S3 and S4 are invariant and their imaginary parts are not. **⚠ OP-5**
@@ -391,19 +391,19 @@ S_3^{\text{iso}}[\dots,\delta] = \frac{1}{L} \sum_{\ell_2 - \ell_1 \equiv \delta
 
 #### M-RED-ANG — Angular Fourier transform
 
-An orthonormal discrete Fourier transform over the orientation axes of S3 and S4 (`norm="ortho"`), keeping the first `angular_harmonics` (STL's `harmonics_angle`) harmonics. The default is L, so nothing is truncated, despite a code comment mentioning "zeroth, first and second harmonic". **⚠ OP-17** The same periodicity question as M-RED-ISO applies.
+An orthonormal discrete Fourier transform over the orientation axes of S3 and S4 (`norm="ortho"`), keeping the first `angular_harmonics` (STL's `harmonics_angle`) harmonics. The default is L, so nothing is truncated, despite a code comment mentioning "zeroth, first and second harmonic". **⚠ OP-17** After `iso` it acts on the orientation differences: δ for S3, δ₂ and δ₃ for S4. The same periodicity question as M-RED-ISO applies.
 
 - **Source:** `to_angular_ft`.
 
 #### M-RED-SCALE — Scale cosine transform
 
-Only after `iso`. The scales are reparametrised as (j₁, a, b) with j₂ = j₁ + a and j₃ = j₁ + b, 0 ≤ a ≤ b < `dj` (default and maximum J). An orthonormal DCT-II along j₁ is applied:
+Only after `iso`. The scales of S4 are reparametrised as (j₁, a, b) with j₂ = j₁ + a and j₃ = j₁ + b, 0 ≤ a ≤ b < `dj` (default and maximum J); those of S3 as (j₂, a) with j₃ = j₂ + a, 0 ≤ a < `dj`. An orthonormal DCT-II along the first scale (j₁ for S4, j₂ for S3) is applied:
 
 ```latex
 F[k, j] = \alpha_k \cos\Big(\frac{k\pi (j + 1/2)}{J}\Big), \qquad \alpha_0 = \sqrt{1/J},\ \alpha_{k>0} = \sqrt{2/J}
 ```
 
-Missing entries are set to 0 for the transform and back to NaN afterwards; the first `scale_harmonics` (STL's `harmonics_scale`) harmonics (default J) are kept.
+Missing entries are set to 0 for the transform; afterwards, the harmonic (k, a, b) is NaN wherever the entry (j₁ = k, a, b) was missing, at the same positions, as STL does; the first `scale_harmonics` (STL's `harmonics_scale`) harmonics (default J) are kept.
 
 - **Source:** `to_scale_ft`.
 
@@ -609,7 +609,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 
 #### M-SMOOTH-1D — Smoothing kernel
 
-The 1D smoothing kernel, the anti-aliasing filter applied before each downsampling, is the third row of the 2D table of M-SMOOTH-2D divided by its sum (0.49241182):
+The 1D smoothing kernel, the anti-aliasing filter applied before each downsampling, is the third row of the 2D table of M-SMOOTH-2D divided by its sum (0.49241182), the correctly rounded sum of the row (`math.fsum`; OP-12):
 
 ```text
 s = [-0.04879268, 0.05638086, 0.49241182, 0.49241182, 0.05638086, -0.04879268]

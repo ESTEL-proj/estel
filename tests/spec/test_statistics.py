@@ -151,6 +151,12 @@ def _check_case(
     scale = float(np.sqrt(np.max(expected["var"])))
     _compare(raw, expected, scale)
     assert_parity(np.asarray(raw.to_vector()), expected["vector"])
+    # mask_st (M-FLAT): a fixed boolean array over the vector, every third coefficient kept.
+    mask_st = np.arange(expected["vector"].size) % 3 == 0
+    assert_parity(
+        np.asarray(raw.to_vector(mask_st)),
+        spec.spec_flatten(expected, flatten_complex=True, mask_st=mask_st),
+    )
     if standardize:
         assert raw._standardization is not None
         for key, removed in zip(("mean_pre_std", "std_pre_std"), raw._standardization, strict=True):
