@@ -403,7 +403,7 @@ Only after `iso`. The scales of S4 are reparametrised as (j₁, a, b) with j₂ 
 F[k, j] = \alpha_k \cos\Big(\frac{k\pi (j + 1/2)}{J}\Big), \qquad \alpha_0 = \sqrt{1/J},\ \alpha_{k>0} = \sqrt{2/J}
 ```
 
-Missing entries are set to 0 for the transform; afterwards, the harmonic (k, a, b) is NaN wherever the entry (j₁ = k, a, b) was missing, at the same positions, as STL does; the first `scale_harmonics` (STL's `harmonics_scale`) harmonics (default J) are kept.
+Missing entries are set to 0 for the transform; afterwards, a harmonic is NaN wherever the entry at the same position was missing, as STL does: (k, a, b) where (j₁ = k, a, b) was missing for S4, (k, a) where (j₂ = k, a) was missing for S3; the first `scale_harmonics` (STL's `harmonics_scale`) harmonics (default J) are kept.
 
 - **Source:** `to_scale_ft`.
 
