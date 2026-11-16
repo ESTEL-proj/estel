@@ -489,8 +489,7 @@ def _check_options(norm: object, ref_batch_mean: object, standardize: object) ->
     if norm not in NORMS:
         raise ValueError(
             f"norm={norm!r}: pass one of {', '.join(repr(n) for n in NORMS)} (maths.md M-NORM); "
-            '"none" computes the statistics without normalisation. STL\'s "vanilla", "store_ref" '
-            'and "load_ref" are "none", "self" and "ref".'
+            '"none" computes the statistics without normalisation.'
         )
     for name, value in (("ref_batch_mean", ref_batch_mean), ("standardize", standardize)):
         if not isinstance(value, bool | np.bool_):
