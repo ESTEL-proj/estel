@@ -149,8 +149,8 @@ def _planar_crop_weights(self: Data, level: int, border: int) -> NDArray[np.floa
         reduced = (min(shape) - 1) // 2
         warnings.warn(
             f"{type(self).__name__}: at level {level} the spatial shape {shape} is too small "
-            f"for a border crop of {width} pixel(s); using {reduced} instead, as STL does "
-            "(maths.md M-BORDER, OP-13). Use a smaller J, larger data or pbc=True to avoid it.",
+            f"for a border crop of {width} pixel(s); using {reduced} instead (maths.md "
+            "M-BORDER, OP-13). Use a smaller J, larger data or pbc=True to avoid it.",
             UserWarning,
             stacklevel=2,
         )

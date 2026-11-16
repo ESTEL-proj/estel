@@ -214,7 +214,7 @@ class STOperator:
             if self._reference is not None:
                 warnings.warn(
                     'STOperator.apply: norm="self" replaces the reference this operator '
-                    "held by that of the new statistics, as STL does (maths.md M-NORM).",
+                    "held by that of the new statistics (maths.md M-NORM).",
                     UserWarning,
                     stacklevel=2,
                 )
@@ -246,7 +246,7 @@ def _warn_channels_without_auto(plan: STPlan) -> None:
     if missing:
         warnings.warn(
             f"cross_matrix: channel(s) {missing} have no auto statistics, so no "
-            "normalisation scale: their cross statistics are NaN after normalisation, as in STL "
+            "normalisation scale: their cross statistics are NaN after normalisation "
             "(maths.md M-CHAN, OP-30). Set their diagonal entries to normalise them.",
             UserWarning,
             stacklevel=3,

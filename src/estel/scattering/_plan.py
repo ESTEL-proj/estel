@@ -596,8 +596,8 @@ def _check_empty(
     listed = "; ".join(means[key][0] for key in empty)
     warnings.warn(
         f"{len(empty)} mean(s) have no pixel left after the missing values and the border crop, "
-        f"so their coefficients are NaN, as in STL, and are not computed (maths.md M-MEAN, "
-        f"OP-3): {listed}. {advice}",
+        f"so their coefficients are NaN and are not computed (maths.md M-MEAN, OP-3): "
+        f"{listed}. {advice}",
         UserWarning,
         stacklevel=3,
     )

@@ -180,6 +180,7 @@ The review of the scattering chain (86 remarks, R-A00 to R-P17) was distributed:
 | R-A09 | `apply` | kept, for the symmetry with `WaveletOperator`; a direct call may be added later as a minor change. Closes D1 | — |
 | R-A10 | `standardize` | stays a boolean: it removes the mean and divides by the standard deviation. Part III, §20.11, rule 7 is to correct accordingly | Q17 |
 | R-A11 | `functional.scattering` | first argument named `data` | PR #76 |
+| R-A12 | Messages | errors and warnings speak ESTEL's vocabulary and do not mention STL; the link with STL is in maths.md, through the M- and OP- references the messages give | PR #76 |
 | R-Y03 | A reference from another operator | accepted when J, L and the channels match, with a clear error otherwise | PR #68 |
 | G1 | Coefficient count of plain 2D | follow STL: 1,474, since plain 2D has no low-pass term in STL (the deliverable's formula gives 1,476) | Part II, §13.2; LF6 |
 | R-E01, R-N19 | Smoothing table, kernel rotations | recorded as OP-59 and OP-58 | maths tab |

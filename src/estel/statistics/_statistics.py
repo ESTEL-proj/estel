@@ -292,8 +292,7 @@ class STStatistics:
         if scale_cosine and not iso:
             raise ValueError(
                 "reduce(scale_cosine=True) without iso=True: the scale cosine transform is "
-                "defined on isotropic statistics, as in STL (maths.md M-RED-SCALE); pass "
-                "iso=True as well."
+                "defined on isotropic statistics (maths.md M-RED-SCALE); pass iso=True as well."
             )
         L, J = self._plan.L, self._plan.J  # noqa: N806
         n_angular = _check_count("angular_harmonics", angular_harmonics, L, "L")

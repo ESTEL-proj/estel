@@ -74,7 +74,9 @@ def _check_n_orientations(value: object) -> int:
         raise TypeError(f"L={value!r}: the number of orientations is an integer ≥ 1, such as L=4.")
     n = int(value)
     if n < 1:
-        raise ValueError(f"L={n}: the number of orientations is at least 1; STL's default is 4.")
+        raise ValueError(
+            f"L={n}: the number of orientations is at least 1; the default is 4 in 2D and 1 in 1D."
+        )
     return n
 
 
@@ -86,8 +88,7 @@ def _check_size(size: object) -> int:
     if n < 1 or n % 2 == 0 or n > FOURIER_GRID:
         raise ValueError(
             f"size={n}: the kernel size must be odd, so that the kernel has a centre, and "
-            f"between 1 and {FOURIER_GRID} (the Fourier grid); STL's default is "
-            f"{KERNEL_SIZE}."
+            f"between 1 and {FOURIER_GRID} (the Fourier grid); the default is {KERNEL_SIZE}."
         )
     return n
 
@@ -220,7 +221,7 @@ def bump_steerable_1d(
     if isinstance(xi0, bool) or not isinstance(xi0, int | float) or not 0.0 < xi0 < math.inf:
         raise ValueError(
             f"xi0={xi0!r}: the centre of the bump is a positive frequency on the grid of "
-            f"{FOURIER_GRID} points; leave it to None for STL's value, {FOURIER_GRID // 2}."
+            f"{FOURIER_GRID} points; leave it to None for the default, {FOURIER_GRID // 2}."
         )
     if not isinstance(conjugate, bool | np.bool_):
         raise TypeError(f"conjugate={conjugate!r}: pass True (L = 2) or False (L = 1).")
