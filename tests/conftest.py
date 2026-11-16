@@ -309,6 +309,10 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     if deselected:
         config.hook.pytest_deselected(items=deselected)
         items[:] = kept
+    if jax:
+        # The parity case first: without JAX's compilation cache it takes about 10 s, so xdist
+        # workers run the conformance suite beside it rather than after it.
+        items.sort(key=lambda item: not item.path.is_relative_to(REPO / "tests" / "parity"))
 
 
 def _cpu_seconds() -> float:

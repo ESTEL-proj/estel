@@ -380,8 +380,12 @@ class TestLinearPrimitives:
         assert_close(backend, value, np.asarray(np.sin(jx).sum()), dtype)
         assert_close(backend, grad, (jac.T @ np.cos(jx)).reshape(case.shape), dtype)
 
+    @pytest.mark.slow
     def test_hvp(self, backend: Backend, case: Linear, dtype: DType) -> None:
-        """Second order: f(x) = Σ sin(Jx) has H·v = -Jᵀ (sin(Jx) ⊙ Jv)."""
+        """Second order: f(x) = Σ sin(Jx) has H·v = -Jᵀ (sin(Jx) ⊙ Jv).
+
+        Slow: second order (Part I, §5.4); on JAX without its compilation cache, several programs
+        to compile per case."""
         xp = backend.xp
         x = rounded(0.3 * draw(case.shape, dtype, 1), dtype)
         v = draw(case.shape, dtype, 4)
@@ -394,8 +398,12 @@ class TestLinearPrimitives:
         expected = -jac.T @ (np.sin(jac @ x.ravel()) * (jac @ v.ravel()))
         assert_close(backend, hv, expected.reshape(case.shape), dtype)
 
+    @pytest.mark.slow
     def test_second_order_through_vjp(self, backend: Backend, case: Linear, dtype: DType) -> None:
-        """The gradient of g(x) = ½‖Jᵀ cos(Jx)‖², whose inner gradient comes from vjp."""
+        """The gradient of g(x) = ½‖Jᵀ cos(Jx)‖², whose inner gradient comes from vjp.
+
+        Slow: second order (Part I, §5.4); on JAX without its compilation cache, several programs
+        to compile per case."""
         xp = backend.xp
         x = rounded(0.3 * draw(case.shape, dtype, 1), dtype)
         jac = jacobian(case, x, dtype)

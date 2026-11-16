@@ -42,14 +42,14 @@ REDUCED = {
 }
 pytestmark = pytest.mark.maths("M-NORM", "M-RED-ISO", "M-RED-ANG", "M-RED-SCALE", "M-FLAT")
 # Tiers (Part I, §5.4): the 64 x 64, J = 4 configuration is large, so slow; one representative
-# configuration per dimension also runs in float32, and the 2D one on JAX. The 2D periodic cases
-# of the parity tests share one xdist worker (``--dist loadgroup``), where JAX compiles their
-# operations once: they have the same shapes.
+# configuration per dimension also runs in float32. On JAX the fast tier runs one parity case, of
+# the scattering statistics (tests/parity/test_scattering.py); these run in the full tier. The 2D
+# periodic cases of the parity tests share one xdist worker (``--dist loadgroup``), where JAX
+# compiles their operations once: they have the same shapes.
 MARKS = {
     ("statistics_2d", "deep_open"): (pytest.mark.slow,),
     ("statistics_2d", "periodic"): (
         pytest.mark.dtype,
-        pytest.mark.jax_smoke,
         pytest.mark.xdist_group("parity_2d_periodic"),
     ),
     ("statistics_1d", "periodic"): (pytest.mark.dtype,),

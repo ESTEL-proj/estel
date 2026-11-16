@@ -30,7 +30,7 @@ Markers:
 
 - `slow`: over 1 s even on the smallest data that exercises the behaviour (large configurations, second-order gradients through the loop, fresh processes). The docstring of the test, its class or its module says why in a sentence starting with `Slow:`; collection fails without it.
 - `dtype`: also run in float32 in the fast tier. Only for tests of dtype propagation through a public function, representative parity cases and precision tests; a test of logic needs one dtype.
-- `jax_smoke`: run on JAX in the fast tier: the L0 conformance suite and one parity case per family.
+- `jax_smoke`: run on JAX in the fast tier: the L0 conformance suite and one parity case, of the scattering statistics (the whole loop). On a cold CI runner JAX compiles every operation, and each parity case costs about 10 s.
 
 In the fast tier a test that takes more than 1 s of CPU time (its subprocesses included) fails in CI; locally it fails at 2 s, and the run lists those between 1 and 2 s, which CI would fail. On JAX the times are reported, not enforced (its eager mode compiles one executable per operation on first use); the same tests meet the budget on PyTorch. Each pytest run ends with a line giving its tier, its number of tests, their CPU time and the slowest; `pytest --tier fast --durations=20` lists more.
 

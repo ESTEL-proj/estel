@@ -87,7 +87,7 @@ markers = [
     "serial: runs alone, in a pass without xdist workers, in the full tier only (`make check-full`): the test starts fresh processes or switches a process-wide setting",
     "slow: full tier only (`make check-full`; CI on main, nightly, label full-ci): the test cannot run in under 1 s; its docstring says why, in a sentence starting with 'Slow:' (Part I, section 5.4)",
     "dtype: also runs in float32 in the fast tier (`make check`): dtype propagation, representative parity cases, precision tests",
-    "jax_smoke: runs on the experimental JAX backend in the fast tier: the L0 conformance suite and one parity case per family",
+    "jax_smoke: runs on the experimental JAX backend in the fast tier: the L0 conformance suite and one parity case, of the scattering statistics",
     "xdist_group(name): tests that share one pytest-xdist worker (--dist loadgroup); registered here too for the runs without xdist",
 ]
 
