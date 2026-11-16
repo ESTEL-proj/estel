@@ -184,7 +184,7 @@ class Data1D(Data):
 
     ``Data1D(array, mask=None, *, pbc)``: see :class:`estel.Data` for the parameters.
     A 1D array is promoted to ``(1, 1, N)``; a 2D array to ``(1, Nc, N)``, its first axis read
-    as channels, not as a batch, as in STL (maths.md M-DATA-1D, OP-29).
+    as channels, not as a batch (maths.md M-DATA-1D, OP-29).
     """
 
     ndim: ClassVar[int] = 1

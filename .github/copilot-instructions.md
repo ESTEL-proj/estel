@@ -23,6 +23,7 @@ ESTEL computes scattering-transform statistics and simple syntheses. Most change
 11. **Step discipline.** Before 1.0.0, never add a capability STL does not have, except synthesis checkpoints and the experimental JAX backend. After 1.0.0, a new capability enters as an opt-in feature described in the register of later features of `docs/reference.md`.
 12. **Public or internal.** Only names listed in `api/manifest.json` are public. Anything else lives in a private module (`_name.py`) or starts with an underscore.
 13. **Tests are as short as possible.** The fast tier must stay under 2 minutes of wall time on CI and under 1 minute for a local `make check`. A new test runs in under 1 second, on the smallest data that exercises the behaviour (for example 16 x 16 or 32 x 32 pixels, J = 2 or 3); a test that cannot is marked slow, with the reason in its docstring, and runs in the full tier only. Large configurations, second-order gradients, and a second dtype for tests of logic belong to the full tier. Before adding a test, check that no existing test already covers the behaviour. A pull request that makes the fast tier slower by more than 10 % says why in its description, with the before and after times.
+14. **Branches from `origin/main`.** Sessions never check out `main`: run `git fetch origin`, then create the branch from `origin/main` (`git switch -c <branch> origin/main`). Another session's worktree may hold `main`, and git refuses a branch open in two worktrees.
 
 ## Layer map
 

@@ -44,8 +44,8 @@ _WIDE = ("float64", "complex128")
 
 
 class STOperator:
-    """The scattering operator of 1D and 2D planar data: STL's ``ST_Operator`` with vanilla
-    ScatCov statistics (maths.md §1.6 to 1.8, §2.3 to 2.4).
+    """The scattering operator of 1D and 2D planar data: the scattering statistics mean, var
+    and S1 to S4 (maths.md §1.6 to 1.8, §2.3 to 2.4).
 
     Parameters
     ----------
@@ -59,19 +59,19 @@ class STOperator:
         The number of orientations; by default 4 in 2D and 1 in 1D. In 1D, L is 1 or 2 (the
         second filter is the conjugate of the first, M-WAV-1D).
     norm:
-        ``"self"`` (the default; STL's ``store_ref``): normalise the statistics by themselves,
-        and keep the reference; ``"ref"`` (STL's ``load_ref``): normalise by the reference of
-        other statistics; ``"none"`` (STL's ``vanilla``): no normalisation (M-NORM).
+        ``"self"`` (the default): normalise the statistics by themselves, and keep the
+        reference; ``"ref"``: normalise by the reference of other statistics; ``"none"``: no
+        normalisation (M-NORM).
     ref_batch_mean:
-        With ``norm="self"``, average the reference over the batch first; False by default, as
-        in STL, where it is ``norm_batch_mean`` (M-NORM).
+        With ``norm="self"``, average the reference over the batch first; False by default
+        (M-NORM).
     standardize:
-        Remove the mean and divide by the standard deviation of each map before the transform,
-        as STL's ``apply(standardize=True)`` (M-MOM); both values are kept with the statistics.
+        Remove the mean and divide by the standard deviation of each map before the transform
+        (M-MOM); both values are kept with the statistics.
     cross_matrix:
         A boolean ``(Nc, Nc)`` array: the diagonal entry of a channel asks for its auto
         statistics, the entry ``[c1, c2]``, c1 < c2, for the cross statistics of the pair; the
-        entries below the diagonal are ignored, as in STL. By default every pair, the upper
+        entries below the diagonal are ignored. By default every pair, the upper
         triangle (M-CHAN, M-DEF). Every channel must appear in at least one pair (OP-30).
     compute_PS:
         Whether to compute the power spectrum: True by default for 2D data, unavailable for 1D
@@ -119,8 +119,7 @@ class STOperator:
     def from_statistics(cls, stats: STStatistics) -> STOperator:
         """The operator that computed ``stats``: the same plan (geometry, mask, J, L, channels,
         normalisation, standardisation), on the current backend and default device, in the
-        dtype of ``stats``, holding the reference ``stats`` were normalised with (STL
-        ``from_ST_Statistics``)."""
+        dtype of ``stats``, holding the reference ``stats`` were normalised with."""
         if not isinstance(stats, STStatistics):
             raise TypeError(
                 f"STOperator.from_statistics takes STStatistics, got {type(stats).__name__}."

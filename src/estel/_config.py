@@ -44,8 +44,8 @@ def set_default_dtype(dtype: Literal["float32", "float64"]) -> None:
 def set_default_device(device: str) -> None:
     """Set the default device of operators and data: ``"cpu"``, ``"cuda"`` or ``"cuda:N"``.
 
-    Until it is called, the default is the one of STL: ``"cuda"`` if the current backend has a
-    CUDA device, ``"cpu"`` otherwise. The device is checked against the current backend now,
+    Until it is called, the default is ``"cuda"`` if the current backend has a CUDA device,
+    ``"cpu"`` otherwise. The device is checked against the current backend now,
     and again by ``set_backend``; one that does not exist raises ``ValueError`` listing the
     devices available. ESTEL keeps this default itself and never changes the backend's own
     (``torch.set_default_device``, JAX's default device).
