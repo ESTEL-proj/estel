@@ -13,7 +13,7 @@ Step 1 rebuilds what STL computes inside the architecture of Part I, and proves,
 - [12. Function inventory per module](#12-function-inventory-per-module)
   - [12.1 Tags](#121-tags) · [12.2 Public namespace and configuration](#122-public-namespace-and-configuration) · [12.3 L0 primitives](#123-l0-primitives) · [12.4 DataClasses](#124-dataclasses) · [12.5 Wavelets](#125-wavelets) · [12.6 Scattering](#126-scattering) · [12.7 Statistics](#127-statistics) · [12.8 Spectra](#128-spectra) · [12.9 Synthesis](#129-synthesis) · [12.10 Utilities](#1210-utilities) · [12.11 The oracle](#1211-the-oracle)
 - [13. Mathematics extracted from STL, and open points](#13-mathematics-extracted-from-stl-and-open-points)
-  - [13.1 Principle](#131-principle) · [13.2 Open points in STL's mathematics](#132-open-points-in-stls-mathematics)
+  - [13.1 Principle](#131-principle) · [13.2 Open points in STL's mathematics: see the maths tab](#132-open-points-in-stls-mathematics-see-the-maths-tab)
 - [14. Parity protocol with STL](#14-parity-protocol-with-stl)
   - [14.1 Principle](#141-principle) · [14.2 The harness](#142-the-harness) · [14.3 Comparison](#143-comparison) · [14.4 Coverage](#144-coverage) · [14.5 From parity to reference values](#145-from-parity-to-reference-values)
 - [15. Roadmap to 1.0.0](#15-roadmap-to-100)
@@ -273,7 +273,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `STOperator.from_statistics(stats)` | F | Rebuild the operator that produced a statistics object: the same plan, holding the reference the statistics were normalised with. With `STOperator(data, ...)`, the only public constructors | `from_ST_Statistics` |
 | `STOperator.plan`, `STOperator.filters` | F | The plan and the filters of the operator, the arguments of `estel.functional.scattering` | new |
 | `STOperatorTensorProd(data, J=(…), L=(…), *, lowpass="ST", …)` | F | Tensor-product operator, with STL's low-pass options (`"ST"`, `"PS"`, both, or none). Overrides only the hooks below | `ST_Operator_TensorProd` |
-| `_scale_index_set(plan)` | I | Mother: `j1 ≤ j2 ≤ j3` on integers. Tensor product: the componentwise partial order on multi-indices (§13.2, G3), plus the low-pass index per block | `_scales_S1_S2`, the loops of `_compute_ST_loop` |
+| `_scale_index_set(plan)` | I | Mother: `j1 ≤ j2 ≤ j3` on integers. Tensor product: the componentwise partial order on multi-indices (maths tab, M-IDX-TP), plus the low-pass index per block | `_scales_S1_S2`, the loops of `_compute_ST_loop` |
 | `_levels(plan)` | I | Resolution levels in execution order. Mother: `0…J`; tensor product: the product of block levels | `_compute_ST_loop` |
 | `_first_layer(x, plan)` | I | W\_j x and \|W\_j x\| at every level, built functionally | `_compute_ST_loop` |
 | `_second_layer(u, plan, level)` | I | The S3 and S4 means at one level, following the structure of STL's loop (Part I, §3.1, rule 8), returned as lists and stacked; no preallocated tensor filled in place (Part I, §3.1.1) | the `cov` calls of the loop |
@@ -357,47 +357,30 @@ All utilities take public objects, return values or a matplotlib `Figure`, never
 
 In step 1, `maths.md` is written from what STL computes, not from what it should compute. Its reference version during the review is the maths tab of this document. Reading the code turned up the points below; each is recorded in the maths tab and reproduced as is, unless this section says otherwise. Changing any of them is step 2 work.
 
-### 13.2 Open points in STL's mathematics
+### 13.2 Open points in STL's mathematics: see the maths tab
 
-The points fall into four groups, handled differently. They keep their IDs G1 to G18; the last column links them to the open points OP-n of the maths tab, or to the register of later features (Part III, §16).
+The open points of STL's mathematics are listed in one place: the OP-n of the maths tab, section by section. This section listed them as G1 to G18 until 16 November 2026; each is now in the maths tab or in the register:
 
-**1. Implicit conventions** — applied by STL but documented nowhere. Reproduced, and documented exactly in `maths.md`.
-
-| ID | Point | In step 1 | Related |
-| --- | --- | --- | --- |
-| G8 | Border crops: four methods in STL (`largest_scale_second_layer`, `layer_flexible`, `fully_flexible`, `zero`) | STL's default per family (fully flexible for planar data), with its width formulas | OP-13 |
-| G11 | Gaussian start: the Tukey taper on non-periodic axes, the white-noise fallback | as in STL | syntheses section of the maths tab, to write |
-| G12 | HEALPix wavelets: gauges, kernel interpolation, decimation radius and σ | the definitions of the STL-Dev-MPI `CLAUDE.md` §3, which give the same numbers as the PyTorch code (Q10) | HEALPix section, to write |
-| G13 | The 1D bump-steerable `xi0`, and the conjugate wavelet used for L = 2 | as in STL | 1D section, to write |
-| G14 | The Nyquist pre-filter of syntheses, per geometry | as in STL | syntheses section, to write |
-| G15 | `var`: N or N−1, and how mask weights enter | `var` is the non-centred second moment; population normalisation when standardised | OP-11 |
-| G16 | Defaults that depend on the data size: J, `n_bins` as a function of log N | as in STL; the default J can violate the size constraint | OP-8 |
-| G17 | The regularised division `z / sqrt(\|z\| + 1e-8)` of the cross S1 terms (STL's `divide(epsilon=1e-8, pow=0.5)`), shared by STL and STL-Dev-MPI | recorded as an M-S1 convention | OP-16; a better regularisation later (LF28) |
-
-**2. Inconsistencies** — reproduced where STL is self-consistent, decided where it is not.
-
-| ID | Point | In step 1 | Related |
-| --- | --- | --- | --- |
-| G1 | Deliverable Table 1 counts 1,474 coefficients for plain 2D; its formula gives 1,476 with the low-pass term | follow STL: 1,474, since plain 2D has no low-pass in STL | LF6 |
-| G7 | Masked downsampling: a 0.33 validity threshold in 2D, `_reweight_from_fraction` in HEALPix | one rule per geometry, both documented | OP-12 |
-| G18 | Two HEALPix implementations in `HealpixUpdate` (healpix-analyse and `TorchGeometry`) | the kernel class is the reference; ESTEL computes it with tables ported from `TorchGeometry`, and their agreement with healpix-analyse is a test | HEALPix section, to write |
-
-**3. Unclear definitions** — decided case by case.
-
-| ID | Point | In step 1 | Related |
-| --- | --- | --- | --- |
-| G3 | **The partial order of tensor-product scales.** In a tensor product each scale is a multi-index, one scale per block, for example (j\_space, j\_time). STL orders them componentwise: (a1, b1) ≤ (a2, b2) only if a1 ≤ a2 and b1 ≤ b2. Pairs such as (0, 2) and (1, 1) — finer in space but coarser in time — are not comparable, and STL computes no S3 or S4 coefficient for them. Interactions between a component fine in space and coarse in time and one coarse in space and fine in time are therefore never measured | reproduced, and written down explicitly in the tensor-product section of the maths tab, with this consequence | whether this choice is relevant is examined later (LF27) |
-| G4 | `iso`, `angular_ft`, `scale_ft` on tensor products: the product orientation mixes rotations with the direction of propagation of the 1D wavelet | STL's behaviour, documented | definitions in step 2 (LF26); see also OP-5 |
-| G5 | Cross-channel S1: allocated as `Nc × Nc`, while S1 is a mean modulus | defined from the code: the mean of z₁·conj(z₂) / √((\|z₁\| + ε)(\|z₂\| + ε)), which reduces to the auto S1 when the channels are equal (maths tab, M-S1) | OP-16 |
-
-**4. Missing features and deferred decisions** — step 2.
-
-| ID | Point | In step 1 | Related |
-| --- | --- | --- | --- |
-| G2 | The canonical set: complex-conjugate duplicates at `j1 = j2`, and both channel orders, are stored and counted twice by the loss | STL's set, as is | LF20; OP-14 |
-| G6 | Normalisation: whether gradients flow through the reference | STL's behaviour, which follows from the mode (store_ref: gradients flow; load_ref: constant) | LF21 (closed); OP-18 |
-| G9 | Low-pass filters in S3/S4 | absent, as in STL | LF6 |
-| G10 | Negative bins of the non-periodic spectrum estimator | reproduced | LF7; OP-21 |
+| Former ID | Now |
+| --- | --- |
+| G1 | decided: follow STL, 1,474 coefficients for plain 2D (Part IV, §22.5); LF6 |
+| G2 | OP-14; LF20 |
+| G3 | maths tab, M-IDX-TP; LF27 |
+| G4 | OP-44; LF26 |
+| G5 | maths tab, M-S1; OP-16 |
+| G6 | OP-18 (closed); LF21 (closed) |
+| G7 | OP-12 |
+| G8 | OP-13 |
+| G9 | OP-43; LF6 |
+| G10 | OP-21; LF7 |
+| G11 | maths tab, M-SYN-INIT |
+| G12 | maths tab, section 4; OP-49 |
+| G13 | maths tab, M-WAV-1D |
+| G14 | maths tab, M-SYN-NYQ; OP-54 |
+| G15 | OP-11 |
+| G16 | OP-8 |
+| G17 | OP-16; LF28 |
+| G18 | maths tab, section 4 |
 
 ## 14. Parity protocol with STL
 
@@ -424,7 +407,7 @@ Step 1 is validated by comparison: ESTEL and STL run on the same inputs, and the
 - **Precision.** Both libraries run in float64 for parity, which STL supports, so that only rounding separates them.
 - **Tolerances.** rtol 1e-10 in float64; 1e-5 in float32, as a secondary check; with an absolute tolerance atol = 0.1 × rtol × max|expected| (1e-11 in float64, 1e-6 in float32), so that values that are zero in theory do not fail on rounding. For `mean`, whose theoretical value may be zero, the scale is the standard deviation of the data: atol = 0.1 × rtol × sqrt(max(var)). A larger difference is documented individually in the parity report, explained, and approved by the CODEOWNERS.
 - **Gradients.** First-order gradients of a loss are compared between the two libraries; second order is tested in ESTEL only.
-- **Syntheses.** Not compared in step 1: synthesis parity and synthesis tests come after 1.0.0 (Part IV, §24.1).
+- **Syntheses.** Not compared in step 1: synthesis parity and synthesis tests come after 1.0.0 (Part III, §16.7).
 
 ### 14.4 Coverage
 
@@ -485,7 +468,7 @@ Each task becomes a GitHub issue, to be picked by an agent. A task names its inp
 | T2.8 | P2 | Invariance tests | Part I, §5.1 | invariance family green |
 | T2.9 | P2 | Pytree registration: an L0 primitive `register_pytree(cls, flatten, unflatten)` on both backends, used to register `DataClass` now and `STStatistics` later (Part I, §3.1, rule 9). On JAX through `jax.tree_util`; on PyTorch through `torch.utils._pytree`, imported lazily with a fallback, and only a warning if no such API exists, since nothing in ESTEL needs pytrees on PyTorch; on JAX, any registration error is raised | Part I, §3.1 rule 9; §12.3, §12.4 | `jax.jit` and `jax.vmap` accept a `DataClass` and return one; the PyTorch behaviour is unchanged; conformance test on both backends |
 | T2.10 | P2 | Public `WaveletOperator` (§12.5): `apply`, `lowpass`, `downsample` at a given level; decides how a data object knows its resolution level | §12.4, §12.5; maths M-WAV-2D, M-WAV-1D | public and tested; its results equal the loop's convolutions |
-| T3.0 | P3 | Write the tensor-product section of the maths tab, with G3 written out explicitly | STL `2D+1D`; §13.2 | reviewed by a maintainer before T3.2 |
+| T3.0 | P3 | Write the tensor-product section of the maths tab, with the partial order of scales written out explicitly (M-IDX-TP) | STL `2D+1D`; §13.2 | reviewed by a maintainer before T3.2 |
 | T3.1 | P3 | `DataTensorProd`, dispatch along each block's axes | §12.4 | unit tests; benchmark against `swapaxes` recorded |
 | T3.2 | P3 | `STOperatorTensorProd`, low-pass and box term | maths, tensor-product section | parity on tensor products |
 | T4.1 | P4 | 2D spectrum estimators and automatic selection | maths §1.9; §12.8 | parity with `master` |

@@ -39,7 +39,7 @@ Each part opens in its own tab, with a detailed contents at its top.
 - Part IV — Review and decisions
   - 21\. Critical review: failure modes
   - 22\. Decision log
-  - 23\. Open questions
+  - 23\. Points to settle
   - 24\. Deferred work and points to discuss later
 - maths.md — Mathematics of step 1 (sections 1 (2D) and 2 (1D) written from the code; sections 3 (tensor products), 4 (HEALPix) and 5 (syntheses) drafts, each verified by the first task of its phase (T3.0, T5.0, T6.0); its sections have their own numbering)
   - 1\. Planar 2D
@@ -86,4 +86,4 @@ Step 1 implements PyTorch, and JAX as an experimental backend from P1, and follo
 - protected files that only humans may change;
 - the same context files for every coding agent.
 
-**How to read this document.** Each part has its own tab. Part I sets the rules that apply to ESTEL at every stage. Part II describes step 1: what is transferred from STL, how, and how equality with STL is proven. Part III documents step 2 now, so that step 1 reserves the right interfaces. Part IV gathers the critical review, the decision log and the open questions. The appendices explain the technical terms for non-specialists and list the references.
+**How to read this document.** Each part has its own tab. Part I sets the rules that apply to ESTEL at every stage. Part II describes step 1: what is transferred from STL, how, and how equality with STL is proven. Part III documents step 2 now, so that step 1 reserves the right interfaces. Part IV gathers the critical review, the decision log and the points to settle. The appendices explain the technical terms for non-specialists and list the references.
