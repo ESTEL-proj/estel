@@ -31,6 +31,7 @@ concurrency:
 # The branch the fast tier compares with, to decide whether it runs the tests of tools/.
 env:
   ESTEL_TEST_BASE: origin/${{ github.base_ref || github.event.repository.default_branch }}
+  ESTEL_TOOLS_CHANGED: "0"  # TEMPORARY, for a measurement of PR #69; reverted in the next commit
 
 # Three parallel jobs. "make check" (check tools and PyTorch) and "make check (jax)" are the
 # checks the main ruleset requires. In the full tier the JAX run is split by dtype: "make check
@@ -131,7 +132,7 @@ jobs:
         run: make check TEST_BACKENDS=torch
 
       - name: Save mypy's cache (default branch only)
-        if: github.ref_name == github.event.repository.default_branch && github.event_name != 'pull_request'
+        if: true
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .mypy_cache
@@ -243,7 +244,7 @@ jobs:
         run: make test TEST_BACKENDS=jax TEST_DTYPE=float64
 
       - name: Save JAX's compilation cache (default branch only)
-        if: steps.scope.outputs.tests != 'false' && github.ref_name == github.event.repository.default_branch && github.event_name != 'pull_request'
+        if: steps.scope.outputs.tests != 'false' && true
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .pytest_cache/d/jax-compilation-cache
@@ -340,7 +341,7 @@ jobs:
         run: make test TEST_BACKENDS=jax TEST_DTYPE=float32
 
       - name: Save JAX's compilation cache (default branch only)
-        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full' && github.ref_name == github.event.repository.default_branch && github.event_name != 'pull_request'
+        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full' && true
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .pytest_cache/d/jax-compilation-cache
