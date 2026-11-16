@@ -204,13 +204,14 @@ def _persistent_jax_cache(config: pytest.Config) -> None:
 
 
 def _one_thread_per_worker(name: str) -> None:
-    """In an xdist worker, compute on one thread: with ``-n auto`` each worker would otherwise
-    start one compute thread per CPU, and the workers would slow each other down. The count is
-    fixed, not a share of the CPUs, because XLA's flags are part of the key of JAX's compilation
-    cache: a count that changed with the number of workers would miss the cache."""
-    if "PYTEST_XDIST_WORKER" not in os.environ:
-        return
+    """Compute on one thread in each xdist worker: with ``-n auto`` each worker would otherwise
+    start one compute thread per CPU, and the workers would slow each other down. On JAX, in every
+    process of the run, workers or not: XLA's flags are part of the key of JAX's compilation
+    cache, so the fast tier (one process) must use the flags of the full tier (workers), whose
+    run on the default branch saves the cache that pull requests load."""
     if name == "torch":
+        if "PYTEST_XDIST_WORKER" not in os.environ:
+            return
         import torch
 
         torch.set_num_threads(1)
