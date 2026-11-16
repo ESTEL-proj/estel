@@ -165,6 +165,31 @@ allow_indirect_imports = true
 broken_contract_guidance = "Use the Data interface of estel.data._base; add a geometry hook there if L2 needs something new."
 
 [[tool.importlinter.contracts]]
+id = "wavelet-operator-only"
+name = "Outside L1, the banks and mask builders go through WaveletOperator only"
+type = "optional_forbidden"
+# Every package of estel but wavelets and data (Part I, §2.3, §2.4; T2.10). The calls to the
+# hooks of filtering and downsampling are checked by tools/check_layers.py.
+source_modules = [
+    "estel.scattering",
+    "estel.statistics",
+    "estel.synthesis",
+    "estel.functional",
+    "estel.spectra",
+    "estel.diagnostics",
+    "estel.engines",
+    "estel.io",
+    "estel.backend",
+]
+forbidden_modules = [
+    "estel.wavelets._banks",
+    "estel.wavelets._healpix_bank",
+    "estel.data._masks",
+]
+allow_indirect_imports = true
+broken_contract_guidance = "Go through estel.wavelets._operator: WaveletOperator and its WaveletPlan give the levels, their shapes, the kernels, and the rules of borders and masks; add what L2 needs there."
+
+[[tool.importlinter.contracts]]
 id = "layers"
 name = "Layer order: engines, then L2, then L1, then L0; nothing imports upwards"
 type = "layers"
@@ -174,7 +199,10 @@ layers = [
     # One layer, L2, whose packages may import one another: the operator returns STStatistics and
     # calls estel.functional, which runs the loop of estel.scattering (T2.5).
     "(scattering) : (statistics) : (synthesis) : (functional)",
-    "(data) | (wavelets)",
+    # L1: the wavelet operator of estel.wavelets calls the geometry hooks of estel.data and
+    # reads its mask builders (T2.10); estel.data imports nothing from estel.wavelets.
+    "(wavelets)",
+    "(data)",
     "(backend)",
 ]
 # The public STOperator lives in L2 and takes engine=: it checks the name and the capabilities in

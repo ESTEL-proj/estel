@@ -16,6 +16,11 @@ In L1 and L2 (``data``, ``wavelets``, ``scattering``, ``statistics``, ``synthesi
 * a call to a method whose name ends in ``_`` (``.add_()``, ``.copy_()``), dunders excepted;
 * an ``inplace=`` keyword argument other than ``inplace=False``.
 
+Outside ``data`` and ``wavelets``, no use of a hook of filtering or downsampling (§2.3):
+
+* an attribute named ``_conv``, ``_downsample``, ``_crop_weights`` or ``_lowpass``, called or
+  not, and ``getattr`` with one of these names. Only ``WaveletOperator`` calls them.
+
 The checks are syntactic, so they cannot tell an array from a list or a dict: in L1 and L2,
 build containers with literals and comprehensions as well.
 """
@@ -31,6 +36,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 PACKAGE = Path("src/estel")
 FUNCTIONAL_LAYERS = ("data", "wavelets", "scattering", "statistics", "synthesis", "functional")
+GEOMETRY_LAYERS = ("data", "wavelets")
+GEOMETRY_HOOKS = ("_conv", "_downsample", "_crop_weights", "_lowpass")
 
 CLASS_NAME = (
     "compares a class name as a string (`{expr}`). This breaks on subclasses. Use "
@@ -57,6 +64,12 @@ OUT_KEYWORD = (
 INPLACE_METHOD = (
     "calls `.{name}()`, an in-place method. Call the out-of-place L0 primitive and use the "
     "value it returns (Part I, §3.1, rule 1)."
+)
+GEOMETRY_HOOK = (
+    "uses the geometry hook `{name}` outside estel.wavelets and estel.data. Only "
+    "`WaveletOperator` calls the hooks of filtering and downsampling: go through it "
+    "(`estel.wavelets._operator`: `apply`, `downsample`, `mean_weights`), and add what is "
+    "missing there (Part I, §2.3, §2.4)."
 )
 INPLACE_KEYWORD = (
     "passes `inplace={value}` to `{expr}`. Remove it and use the returned value: data objects "
@@ -111,9 +124,10 @@ def _flatten_targets(target: ast.expr) -> list[ast.expr]:
 
 
 class _Checker(ast.NodeVisitor):
-    def __init__(self, path: Path, functional: bool) -> None:
+    def __init__(self, path: Path, functional: bool, geometry: bool = True) -> None:
         self.path = path
         self.functional = functional
+        self.geometry = geometry
         self.violations: list[Violation] = []
 
     def _report(self, node: ast.AST, message: str) -> None:
@@ -166,9 +180,18 @@ class _Checker(ast.NodeVisitor):
         self._check_targets([i.optional_vars for i in node.items if i.optional_vars is not None])
         self.generic_visit(node)
 
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        if not self.geometry and node.attr in GEOMETRY_HOOKS:
+            self._report(node, GEOMETRY_HOOK.format(name=node.attr))
+        self.generic_visit(node)
+
     def visit_Call(self, node: ast.Call) -> None:
         if _is_setattr_class(node):
             self._report(node, CLASS_ASSIGN)
+        if not self.geometry and isinstance(node.func, ast.Name) and node.func.id == "getattr":
+            for arg in node.args[1:2]:
+                if isinstance(arg, ast.Constant) and arg.value in GEOMETRY_HOOKS:
+                    self._report(node, GEOMETRY_HOOK.format(name=arg.value))
         if self.functional:
             callee = ast.unparse(node.func)
             func = node.func
@@ -212,14 +235,23 @@ def is_functional_layer(rel: Path) -> bool:
     return first in FUNCTIONAL_LAYERS or (len(rel.parts) == 1 and rel.stem in FUNCTIONAL_LAYERS)
 
 
-def check_source(source: str, path: Path, functional: bool) -> list[Violation]:
-    """Violations in one module; ``functional`` enables the L1/L2 in-place rules."""
+def is_geometry_layer(rel: Path) -> bool:
+    """Whether ``rel`` (relative to ``src/estel``) belongs to ``data`` or ``wavelets``, which
+    may use the hooks of filtering and downsampling."""
+    return rel.parts[0] in GEOMETRY_LAYERS
+
+
+def check_source(
+    source: str, path: Path, functional: bool, geometry: bool = True
+) -> list[Violation]:
+    """Violations in one module; ``functional`` enables the L1/L2 in-place rules, and
+    ``geometry=False`` the rule on the hooks of filtering and downsampling."""
     try:
         tree = ast.parse(source, filename=str(path))
     except SyntaxError as error:
         message = f"cannot be parsed ({error.msg}). Fix the syntax error first."
         return [Violation(path, error.lineno or 0, (error.offset or 1) - 1, message)]
-    checker = _Checker(path, functional)
+    checker = _Checker(path, functional, geometry)
     checker.visit(tree)
     return sorted(checker.violations, key=lambda v: (v.line, v.col))
 
@@ -232,7 +264,10 @@ def check(root: Path) -> tuple[list[Violation], int]:
     for path in files:
         rel = path.relative_to(package)
         violations += check_source(
-            path.read_text(encoding="utf-8"), path.relative_to(root), is_functional_layer(rel)
+            path.read_text(encoding="utf-8"),
+            path.relative_to(root),
+            is_functional_layer(rel),
+            is_geometry_layer(rel),
         )
     return violations, len(files)
 

@@ -19,8 +19,9 @@ from numpy.typing import NDArray
 
 from estel import Data, Data1D, Data2D
 from estel.data._masks import build_mask_maps
-from estel.scattering._plan import MeanWeights, STPlan, border_width, build_plan
+from estel.scattering._plan import STPlan, build_plan
 from estel.wavelets._banks import smoothing_kernel
+from estel.wavelets._operator import MeanWeights, border_width
 
 GEOMETRIES: dict[int, type[Data]] = {2: Data2D, 1: Data1D}
 
@@ -77,7 +78,7 @@ def test_index_sets_follow_stls_loops(J: int) -> None:  # noqa: N803
 def test_levels_and_their_shapes(ndim: int) -> None:
     plan = _plan(_data(ndim, 32, pbc=False), 4, L=1)
     assert plan.levels == (0, 1, 2, 3)
-    assert plan.level_shapes == tuple((32 // 2**d,) * ndim for d in range(4))
+    assert plan.wavelets.level_shapes == tuple((32 // 2**d,) * ndim for d in range(4))
     assert (plan.J, plan.L, plan.kernel_size, plan.ndim) == (4, 1, 5, ndim)
     assert plan.spatial_shape == (32,) * ndim
     assert plan.pbc is False
@@ -86,15 +87,15 @@ def test_levels_and_their_shapes(ndim: int) -> None:
     assert all(w.level == j for j, w in plan.first_layer.items())
     assert all(w.level == j3 for (_, j3), w in plan.s3.items())
     assert all(w.level == j3 for (_, _, j3), w in plan.s4.items())
-    assert all(w.weights.shape == plan.level_shapes[w.level] for w in _all_means(plan))
+    assert all(w.weights.shape == plan.wavelets.level_shapes[w.level] for w in _all_means(plan))
 
 
 def test_lowpass_is_the_cascade_of_smoothing_kernels() -> None:
     """Part II, §12.6 and maths.md M-NOT: in 1.0.0 the low-pass filter φ_J is the data
     downsampled J times."""
     plan = _plan(_data(2, 32, pbc=True), 3)
-    assert plan.lowpass_realization == "smoothing_cascade"
-    assert plan.lowpass_level == 3
+    assert plan.wavelets.lowpass_realization == "smoothing_cascade"
+    assert plan.wavelets.lowpass_level == 3
 
 
 # ---------------------------------------------------------------------- borders
@@ -145,9 +146,9 @@ def test_weights_without_mask_are_the_crop(ndim: int) -> None:
     with ``pbc`` nothing is cropped."""
     open_ = _plan(_data(ndim, 64, pbc=False), 4, L=1)
     periodic = _plan(_data(ndim, 64, pbc=True), 4, L=1)
-    assert open_.masks is None
+    assert open_.wavelets.masks is None
     for w in _all_means(open_):
-        expected = _crop(open_.level_shapes[w.level], w.border)
+        expected = _crop(open_.wavelets.level_shapes[w.level], w.border)
         np.testing.assert_array_equal(w.weights, expected)
         assert w.denominator == expected.sum()
     for w in _all_means(periodic):
@@ -206,7 +207,7 @@ def test_masked_weights_are_crop_times_valid_union(ndim: int, pbc: bool) -> None
     n = 64 if ndim == 2 else 128
     mask = _sparse_mask(ndim, n)
     plan = _plan(_data(ndim, n, pbc, mask), 3, L=1)
-    assert plan.masks is not None
+    assert plan.wavelets.masks is not None
     expected = _expected_invalid(ndim, mask, 3, pbc)
     got: dict[Any, MeanWeights] = {
         "moments": plan.moments,
@@ -216,7 +217,7 @@ def test_masked_weights_are_crop_times_valid_union(ndim: int, pbc: bool) -> None
     }
     assert set(got) == set(expected)
     for key, w in got.items():
-        crop = _crop(plan.level_shapes[w.level], w.border)
+        crop = _crop(plan.wavelets.level_shapes[w.level], w.border)
         np.testing.assert_array_equal(w.weights, np.where(expected[key], 0.0, crop), str(key))
         assert w.denominator == float(w.weights.sum()) > 0
         assert not w.weights.flags.writeable
@@ -230,8 +231,8 @@ def test_s3_uses_the_union_where_the_layer_2_mask_misses_layer_1() -> None:
     rng = np.random.default_rng(112)
     mask = rng.random(64) < rng.uniform(0.01, 0.15)
     plan = _plan(_data(1, 64, pbc=True, mask=mask), 3, L=1)
-    assert plan.masks is not None
-    layer1, layer2 = plan.masks.layer1[2], plan.masks.layer2[(2, 0)]
+    assert plan.wavelets.masks is not None
+    layer1, layer2 = plan.wavelets.masks.layer1[2], plan.wavelets.masks.layer2[(2, 0)]
     assert np.any(layer1 & ~layer2)
     np.testing.assert_array_equal(plan.s3[(0, 2)].weights, np.where(layer1 | layer2, 0.0, 1.0))
     assert plan.s3[(0, 2)].denominator == float((~layer2).sum() - (layer1 & ~layer2).sum())
@@ -262,7 +263,9 @@ def test_means_without_valid_pixel_are_listed_not_computed(ndim: int) -> None:
     expected = _expected_invalid(ndim, mask, 4, pbc=False)
 
     def empty(key: Any, level: int, border: int) -> bool:
-        return not np.any(np.where(expected[key], 0.0, _crop(plan.level_shapes[level], border)))
+        return not np.any(
+            np.where(expected[key], 0.0, _crop(plan.wavelets.level_shapes[level], border))
+        )
 
     def border(histories: tuple[tuple[int, ...], ...], level: int) -> int:
         return max(border_width(h, level, 5, False) for h in histories)
@@ -315,29 +318,31 @@ def test_a_whole_empty_family_raises(ndim: int) -> None:
 def test_downsample_maps_are_the_steps_of_stls_downsample() -> None:
     mask = _sparse_mask(2, 64)
     plan = _plan(_data(2, 64, pbc=False, mask=mask), 3)
-    maps = plan.masks
+    maps = plan.wavelets.masks
     assert maps is not None
-    step = plan.downsample_maps(0)
+    step = plan.wavelets.downsample_maps(0)
     assert step is not None
     np.testing.assert_array_equal(step[0], ~maps.full_res)
     np.testing.assert_array_equal(step[1], maps.smooth_reweight[1])
-    step = plan.downsample_maps(1)
+    step = plan.wavelets.downsample_maps(1)
     assert step is not None
     np.testing.assert_array_equal(step[0], ~maps.smooth_invalid[1])
     np.testing.assert_array_equal(step[1], maps.smooth_reweight[2])
-    step = plan.downsample_maps(0, convolved_at=0)
+    step = plan.wavelets.downsample_maps(0, history=(0,))
     assert step is not None
     np.testing.assert_array_equal(step[0], ~maps.layer1[0])
     np.testing.assert_array_equal(step[1], maps.wav_reweight[(1, 0)])
-    step = plan.downsample_maps(1, convolved_at=0)
+    step = plan.wavelets.downsample_maps(1, history=(0,))
     assert step is not None
     np.testing.assert_array_equal(step[0], ~maps.wav_invalid[(1, 0)])
     np.testing.assert_array_equal(step[1], maps.wav_reweight[(2, 0)])
-    assert _plan(_data(2, 64, pbc=False), 3).downsample_maps(1, convolved_at=1) is None
+    assert _plan(_data(2, 64, pbc=False), 3).wavelets.downsample_maps(1, history=(1,)) is None
     with pytest.raises(ValueError, match="levels 0"):
-        plan.downsample_maps(2)
-    with pytest.raises(ValueError, match="convolved_at"):
-        plan.downsample_maps(0, convolved_at=1)
+        plan.wavelets.downsample_maps(2)
+    with pytest.raises(ValueError, match=r"history=\(1,\)"):
+        plan.wavelets.downsample_maps(0, history=(1,))
+    with pytest.raises(ValueError, match="second-layer data"):
+        plan.wavelets.downsample_maps(1, history=(0, 1))
 
 
 # ---------------------------------------------------------------------- static, hashable

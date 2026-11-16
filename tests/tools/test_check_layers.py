@@ -1,4 +1,5 @@
-"""tools/check_layers.py fails on class-name tests, ``__class__`` writes and in-place updates."""
+"""tools/check_layers.py fails on class-name tests, ``__class__`` writes, in-place updates, and
+geometry hooks used outside ``estel.wavelets`` and ``estel.data``."""
 
 from __future__ import annotations
 
@@ -55,6 +56,15 @@ def test_repository_passes() -> None:
 
 def test_clean_repository_passes(tmp_path: Path) -> None:
     code, _, err = check(fake_repo(tmp_path))
+    assert code == 0, err
+
+
+def test_wavelets_and_data_may_use_the_geometry_hooks(tmp_path: Path) -> None:
+    """Part I, §2.3: ``WaveletOperator`` calls the hooks of filtering and downsampling, and the
+    data classes define them and dispatch to those of their blocks."""
+    hooks = "def f(data, x, t, w):\n    return data._conv(x, t, 0), data._downsample(x, w, 0)\n"
+    files = {"src/estel/wavelets/_operator.py": hooks, "src/estel/data/_tensor_prod.py": hooks}
+    code, _, err = check(fake_repo(tmp_path, files))
     assert code == 0, err
 
 
@@ -168,6 +178,30 @@ def test_clean_repository_passes(tmp_path: Path) -> None:
             "def f(:\n",
             "cannot be parsed",
             id="syntax-error",
+        ),
+        pytest.param(
+            "src/estel/scattering/_loop.py",
+            "w = data._conv(x, kernels, 0)\n",
+            "uses the geometry hook `_conv` outside estel.wavelets and estel.data",
+            id="hook-conv-in-l2",
+        ),
+        pytest.param(
+            "src/estel/functional/_scattering.py",
+            "y = data._downsample(x, weights, level)\n",
+            "uses the geometry hook `_downsample`",
+            id="hook-downsample-in-l2",
+        ),
+        pytest.param(
+            "src/estel/scattering/_plan.py",
+            "crop = data._crop_weights\n",
+            "uses the geometry hook `_crop_weights`",
+            id="hook-crop-weights-not-called",
+        ),
+        pytest.param(
+            "src/estel/statistics/_statistics.py",
+            "low = getattr(data, '_lowpass')(x, plan, block)\n",
+            "go through it (`estel.wavelets._operator`",
+            id="hook-lowpass-getattr",
         ),
     ],
 )

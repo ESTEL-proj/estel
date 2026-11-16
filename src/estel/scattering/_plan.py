@@ -15,13 +15,12 @@ What it holds, for STL's loop structure (maths.md §1.6 to 1.7; STL ``ST_Operato
   ``j1 ≤ j2 ≤ j3``, of S4 (for j3, then j2, then j1).
 * **Levels**: 0 … J-1. Scale ``j`` is computed at level ``j`` (STL's ``j_to_dg``), and every
   mean is taken at the level of the last convolution of its operands.
-* **The low-pass filter**: how it is realised and at which level. In 1.0.0, as in STL, it is the
-  cascade of the smoothing kernels, the data downsampled J times (maths.md M-NOT, "Filters
-  and scales"). The planar statistics compute no low-pass coefficient (M-S1 to M-S4); the
-  tensor-product operator reads it (task T3.2).
-* **The masks and reweighting maps** of the data, ``estel.data._masks.MaskMaps`` (M-DOWN-MASK,
-  M-MASK), and the maps of each downsampling step (:meth:`STPlan.downsample_maps`).
-* **The weights and denominator of every mean** (:class:`MeanWeights`; M-MEAN, M-BORDER): 1 on
+* **The static part of the wavelet operator** (``wavelets``, a ``WaveletPlan``; Part I, §2.3):
+  the shape of each level, how the low-pass filter is realised and at which level, the masks
+  and reweighting maps of the data and of each downsampling step (M-DOWN-MASK, M-MASK), and
+  the rules of borders and masks. Everything that depends on the wavelets and on the geometry
+  comes from it: this module holds no geometry formula.
+* **The weights and denominator of every mean** (``MeanWeights``; M-MEAN, M-BORDER): 1 on
   the pixels that enter the mean, 0 elsewhere, and their sum; and the means that have no
   valid pixel, whose coefficients are NaN (OP-3).
 
@@ -34,8 +33,9 @@ the scales of the convolutions applied, which in ESTEL is plan data rather than 
 * S3 at ``(j2, j3)``: ``(j2, j3)`` and ``(j3,)``, at level ``j3``;
 * S4 at ``(j1, j2, j3)``: ``(j1, j3)`` and ``(j2, j3)``, at level ``j3``.
 
-The border of a mean is the larger of its operands' borders (M-BORDER, "fully flexible");
-the geometry turns it into weights (``Data._crop_weights``), reducing a border too large
+The plan lists these means, and the wavelet operator gives their weights
+(``WaveletOperator.mean_weights``). The border of a mean is the larger of its operands' borders
+(M-BORDER, "fully flexible"); the geometry turns it into weights, reducing a border too large
 for the grid as STL does, with one warning per plan (OP-13). The invalid pixels of a mean are
 the union of its operands' masks (M-MASK, "Covariances"). STL takes the mask of the operand
 with more convolutions instead, assuming that it contains the other one; where it does not
@@ -64,26 +64,24 @@ no computable coefficient.
 
 from __future__ import annotations
 
-import math
 import warnings
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from numbers import Integral
 from types import MappingProxyType
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 
-from ..data._base import Data, _StaticMask
-from ..data._masks import BoolMap, FloatMap, MaskMaps, build_mask_maps
-from ..wavelets._banks import KERNEL_SIZE, _check_n_orientations, _check_size, smoothing_kernel
-
-History = tuple[int, ...]
-"""The scales of the convolutions applied to an operand, in order: ``()`` for the field,
-``(j,)`` for first-layer data, ``(j2, j3)`` for second-layer data (STL's ``conv_history``)."""
-
-LowpassRealization = Literal["smoothing_cascade"]
+from ..data._base import Data
+from ..wavelets._operator import (
+    KERNEL_SIZE,
+    History,
+    MeanWeights,
+    WaveletOperator,
+    WaveletPlan,
+    build_wavelet_plan,
+)
 
 NORMS = ("none", "self", "ref")
 """The values of ``norm`` (maths.md M-NORM)."""
@@ -127,50 +125,6 @@ def channel_pairs(matrix: NDArray[np.bool_]) -> ChannelPairs:
     return ChannelPairs(n_channels=n, auto=auto, cross=cross, ordered=ordered)
 
 
-def border_width(history: History, level: int, kernel_size: int, pbc: bool) -> int:
-    """The border β of maths.md M-BORDER ("fully flexible"), in pixels at ``level``, of data
-    convolved at the scales ``history`` (STL ``_get_crop_border_size_fully_flexible``).
-
-    * no convolution, or ``pbc``: 0;
-    * one convolution at ``j``: ⌈2^(j-d) · ⌊K/2⌋⌉;
-    * two convolutions at ``j2`` then ``j3``: β₁ = ⌈2^(j2-j3) · ⌊K/2⌋⌉, then
-      ⌈2^(j3-d) · (β₁ + ⌊K/2⌋)⌉.
-    """
-    half = kernel_size // 2
-    if pbc or not history:
-        return 0
-    if len(history) == 1:
-        return math.ceil(2.0 ** (history[0] - level) * half)
-    if len(history) == 2:
-        first = math.ceil(2.0 ** (history[0] - history[1]) * half)
-        return math.ceil(2.0 ** (history[1] - level) * (first + half))
-    raise ValueError(
-        f"history={history}: the scattering transform convolves at most twice, so a history "
-        "has 0, 1 or 2 scales (maths.md M-BORDER)."
-    )
-
-
-@dataclass(frozen=True, eq=False)
-class MeanWeights:
-    """The static weights of one mean (maths.md M-MEAN, M-BORDER, M-MASK).
-
-    The mean of an array ``a`` at ``level`` is ``sum(weights · a) / denominator`` over the
-    spatial axes (Part I, §3.1.1), which is STL's ``maskmean`` of the cropped array.
-    """
-
-    level: int
-    """The resolution level of the mean."""
-    border: int
-    """The border width β of M-BORDER, in pixels at ``level``, before the reduction of a
-    border too large for the grid (OP-13); the reduction, if any, is in ``weights``."""
-    weights: FloatMap
-    """1 on the pixels that enter the mean, 0 on the border crop and on invalid pixels; a
-    read-only float64 array of the spatial shape at ``level``."""
-    denominator: float
-    """The number of pixels that enter the mean, ``weights.sum()``, at least 1: a mean with
-    no valid pixel has no ``MeanWeights`` (OP-3)."""
-
-
 @dataclass(frozen=True, eq=False)
 class _PlanFields:
     """The fields of :class:`STPlan`, internal to ESTEL (the plan is public and
@@ -206,26 +160,18 @@ class _PlanFields:
     """Whether the ``norm="self"`` reference is averaged over the batch (M-NORM)."""
     standardize: bool
     """Whether each map is standardised before the transform (M-MOM)."""
+    wavelets: WaveletPlan
+    """The static part of the wavelet operator (Part I, §2.3): the levels and their shapes, the
+    low-pass filter and how it is realised, the masks and reweighting maps, and the rules of
+    borders and masks."""
     levels: tuple[int, ...]
     """The resolution levels of the loop, in execution order: 0 … J-1."""
-    level_shapes: tuple[tuple[int, ...], ...]
-    """The spatial shape at each level of :attr:`levels`."""
     scales: tuple[int, ...]
     """The index set of S1 and S2: the scales 0 … J-1, scale ``j`` at level ``j``."""
     s3_pairs: tuple[tuple[int, int], ...]
     """The index set of S3: ``(j2, j3)``, j2 ≤ j3, in STL's loop order (M-S3)."""
     s4_triples: tuple[tuple[int, int, int], ...]
     """The index set of S4: ``(j1, j2, j3)``, j1 ≤ j2 ≤ j3, in STL's loop order (M-S4)."""
-    lowpass_realization: LowpassRealization
-    """How the low-pass filter φ_J is realised: in 1.0.0, ``"smoothing_cascade"``, the cascade
-    of the smoothing kernels of J downsamplings, as in STL (maths.md M-NOT; Part II, §12.4,
-    ``_lowpass``)."""
-    lowpass_level: int
-    """The level at which the low-pass filter is read: J, the data downsampled J times. The
-    planar statistics of 1.0.0 compute no low-pass coefficient."""
-    masks: MaskMaps | None
-    """The static masks and reweighting maps of the data (M-DOWN-MASK, M-MASK), or ``None``
-    when no value is missing."""
     moments: MeanWeights
     """The weights of ``mean`` and ``var``, at level 0 (M-MOM)."""
     first_layer: Mapping[int, MeanWeights]
@@ -245,46 +191,6 @@ class _PlanFields:
     empty_s4_triples: tuple[tuple[int, int, int], ...]
     """The triples of :attr:`s4_triples` whose S4 has no valid pixel (OP-3)."""
     _key: tuple[Any, ...] = field(repr=False)
-
-    def downsample_maps(
-        self, level: int, convolved_at: int | None = None
-    ) -> tuple[BoolMap, FloatMap] | None:
-        """The static maps of one downsampling step, from ``level`` to ``level + 1``
-        (maths.md M-DOWN-MASK; STL ``downsample``), or ``None`` when no value is missing.
-
-        ``convolved_at`` is ``None`` for the field, or the scale ``j ≤ level`` at which
-        first-layer data were convolved. Returns the valid input pixels, of the spatial shape
-        at ``level``, and the reweighting 1 / (1 - f) of the output, of the shape at
-        ``level + 1``, 0 at invalid outputs: the ``valid`` and ``reweight`` of
-        ``DownsampleWeights``, before the operator casts them.
-        """
-        if not _is_index(level) or not 0 <= level < self.J - 1:
-            raise ValueError(
-                f"downsample_maps(level={level!r}): the loop downsamples from the levels 0 … "
-                f"{self.J - 2} (J = {self.J})."
-            )
-        if convolved_at is not None and (
-            not _is_index(convolved_at) or not 0 <= convolved_at <= level
-        ):
-            raise ValueError(
-                f"downsample_maps(level={level}, convolved_at={convolved_at!r}): first-layer "
-                f"data convolved at scale j are downsampled from level j on, so pass None (the "
-                f"field) or a scale between 0 and {level}."
-            )
-        if self.masks is None:
-            return None
-        masks = self.masks
-        if convolved_at is None:
-            invalid = masks.full_res if level == 0 else masks.smooth_invalid[level]
-            reweight = masks.smooth_reweight[level + 1]
-        else:
-            invalid = (
-                masks.layer1[convolved_at]
-                if level == convolved_at
-                else masks.wav_invalid[(level, convolved_at)]
-            )
-            reweight = masks.wav_reweight[(level + 1, convolved_at)]
-        return ~invalid, reweight
 
 
 class STPlan(_PlanFields):
@@ -308,8 +214,8 @@ class STPlan(_PlanFields):
 
 def build_plan(
     data: Data,
-    J: int,  # noqa: N803 (maths.md notation)
-    L: int,  # noqa: N803
+    J: int | None = None,  # noqa: N803 (maths.md notation)
+    L: int | None = None,  # noqa: N803
     *,
     kernel_size: int = KERNEL_SIZE,
     cross_matrix: Any = None,
@@ -319,7 +225,8 @@ def build_plan(
 ) -> STPlan:
     """The ``STPlan`` of a scattering transform with ``J`` scales and ``L``
     orientations on data with the geometry, spatial shape, ``pbc``, mask and number of channels
-    of ``data``.
+    of ``data``; by default J and L are those of the geometry (M-DEF, M-DEF-1D) and the kernel
+    size that of the wavelets.
 
     ``cross_matrix`` is STL's ``compute_cross_matrix``, a boolean ``(Nc, Nc)`` array, or
     ``None`` for every pair c1 ≤ c2, the upper triangle (M-CHAN, M-DEF); ``norm``,
@@ -334,30 +241,14 @@ def build_plan(
         raise TypeError(
             f"build_plan takes a Data object, such as estel.Data2D, got {type(data).__name__}."
         )
-    n_scales = _check_scales(J, data)
-    n_orientations = _check_n_orientations(L)
-    size = _check_size(kernel_size)
+    wavelets = build_wavelet_plan(data, J, L, kernel_size=kernel_size)
     matrix = _cross_matrix(cross_matrix, data.n_channels)
     _check_options(norm, ref_batch_mean, standardize)
-    spatial = data.shape[2:]
-    pbc = data.pbc
-    levels = tuple(range(n_scales))
+    levels = wavelets.levels
     scales = levels
     s3_pairs = tuple((j2, j3) for j3 in levels for j2 in range(j3 + 1))
     s4_triples = tuple(
         (j1, j2, j3) for j3 in levels for j2 in range(j3 + 1) for j1 in range(j2 + 1)
-    )
-    masks = (
-        None
-        if data.mask is None
-        else build_mask_maps(
-            data.mask,
-            n_levels=n_scales,
-            s=smoothing_kernel(data.ndim),
-            kernel_size=size,
-            threshold=data._nan_threshold,
-            pbc=pbc,
-        )
     )
 
     # The means of STL's loop: a label for error messages, the operands' histories, the level.
@@ -376,43 +267,33 @@ def build_plan(
             for j1, j2, j3 in s4_triples
         },
     }
-    borders = {
-        key: max(border_width(h, level, size, pbc) for h in histories)
-        for key, (_, histories, level) in means.items()
-    }
-    crops = _crop_weights(data, {(means[key][2], border) for key, border in borders.items()})
-    candidates = {
-        key: _mean_weights(histories, level, borders[key], crops, masks)
-        for key, (_, histories, level) in means.items()
-    }
+    candidates = WaveletOperator.from_parts(data, wavelets).mean_weights(
+        {key: (histories, level) for key, (_, histories, level) in means.items()}
+    )
     weights = {key: w for key, w in candidates.items() if w is not None}
     _check_empty(means, weights)
 
-    static_mask = None if data.mask is None else _StaticMask(data.mask)
     return STPlan(
-        geometry=type(data),
-        J=n_scales,
-        L=n_orientations,
-        kernel_size=size,
-        ndim=data.ndim,
-        spatial_shape=spatial,
-        pbc=pbc,
-        mask=None if static_mask is None else _read_only(data.mask),
-        nan_threshold=data._nan_threshold,
+        geometry=wavelets.geometry,
+        J=wavelets.J,
+        L=wavelets.L,
+        kernel_size=wavelets.kernel_size,
+        ndim=wavelets.ndim,
+        spatial_shape=wavelets.spatial_shape,
+        pbc=wavelets.pbc,
+        mask=wavelets.mask,
+        nan_threshold=wavelets.nan_threshold,
         n_channels=data.n_channels,
         cross_matrix=matrix,
         pairs=channel_pairs(matrix),
         norm=norm,
         ref_batch_mean=bool(ref_batch_mean),
         standardize=bool(standardize),
+        wavelets=wavelets,
         levels=levels,
-        level_shapes=tuple(tuple(n // 2**d for n in spatial) for d in levels),
         scales=scales,
         s3_pairs=s3_pairs,
         s4_triples=s4_triples,
-        lowpass_realization="smoothing_cascade",
-        lowpass_level=n_scales,
-        masks=masks,
         moments=weights["moments"],
         first_layer=MappingProxyType(
             {j: weights[("S1", j)] for j in scales if ("S1", j) in weights}
@@ -425,14 +306,7 @@ def build_plan(
         empty_s3_pairs=tuple(p for p in s3_pairs if ("S3", *p) not in weights),
         empty_s4_triples=tuple(t for t in s4_triples if ("S4", *t) not in weights),
         _key=(
-            type(data),
-            n_scales,
-            n_orientations,
-            size,
-            spatial,
-            pbc,
-            data._nan_threshold,
-            static_mask,
+            wavelets,
             data.n_channels,
             matrix.tobytes(),
             norm,
@@ -443,16 +317,6 @@ def build_plan(
 
 
 # ---------------------------------------------------------------------- helpers
-
-
-def _is_index(value: object) -> bool:
-    return isinstance(value, Integral) and not isinstance(value, bool)
-
-
-def _read_only(array: Any) -> NDArray[Any]:
-    copy = np.array(array)
-    copy.flags.writeable = False
-    return copy
 
 
 def _cross_matrix(matrix: Any, n_channels: int) -> NDArray[np.bool_]:
@@ -494,77 +358,6 @@ def _check_options(norm: object, ref_batch_mean: object, standardize: object) ->
     for name, value in (("ref_batch_mean", ref_batch_mean), ("standardize", standardize)):
         if not isinstance(value, bool | np.bool_):
             raise TypeError(f"{name}={value!r}: pass True or False.")
-
-
-def _check_scales(value: object, data: Data) -> int:
-    """J as an int: at least 1, and the sizes divisible by 2^(J-1) (maths.md M-DATA-2D,
-    M-DATA-1D, OP-8)."""
-    if isinstance(value, bool) or not isinstance(value, Integral):
-        raise TypeError(f"J={value!r}: the number of scales is an integer ≥ 1, such as J=4.")
-    n = int(value)
-    if n < 1:
-        raise ValueError(f"J={n}: the number of scales is at least 1.")
-    spatial = data.shape[2:]
-    if any(size % 2 ** (n - 1) for size in spatial):
-        largest = min((size & -size).bit_length() for size in spatial)
-        raise ValueError(
-            f"J={n} needs every spatial size divisible by 2^(J-1) = {2 ** (n - 1)}, since the "
-            f"loop downsamples J-1 times, but the spatial shape is {spatial} (maths.md "
-            f"M-DATA-2D, OP-8). Use J ≤ {largest}, or crop or pad the data first."
-        )
-    return n
-
-
-def _crop_weights(data: Data, needed: Iterable[tuple[int, int]]) -> dict[tuple[int, int], FloatMap]:
-    """The crop weights of every ``(level, border)`` in ``needed``, from the geometry hook.
-
-    STL warns once per operator when it reduces a border too large for the grid (OP-13): the
-    warnings of the hook are collected, and the first one alone is shown again.
-    """
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        crops = {pair: data._crop_weights(*pair) for pair in sorted(needed)}
-    if caught:
-        warnings.warn(caught[0].message, stacklevel=3)
-    return crops
-
-
-def _invalid(masks: MaskMaps, history: History, level: int) -> BoolMap:
-    """The invalid pixels at ``level`` of data convolved at the scales ``history`` (M-MASK;
-    STL ``_find_mask``)."""
-    if not history:
-        return masks.full_res if level == 0 else masks.smooth_invalid[level]
-    if len(history) == 1:
-        (j,) = history
-        return masks.layer1[j] if level == j else masks.wav_invalid[(level, j)]
-    j2, j3 = history
-    if level != j3:
-        raise ValueError(
-            f"second-layer data convolved at {history} are read at level {j3}, not {level}."
-        )
-    return masks.layer2[(j3, j2)]
-
-
-def _mean_weights(
-    histories: tuple[History, ...],
-    level: int,
-    border: int,
-    crops: Mapping[tuple[int, int], FloatMap],
-    masks: MaskMaps | None,
-) -> MeanWeights | None:
-    """The weights of one mean: the crop of ``border``, times the valid pixels of the union of
-    the operands' masks (M-BORDER, M-MASK, M-MEAN); ``None`` when no pixel is left (OP-3)."""
-    crop = crops[(level, border)]
-    if masks is None:
-        weights = np.array(crop, dtype=np.float64)
-    else:
-        invalid = np.logical_or.reduce([_invalid(masks, h, level) for h in histories])
-        weights = np.where(invalid, 0.0, crop)
-    denominator = float(weights.sum())
-    if denominator == 0.0:
-        return None
-    weights.flags.writeable = False
-    return MeanWeights(level=level, border=border, weights=weights, denominator=denominator)
 
 
 _FAMILIES = {"moments": "mean and var", "S1": "S1 and S2", "S3": "S3", "S4": "S4"}

@@ -1,11 +1,12 @@
 """``STFilters``: the numerical arrays of a scattering transform (Part II, §12.6; task
 T2.5).
 
-The filters, the wavelet bank and the smoothing kernel (maths.md M-WAV-2D, M-WAV-1D,
-M-SMOOTH-2D, M-SMOOTH-1D), and everything derived from the plan to apply them: the valid
-pixels, the propagated masks and reweighting maps of each downsampling (M-DOWN-MASK, M-MASK),
-the weights of every mean, with their border windows (M-MEAN, M-BORDER), and the grid positions
-of the coefficients. They are backend arrays in the operator's dtype, built once from the plan
+The arrays of the wavelet operator (``wavelets``, a ``WaveletFilters``; Part I, §2.3): the
+wavelet bank, the smoothing kernel and the maps of each downsampling (maths.md M-WAV-2D,
+M-WAV-1D, M-SMOOTH-2D, M-SMOOTH-1D, M-DOWN-MASK); and everything derived from the plan to apply
+them: the valid pixels, the weights of every mean, with their border windows (M-MEAN, M-BORDER,
+M-MASK), and the grid positions of the coefficients. They are backend arrays in the operator's
+dtype, built once from the plan
 (:func:`build_filters`) and passed to the computation as an argument rather than baked in
 (Part I, §3.1, rules 4 and 7).
 
@@ -25,20 +26,16 @@ from numpy.typing import NDArray
 
 from .._config import FloatDType
 from ..backend import _registry
-from ..backend._protocol import DType
-from ..wavelets._banks import bump_steerable_1d, bump_steerable_2d, smoothing_kernel
+from ..wavelets._operator import WaveletFilters, build_wavelet_filters
 from ._plan import STPlan
-
-COMPLEX: dict[FloatDType, DType] = {"float32": "complex64", "float64": "complex128"}
 
 
 class _FilterFields(NamedTuple):
     """The fields of :class:`STFilters`, internal to ESTEL."""
 
-    kernels: Any
-    """The complex wavelet bank, ``(L, *kernel)`` (M-WAV-2D, M-WAV-1D)."""
-    smoothing: Any
-    """The real smoothing kernel (M-SMOOTH-2D, M-SMOOTH-1D)."""
+    wavelets: WaveletFilters
+    """The arrays of the wavelet operator: the wavelet bank, the smoothing kernel and the maps
+    of each downsampling step (``plan.wavelets``)."""
     valid: Any
     """The valid pixels of the full-resolution field (bool), or ``None`` without missing
     values."""
@@ -50,12 +47,6 @@ class _FilterFields(NamedTuple):
     """The weights of S3, per pair of ``plan.s3``."""
     s4: Mapping[tuple[int, int, int], Any]
     """The weights of S4, per triple of ``plan.s4``."""
-    field_down: Mapping[int, tuple[Any, Any]]
-    """Per level d < J-1, the ``(valid, reweight)`` maps of the field from d to d+1, or no
-    entry without missing values (``plan.downsample_maps(d)``)."""
-    modulus_down: Mapping[tuple[int, int], tuple[Any, Any]]
-    """Per ``(d, j)``, j ≤ d < J-1, the maps of U_j from d to d+1, or no entry without missing
-    values (``plan.downsample_maps(d, j)``)."""
     s1_index: tuple[Any, ...]
     """The grid positions ``(c1, c2, j)`` of the S1 and S2 values (:func:`first_layer_keys`)."""
     s3_index: tuple[Any, ...]
@@ -111,20 +102,6 @@ def coefficient_index(
 # ---------------------------------------------------------------------- construction
 
 
-def wavelet_kernels(ndim: int, n_orientations: int) -> NDArray[np.complex128]:
-    """The wavelet bank of the geometry (maths.md M-WAV-2D, M-WAV-1D)."""
-    if ndim == 2:
-        return bump_steerable_2d(n_orientations)
-    if ndim == 1:
-        if n_orientations not in (1, 2):
-            raise ValueError(
-                f"L={n_orientations}: 1D data have L = 1 (the default) or L = 2, the analytic "
-                "wavelet and its conjugate (maths.md M-WAV-1D)."
-            )
-        return bump_steerable_1d(conjugate=n_orientations == 2)
-    raise ValueError(f"STOperator handles 1D and 2D planar data; got {ndim} spatial axes.")
-
-
 def build_filters(plan: STPlan, backend_name: str, dtype: FloatDType, device: Any) -> STFilters:
     """The filters of ``plan`` on the backend ``backend_name``, cast once to ``dtype`` on
     ``device`` (Part I, §3.1, rules 4 and 7)."""
@@ -142,23 +119,13 @@ def build_filters(plan: STPlan, backend_name: str, dtype: FloatDType, device: An
             for c in coefficient_index(keys, n_axes)
         )
 
-    def maps(level: int, convolved_at: int | None = None) -> tuple[Any, Any] | None:
-        found = plan.downsample_maps(level, convolved_at)
-        return None if found is None else (boolean(found[0]), real(found[1]))
-
-    down_levels = range(plan.J - 1)
-    field_down = {d: maps(d) for d in down_levels}
-    modulus_down = {(d, j): maps(d, j) for d in down_levels for j in range(d + 1)}
     return STFilters(
-        kernels=backend.asarray(wavelet_kernels(plan.ndim, plan.L), COMPLEX[dtype], device),
-        smoothing=real(smoothing_kernel(plan.ndim)),
-        valid=None if plan.masks is None else boolean(~plan.masks.full_res),
+        wavelets=build_wavelet_filters(plan.wavelets, backend_name, dtype, device),
+        valid=None if plan.mask is None else boolean(~plan.mask),
         moments=real(plan.moments.weights),
         first_layer={j: real(w.weights) for j, w in plan.first_layer.items()},
         s3={key: real(w.weights) for key, w in plan.s3.items()},
         s4={key: real(w.weights) for key, w in plan.s4.items()},
-        field_down={d: m for d, m in field_down.items() if m is not None},
-        modulus_down={k: m for k, m in modulus_down.items() if m is not None},
         s1_index=index(first_layer_keys(plan), 3),
         s3_index=index(s3_keys(plan), 4),
         s4_index=index(s4_keys(plan), 5),

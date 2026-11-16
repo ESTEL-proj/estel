@@ -4,7 +4,7 @@ Summary of [Part I, §2.3 — Object model](../transfer/part1.md#23-object-model
 
 ## In 1.0.0 (step 1)
 
-- **Data.** A `Data` object holds one array plus immutable geometry metadata (pbc, cell ids, block structure, level index); it is a pytree whose only leaf is the array. Operations return new objects (`with_array`); nothing is modified in place, and there is no `conv_history`.
+- **Data.** A `Data` object holds one array plus immutable geometry metadata (pbc, cell ids, block structure); it is a pytree whose only leaf is the array. Operations return new objects (`with_array`); nothing is modified in place, and there is no `conv_history`.
 - **Masks** of missing data and their reweighting maps are computed once, at construction, and stored in the static plan; they reach the computation as constant weight arrays.
 - **Statistics** keep STL's full-grid storage (NaN where no coefficient exists), but only **behind accessors that do not depend on it** (Part II, §12.7). Code outside `STStatistics` must use the accessors, never index the full grid directly, so that the compact layout can replace it without changing a signature or a value (LF14).
 - **No full-grid tensor inside the computation** (review rule X5): the loop computes per-level values, stacks them, and assembles the full-grid view once, at the end, with `scatter_to_grid`.

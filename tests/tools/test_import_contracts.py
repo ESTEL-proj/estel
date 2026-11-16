@@ -96,6 +96,34 @@ def test_clean_layered_package_keeps_every_contract(tmp_path: Path) -> None:
             id="l0-imports-l1",
         ),
         pytest.param(
+            {
+                "estel/wavelets/__init__.py": "",
+                "estel/wavelets/_banks.py": "",
+                "estel/scattering/__init__.py": "",
+                "estel/scattering/_filters.py": "from estel.wavelets import _banks\n",
+            },
+            "Outside L1, the banks and mask builders go through WaveletOperator only",
+            id="l2-imports-the-banks",
+        ),
+        pytest.param(
+            {
+                "estel/data/__init__.py": "",
+                "estel/data/_masks.py": "",
+                "estel/statistics/__init__.py": "",
+                "estel/statistics/_statistics.py": "import estel.data._masks\n",
+            },
+            "Outside L1, the banks and mask builders go through WaveletOperator only",
+            id="l2-imports-the-mask-builders",
+        ),
+        pytest.param(
+            {
+                "estel/data/__init__.py": "import estel.wavelets\n",
+                "estel/wavelets/__init__.py": "",
+            },
+            "Layer order: engines, then L2, then L1, then L0; nothing imports upwards",
+            id="data-imports-wavelets",
+        ),
+        pytest.param(
             {"estel/_spec/__init__.py": "import scipy\n"},
             "estel._spec imports NumPy only, and nothing from estel",
             id="oracle-imports-scipy",

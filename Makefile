@@ -67,7 +67,7 @@ lint-imports:
 	PYTHONPATH=tools $(RUN) lint-imports --no-cache
 
 # AST rules of Part I, §2.4: no class-name comparisons, no __class__ writes, no in-place
-# array updates in L1/L2.
+# array updates in L1/L2, no geometry hook used outside estel.wavelets and estel.data.
 layers:
 	$(RUN) python tools/check_layers.py
 
