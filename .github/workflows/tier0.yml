@@ -114,6 +114,11 @@ jobs:
       - name: Install the locked environment
         run: uv sync --locked
 
+      - name: TEMPORARY CPU and JAX topology diagnostics
+        run: |
+          grep -m1 'model name' /proc/cpuinfo; grep -m1 '^flags' /proc/cpuinfo | md5sum; nproc
+          .venv/bin/python -c "import jax; from jax._src.lib import xla_client; print('fingerprint', xla_client.get_topology_for_devices(list(jax.devices())).fingerprint())"
+
       - name: Restore mypy's cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -224,6 +229,11 @@ jobs:
       - name: Install the locked environment
         if: steps.scope.outputs.tests != 'false'
         run: uv sync --locked
+
+      - name: TEMPORARY CPU and JAX topology diagnostics
+        run: |
+          grep -m1 'model name' /proc/cpuinfo; grep -m1 '^flags' /proc/cpuinfo | md5sum; nproc
+          .venv/bin/python -c "import jax; from jax._src.lib import xla_client; print('fingerprint', xla_client.get_topology_for_devices(list(jax.devices())).fingerprint())"
 
       - name: Restore JAX's compilation cache
         if: steps.scope.outputs.tests != 'false'
