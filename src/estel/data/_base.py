@@ -263,19 +263,18 @@ class Data:
         """The axes the geometry acts on: the last ``ndim`` axes of the array."""
         return tuple(range(2, 2 + self.ndim))
 
-    def _conv(self, x: Any, tables: Any, level: int, band_first: bool = False) -> Any:
+    def _conv(self, x: Any, tables: Any, level: int) -> Any:
         """Filter ``x`` with the wavelets at resolution ``level`` (maths.md M-W1), with the
         static ``tables`` of that level, given by ``WaveletOperator``.
 
         ``x`` is an array of this object's backend, ``(Nb, Nc, *spatial)`` at that level, real
         or complex; ``tables`` are, for planar data, the complex bank of the geometry, cast to
         the backend and to the complex dtype matching ``x``. The result is complex, with the
-        orientation axis inserted before the spatial axes: ``(Nb, Nc, L, *spatial)``. With
-        ``band_first``, the orientation is the leading axis of the maps instead,
-        ``(Nb, L, Nc, *spatial)``, the same values: the layout of the second layer, whose
-        maps of one orientation then form a matrix without a copy (Part III, §19.12, point 2;
-        maths_step2.md M-GRAM). The hook builds the result in that layout directly. Each
-        geometry implements it
+        orientation axis of the convolution right after the batch axis:
+        ``(Nb, L, Nc, *spatial)``, for the first and the second layer alike. The maps of one
+        orientation are then contiguous, and those of the second layer form the matrix of the
+        Gram form without a copy (Part III, §19.12, point 2; maths_step2.md M-GRAM). The hook
+        builds the result in that layout directly. Each geometry implements it
         (planar: ``pad`` + ``conv_axes``, M-CONV-2D).
         """
         raise NotImplementedError(

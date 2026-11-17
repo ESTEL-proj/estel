@@ -40,15 +40,15 @@ def _padding_mode(data: Data) -> PadMode:
     return "circular" if data.pbc else "replicate"
 
 
-def _planar_conv(self: Data, x: Any, tables: Any, level: int, band_first: bool = False) -> Any:
+def _planar_conv(self: Data, x: Any, tables: Any, level: int) -> Any:
     """Planar ``_conv``: pad by ⌊K/2⌋ on each side of every spatial axis, then correlate with
     each kernel (maths.md M-CONV-2D, M-W1, OP-1). The ``tables`` are the kernel bank, and
     ``level`` does not matter: the planar kernels are the same at every level (M-WAV-2D,
     M-WAV-1D).
 
     A complex kernel on a real array is two real correlations; on a complex array, four.
-    With ``band_first`` the real and imaginary parts are read with the orientation axis first,
-    ``(Nb, L, Nc, *spatial)``, when the complex result is assembled: no further copy.
+    The real and imaginary parts are read with the orientation axis right after the batch
+    axis, ``(Nb, L, Nc, *spatial)``, when the complex result is assembled: no further copy.
     """
     _check_array(self, x, "_conv")
     backend = _registry.backend_named(self.backend)
@@ -74,9 +74,8 @@ def _planar_conv(self: Data, x: Any, tables: Any, level: int, band_first: bool =
         imag = correlate(x_re, k_im) + correlate(x_im, k_re)
     else:
         real, imag = correlate(padded, k_re), correlate(padded, k_im)
-    if band_first:
-        order = (0, 2, 1, *range(3, 3 + self.ndim))
-        real, imag = xp.permute_dims(real, order), xp.permute_dims(imag, order)
+    order = (0, 2, 1, *range(3, 3 + self.ndim))  # (Nb, Nc, L, ...) -> (Nb, L, Nc, ...)
+    real, imag = xp.permute_dims(real, order), xp.permute_dims(imag, order)
     return backend.real_pairs_to_complex(xp.stack([real, imag], axis=-1))
 
 

@@ -15,7 +15,7 @@ U_{j2} go down one level.
 **The second layer is a Gram product** (maths_step2.md M-GRAM; Part III, §19.3; task T2.12).
 Where STL loops over j2 and j1 and takes one mean of a product array per pair of scales, the
 second-layer maps of a level are computed by one convolution, with the band orientation l3 as
-their leading axis, ``(Nb, L3, j2, Nc, L2, *spatial)``: for one l3, the maps of every scale,
+their leading axis, ``(Nb, L3, j2, L2, Nc, *spatial)``: for one l3, the maps of every scale,
 channel and orientation are the rows of a matrix A, with no copy. Each map is set to zero
 outside its own window (its border crop and its valid pixels), and the sums of every S4 of the
 level are the matrix A A^H, those of every S3 the product of A with the windowed band map
@@ -151,29 +151,29 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
 
     moduli: dict[int, Any] = {}
     for j3 in plan.levels:
-        w = wavelets.apply(x, j3)  # W_{j3} x: (Nb, Nc, L, *spatial)
+        w = wavelets.apply(x, j3)  # W_{j3} x: (Nb, L, Nc, *spatial)
         u = modulus(w)  # U_{j3} x
         moduli = {**moduli, j3: u}
 
         if j3 in plan.first_layer:
             weights, denominator = filters.first_layer[j3], plan.first_layer[j3].denominator
             # Auto terms, every channel at once; cross terms, pair by pair (M-S1, M-S2).
-            auto_s1 = sum_valid(u, weights, axes)  # (Nb, Nc, L)
+            auto_s1 = sum_valid(u, weights, axes)  # (Nb, L, Nc)
             auto_s2 = sum_valid(u * u, weights, axes)
-            pending.extend(_Sum("S1", auto_s1[:, c], denominator) for c in pairs.auto)
+            pending.extend(_Sum("S1", auto_s1[:, :, c], denominator) for c in pairs.auto)
             if pairs.cross:
                 rooted = divide(w, u, S1_EPSILON, 0.5)  # z / (|z| + eps)^(1/2), OP-16
                 pending.extend(
                     _Sum(
                         "S1",
-                        cov_sum_valid(rooted[:, c1], rooted[:, c2], weights, axes),
+                        cov_sum_valid(rooted[:, :, c1], rooted[:, :, c2], weights, axes),
                         denominator,
                     )
                     for c1, c2 in pairs.cross
                 )
-            pending.extend(_Sum("S2", auto_s2[:, c], denominator) for c in pairs.auto)
+            pending.extend(_Sum("S2", auto_s2[:, :, c], denominator) for c in pairs.auto)
             pending.extend(
-                _Sum("S2", cov_sum_valid(w[:, c1], w[:, c2], weights, axes), denominator)
+                _Sum("S2", cov_sum_valid(w[:, :, c1], w[:, :, c2], weights, axes), denominator)
                 for c1, c2 in pairs.cross
             )
 
@@ -217,17 +217,18 @@ def _second_layer(
     """The sums of the S3 and S4 means of level ``j3``, in the order of STL's loop (for j2,
     S3 then, for j1, S4; the channel pairs inside), as two Gram products (M-GRAM).
 
-    ``moduli`` holds U_{j2} at level j3, ``(Nb, Nc, L, *spatial)``, for every j2 ≤ j3, and
-    ``w`` is the band map W_{j3} x, ``(Nb, Nc, L, *spatial)``.
+    ``moduli`` holds U_{j2} at level j3, ``(Nb, L, Nc, *spatial)``, for every j2 ≤ j3, and
+    ``w`` is the band map W_{j3} x, ``(Nb, L, Nc, *spatial)``: every map has the orientation
+    of its last convolution right after the batch axis.
     """
     xp = backend.xp
     level = plan.second_layer[j3]
     pairs, n_channels, L = plan.pairs, plan.n_channels, plan.L  # noqa: N806
     # The moduli of the level, stacked (real, 1/(2L) of the second layer), then one
-    # convolution: ψ_{l3} ⋆ U_{j2} x, (Nb, L3, j2, Nc, L2, *spatial), l3 leading.
+    # convolution: ψ_{l3} ⋆ U_{j2} x, (Nb, L3, j2, L2, Nc, *spatial), l3 leading.
     arms = xp.stack([moduli[j2] for j2 in level.arms], axis=1)
-    v = wavelets.apply(arms, j3, band_first=True)
-    band = xp.permute_dims(w, (0, 2, 1, *range(3, 3 + plan.ndim)))  # (Nb, L3, Nc, *spatial)
+    v = wavelets.apply(arms, j3)
+    band = w  # (Nb, L3, Nc, *spatial)
     windows = filters.second_layer[j3]
     with_s3 = any((j2, j3) in plan.s3 for j2 in level.arms)
     if windows is not None:
@@ -238,23 +239,23 @@ def _second_layer(
         if with_s3 and level.band_window is not None:
             band = band * windows[level.band_window]
     n_batch, n_arms = int(v.shape[0]), len(level.arms)
-    rows = xp.reshape(v, (n_batch, L, n_arms * n_channels * L, -1))
+    rows = xp.reshape(v, (n_batch, L, n_arms * L * n_channels, -1))
     row = {j2: position for position, j2 in enumerate(level.arms)}
-    grid = (n_batch, L, n_arms, n_channels, L)
+    grid = (n_batch, L, n_arms, L, n_channels)
     cross = gram = None
     if with_s3:
         cross = xp.reshape(
             gram_sum(rows, xp.reshape(band, (n_batch, L, n_channels, -1))), (*grid, n_channels)
-        )  # [Nb, l3, j2, c1, l2, c2]
+        )  # [Nb, l3, j2, l2, c1, c2]
     if any(key[2] == j3 for key in plan.s4):
-        gram = xp.reshape(gram_sum(rows), (*grid, *grid[2:]))  # [Nb, l3, j1, c1, l1, j2, c2, l2]
+        gram = xp.reshape(gram_sum(rows), (*grid, *grid[2:]))  # [Nb, l3, j1, l1, c1, j2, l2, c2]
     sums: list[_Sum] = []
     for j2 in level.arms:
         if cross is not None and (j2, j3) in plan.s3:
             denominator = plan.s3[(j2, j3)].denominator
             sums.extend(
                 # (Nb, L3, L2) -> (Nb, L2, L3)
-                _Sum("S3", xp.permute_dims(cross[:, :, row[j2], c1, :, c2], (0, 2, 1)), denominator)
+                _Sum("S3", xp.permute_dims(cross[:, :, row[j2], :, c1, c2], (0, 2, 1)), denominator)
                 for c1, c2 in pairs.ordered
             )
         for j1 in range(j2 + 1):
@@ -264,7 +265,7 @@ def _second_layer(
                     # (Nb, L3, L1, L2) -> (Nb, L1, L2, L3)
                     _Sum(
                         "S4",
-                        xp.permute_dims(gram[:, :, row[j1], c1, :, row[j2], c2, :], (0, 2, 3, 1)),
+                        xp.permute_dims(gram[:, :, row[j1], :, c1, row[j2], :, c2], (0, 2, 3, 1)),
                         denominator,
                     )
                     for c1, c2 in pairs.ordered

@@ -532,16 +532,16 @@ class WaveletOperator:
 
     # ------------------------------------------------------------------ pure functions
 
-    def apply(self, x: Any, j: int, band_first: bool = False) -> Any:
+    def apply(self, x: Any, j: int) -> Any:
         """ψ_j ⋆ x, on a map at level ``j`` (maths.md M-W1): complex, L orientations.
 
         ``x`` is an array of the data's backend, ``(Nb, Nc, *O, *spatial)`` with the spatial
         shape of level ``j`` and any axes ``O`` in between (the orientations of a first
-        convolution), real or complex; the result is ``(Nb, Nc, *O, L, *spatial)``. With
-        ``band_first``, the orientation of this convolution is the leading axis of the maps,
-        ``(Nb, L, Nc, *O, *spatial)``: the layout of the second layer, in which the maps of one
-        band orientation form a matrix without a copy (Part III, §19.12, point 2; maths_step2.md
-        M-GRAM). Calls the hook ``_conv`` with the tables of the level. Pure: nothing is
+        convolution), real or complex; the result is ``(Nb, L, Nc, *O, *spatial)``: the
+        orientation of this convolution right after the batch axis, for the first and the
+        second layer alike, so that the second-layer maps of one band orientation form a
+        matrix without a copy (Part III, §19.12, point 2; maths_step2.md M-GRAM). Calls the
+        hook ``_conv`` with the tables of the level. Pure: nothing is
         modified, nothing depends on array values.
         """
         plan, filters = self._plan, self._arrays("apply")
@@ -552,11 +552,8 @@ class WaveletOperator:
         lead, spatial = self._split(x, j, "apply")
         xp = _registry.backend_named(self._data.backend).xp
         flat = xp.reshape(x, (lead[0], -1, *spatial))
-        if band_first:
-            out = self._data._conv(flat, filters.kernels, j, band_first=True)
-            return xp.reshape(out, (lead[0], plan.L, *lead[1:], *spatial))
         out = self._data._conv(flat, filters.kernels, j)
-        return xp.reshape(out, (*lead, plan.L, *spatial))
+        return xp.reshape(out, (lead[0], plan.L, *lead[1:], *spatial))
 
     def downsample(self, x: Any, level: int, history: History = ()) -> Any:
         """One normalised downsampling step of ``x``, from ``level`` to ``level + 1``, with the
