@@ -71,7 +71,7 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "N", "PT"]
 python_version = "3.11"
 strict = true
 mypy_path = ["src", "tools"]
-files = ["src", "tools", "tests"]
+files = ["src", "tools", "tests", "bench"]
 explicit_package_bases = true
 
 # ---------------------------------------------------------------- tests

@@ -65,7 +65,7 @@ The static plan (`STPlan`) is built in NumPy when an operator is constructed. Ma
 | `make mirrors-fix` | regenerate `.github/copilot-instructions.md` after changing `AGENTS.md` |
 | `make test-spec` | spec parity against the oracle |
 | `make parity` | STL parity (step 1 only; needs the parity container) |
-| `make bench` | benchmark cases (tier 2; humans trigger it in CI) |
+| `make bench` | the benchmark of step 1, outside CI: STL and ESTEL in the parity container, ESTEL natively (Part I, §6.3; `bench/README.md`) |
 
 When every changed file is in the no-test scope (`docs/`, `.github/`, `changes/`; `.gitignore`, `LICENSE`, `NOTICE` and `README.md` at the root; every `AGENTS.md` and `CLAUDE.md`; none read by a test), that is when `python tools/ci_scope.py --base origin/main` prints `tests=false`, run `make check-tools` instead of `make check` before opening the PR. CI does the same.
 

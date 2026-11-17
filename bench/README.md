@@ -1,0 +1,118 @@
+# Benchmark of step 1
+
+A few clear cases at a realistic size, run **outside CI**, that judge each optimisation of step 1
+(T2.12 to T2.15) before and after (Part I, §3.1, rule 8 and §6.3 of
+[`docs/transfer/part1.md`](../docs/transfer/part1.md#63-benchmarks); Part II, §15.2, task T2.11).
+A reorganisation belongs to step 1 only if every value stays within the parity tolerance with STL
+and this benchmark shows its gain.
+
+## Cases
+
+[`cases.toml`](cases.toml) holds them. All are 2D, on CPU, in float32, one batch element, without
+power spectrum, `norm="none"`:
+
+| Case | Field | J, L | Borders | Missing pixels |
+| --- | --- | --- | --- | --- |
+| `planar-periodic` | 512 × 512, one channel | 7, 4 | periodic | none |
+| `planar-masked` | 512 × 512, one channel | 7, 4 | non-periodic | 10.1 %, five square holes of sides 112 to 24 |
+| `planar-cross` | 256 × 256, two channels with their cross terms | 6, 4 | periodic | none |
+
+The fields are seeded: the exponential of a Gaussian field with a power-law spectrum
+([`_cases.py`](_cases.py)). The process that runs the benchmark writes the inputs of a case once,
+and every measured process reads the same file.
+
+Cases are added, not edited: changing one makes the earlier results incomparable.
+
+## What is measured
+
+Each case runs in a process of its own ([`worker.py`](worker.py)), which measures:
+
+- **forward**: `STOperator.apply(data)`, the operator being built before;
+- **forward + gradient**: the loss L = ‖`to_vector`(S(x)) − t‖² and its gradient with respect to
+  the field, with t the statistics of a second seeded field;
+- **peak memory**: the peak resident memory of the process (`ru_maxrss`) after both, the backward
+  pass included. It counts the interpreter and the imported libraries;
+- **baseline memory**: the resident memory of the process once the library and the inputs are
+  loaded, just before the operator is built. The table shows the peak minus the baseline, the
+  memory of the computation itself, which compares between STL and ESTEL.
+
+Times are wall times: one warm-up run, then the median of 5 runs; every run is kept in the
+results. The number of threads is fixed (`threads` in `cases.toml`, 4) and recorded.
+
+STL runs the same cases and the same loss through its own functions ([`_stl.py`](_stl.py)):
+`ST_Operator.apply` with `norm="vanilla"`, `to_flatten(flatten_complex=True)`, `backward`. It
+computes in the dtype of its input, float32 here, and stores S1 to S4 in complex128.
+
+## Environments
+
+- **`container`**: the parity container ([`tools/stl_parity/`](../tools/stl_parity/README.md),
+  STL `master`) with ESTEL installed in the same Python environment ([`Dockerfile`](Dockerfile)):
+  STL and ESTEL on the same interpreter, NumPy and PyTorch, so that their times compare.
+  `make bench` rebuilds this image from the working tree before each run.
+- **`native`**: ESTEL on this machine, in the environment of `uv.lock`.
+
+The image is `linux/amd64`. On an arm64 host (Apple silicon) the container is emulated: its times
+compare STL with ESTEL, not with the native run, and the results say so (`emulated`).
+
+## Correctness
+
+Every ESTEL run is compared with STL's statistics on the same inputs (Part I, §6.3): each family
+in STL's full-grid shape and the flat vector, same shape, NaN at the same positions, values within
+the float32 tolerances of Part II, §14.3 (`assert_parity` of
+[`tests/parity/_compare.py`](../tests/parity/_compare.py)). `make bench` fails otherwise, and
+writes no result: no gain can come from a wrong computation.
+
+The gradient of the loss is compared with STL's too. §14.3 sets no float32 tolerance for it, so
+the largest difference, relative to STL's largest gradient, is recorded with each run
+(`gradient_relative_error`) and not enforced. Where STL's gradient is not finite, nothing is
+compared and the pixels are counted (`stl_gradient_not_finite`).
+
+STL's results stay in `bench/results/.work/` (ignored by git), so that a later native run is
+checked without the container. They are used only for inputs with the same digest.
+
+## Commands
+
+From the repository root. The container needs Docker (`CONTAINER=podman` works too) and the
+parity image:
+
+```bash
+make parity-image
+```
+
+```bash
+make bench
+```
+
+One case, or one environment:
+
+```bash
+make bench BENCH_CASE=planar-periodic
+```
+
+```bash
+make bench BENCH_ENV=native
+```
+
+Other options go through `BENCH_ARGS` (`uv run python -m bench --help`): `--backend jax` runs
+ESTEL on JAX, natively; its times are not yet at a fixed number of threads and include no
+compiled function: measuring JAX is T2.13's.
+
+`make bench` prints a table and writes `results/<date>-<machine>.json`: the description of each
+environment (CPU model and cores, memory, OS, Python and library versions, image), the ESTEL
+commit, the settings, the cases, and every run. `<machine>` comes from the CPU model
+(`--machine` names it otherwise); a result is never overwritten, a second one on the same day
+takes the suffix `-2`. Commit the results of a run made on a clean tree, with the pull request of
+the optimisation they judge, before and after.
+
+On macOS the results record the power source and Low Power Mode (`power`), and `make bench` warns
+when the machine is on battery or in Low Power Mode: such times are slower by a factor of about
+two and do not compare with the others.
+
+If a case does not fit in memory, or a process runs for more than 45 minutes, `make bench` stops:
+report what was measured on the task's issue, so that the maintainer resizes the case.
+
+## Tests
+
+`tests/bench/` runs the harness on a tiny case (32 × 32, J = 2) in the fast tier, so that it
+cannot rot. The real cases never run in CI, and there is no GitHub workflow for the benchmark.
+`bench/thresholds.toml` (protected) does not exist yet: the thresholds are set in phase P7.
