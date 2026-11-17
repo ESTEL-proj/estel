@@ -2,7 +2,7 @@
 
 [Back to the overview](transfer/overview.md)
 
-**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it, and checked numerically by the oracle `estel._spec`, which agrees with ESTEL to the parity tolerance (task T2.6); ESTEL itself agrees with STL's fixtures. Sections 3 (tensor products), 4 (HEALPix) and 5 (syntheses) are drafts written in the same way; each is verified by the first task of its phase (T3.0, T5.0, T6.0).
+**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it, and checked numerically by the oracle `estel._spec`, which agrees with ESTEL to the parity tolerance (task T2.6); ESTEL itself agrees with STL's fixtures. Sections 3 (tensor products) and 4 (HEALPix) are drafts written in the same way; each is verified by the first task of its phase (T3.0, T5.0). Section 5 (syntheses) is checked against STL's code for periodic syntheses, and numerically where it says so (task T6.0); its non-periodic and masked parts come after 1.0.0 (Part III, §16, LF47).
 
 **Role of this file.** This file is the reference version of the mathematics of step 1; it changes only through pull requests that a maintainer requests and merges.
 
@@ -270,7 +270,7 @@ With `standardize=True` (off by default), the field is centred and scaled before
 - The field is centred first, then σ² is the second moment of the centred field: this is the one place where STL computes a true variance.
 - Population normalisation: divided by the number of valid pixels, not minus one.
 - μ and σ are kept with the statistics (`mean_pre_std`, `std_pre_std`).
-- STL's function has a `mean_field` option, which averages μ and σ over the batch. The operator always calls it with `mean_field=False`; the syntheses call it with their own `mean_field` (M-SYN-TARGET).
+- STL's function has a `mean_field` option, which averages μ over the batch and takes for σ the square root of the batch mean of the variances (M-SYN-TARGET). The operator always calls it with `mean_field=False`; the syntheses call it with their own `mean_field` (M-SYN-TARGET).
 - The inverse, used by the syntheses: x = x′ σ + μ.
 - **Source:** `WaveletOperator2Dkernel_torch.standardize`, `unstandardize`; `ST_Operator.apply`.
 
@@ -906,53 +906,79 @@ The rule of §1.11 applies.
 
 ## 5. Syntheses
 
-**Status:** draft, written from the STL code by reading it, not checked numerically; verified by task T6.0.
+**Status:** 17 November 2026 (task T6.0). For periodic syntheses, the only ones of 1.0.0 (Part IV, §22.5; LF47), every entry is checked against STL's code (`Synthesis.py` and what it calls), and numerically, in the parity container, where an entry says "Checked": the Nyquist pre-filter, the start, the target, the weights and the value of the loss, the result, the operators and the settings passed to L-BFGS. The comparison of whole syntheses comes with T6.1. The non-periodic and masked parts are not checked; they are marked "after 1.0.0 (Part III, §16, LF47)".
 
-**Source:** STL-Dev `master` at `8eaf769`, `Synthesis.py`. A synthesis looks for a field u whose statistics match those of a target. Step 1 does not compare synthesised fields with STL's (Part II, §14.3); this section fixes the definitions.
+**Source:** STL-Dev `master` at `8eaf769`, `Synthesis.py`. A synthesis looks for a field u whose statistics match those of a target. Step 1 does not compare synthesised fields with STL's (Part II, §14.3), except in the one comparison of T6.1; this section fixes the definitions.
+
+**Levels.** `Synthesis.py` has two levels. The user-level functions (`synthesize_from_maps`, `synthesize_from_stats`) build the operators (M-SYN-OPS) and call the mid-level ones (`optimize_from_maps`, `optimize_from_stats`), which build the target, the running field and the loss, and call L-BFGS. Two defaults differ between the levels: the seed (26 at the user level, none at the mid level) and the spectrum (in the loss at the user level, not at the mid level of `optimize_from_maps`). This section gives the user level.
 
 ### 5.1 Target — M-SYN-TARGET
 
-1. The target is promoted to `(Nb, Nc, …)`.
-2. If it has no NaN and `prefilter_Nyquist=True` (the default), it is filtered by M-SYN-NYQ.
-3. It is standardised (M-STD) with `mean_field` (True by default): μ and σ are then averaged over the batch.
-4. Its statistics are computed with `norm="self"` and `ref_batch_mean=mean_field` (STL's `store_ref` and `norm_batch_mean`).
+From maps:
+
+1. The target is promoted to `(Nb, Nc, …)` as in M-DATA-2D: a 3D array is one map of Nc channels, `(1, Nc, N1, N2)`, never a batch.
+2. If it has no NaN and `prefilter_Nyquist=True` (the default), it is filtered by M-SYN-NYQ, before the standardisation.
+3. It is standardised (M-STD) with `mean_field` (True by default). With `mean_field=True`, one μ and one σ per channel serve the whole batch (formula below): μ is the batch mean of the means, and σ² the batch mean of the second moments of the fields centred by that μ, so σ is the square root of a mean of variances, not a mean of standard deviations. With `mean_field=False`, μ and σ are those of M-STD, per map, and the number of running fields must be Nb.
+4. Its statistics are computed on the standardised field, without a second standardisation (`standardize=False`), with the spectrum, with `norm="self"` and `ref_batch_mean=mean_field` (STL's `store_ref` and `norm_batch_mean`). The batch mean of its `mean` is then 0 and that of its `var` is 1, up to rounding.
 5. They are reweighted (M-SYN-LOSS) and flattened, with `mean_along_batch=mean_field`.
 
-- **Source:** `optimize_from_maps`.
+```latex
+\mu_c = \frac{1}{N_b} \sum_b \langle x_{b,c} \rangle, \qquad \sigma_c^2 = \frac{1}{N_b} \sum_b \big\langle (x_{b,c} - \mu_c)^2 \big\rangle \qquad (\texttt{mean\_field=True})
+```
+
+From statistics: the target is a statistics object computed beforehand with `norm="self"`. Its normalisation, its `ref_batch_mean` and its standardisation are those the caller chose: with `standardize=True`, each map was standardised on its own (M-STD), whatever `mean_field`. The synthesis only reweights and flattens it (step 5). **⚠ OP-72**
+
+- STL reweights the target's statistics in place. From statistics, the object of the caller is therefore modified: S3 and S4 stay multiplied by their weights, `mean_pre_std` and `std_pre_std` are replaced by their batch means if `mean_field=True`, and `compute_PS` is set to False if the spectrum is not used. A second synthesis from the same object has another target. **⚠ OP-70**
+- **Checked** (32 × 32, J = 3, L = 4; 1, 2 and 3 targets; 1 and 2 channels; `mean_field` True and False): μ and σ as above (3 targets of different amplitudes: STL 1.857454, the formula 1.857454, the mean of the standard deviations 1.728709); |mean| ≤ 2.4e-17 and var = 1 exactly for one target; after one synthesis from statistics, the caller's S3 and S4 are multiplied by 3.5 and 12.25, and a second call starts from a loss of 1.6e2 instead of 0.96.
+- **Source:** `optimize_from_maps`, `optimize_from_stats`, `standardize`.
 
 ### 5.2 Running field — M-SYN-INIT
 
 - **Shape:** `(nbatch, Nc, …)`, with the target's spatial shape unless `running_shape` is given.
 - **Start:** a Gaussian white noise of unit variance, or `init_running` if given; then M-SYN-NYQ, if `prefilter_Nyquist=True`.
-- **Missing data:** the missing pixels of the running field are set to 10¹⁰, and their gradient is set to 0 at every iteration, so they never move; they are NaN in the result. **⚠ OP-53**
-- **Randomness:** STL seeds the global generator of PyTorch (`seed`, 26 by default in the user-level functions). ESTEL uses explicit keys (Part I, §3.1, rule 5). **⚠ OP-55**
-- **Taper.** The former point G11 mentioned a Tukey taper of the Gaussian start on non-periodic axes. STL's syntheses at the frozen commits apply none; the only cosine taper is the border mask of the spectrum estimator. **[to verify, T6.0]** whether it comes from another code base (STL-Dev-MPI) and should be reproduced.
-- **Source:** `ScatteringMatchModel.__init__`.
+- **Not standardised.** The running field is in the standardised units of the target, and it is never standardised itself: the loss compares its `mean` with 0 and its `var` with 1 (M-SYN-LOSS). After the pre-filter, the start has a variance below 1, close to the fraction of modes that the filter keeps (M-SYN-NYQ). **⚠ OP-73**
+- **Missing data:** the missing pixels of the running field are set to 10¹⁰, and their gradient is set to 0 at every iteration, so they never move; they are NaN in the result. **⚠ OP-53** After 1.0.0 (Part III, §16, LF47).
+- **Randomness:** STL seeds the global generator of PyTorch (`seed`, 26 by default in the user-level functions, no seeding by default in the mid-level ones), then draws the whole batch in one call, `torch.randn((nbatch, Nc, N1, N2))`, in the dtype and on the device of the running operator; nothing else is drawn between the seeding and this call. ESTEL uses explicit keys (Part I, §3.1, rule 5). **⚠ OP-55**
+- **Taper.** The former point G11 mentioned a Tukey taper of the Gaussian start on non-periodic axes. STL's syntheses at the frozen commits apply none; the only cosine taper is the border mask of the spectrum estimator. **[to verify]** whether it comes from another code base (STL-Dev-MPI) and should be reproduced. After 1.0.0 (Part III, §16, LF47).
+- **Checked** (same cases as M-SYN-TARGET): the start of a default synthesis is the pre-filter of `torch.randn((nbatch, Nc, N1, N2))` drawn after `torch.manual_seed(26)`, to 8.9e-16; its variance is 0.77 to 0.78 at 32 × 32, where the filter keeps 795 modes of 1024.
+- **Source:** `ScatteringMatchModel.__init__`, `optimize_from_maps`, `optimize_from_stats`.
 
 ### 5.3 Nyquist pre-filter — M-SYN-NYQ
 
-In the 2D Fourier plane, with integer frequencies (k₁, k₂), the modes with k₁² + k₂² > (min(N₁, N₂)/2)² are set to 0.
+In the 2D Fourier plane, with integer frequencies (k₁, k₂), where kᵢ runs over the Nᵢ values of the discrete Fourier transform (−Nᵢ/2 included when Nᵢ is even), the modes with k₁² + k₂² > (min(N₁, N₂)/2)² are set to 0:
 
-- It removes the corners of the frequency square, which no wavelet covers (OP-32). For a rectangular field, the radius is that of the shorter side. **⚠ OP-54**
+```latex
+\hat y(k_1, k_2) = \hat x(k_1, k_2)\; \mathbb 1\Big[k_1^2 + k_2^2 \le \big(\min(N_1, N_2)/2\big)^2\Big]
+```
+
+- The modes on the circle are kept: (±N/2, 0) and (0, ±N/2) for a square field of even side. The mode 0 is kept, so the mean is unchanged.
+- The set of kept modes is symmetric under k → −k, so the filtered field is real; STL takes the real part of the inverse transform. The filter is a projection: applying it twice changes nothing.
+- It acts on the last two axes, on every batch element and channel alike.
+- It removes the corners of the frequency square, which no wavelet covers (OP-32). It keeps a fraction of the modes that tends to π/4 for a large square field: 195 of 256 at 16 × 16, 795 of 1024 at 32 × 32.
+- For a rectangular field, the radius is that of the shorter side, in mode numbers on both axes: on the longer axis the cut is at a lower spatial frequency. **⚠ OP-54**
+- **Checked:** against the definition above written in NumPy, on 16 × 16, 32 × 32, 16 × 24, 24 × 16, 15 × 15, 15 × 20 and a `(2, 3, 16, 16)` batch: largest difference 8.9e-16. Modes on the circle kept and corners removed (16 × 16); idempotent to 5e-16; mean unchanged to 3e-17; on 16 × 24, the largest kept mode number on the long axis is 8.
 - **Source:** `apply_nyquist_filter`.
 
 ### 5.4 Loss — M-SYN-LOSS
 
-With Φ(u) the flattened statistics of the running field, computed with `norm="ref"` (STL's `load_ref`) and the target's reference:
+With Φ(u) the flattened statistics of the running field, computed with `norm="ref"` (STL's `load_ref`) and the target's reference, without standardisation, and with w the weights:
 
 ```latex
 \mathcal L(u) = \sum_i \big\lvert w_i\, \Phi_i(u) - w_i\, \Phi_i(x_{\text{target}}) \big\rvert^2
 ```
 
-- **Weights.** w = 1, except 3.5 for S3 and 3.5² for S4 (`adhoc_weights`, the default). **⚠ OP-51**
-- **Vector.** The complex form of M-FLAT; |·| is the complex modulus. **⚠ OP-39**
-- **Batch.** With `mean_field=True`, the statistics of the running fields are averaged over the batch before the comparison: the number of running fields need not be that of the targets.
-- **From statistics.** When the target is given as statistics rather than as fields, the same loss, divided by Nb if `mean_field=True`.
+- **Families.** Φ holds `mean`, `var`, S1, S2, S3, S4 and, in the periodic case, PS (M-SYN-OPS), in the order of M-FLAT, without the structural NaN. `mean` and `var` are in the loss: they are what ties the mean and the variance of the running field to those of the standardised target.
+- **Weights.** w = 1, except 3.5 for S3 and 3.5² for S4 (`adhoc_weights`, the default). They multiply the statistics of both fields before the flattening, so a difference in S3 counts with 3.5² in the loss, and one in S4 with 3.5⁴. **⚠ OP-51**
+- **Vector.** The complex form of M-FLAT; |·| is the complex modulus. Since |z|² = (Re z)² + (Im z)², the loss is the squared Euclidean norm of a complete real vector: the real and the imaginary parts of every coefficient, those of S1, S2 and PS included. `to_vector` of ESTEL stays STL's `to_flatten(flatten_complex=True)`, as in STL (Part IV, §22.5, Q14 closed): it leaves out the imaginary parts of S1, S2 and PS, which are null for the auto terms and not for the cross-channel terms of S1 and S2. With one channel the two vectors give the same loss; with cross-channel terms they do not, and the loss of 1.0.0 is the complete one. **⚠ OP-39**
+- **Gradient.** STL writes |z|² as `abs() ** 2`; PyTorch's gradient of it is 0 at z = 0, as that of (Re z)² + (Im z)².
+- **Batch.** With `mean_field=True`, every family is averaged over the batch, for the target and for the running fields, before the comparison: the number of running fields need not be that of the targets. With `mean_field=False`, the sum also runs over the batch, and the two numbers must be equal.
+- **From statistics.** When the target is given as statistics rather than as fields, the same loss, divided by the target's Nb (not by `nbatch`) if `mean_field=True`. The factor does not move the minimum, but it scales the gradient, hence the first step of L-BFGS and what its tolerances mean. **⚠ OP-71**
+- **Checked** (same cases as M-SYN-TARGET): the value STL gives to L-BFGS at the start equals the formula above, computed from statistics obtained without `Synthesis.py`, to 5e-16 relative in the four cases from maps (for one target: 5.3935191911, on 768 complex coefficients: 1, 1, 12, 12, 96, 640 and 6 for `mean`, `var`, S1, S2, S3, S4 and PS) and to 3e-16 in the two from statistics, with the division by Nb. Without the weights the loss would be 2.51 instead of 5.39. With two channels: the complex form (3038 coefficients) and the complete real vector (6076) give the same loss to 1e-16, and `to_flatten(flatten_complex=True)` (5982) a loss 4.9 % smaller; with one channel the two agree to 2e-16. The gradient at the start is finite.
 - **Source:** `ScatteringMatchModel.forward`, `reweight`, `optimize_from_maps`, `optimize_from_stats`.
 
 ### 5.5 Optimiser — M-SYN-LBFGS
 
-L-BFGS of PyTorch, in one call:
+L-BFGS of PyTorch (`torch.optim.LBFGS`), in one call of `step`, on one parameter: the whole running batch `(nbatch, Nc, N1, N2)`.
 
 | Setting | Value |
 | --- | --- |
@@ -962,22 +988,33 @@ L-BFGS of PyTorch, in one call:
 | line search | strong Wolfe |
 | `tolerance_grad` | 10⁻¹² |
 | `tolerance_change` | 10⁻¹⁵ |
-| function evaluations | PyTorch's default cap, 1.25 × `max_iter` |
+| function evaluations (`max_eval`) | not passed: PyTorch's default, ⌊5 × `max_iter` / 4⌋, 125 for 100 |
 
+- `lr`, `max_iter` and `history_size` are arguments of the synthesis functions, with these defaults; the line search and the two tolerances are fixed in `optimize_lbfgs`.
+- **Stopping.** PyTorch stops at the first of: `max_iter` iterations, `max_eval` evaluations of the loss, or one of the two tolerances. The cap on evaluations can come first: with `max_iter=7`, a run stopped after 4 iterations and 8 evaluations. The number STL prints as "iterations of synthesis" is the number of evaluations of the loss. **⚠ OP-74**
 - These are the values that the `lbfgs` primitive of ESTEL leaves open (issue #28).
+- **Checked:** the settings of the optimiser that a default `synthesize_from_maps` builds (PyTorch 2.15.0) are those of the table, with `max_eval` = 125, and 8, 12 and 37 for `max_iter` = 7, 10 and 30; one parameter of shape `(2, 1, 32, 32)` for two running fields, one call of `step`; a default run made 100 iterations and 104 evaluations, and STL printed 104.
 - **Source:** `optimize_lbfgs`.
 
 ### 5.6 Result — M-SYN-OUT
 
-The optimised field is de-standardised with the target's μ and σ (M-STD), its missing pixels are set to NaN, and the batch and channel axes of size 1 are removed.
+The optimised field is de-standardised, x = u σ + μ (M-STD), its missing pixels are set to NaN (after 1.0.0: Part III, §16, LF47), and axes are removed.
+
+- **From maps:** μ and σ are those of the target (M-SYN-TARGET): of the filtered target if it was pre-filtered, one pair per channel if `mean_field=True`, one per map otherwise.
+- **From statistics:** only if the statistics were computed with `standardize=True`; μ and σ are then `mean_pre_std` and `std_pre_std`, averaged over the batch if `mean_field=True`. Here σ is a mean of standard deviations, unlike from maps. **⚠ OP-72**
+- **Axes.** The batch axis is removed if `nbatch` = 1. The channel axis is removed, from maps, if the target was given as a 2D array, and kept otherwise, even with one channel; from statistics, if Nc = 1. **⚠ OP-75**
+- **Checked:** with the optimisation replaced by the identity, the result equals u σ + μ with μ and σ recomputed from the definitions above, to 2e-15 (from maps: five cases; from statistics: `mean_field` True and False). Shapes from maps: a `(N, N)` target gives `(N, N)` for `nbatch` = 1 and `(2, N, N)` for 2; `(1, N, N)` gives `(1, N, N)`; `(3, 1, N, N)` with `nbatch` = 2 gives `(2, 1, N, N)`. From statistics with Nc = 1 and `nbatch` = 2: `(2, N, N)`.
+- **Source:** `optimize_from_maps`, `optimize_from_stats`, `unstandardize`.
 
 ### 5.7 Operators — M-SYN-OPS
 
-The user-level functions build two operators, one for the target and one for the running field, so that each has its own mask.
+The user-level functions build two operators, one for the target and one for the running field, so that each has its own mask (after 1.0.0: Part III, §16, LF47). In the periodic case without missing data the two are distinct objects with the same settings.
 
-- **J.** For each, the default J minus 1 if the field is not periodic; the synthesis uses the smaller of the two. **⚠ OP-52**
-- **Spectrum.** Used in the loss only if neither field has NaN.
-- **Reference.** The target operator's reference is copied into the running operator.
+- **J.** For each, the default J (M-DEF) minus 1 if the field is not periodic; the synthesis uses the smaller of the two. **⚠ OP-52** After 1.0.0 (Part III, §16, LF47). In the periodic case, J is the default of M-DEF; it is passed explicitly to both operators, so the spectrum uses it as J\_PS (M-PS-2D). From statistics, J is that of the target's statistics.
+- **Other settings.** From maps, the user-level function passes only J, the number of bins and `has_fewer_convolutions`: L, the wavelet type and the kernel size are the defaults of M-DEF. From statistics, the running operator takes J, the number of bins and `has_fewer_convolutions` from the target's statistics, but not L nor the wavelet type: statistics computed with another L than the default make the synthesis fail on a shape mismatch. **⚠ OP-76**
+- **Spectrum.** Used in the loss only if neither field has NaN: always in the periodic case of 1.0.0, with the `fft` estimator (M-PS-2D). The number of bins is the smaller of the two fields' defaults. From statistics, also only if the target's statistics hold a spectrum.
+- **Reference.** The target operator's reference (`var_ref`, `S2_ref_sqrt_chan_diag` and, with the spectrum, `PS_ref_sqrt_chan_diag`) is copied into the running operator; from statistics, it is read from the target's statistics.
+- **Checked** (targets of 32 × 32, 64 × 32 and 48 × 48, periodic): both operators have J = 3 (the default), L = 4, bump-steerable wavelets, 6 bins, J\_PS = 3, the `fft` estimator and the spectrum in the loss; they are two objects, and the running one holds the target's three reference arrays; the seed is 26, the pre-filter on, the weights 3.5 and 12.25. From statistics computed with J = 2: the running operator has J = 2, the same 4 bins and the target's reference. From statistics computed with L = 8: STL raises a size error (4 against 8).
 - **Source:** `synthesize_from_maps`, `synthesize_from_stats`.
 
 ### 5.8 What ESTEL adds
@@ -986,13 +1023,20 @@ Checkpoints (Part II, §9.2 and §12.9): the state of the optimiser, the running
 
 ### 5.9 Open points found in the synthesis code
 
-The rule of §1.11 applies. OP-39 also concerns syntheses.
+The rule of §1.11 applies. OP-39 also concerns syntheses; for the loss it is closed by Q14 (Part IV, §22.5; M-SYN-LOSS). OP-70 to OP-76 come from the check of T6.0.
 
 | # | Point | Proposal |
 | --- | --- | --- |
 | OP-51 | Weights 3.5 for S3 and 3.5² for S4 in the loss, without a stated reason | reproduce as the default; document |
-| OP-52 | The syntheses use the default J minus 1 for non-periodic fields | reproduce |
-| OP-53 | Missing pixels of the running field are set to 10¹⁰ and frozen | ESTEL uses weights: the pixels are never read; to verify that the trajectory is unchanged |
+| OP-52 | The syntheses use the default J minus 1 for non-periodic fields | reproduce. After 1.0.0 (Part III, §16, LF47) |
+| OP-53 | Missing pixels of the running field are set to 10¹⁰ and frozen | ESTEL uses weights: the pixels are never read; to verify that the trajectory is unchanged. After 1.0.0 (Part III, §16, LF47) |
 | OP-54 | The Nyquist pre-filter uses the radius of the shorter side for rectangular fields | reproduce |
 | OP-55 | Global seed, and a default seed of 26 in the user-level functions | ESTEL takes an explicit key; no default seed |
-| OP-56 | In `synthesize_from_maps`, the default `prefilter_Nyquist` calls `init_running.isnan.any()`, which fails when an initial field is given | ESTEL computes the intended value |
+| OP-56 | In `synthesize_from_maps`, the default `prefilter_Nyquist` calls `init_running.isnan.any()`, which fails when an initial field is given | ESTEL computes the intended value. After 1.0.0 (Part III, §16, LF47) |
+| OP-70 | A synthesis from statistics modifies the caller's statistics in place: S3 and S4 stay multiplied by their weights, `mean_pre_std` and `std_pre_std` are replaced by their batch means, `compute_PS` can be set to False; a second synthesis from the same object has another target (measured: a starting loss of 1.6e2 instead of 0.96) | ESTEL is functional and leaves its inputs unchanged: the first synthesis is reproduced, not the effect on later ones; to confirm |
+| OP-71 | From statistics with `mean_field=True`, the loss is divided by the target's Nb; from maps it is not. The minimum is the same, the trajectory of L-BFGS is not | reproduce; to examine |
+| OP-72 | The standardisation differs between the two entries. From maps with `mean_field=True`: one μ and one σ for the batch, σ the square root of the mean variance, on the filtered target. From statistics: each map standardised on its own when the statistics were computed, never filtered, and the result de-standardised with the batch means of μ and of σ | reproduce; document; to examine |
+| OP-73 | The running field is never standardised, and the pre-filter leaves the start with a variance near π/4 (0.78 at 32 × 32) against a target `var` of 1 | reproduce |
+| OP-74 | PyTorch's cap on evaluations, ⌊5 × `max_iter` / 4⌋, can stop a run before `max_iter` iterations; STL prints the number of evaluations as "iterations" | reproduce the cap; ESTEL names the two counts apart |
+| OP-75 | From maps the channel axis of the result is removed only if the target was a 2D array; from statistics, whenever Nc = 1 | to decide with the API of T6.1 |
+| OP-76 | `synthesize_from_stats` builds the running operator with the default L and wavelet type, whatever those of the target's statistics: it fails for statistics computed with another L | ESTEL takes every setting of the operator from the statistics; to confirm |
