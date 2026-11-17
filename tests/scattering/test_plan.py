@@ -261,29 +261,26 @@ def test_second_layer_has_no_window_on_periodic_data_without_missing_values() ->
 
 @pytest.mark.maths("M-MEAN", "M-BORDER")
 @pytest.mark.parametrize("ndim", sorted(GEOMETRIES))
-def test_windows_without_missing_values_are_slices_cut_in_shells(ndim: int) -> None:
-    """maths_step2.md M-WIN, without the common window: on non-periodic data without missing
-    values a window is a rectangle, read as a slice, and the nested windows of a level of the
-    second layer are cut in shells; the shells of the first scales of a level, added, are the
-    window of each of its maps. With missing values the windows are weights."""
+def test_windows_have_a_kind(ndim: int) -> None:
+    """maths_step2.md M-WIN: a window is full on periodic data without missing values, a
+    slice, the rectangle inside the border, on non-periodic data without missing values, and
+    weights where pixels are missing; the rectangle is the one its weights fill. A map keeps
+    no missing pixel at a coarse level where the downsampling validated them all (M-DOWN-MASK):
+    its window is a slice again."""
     n = 64 if ndim == 2 else 128
+    assert {w.kind for w in _all_means(_plan(_data(ndim, n, pbc=True), 3, L=1))} == {"full"}
     plan = _plan(_data(ndim, n, pbc=False), 3, L=1)
     assert (plan.moments.kind, plan.first_layer[0].kind) == ("full", "slice")
     assert plan.first_layer[0].box == ((2, n - 2),) * ndim
-    for j3, level in plan.second_layer.items():
-        assert level.windows == ()
-        assert len(level.shells) == min(j3 + 1, 2)  # the border of j2 = j3, and that of j2 < j3
-        assert all(shell.band for shell in level.shells)
-        for position, j2 in enumerate(level.arms):
-            window = np.zeros(plan.wavelets.level_shapes[j3])
-            for shell in level.shells:
-                for strip in shell.strips if position < shell.n_arms else ():
-                    window[tuple(slice(*bounds) for bounds in strip)] += 1
-            np.testing.assert_array_equal(window, plan.s4[(j2, j2, j3)].weights)
+    assert all(found.box is not None for found in _all_means(plan))
     masked = _plan(_data(ndim, n, False, _sparse_mask(ndim, n)), 3, L=1)
-    assert masked.first_layer[0].kind == "weights"
+    assert (masked.moments.kind, masked.first_layer[0].kind) == ("weights", "weights")
     assert masked.first_layer[0].box is None
-    assert not any(level.shells for level in masked.second_layer.values())
+    for found in (*_all_means(plan), *_all_means(masked)):
+        if found.box is not None:
+            inside = np.zeros(found.weights.shape)
+            inside[tuple(slice(*bounds) for bounds in found.box)] = 1
+            np.testing.assert_array_equal(inside, found.weights)
 
 
 @pytest.mark.maths("M-MASK")

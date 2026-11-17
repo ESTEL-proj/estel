@@ -50,8 +50,7 @@ class _FilterFields(NamedTuple):
     second_layer: Mapping[int, Any]
     """The windows of the second-layer maps and of the band map, per level of
     ``plan.second_layer``: the distinct windows of the level stacked, ``(D, *spatial)``, or
-    ``None`` when every window is the whole grid or the level is summed by shells, on slices
-    (maths_step2.md M-GRAM, M-WIN). S3 and S4 need no
+    ``None`` when every window is the whole grid (maths_step2.md M-GRAM). S3 and S4 need no
     other weights: each mean is a Gram product of windowed maps, divided by the denominator
     of the plan."""
     s1_index: tuple[Any, ...]

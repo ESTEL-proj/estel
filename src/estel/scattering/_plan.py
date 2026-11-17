@@ -36,13 +36,12 @@ What it holds, for STL's loop structure (maths.md §1.6 to 1.7; STL ``ST_Operato
 * **Windows have a kind** (``MeanWeights.kind``; maths_step2.md M-WIN; Part III, §19.12,
   point 1; task T2.13): ``full``, every pixel of the level (periodic data without missing
   values); ``slice``, a rectangle (non-periodic data without missing values); ``weights``, a
-  0/1 map (data with missing values). The loop multiplies by the weights only for the third:
-  a full window is a plain sum, a slice a sum over a slice. In the second layer, the windows
-  of a level without missing values are nested rectangles, and the plan cuts the level in
-  shells (:class:`WindowShell`): the Gram product of the level is the sum of one product per
-  shell, over the maps whose window holds the shell, so that each pair is still summed over
-  the intersection of its two windows, without the common window of M-WIN, which would change
-  values.
+  0/1 map (data with missing values). For the means of the field and of the first layer, the
+  loop multiplies by the weights only for the third: a full window is a plain sum, a slice a
+  sum over a slice. In the second layer a full window sets nothing to zero, and the other two
+  multiply each map by its 0/1 window: summing the nested rectangles of a level on slices,
+  one product per shell between two of them, was measured slower with the gradient than this
+  product (issue #91), and the common window of M-WIN would change values.
 
 Each mean of the loop is a (co)variance of operands described by their convolution history,
 the scales of the convolutions applied, which in ESTEL is plan data rather than data state
@@ -84,7 +83,6 @@ no computable coefficient.
 
 from __future__ import annotations
 
-import itertools
 import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -97,7 +95,6 @@ from numpy.typing import NDArray
 from ..data._base import Data
 from ..wavelets._operator import (
     KERNEL_SIZE,
-    Box,
     History,
     MeanWeights,
     WaveletOperator,
@@ -147,24 +144,6 @@ def channel_pairs(matrix: NDArray[np.bool_]) -> ChannelPairs:
     return ChannelPairs(n_channels=n, auto=auto, cross=cross, ordered=ordered)
 
 
-@dataclass(frozen=True)
-class WindowShell:
-    """One shell of the nested rectangular windows of a level (maths_step2.md M-WIN, M-GRAM):
-    the pixels of one window that are outside the next smaller one; the smallest window is
-    its own shell. Every pixel of a shell is in the same windows, so the shell is summed by
-    one Gram product of the maps of these windows, with no weights."""
-
-    strips: tuple[Box, ...]
-    """Disjoint rectangles whose union is the shell, each as its bounds on every spatial
-    axis."""
-    n_arms: int
-    """The shell is in the windows of the first ``n_arms`` scales of
-    ``SecondLayerWindows.arms``, and in those of no other."""
-    band: bool
-    """Whether the shell is in the window of the band map W_{j3} x, the other operand of
-    S3."""
-
-
 @dataclass(frozen=True, eq=False)
 class SecondLayerWindows:
     """The second-layer maps of one level j3 and their windows, for the Gram form (maths_step2.md
@@ -189,11 +168,6 @@ class SecondLayerWindows:
     band_window: int | None
     """The position in :attr:`windows` of the window of the band map W_{j3} x, the other
     operand of S3; ``None`` when :attr:`windows` is empty or the level has no S3."""
-    shells: tuple[WindowShell, ...] = ()
-    """When the windows of the level are nested rectangles that are not all the whole grid
-    (non-periodic data without missing values), the shells that cut them, from the largest
-    window inwards: the loop sums each shell with one product, on slices, and
-    :attr:`windows` is empty. Empty otherwise."""
 
 
 @dataclass(frozen=True, eq=False)
@@ -431,13 +405,6 @@ def _second_layer_windows(
     used = [*of_arms, *([] if of_band is None else [of_band])]
     if all(w.denominator == w.weights.size for w in used):
         return SecondLayerWindows(arms=arms, windows=(), arm_windows=(), band_window=None)
-    shells = None
-    if of_band is None or of_band.box is not None:
-        shells = _window_shells([w.box for w in of_arms], None if of_band is None else of_band.box)
-    if shells is not None:
-        return SecondLayerWindows(
-            arms=arms, windows=(), arm_windows=(), band_window=None, shells=shells
-        )
     # The weights of one level, border and mask are one object (``mean_weights``).
     distinct = list({id(w.weights): w.weights for w in used}.values())
     position = {id(window): d for d, window in enumerate(distinct)}
@@ -447,63 +414,6 @@ def _second_layer_windows(
         arm_windows=tuple(position[id(w.weights)] for w in of_arms),
         band_window=None if of_band is None else position[id(of_band.weights)],
     )
-
-
-def _inside(inner: Box, outer: Box) -> bool:
-    """Whether the rectangle ``inner`` is inside ``outer``."""
-    return all(o[0] <= i[0] and i[1] <= o[1] for i, o in zip(inner, outer, strict=True))
-
-
-def _between(outer: Box, inner: Box | None) -> tuple[Box, ...]:
-    """Disjoint rectangles whose union is ``outer`` without ``inner``, a rectangle inside it;
-    ``outer`` itself without ``inner``. On each axis in turn, the two bands of ``outer`` on
-    either side of ``inner``, cut to ``inner`` on the axes before and to ``outer`` on those
-    after."""
-    if inner is None:
-        return (outer,)
-    strips: list[Box] = []
-    for axis in range(len(outer)):
-        sides = ((outer[axis][0], inner[axis][0]), (inner[axis][1], outer[axis][1]))
-        strips.extend(
-            (*inner[:axis], side, *outer[axis + 1 :]) for side in sides if side[1] > side[0]
-        )
-    return tuple(strips)
-
-
-def _window_shells(
-    of_arms: list[Box | None], of_band: Box | None
-) -> tuple[WindowShell, ...] | None:
-    """The shells of the windows of a level (:class:`WindowShell`), from the rectangles of the
-    windows of its second-layer maps, in the order of the scales, and of its band map
-    (``None`` without S3); or ``None`` when a window is not a rectangle, when the rectangles
-    are not nested, the window of the band map holding them all, or when the maps whose window
-    holds a shell are not the first ones of the level: the loop then multiplies by the
-    weights."""
-    if any(box is None for box in of_arms):
-        return None
-    boxes = [box for box in of_arms if box is not None]
-    if of_band is not None and not all(_inside(box, of_band) for box in boxes):
-        return None
-    distinct = sorted(
-        set(boxes), key=lambda box: -int(np.prod([stop - start for start, stop in box]))
-    )
-    if not all(_inside(inner, outer) for outer, inner in itertools.pairwise(distinct)):
-        return None
-    shells = []
-    for position, box in enumerate(distinct):
-        holders = [_inside(box, of_arm) for of_arm in boxes]
-        n_arms = sum(holders)
-        if holders != [True] * n_arms + [False] * (len(boxes) - n_arms):
-            return None
-        inner = distinct[position + 1] if position + 1 < len(distinct) else None
-        shells.append(
-            WindowShell(
-                strips=_between(box, inner),
-                n_arms=n_arms,
-                band=of_band is not None,
-            )
-        )
-    return tuple(shells)
 
 
 def _cross_matrix(matrix: Any, n_channels: int) -> NDArray[np.bool_]:
