@@ -85,7 +85,7 @@ They continue the numbering; their category is given in the second column.
 | LF26 | 16.4 Mathematical choice | Reductions on tensor products (`iso`, `angular_fourier`, `scale_cosine`) redefined: the product orientation mixes rotations with the direction of propagation | meaningful reduced statistics for space–time data | reductions | yes | maths tab, OP-44 | C8, OP-5 |
 | LF27 | 16.4 Mathematical choice | Relevance of the partial order of tensor-product scales: should some incomparable pairs of scales be measured? | interactions between fine-in-space, coarse-in-time and coarse-in-space, fine-in-time components are never measured | `_scale_index_set` | yes, if the set of scales changes | §20.9 | A12 |
 | LF28 | 16.4 Mathematical choice | A better regularisation of the cross S1 terms than `ε = 1e-8` | the constant is arbitrary and scale-dependent; it also breaks the scaling invariance of the cross S1, which is tested once it is replaced (Part I, §5.1) | M-S1 | yes | maths tab, OP-16 | G17, OP-16 |
-| LF29 | 16.3 Optimisation | **In step 1 (T2.13; Part IV, §22.5).** Small kernels baked in as compiled constants | possible speed-up under compilation | static plan | no | Part I, §3.1, rule 4 | review of 12 November 2026 (Pablo) |
+| LF29 | 16.3 Optimisation | **Tried in step 1, dropped (T2.13, PR #96):** no gain beyond the compilation of the loop on JAX. Small kernels baked in as compiled constants | possible speed-up under compilation | static plan | no | Part I, §3.1, rule 4 | review of 12 November 2026 (Pablo) |
 | LF30 | 16.3 Optimisation | Complex-to-complex convolutions instead of pairs of real ones | possible speed-up in tensor products; tried after the implementation of P3 that follows STL (Part IV, §22.5) | `conv_axes` | no | Part I, §3.1, rule 6 | review of 12 November 2026 (Pablo) |
 | LF31 | 16.3 Optimisation | **In step 1 (T2.12; Part IV, §22.5).** Second-layer means computed by contraction over pixels, instead of building the full product array first; measured 15 to 18 times faster than the present covariances on a CPU test, with 0.25 times the maps as extra memory instead of 3 to 8 times; computed by blocks of pixels summed in float64 in single precision; a prerequisite for tensor products (Q11) | lower memory peak, same loop | `_second_layer` | no | §19.3, §19.11; `docs/maths_step2.md`, M-GRAM | C18 |
 | LF32 | 16.4 Mathematical choice | Orientation reductions (iso, angular\_fourier) made consistent with the conjugation of complex coefficients across π, in 2D | the cyclic average over \[0, π) mixes some S3 and S4 values with what should be their conjugates | reductions | yes | maths tab, M-RED-ISO | OP-5 |
@@ -99,7 +99,7 @@ Their category is given in the second column. Their definitions are in `docs/mat
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | LF34 | 16.3 Optimisation | Partitioned execution: parts with halos at fine levels, the gathered pyramid at coarse levels | one mechanism for fields larger than a device, several GPUs, MPI and HEALPix at high resolution | `_global_sum`; the plan knows the border and the halo of every map | no | §19.11; M-PART | R-P04; Q20 |
 | LF35 | 16.4 Mathematical choice | Strict scale order, j₁ ≤ j₂ < j₃, as an option | time divided by 3 and second-layer memory by 4, at the price of informative coefficients | index sets read from the plan | yes (removes coefficients) | M-STRICT | R-P02; Q18 |
-| LF36 | 16.3 Optimisation | **In step 1 (T2.14; Part IV, §22.5).** Level-wise gradients in the Python engine: the second layer recomputed per level and band orientation during the backward pass | memory divided by about 3 with gradients, second order kept | the loop organised by level and band orientation | no | §19.11; M-GRAD | R-P03 |
+| LF36 | 16.3 Optimisation | **Tried in step 1, without gain (T2.14, issue #92):** on CPU at 512 × 512, after the Gram form, no lower memory and a gradient 12 to 53 % slower; measured again on GPU and at larger sizes in the final optimisation session (T7.1). Level-wise gradients in the Python engine: the second layer recomputed per level and band orientation during the backward pass | memory divided by about 3 with gradients, second order kept | the loop organised by level and band orientation | no | §19.11; M-GRAD | R-P03 |
 | LF37 | 16.2 New feature | Pruned plans: an operator computes only selected coefficients | large tensor products; cheaper syntheses on a subset; fine tuning, done only on a specific need (Part IV, §22.5) | `select` and the plan share one description of a set of coefficients | no | §19.11 | R-P05 |
 | LF38 | 16.4 Mathematical choice | Strided second layer: the second layer evaluated on one pixel in two per axis, as an option | time divided by 3 and second-layer memory by 4, no coefficient dropped; an unbiased error 4 to 9 times below the scatter between realisations | evaluation positions and windows given by the plan | yes | M-STRIDE | R-P15; Q18 |
 | LF39 | 16.4 Mathematical choice | Fine-band S2 coefficients: S2 with a second set of narrower isotropic filters | constrain the spectrum inside the scattering machinery, with its handling of masks and borders | families as a list | no (new family) | §19.11 | R-P10 |
@@ -109,6 +109,7 @@ Their category is given in the second column. Their definitions are in `docs/mat
 | LF43 | 16.2 New feature | An ellipsoid for HEALPix pixel centres, for Earth data | Earth observation | the geometry tables take the pixel centres as an input | no (new capability) | — | R-H01; Q7 |
 | LF44 | 16.2 New feature | Named blocks of tensor products, and labelled exports (extends LF13) | select statistics along a named block | block names in `DataTensorProd` | no | — | R-T04; Q12 |
 | LF45 | 16.2 New feature | Sibling operators: the same filters and masks, other channel pairs | change `cross_matrix` without rebuilding the heavy parts; fine tuning, done only on a specific need (Part IV, §22.5) | the plan separates what depends on the channels | no | — | review of 16 November 2026 |
+| LF46 | 16.3 Optimisation | A first-order gradient for a loss that ends the computation, as in a synthesis: a primitive `value_and_grad_first_order`, by `torch.autograd.grad` on PyTorch, whose result is not differentiated again; `value_and_grad` stays composable, for implicit differentiation and the second order | about 30 % less memory with the gradient on PyTorch (prototype of T2.14, issue #92); the use of order-1 engines (Part I, §3.2.4) | the L0 protocol | no | a choice that depends on the use, left out of 1.0.0 (Part IV, §22.5) | T2.14, issue #92 |
 
 ### 16.7 Deferred work that is not a feature
 
@@ -447,7 +448,7 @@ None of these changes a value. Each exists to make a later change local.
 1. **Windows are objects with a kind** (full, slice, weights), given by the plan (R-S01, R-V02). The centring of step 2 and the fast path for non-periodic data build on them.
 2. **The loop reads its index sets from the plan.** Already so for S3 and S4. The strict order, the cut-off and pruned plans are then options of the plan. The same holds for the positions where a convolution is evaluated: the strided second layer is then an option too.
    **And the band orientation is the leading axis of the second-layer maps,** so that the Gram form needs no copy.
-3. **One internal sum** (`_global_sum`) between the sum over pixels and the division, called once per level. Partitioned execution and MPI insert themselves there.
+3. **One internal sum** (`_global_sum`) between the sum over pixels and the division, called once per level. Partitioned execution and MPI insert themselves there. On JAX the loop is compiled (T2.13), and the hook is read when it is compiled: whatever replaces it must also drop the compiled loops, as its tests do.
 4. **The low-pass filter and the centring are described by the plan** (Part III, §20.10 and §20.11): decided, and partly in place. One amendment is proposed: maps that end with a low-pass filter are centred themselves, not corrected afterwards, for stability in single precision (R-E02).
 5. **"Scale" and "level" are two different things** in the plan and in the notation (R-N10): the low-pass filter without final downsampling, and voices, need it.
 6. **Families are a list, not four attributes.** A low-pass index, fine-band coefficients or a new family must not change the interface of `STStatistics`.
@@ -472,7 +473,24 @@ None of these changes a value. Each exists to make a later change local.
 
 Two rules shape this order: changes of values are grouped, so that users see one change of reference and not five; and the reorganisations that change no value come first, so that each later change is measured on a faster and smaller engine.
 
-**Brought into step 1** (Part IV, §22.5): the reorganisations of rows 2 (the Gram form, windows, real arithmetic), 4 (the compact layout, without pruned plans) and 5 (level-wise gradients, without coarse-to-fine synthesis) change no value, and are tasks of step 1 (Part II, §15.2, T2.11 to T2.15). The table keeps their place in the order.
+**Brought into step 1** (Part IV, §22.5): the reorganisations of rows 2 (the Gram form, windows, real arithmetic), and 4 (the compact layout, without pruned plans) change no value, and are tasks of step 1 (Part II, §15.2, T2.11 to T2.15). The table keeps their place in the order.
+
+### 19.14 Results of the optimisations of step 1
+
+What each optimisation of step 1 brought, measured by the benchmark (Part I, §6.3) against the commit before it, on CPU (Apple M3) at the sizes of `bench/cases.toml`. Each PR of an optimisation adds or updates its row; the evidence is its PR, its issue and its results in `bench/results/`. The final optimisation session (Part II, §15.2, T7.1) confirms these conclusions on native x86 Linux and on GPU.
+
+| Optimisation | Task, PR | Result | Measured |
+| --- | --- | --- | --- |
+| Gram form, band orientation leading, mean weights stored once | T2.12, #95 | kept | memory of the computation 39 to 49 % lower; planar-cross 24 to 29 % faster with the gradient; the forward pass alone of planar-masked about 10 % slower on Apple M3, from PyTorch's batched convolutions (issue #91) |
+| Windows without weights, for the means of the field and the first layer | T2.13, #96 | kept | memory 1 to 1.6 % lower |
+| Windows without weights inside the Gram form | T2.13, #96 | dropped | 9 % slower with the gradient |
+| Half of the Gram product (Hermitian symmetry) | T2.13, #96 | dropped | 3 to 11 % slower |
+| Real arithmetic for real quantities | T2.13, #96 | nothing to change | already real, or given by the Gram product |
+| Compilation of the loop on JAX | T2.13, #96 | kept | on JAX, 2 to 15 times faster, memory divided by 3 |
+| Small kernels as constants (LF29) | T2.13, #96 | dropped | no gain beyond the compilation |
+| Per-scale convolutions | issue #91 | deferred to T7.1 | depends on the platform |
+| Level-wise gradients (LF36) | T2.14, issue #92 | dropped; measured again in T7.1 | no memory gain, gradient 12 to 53 % slower |
+| First-order gradient on PyTorch (LF46) | T2.14, issue #92 | after 1.0.0 | about 30 % less memory with the gradient (prototype); depends on the use |
 
 ## 20. New mathematics
 

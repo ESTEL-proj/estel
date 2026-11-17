@@ -44,3 +44,15 @@ L = 4
 pbc = true
 seed = 6
 target_seed = 7
+
+[cases.planar-open]
+# Added with task T2.14 (issue #92): `planar-masked` without its missing pixels. Non-periodic
+# without mask is a common use, and the only case whose windows are slices (maths_step2 M-WIN):
+# `planar-periodic` and `planar-cross` have full windows, `planar-masked` has weights.
+shape = [512, 512]
+channels = 1
+J = 7
+L = 4
+pbc = false
+seed = 3
+target_seed = 4

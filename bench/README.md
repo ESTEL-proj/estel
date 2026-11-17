@@ -16,6 +16,7 @@ power spectrum, `norm="none"`:
 | `planar-periodic` | 512 × 512, one channel | 7, 4 | periodic | none |
 | `planar-masked` | 512 × 512, one channel | 7, 4 | non-periodic | 10.1 %, five square holes of sides 112 to 24 |
 | `planar-cross` | 256 × 256, two channels with their cross terms | 6, 4 | periodic | none |
+| `planar-open` | 512 × 512, one channel | 7, 4 | non-periodic | none |
 
 The fields are seeded: the exponential of a Gaussian field with a power-law spectrum
 ([`_cases.py`](_cases.py)). The process that runs the benchmark writes the inputs of a case once,
