@@ -110,6 +110,7 @@ Their category is given in the second column. Their definitions are in `docs/mat
 | LF44 | 16.2 New feature | Named blocks of tensor products, and labelled exports (extends LF13) | select statistics along a named block | block names in `DataTensorProd` | no | — | R-T04; Q12 |
 | LF45 | 16.2 New feature | Sibling operators: the same filters and masks, other channel pairs | change `cross_matrix` without rebuilding the heavy parts; fine tuning, done only on a specific need (Part IV, §22.5) | the plan separates what depends on the channels | no | — | review of 16 November 2026 |
 | LF46 | 16.3 Optimisation | A first-order gradient for a loss that ends the computation, as in a synthesis: a primitive `value_and_grad_first_order`, by `torch.autograd.grad` on PyTorch, whose result is not differentiated again; `value_and_grad` stays composable, for implicit differentiation and the second order | about 30 % less memory with the gradient on PyTorch (prototype of T2.14, issue #92); the use of order-1 engines (Part I, §3.2.4) | the L0 protocol | no | a choice that depends on the use, left out of 1.0.0 (Part IV, §22.5) | T2.14, issue #92 |
+| LF47 | 16.2 New feature | Non-periodic and masked syntheses | STL has them, but its choices are to be reconsidered rather than reproduced: the J reduced by one for non-periodic fields (OP-52), missing pixels frozen at 10¹⁰ (OP-53), a gradient that can be NaN with masks, the taper of the start | M-SYN-INIT, M-SYN-OPS; the consistency of the estimators (T2.16) | no (new capability) | maths tab, §5 | review of 17 November 2026 |
 
 ### 16.7 Deferred work that is not a feature
 
@@ -491,6 +492,7 @@ What each optimisation of step 1 brought, measured by the benchmark (Part I, §6
 | Per-scale convolutions | issue #91 | deferred to T7.1 | depends on the platform |
 | Level-wise gradients (LF36) | T2.14, issue #92 | dropped; measured again in T7.1 | no memory gain, gradient 12 to 53 % slower |
 | First-order gradient on PyTorch (LF46) | T2.14, issue #92 | after 1.0.0 | about 30 % less memory with the gradient (prototype); depends on the use |
+| Compact layout (LF14) | T2.15 | moved to the start of P3 | on planar data the statistics take 0.2 to 0.5 MB, against 0.5 to 0.8 GB for the computation |
 
 ## 20. New mathematics
 
