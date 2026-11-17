@@ -3,6 +3,7 @@ loss, on the backend the process selected."""
 
 from __future__ import annotations
 
+import time
 import warnings
 from typing import Any
 
@@ -50,7 +51,11 @@ class Run:
                 self.data, case.J, case.L, norm="none", compute_PS=False
             )
         target_data = estel.Data2D(inputs.target_field, mask=inputs.mask, pbc=case.pbc)
-        target = self._backend.stop_gradient(self.operator.apply(target_data).to_vector())
+        # The first call of the operator: on JAX it compiles the loop (task T2.13).
+        start = time.perf_counter()
+        first = self._done(self.operator.apply(target_data))
+        self.first_apply_seconds = time.perf_counter() - start
+        target = self._backend.stop_gradient(first.to_vector())
         xp = self._backend.xp
         operator, data = self.operator, self.data
 

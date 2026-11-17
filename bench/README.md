@@ -111,8 +111,33 @@ make bench BENCH_ENV=native
 ```
 
 Other options go through `BENCH_ARGS` (`uv run python -m bench --help`): `--backend jax` runs
-ESTEL on JAX, natively; its times are not yet at a fixed number of threads and include no
-compiled function: measuring JAX is T2.13's.
+ESTEL on JAX, natively. On JAX the computation is compiled at its first call: every run records
+the time of the very first call of the operator (`first_apply_seconds`, made on the second field
+when the run is built), which holds the compilation of the forward pass, and the time of the
+first call of each measure (`forward_first_seconds`, `gradient_first_seconds`), the second of
+which holds the compilation of the gradient, apart from the timed calls. JAX has no setting for the number of
+threads of its CPU computations: its times are not at the `threads` of the cases file.
+
+## Comparing two commits
+
+An optimisation is judged against the commit before it (task T2.13, issue #91):
+
+```bash
+make bench BENCH_ARGS="--compare origin/main HEAD"
+```
+
+measures the two commits A and B natively, each exported like `main` above, in `--rounds` rounds
+(5): a round measures A then B, the next one B then A, every measure in a fresh process (warm-up,
+then the timed runs, their median). Per round and case it takes the ratios B / A of the forward
+time, of the time with the gradient, of the memory of the computation (peak minus baseline) and
+of the peak memory, and it prints their median and their range over the rounds, with the measures
+whose ratio is below 1 in every round and those above 1.05 in some round. Every run is checked
+against STL's statistics, and B against the statistics and the gradient of A, as above. The
+results go to `results/<date>-<machine>-compare.json`. It needs STL's statistics of a container
+run on the same inputs, and no container itself.
+
+Run it once with A = B to see the noise floor of the comparison on the machine: a ratio inside
+that range shows nothing.
 
 `make bench` prints a table and writes `results/<date>-<machine>.json`: the description of each
 environment (CPU model and cores, memory, OS, Python and library versions, image), the ESTEL

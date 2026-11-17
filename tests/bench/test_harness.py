@@ -17,7 +17,10 @@ from bench.__main__ import (
     BenchError,
     check_against_main,
     check_against_stl,
+    comparison_ratios,
+    comparison_verdict,
     export_main,
+    format_comparison,
     format_main_differences,
     format_table,
     results_path,
@@ -64,6 +67,8 @@ def test_harness_measures_and_checks_a_tiny_case(
 
     measurements, arrays = measure("estel", inputs, warmup=1, repeats=2)
     assert len(measurements["forward_runs"]) == len(measurements["gradient_runs"]) == 2
+    assert measurements["forward_first_seconds"] > 0 < measurements["gradient_first_seconds"]
+    assert measurements["first_apply_seconds"] > 0
     assert 0 < measurements["forward_seconds"] < measurements["gradient_seconds"]
     assert measurements["peak_rss_bytes"] >= measurements["baseline_rss_bytes"] > 2**20
     assert measurements["coefficients"] == arrays["vector"].size > 0
@@ -113,3 +118,36 @@ def test_main_is_exported_without_a_checkout(tmp_path: Path) -> None:
     assert export_main("HEAD", tmp_path) == (source, commit)  # exported once
     with pytest.raises(BenchError, match="git fetch origin"):
         export_main("no-such-ref", tmp_path)
+
+
+def test_comparison_of_two_commits_gives_the_ratios_of_each_round() -> None:
+    """The comparison mode (issue #91, decision 1): per round the ratios B / A, their median
+    and range, and what the criterion reads in them."""
+
+    def run(forward: float, gradient: float, peak: int) -> dict[str, float]:
+        return {
+            "forward_seconds": forward,
+            "gradient_seconds": gradient,
+            "peak_rss_bytes": peak,
+            "baseline_rss_bytes": 100,
+        }
+
+    rounds = [
+        (run(1.0, 2.0, 300), run(0.8, 2.2, 200)),
+        (run(1.0, 2.0, 300), run(0.9, 1.9, 250)),
+        (run(2.0, 2.0, 300), run(1.0, 2.0, 300)),
+    ]
+    ratios = comparison_ratios(rounds)
+    assert ratios["forward"]["ratios"] == pytest.approx([0.8, 0.9, 0.5])
+    assert ratios["forward"]["median"] == pytest.approx(0.8)
+    assert (ratios["gradient"]["min"], ratios["gradient"]["max"]) == pytest.approx((0.95, 1.1))
+    assert ratios["memory"]["ratios"] == pytest.approx([0.5, 0.75, 1.0])  # peak - baseline
+    assert ratios["peak"]["median"] == pytest.approx(250 / 300)
+    verdict = comparison_verdict({"tiny": ratios})
+    assert verdict == {
+        "below_1_in_every_round": ["tiny: forward"],
+        "above_1.05_in_a_round": ["tiny: gradient"],
+    }
+    assert "| tiny | 0.800 (0.500 to 0.900) | 1.000 (0.950 to 1.100) |" in format_comparison(
+        {"tiny": ratios}
+    )

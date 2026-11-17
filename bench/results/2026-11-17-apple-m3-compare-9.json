@@ -1,0 +1,1691 @@
+{
+  "schema": 3,
+  "date": "2026-11-17",
+  "machine": "apple-m3",
+  "comparison": {
+    "a": {
+      "ref": "HEAD~1",
+      "commit": "33b8023ef935522348d6a4d03c9c9ca216cb1fee"
+    },
+    "b": {
+      "ref": "HEAD",
+      "commit": "0a6f889ea01b4a711dc932fc7b9af763faec56d4"
+    },
+    "rounds": 5,
+    "ratios": {
+      "planar-periodic": {
+        "forward": {
+          "ratios": [
+            0.6576740993929975,
+            1.0009426625916589,
+            0.9980231639341507,
+            0.9712855534183764,
+            0.9977561598696382
+          ],
+          "median": 0.9977561598696382,
+          "min": 0.6576740993929975,
+          "max": 1.0009426625916589
+        },
+        "gradient": {
+          "ratios": [
+            0.9001474355528682,
+            0.9868897846066731,
+            1.0043686235688896,
+            1.0018455567389906,
+            0.9094835150708503
+          ],
+          "median": 0.9868897846066731,
+          "min": 0.9001474355528682,
+          "max": 1.0043686235688896
+        },
+        "memory": {
+          "ratios": [
+            0.9929397550938219,
+            0.9855745566984287,
+            0.9780916469610788,
+            0.9652085402793618,
+            1.0256318929439152
+          ],
+          "median": 0.9855745566984287,
+          "min": 0.9652085402793618,
+          "max": 1.0256318929439152
+        },
+        "peak": {
+          "ratios": [
+            0.993858855462565,
+            0.9873456475150526,
+            0.9803899082568808,
+            0.9687092568448501,
+            1.023103101731305
+          ],
+          "median": 0.9873456475150526,
+          "min": 0.9687092568448501,
+          "max": 1.023103101731305
+        }
+      },
+      "planar-masked": {
+        "forward": {
+          "ratios": [
+            1.0164340766941544,
+            1.0808639965258118,
+            0.9844449662810004,
+            1.003228454870548,
+            1.012760890255901
+          ],
+          "median": 1.012760890255901,
+          "min": 0.9844449662810004,
+          "max": 1.0808639965258118
+        },
+        "gradient": {
+          "ratios": [
+            1.0021430856347144,
+            1.2497127289169505,
+            1.0106618128626825,
+            1.009569810263981,
+            0.9890770822055409
+          ],
+          "median": 1.009569810263981,
+          "min": 0.9890770822055409,
+          "max": 1.2497127289169505
+        },
+        "memory": {
+          "ratios": [
+            0.9806171791867028,
+            1.0270633423363509,
+            1.0269466388331765,
+            1.0146784167784957,
+            0.9790104544599425
+          ],
+          "median": 1.0146784167784957,
+          "min": 0.9790104544599425,
+          "max": 1.0270633423363509
+        },
+        "peak": {
+          "ratios": [
+            0.9828211284513806,
+            1.0240566436692724,
+            1.0236609527509348,
+            1.0131420422414006,
+            0.981420699568759
+          ],
+          "median": 1.0131420422414006,
+          "min": 0.981420699568759,
+          "max": 1.0240566436692724
+        }
+      },
+      "planar-cross": {
+        "forward": {
+          "ratios": [
+            1.07248944799712,
+            1.0106477931790572,
+            1.026894102226543,
+            0.6438941922009063,
+            0.9198001948780644
+          ],
+          "median": 1.0106477931790572,
+          "min": 0.6438941922009063,
+          "max": 1.07248944799712
+        },
+        "gradient": {
+          "ratios": [
+            0.8998556759988922,
+            1.0098257029398297,
+            1.0515995291196438,
+            0.7236275958463814,
+            0.8891789443357395
+          ],
+          "median": 0.8998556759988922,
+          "min": 0.7236275958463814,
+          "max": 1.0515995291196438
+        },
+        "memory": {
+          "ratios": [
+            0.9493510604621715,
+            0.9696073578072484,
+            0.9838970951622645,
+            1.0264014313689578,
+            1.0217909861368355
+          ],
+          "median": 0.9838970951622645,
+          "min": 0.9493510604621715,
+          "max": 1.0264014313689578
+        },
+        "peak": {
+          "ratios": [
+            0.9544494898861827,
+            0.9724594064949608,
+            0.9857228422300724,
+            1.0235563450760607,
+            1.0188467718830578
+          ],
+          "median": 0.9857228422300724,
+          "min": 0.9544494898861827,
+          "max": 1.0235563450760607
+        }
+      }
+    },
+    "first_calls": {
+      "planar-periodic": {
+        "a_first_apply_seconds": 0.9497321671806276,
+        "a_forward_first_seconds": 0.05906495777890086,
+        "a_forward_seconds": 0.06051104096695781,
+        "a_gradient_first_seconds": 4.080390457995236,
+        "a_gradient_seconds": 0.1629260410554707,
+        "b_first_apply_seconds": 0.9659776659682393,
+        "b_forward_first_seconds": 0.05589949991554022,
+        "b_forward_seconds": 0.05984412506222725,
+        "b_gradient_first_seconds": 4.12037937482819,
+        "b_gradient_seconds": 0.15134741691872478
+      },
+      "planar-masked": {
+        "a_first_apply_seconds": 0.7996542919427156,
+        "a_forward_first_seconds": 0.05624162498861551,
+        "a_forward_seconds": 0.0606197495944798,
+        "a_gradient_first_seconds": 3.1545243747532368,
+        "a_gradient_seconds": 0.15606395760551095,
+        "b_first_apply_seconds": 0.7922520409338176,
+        "b_forward_first_seconds": 0.05693191708996892,
+        "b_forward_seconds": 0.06095412513241172,
+        "b_gradient_first_seconds": 3.1493237502872944,
+        "b_gradient_seconds": 0.15739933401346207
+      },
+      "planar-cross": {
+        "a_first_apply_seconds": 1.7173289167694747,
+        "a_forward_first_seconds": 0.028808750212192535,
+        "a_forward_seconds": 0.03178287483751774,
+        "a_gradient_first_seconds": 6.174968833103776,
+        "a_gradient_seconds": 0.09707116708159447,
+        "b_first_apply_seconds": 1.8390906658023596,
+        "b_forward_first_seconds": 0.030958125367760658,
+        "b_forward_seconds": 0.03297779243439436,
+        "b_gradient_first_seconds": 6.359383542090654,
+        "b_gradient_seconds": 0.09507875004783273
+      }
+    },
+    "verdict": {
+      "below_1_in_every_round": [],
+      "above_1.05_in_a_round": [
+        "planar-masked: forward",
+        "planar-masked: gradient",
+        "planar-cross: forward",
+        "planar-cross: gradient"
+      ]
+    }
+  },
+  "backend": "jax",
+  "settings": {
+    "dtype": "float32",
+    "device": "cpu",
+    "threads": 4,
+    "warmup": 1,
+    "repeats": 5
+  },
+  "cases": {
+    "planar-periodic": {
+      "name": "planar-periodic",
+      "shape": [
+        512,
+        512
+      ],
+      "channels": 1,
+      "J": 7,
+      "L": 4,
+      "pbc": true,
+      "seed": 1,
+      "target_seed": 2,
+      "mask_seed": null,
+      "mask_holes": []
+    },
+    "planar-masked": {
+      "name": "planar-masked",
+      "shape": [
+        512,
+        512
+      ],
+      "channels": 1,
+      "J": 7,
+      "L": 4,
+      "pbc": false,
+      "seed": 3,
+      "target_seed": 4,
+      "mask_seed": 5,
+      "mask_holes": [
+        112,
+        88,
+        64,
+        40,
+        24
+      ]
+    },
+    "planar-cross": {
+      "name": "planar-cross",
+      "shape": [
+        256,
+        256
+      ],
+      "channels": 2,
+      "J": 6,
+      "L": 4,
+      "pbc": true,
+      "seed": 6,
+      "target_seed": 7,
+      "mask_seed": null,
+      "mask_holes": []
+    }
+  },
+  "environments": {
+    "native": {
+      "cpu": "Apple M3",
+      "architecture": "arm64",
+      "cores": 8,
+      "memory_bytes": 25769803776,
+      "os": "macOS-26.6.2-arm64-arm-64bit",
+      "python": "3.11.18",
+      "power": {
+        "source": "AC Power",
+        "low_power_mode": false
+      },
+      "versions": {
+        "numpy": "2.4.6",
+        "jax": "0.10.2"
+      }
+    }
+  },
+  "runs": [
+    {
+      "case": "planar-periodic",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ac20ece495f1f09f53d7fd97f877cf9dedcbcf74a2b5212f8ba9c78f188e46d4",
+      "forward_seconds": 0.09900470916181803,
+      "forward_runs": [
+        0.11339225014671683,
+        0.0663876673206687,
+        0.07561058411374688,
+        0.09900470916181803,
+        0.17067708307877183
+      ],
+      "forward_first_seconds": 0.05906495777890086,
+      "first_apply_seconds": 0.9446317502297461,
+      "gradient_seconds": 0.1629260410554707,
+      "gradient_runs": [
+        0.15180816687643528,
+        0.14543254068121314,
+        0.21572504239156842,
+        0.18107454106211662,
+        0.1629260410554707
+      ],
+      "gradient_first_seconds": 4.093064540997148,
+      "peak_rss_bytes": 1448673280,
+      "baseline_rss_bytes": 146817024,
+      "coefficients": 11706,
+      "loss": 0.004146910738199949,
+      "side": "a",
+      "round": 1,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 4.905311500361103e-07,
+        "stl_gradient_not_finite": 0
+      }
+    },
+    {
+      "case": "planar-periodic",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ac20ece495f1f09f53d7fd97f877cf9dedcbcf74a2b5212f8ba9c78f188e46d4",
+      "forward_seconds": 0.06511283293366432,
+      "forward_runs": [
+        0.061009292025119066,
+        0.06511283293366432,
+        0.057637750171124935,
+        0.06653091730549932,
+        0.06728370767086744
+      ],
+      "forward_first_seconds": 0.054892499931156635,
+      "first_apply_seconds": 0.9524823329411447,
+      "gradient_seconds": 0.14665745804086328,
+      "gradient_runs": [
+        0.15484445914626122,
+        0.1456991247832775,
+        0.14240870857611299,
+        0.14665745804086328,
+        0.15182845806702971
+      ],
+      "gradient_first_seconds": 4.298357000108808,
+      "peak_rss_bytes": 1439776768,
+      "baseline_rss_bytes": 147111936,
+      "coefficients": 11706,
+      "loss": 0.004146910738199949,
+      "side": "b",
+      "round": 1,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 4.905311500361103e-07,
+        "stl_gradient_not_finite": 0
+      },
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "planar-periodic",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ac20ece495f1f09f53d7fd97f877cf9dedcbcf74a2b5212f8ba9c78f188e46d4",
+      "forward_seconds": 0.05847795773297548,
+      "forward_runs": [
+        0.05782241700217128,
+        0.05914916703477502,
+        0.0648021250963211,
+        0.05847795773297548,
+        0.05819466570392251
+      ],
+      "forward_first_seconds": 0.05455191619694233,
+      "first_apply_seconds": 0.9377911668270826,
+      "gradient_seconds": 0.15212062513455749,
+      "gradient_runs": [
+        0.15347254229709506,
+        0.1523346658796072,
+        0.15212062513455749,
+        0.15015783300623298,
+        0.1502148751169443
+      ],
+      "gradient_first_seconds": 4.064396500121802,
+      "peak_rss_bytes": 1444921344,
+      "baseline_rss_bytes": 146735104,
+      "coefficients": 11706,
+      "loss": 0.004146910738199949,
+      "side": "a",
+      "round": 2,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 4.905311500361103e-07,
+        "stl_gradient_not_finite": 0
+      }
+    },
+    {
+      "case": "planar-periodic",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ac20ece495f1f09f53d7fd97f877cf9dedcbcf74a2b5212f8ba9c78f188e46d4",
+      "forward_seconds": 0.05853308271616697,
+      "forward_runs": [
+        0.05654070759192109,
+        0.05899450043216348,
+        0.05890554189682007,
+        0.05853308271616697,
+        0.05802295869216323
+      ],
+      "forward_first_seconds": 0.055529499892145395,
+      "first_apply_seconds": 0.9659776659682393,
+      "gradient_seconds": 0.1501262909732759,
+      "gradient_runs": [
+        0.1515558329410851,
+        0.1501262909732759,
+        0.1531037501990795,
+        0.14973366633057594,
+        0.14970012474805117
+      ],
+      "gradient_first_seconds": 3.9665859579108655,
+      "peak_rss_bytes": 1426636800,
+      "baseline_rss_bytes": 147177472,
+      "coefficients": 11706,
+      "loss": 0.004146910738199949,
+      "side": "b",
+      "round": 2,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 4.905311500361103e-07,
+        "stl_gradient_not_finite": 0
+      },
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "planar-periodic",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ac20ece495f1f09f53d7fd97f877cf9dedcbcf74a2b5212f8ba9c78f188e46d4",
+      "forward_seconds": 0.0626212079077959,
+      "forward_runs": [
+        0.0626212079077959,
+        0.06340195797383785,
+        0.06421591620892286,
+        0.061816958244889975,
+        0.06200004229322076
+      ],
+      "forward_first_seconds": 0.05982466693967581,
+      "first_apply_seconds": 1.0091362921521068,
+      "gradient_seconds": 0.1539768329821527,
+      "gradient_runs": [
+        0.1535781673155725,
+        0.151636749971658,
+        0.15568387508392334,
+        0.15923208370804787,
+        0.1539768329821527
+      ],
+      "gradient_first_seconds": 4.100603499915451,
+      "peak_rss_bytes": 1428684800,
+      "baseline_rss_bytes": 146882560,
+      "coefficients": 11706,
+      "loss": 0.004146910738199949,
+      "side": "a",
+      "round": 3,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 4.905311500361103e-07,
+        "stl_gradient_not_finite": 0
+      }
+    },
+    {
+      "case": "planar-periodic",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ac20ece495f1f09f53d7fd97f877cf9dedcbcf74a2b5212f8ba9c78f188e46d4",
+      "forward_seconds": 0.06249741604551673,
+      "forward_runs": [
+        0.060223916079849005,
+        0.062245375011116266,
+        0.06249741604551673,
+        0.06608829228207469,
+        0.06697066593915224
+      ],
+      "forward_first_seconds": 0.06036400003358722,
+      "first_apply_seconds": 1.0026158331893384,
+      "gradient_seconds": 0.1546494998037815,
+      "gradient_runs": [
+        0.16534091625362635,
+        0.1546494998037815,
+        0.1523612500168383,
+        0.15910954121500254,
+        0.15196595899760723
+      ],
+      "gradient_first_seconds": 4.176546166650951,
+      "peak_rss_bytes": 1400668160,
+      "baseline_rss_bytes": 146948096,
+      "coefficients": 11706,
+      "loss": 0.004146910738199949,
+      "side": "b",
+      "round": 3,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 4.905311500361103e-07,
+        "stl_gradient_not_finite": 0
+      },
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "planar-periodic",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ac20ece495f1f09f53d7fd97f877cf9dedcbcf74a2b5212f8ba9c78f188e46d4",
+      "forward_seconds": 0.06051104096695781,
+      "forward_runs": [
+        0.05955200036987662,
+        0.06037320801988244,
+        0.06128020817413926,
+        0.060819790698587894,
+        0.06051104096695781
+      ],
+      "forward_first_seconds": 0.059514499735087156,
+      "first_apply_seconds": 0.962852458935231,
+      "gradient_seconds": 0.16819683322682977,
+      "gradient_runs": [
+        0.16819683322682977,
+        0.16552516724914312,
+        0.1725754588842392,
+        0.16118370881304145,
+        0.1694067087955773
+      ],
+      "gradient_first_seconds": 4.080390457995236,
+      "peak_rss_bytes": 1482850304,
+      "baseline_rss_bytes": 146849792,
+      "coefficients": 11706,
+      "loss": 0.004146910738199949,
+      "side": "a",
+      "round": 4,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 4.905311500361103e-07,
+        "stl_gradient_not_finite": 0
+      }
+    },
+    {
+      "case": "planar-periodic",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ac20ece495f1f09f53d7fd97f877cf9dedcbcf74a2b5212f8ba9c78f188e46d4",
+      "forward_seconds": 0.05877349991351366,
+      "forward_runs": [
+        0.05835129180923104,
+        0.058520167134702206,
+        0.05877349991351366,
+        0.05943570798262954,
+        0.06042395904660225
+      ],
+      "forward_first_seconds": 0.05589949991554022,
+      "first_apply_seconds": 0.9799622092396021,
+      "gradient_seconds": 0.16850725002586842,
+      "gradient_runs": [
+        0.1682942919433117,
+        0.15928995795547962,
+        0.16850725002586842,
+        0.22082325024530292,
+        0.18004112504422665
+      ],
+      "gradient_first_seconds": 4.12037937482819,
+      "peak_rss_bytes": 1436450816,
+      "baseline_rss_bytes": 146931712,
+      "coefficients": 11706,
+      "loss": 0.004146910738199949,
+      "side": "b",
+      "round": 4,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 4.905311500361103e-07,
+        "stl_gradient_not_finite": 0
+      },
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "planar-periodic",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ac20ece495f1f09f53d7fd97f877cf9dedcbcf74a2b5212f8ba9c78f188e46d4",
+      "forward_seconds": 0.05997870769351721,
+      "forward_runs": [
+        0.05860641738399863,
+        0.059695583302527666,
+        0.05997870769351721,
+        0.0604592920280993,
+        0.060456250328570604
+      ],
+      "forward_first_seconds": 0.05679758312180638,
+      "first_apply_seconds": 0.9497321671806276,
+      "gradient_seconds": 0.1664102915674448,
+      "gradient_runs": [
+        0.14986037462949753,
+        0.15972920786589384,
+        0.1843702499754727,
+        0.20177333429455757,
+        0.1664102915674448
+      ],
+      "gradient_first_seconds": 3.9902262091636658,
+      "peak_rss_bytes": 1434648576,
+      "baseline_rss_bytes": 146653184,
+      "coefficients": 11706,
+      "loss": 0.004146910738199949,
+      "side": "a",
+      "round": 5,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 4.905311500361103e-07,
+        "stl_gradient_not_finite": 0
+      }
+    },
+    {
+      "case": "planar-periodic",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ac20ece495f1f09f53d7fd97f877cf9dedcbcf74a2b5212f8ba9c78f188e46d4",
+      "forward_seconds": 0.05984412506222725,
+      "forward_runs": [
+        0.05895258393138647,
+        0.05979487486183643,
+        0.05986825004220009,
+        0.05984412506222725,
+        0.0649574170820415
+      ],
+      "forward_first_seconds": 0.06190758338198066,
+      "first_apply_seconds": 0.9570441250689328,
+      "gradient_seconds": 0.15134741691872478,
+      "gradient_runs": [
+        0.15134741691872478,
+        0.15094475029036403,
+        0.15671316720545292,
+        0.15338337514549494,
+        0.15130645921453834
+      ],
+      "gradient_first_seconds": 3.998120917007327,
+      "peak_rss_bytes": 1467793408,
+      "baseline_rss_bytes": 146784256,
+      "coefficients": 11706,
+      "loss": 0.004146910738199949,
+      "side": "b",
+      "round": 5,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 4.905311500361103e-07,
+        "stl_gradient_not_finite": 0
+      },
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "planar-masked",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "3b505a3047e9b8dc5f779a3d1cb7e465840a255ef7c306209f049afde1b60647",
+      "forward_seconds": 0.06082637468352914,
+      "forward_runs": [
+        0.05928045930340886,
+        0.06082637468352914,
+        0.060420708265155554,
+        0.06366633297875524,
+        0.06119008315727115
+      ],
+      "forward_first_seconds": 0.05631595943123102,
+      "first_apply_seconds": 0.7889909157529473,
+      "gradient_seconds": 0.15606395760551095,
+      "gradient_runs": [
+        0.15488133393228054,
+        0.15546170808374882,
+        0.15773658314719796,
+        0.15882279118523002,
+        0.15606395760551095
+      ],
+      "gradient_first_seconds": 3.1409787498414516,
+      "peak_rss_bytes": 1364787200,
+      "baseline_rss_bytes": 148422656,
+      "coefficients": 7090,
+      "loss": 0.006406763568520546,
+      "side": "a",
+      "round": 1,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": null,
+        "stl_gradient_not_finite": 235584
+      }
+    },
+    {
+      "case": "planar-masked",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "3b505a3047e9b8dc5f779a3d1cb7e465840a255ef7c306209f049afde1b60647",
+      "forward_seconds": 0.06182599999010563,
+      "forward_runs": [
+        0.05960616609081626,
+        0.05985175026580691,
+        0.06467958400025964,
+        0.06182599999010563,
+        0.061984915751963854
+      ],
+      "forward_first_seconds": 0.05725770862773061,
+      "first_apply_seconds": 0.808107125107199,
+      "gradient_seconds": 0.156398416031152,
+      "gradient_runs": [
+        0.156398416031152,
+        0.1560637503862381,
+        0.1545894588343799,
+        0.15835650032386184,
+        0.158997000195086
+      ],
+      "gradient_first_seconds": 3.1461265003308654,
+      "peak_rss_bytes": 1341341696,
+      "baseline_rss_bytes": 148553728,
+      "coefficients": 7090,
+      "loss": 0.006406763568520546,
+      "side": "b",
+      "round": 1,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": null,
+        "stl_gradient_not_finite": 235584
+      },
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "planar-masked",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "3b505a3047e9b8dc5f779a3d1cb7e465840a255ef7c306209f049afde1b60647",
+      "forward_seconds": 0.06050641695037484,
+      "forward_runs": [
+        0.05947691621258855,
+        0.06093070795759559,
+        0.060415583197027445,
+        0.06050641695037484,
+        0.061556125059723854
+      ],
+      "forward_first_seconds": 0.05624162498861551,
+      "first_apply_seconds": 0.7857059999369085,
+      "gradient_seconds": 0.15570708410814404,
+      "gradient_runs": [
+        0.15570708410814404,
+        0.15820787474513054,
+        0.15412908280268312,
+        0.15448983386158943,
+        0.15887612523511052
+      ],
+      "gradient_first_seconds": 3.1545243747532368,
+      "peak_rss_bytes": 1355988992,
+      "baseline_rss_bytes": 148832256,
+      "coefficients": 7090,
+      "loss": 0.006406763568520546,
+      "side": "a",
+      "round": 2,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": null,
+        "stl_gradient_not_finite": 235584
+      }
+    },
+    {
+      "case": "planar-masked",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "3b505a3047e9b8dc5f779a3d1cb7e465840a255ef7c306209f049afde1b60647",
+      "forward_seconds": 0.06539920764043927,
+      "forward_runs": [
+        0.06445345794782043,
+        0.06539920764043927,
+        0.06741233309730887,
+        0.0671080001629889,
+        0.061857208143919706
+      ],
+      "forward_first_seconds": 0.06033700006082654,
+      "first_apply_seconds": 0.8236289168708026,
+      "gradient_seconds": 0.19458912499248981,
+      "gradient_runs": [
+        0.16101820766925812,
+        0.1666702087968588,
+        0.19458912499248981,
+        0.2089950842782855,
+        0.21711187483742833
+      ],
+      "gradient_first_seconds": 3.41790841659531,
+      "peak_rss_bytes": 1388609536,
+      "baseline_rss_bytes": 148783104,
+      "coefficients": 7090,
+      "loss": 0.006406763568520546,
+      "side": "b",
+      "round": 2,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": null,
+        "stl_gradient_not_finite": 235584
+      },
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "planar-masked",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "3b505a3047e9b8dc5f779a3d1cb7e465840a255ef7c306209f049afde1b60647",
+      "forward_seconds": 0.06191725004464388,
+      "forward_runs": [
+        0.05885337479412556,
+        0.06191725004464388,
+        0.062158375047147274,
+        0.06223766691982746,
+        0.061778209172189236
+      ],
+      "forward_first_seconds": 0.05563837522640824,
+      "first_apply_seconds": 0.8150585000403225,
+      "gradient_seconds": 0.15573887526988983,
+      "gradient_runs": [
+        0.15529550006613135,
+        0.15573887526988983,
+        0.15500633278861642,
+        0.1558806672692299,
+        0.15948924981057644
+      ],
+      "gradient_first_seconds": 3.1753547079861164,
+      "peak_rss_bytes": 1349582848,
+      "baseline_rss_bytes": 148750336,
+      "coefficients": 7090,
+      "loss": 0.006406763568520546,
+      "side": "a",
+      "round": 3,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": null,
+        "stl_gradient_not_finite": 235584
+      }
+    },
+    {
+      "case": "planar-masked",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "3b505a3047e9b8dc5f779a3d1cb7e465840a255ef7c306209f049afde1b60647",
+      "forward_seconds": 0.06095412513241172,
+      "forward_runs": [
+        0.059375209268182516,
+        0.06145766703411937,
+        0.06095412513241172,
+        0.060996000189334154,
+        0.0605938327498734
+      ],
+      "forward_first_seconds": 0.05661987513303757,
+      "first_apply_seconds": 0.7922520409338176,
+      "gradient_seconds": 0.15739933401346207,
+      "gradient_runs": [
+        0.1539274170063436,
+        0.15609979210421443,
+        0.16133762523531914,
+        0.15739933401346207,
+        0.15904029086232185
+      ],
+      "gradient_first_seconds": 3.158118042163551,
+      "peak_rss_bytes": 1381515264,
+      "baseline_rss_bytes": 148324352,
+      "coefficients": 7090,
+      "loss": 0.006406763568520546,
+      "side": "b",
+      "round": 3,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": null,
+        "stl_gradient_not_finite": 235584
+      },
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "planar-masked",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "3b505a3047e9b8dc5f779a3d1cb7e465840a255ef7c306209f049afde1b60647",
+      "forward_seconds": 0.0606197495944798,
+      "forward_runs": [
+        0.05889358324930072,
+        0.05962158273905516,
+        0.060737334191799164,
+        0.0606197495944798,
+        0.060808582697063684
+      ],
+      "forward_first_seconds": 0.05636629182845354,
+      "first_apply_seconds": 0.8101957910694182,
+      "gradient_seconds": 0.15650354092940688,
+      "gradient_runs": [
+        0.15225616609677672,
+        0.15639416687190533,
+        0.15650354092940688,
+        0.15692370804026723,
+        0.15659758308902383
+      ],
+      "gradient_first_seconds": 3.1302142501808703,
+      "peak_rss_bytes": 1332707328,
+      "baseline_rss_bytes": 148422656,
+      "coefficients": 7090,
+      "loss": 0.006406763568520546,
+      "side": "a",
+      "round": 4,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": null,
+        "stl_gradient_not_finite": 235584
+      }
+    },
+    {
+      "case": "planar-masked",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "3b505a3047e9b8dc5f779a3d1cb7e465840a255ef7c306209f049afde1b60647",
+      "forward_seconds": 0.060815457720309496,
+      "forward_runs": [
+        0.05932904174551368,
+        0.060187000315636396,
+        0.060815457720309496,
+        0.061788707971572876,
+        0.061922875232994556
+      ],
+      "forward_first_seconds": 0.05680637480691075,
+      "first_apply_seconds": 0.7884860830381513,
+      "gradient_seconds": 0.1580012501217425,
+      "gradient_runs": [
+        0.15260595921427011,
+        0.1568988747894764,
+        0.1580012501217425,
+        0.15842266706749797,
+        0.15994008257985115
+      ],
+      "gradient_first_seconds": 3.117217875085771,
+      "peak_rss_bytes": 1350221824,
+      "baseline_rss_bytes": 148553728,
+      "coefficients": 7090,
+      "loss": 0.006406763568520546,
+      "side": "b",
+      "round": 4,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": null,
+        "stl_gradient_not_finite": 235584
+      },
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "planar-masked",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "3b505a3047e9b8dc5f779a3d1cb7e465840a255ef7c306209f049afde1b60647",
+      "forward_seconds": 0.060180624946951866,
+      "forward_runs": [
+        0.05960404174402356,
+        0.05988945811986923,
+        0.060180624946951866,
+        0.0604671249166131,
+        0.06078966706991196
+      ],
+      "forward_first_seconds": 0.055839916691184044,
+      "first_apply_seconds": 0.7996542919427156,
+      "gradient_seconds": 0.15761970914900303,
+      "gradient_runs": [
+        0.15564566710963845,
+        0.15594958374276757,
+        0.15817454224452376,
+        0.15761970914900303,
+        0.15903766732662916
+      ],
+      "gradient_first_seconds": 3.158391000237316,
+      "peak_rss_bytes": 1367736320,
+      "baseline_rss_bytes": 148471808,
+      "coefficients": 7090,
+      "loss": 0.006406763568520546,
+      "side": "a",
+      "round": 5,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": null,
+        "stl_gradient_not_finite": 235584
+      }
+    },
+    {
+      "case": "planar-masked",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "3b505a3047e9b8dc5f779a3d1cb7e465840a255ef7c306209f049afde1b60647",
+      "forward_seconds": 0.06094858329743147,
+      "forward_runs": [
+        0.05978999985381961,
+        0.05995616735890508,
+        0.06094858329743147,
+        0.06135154189541936,
+        0.061232333071529865
+      ],
+      "forward_first_seconds": 0.05693191708996892,
+      "first_apply_seconds": 0.7871132497675717,
+      "gradient_seconds": 0.15589804202318192,
+      "gradient_runs": [
+        0.15548770874738693,
+        0.15635554073378444,
+        0.15589804202318192,
+        0.15570554183796048,
+        0.15613962477073073
+      ],
+      "gradient_first_seconds": 3.1493237502872944,
+      "peak_rss_bytes": 1342324736,
+      "baseline_rss_bytes": 148652032,
+      "coefficients": 7090,
+      "loss": 0.006406763568520546,
+      "side": "b",
+      "round": 5,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": null,
+        "stl_gradient_not_finite": 235584
+      },
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "planar-cross",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ea2d5516b628e2188f75f93deb251f51f39f8bb2d7752b8429c6de8b35925f3f",
+      "forward_seconds": 0.03142870822921395,
+      "forward_runs": [
+        0.029688582755625248,
+        0.030667833052575588,
+        0.03142870822921395,
+        0.03154287487268448,
+        0.031981832813471556
+      ],
+      "forward_first_seconds": 0.02809462510049343,
+      "first_apply_seconds": 1.7173289167694747,
+      "gradient_seconds": 0.09707116708159447,
+      "gradient_runs": [
+        0.09707116708159447,
+        0.09176029171794653,
+        0.08847929118201137,
+        0.10294387489557266,
+        0.10506854206323624
+      ],
+      "gradient_first_seconds": 6.02606241684407,
+      "peak_rss_bytes": 1389117440,
+      "baseline_rss_bytes": 146948096,
+      "coefficients": 31508,
+      "loss": 0.009792344644665718,
+      "side": "a",
+      "round": 1,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 2.51818776529932e-05,
+        "stl_gradient_not_finite": 0
+      }
+    },
+    {
+      "case": "planar-cross",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ea2d5516b628e2188f75f93deb251f51f39f8bb2d7752b8429c6de8b35925f3f",
+      "forward_seconds": 0.03370695794001222,
+      "forward_runs": [
+        0.034890125039964914,
+        0.03370695794001222,
+        0.03478133259341121,
+        0.03363558277487755,
+        0.03234729217365384
+      ],
+      "forward_first_seconds": 0.032544041983783245,
+      "first_apply_seconds": 1.69745370792225,
+      "gradient_seconds": 0.0873500406742096,
+      "gradient_runs": [
+        0.08533920766785741,
+        0.08879983285441995,
+        0.0873500406742096,
+        0.08867183327674866,
+        0.0870362501591444
+      ],
+      "gradient_first_seconds": 6.359383542090654,
+      "peak_rss_bytes": 1325842432,
+      "baseline_rss_bytes": 146587648,
+      "coefficients": 31508,
+      "loss": 0.009792344644665718,
+      "side": "b",
+      "round": 1,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 2.51818776529932e-05,
+        "stl_gradient_not_finite": 0
+      },
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "planar-cross",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ea2d5516b628e2188f75f93deb251f51f39f8bb2d7752b8429c6de8b35925f3f",
+      "forward_seconds": 0.03178287483751774,
+      "forward_runs": [
+        0.030568332877010107,
+        0.03199129085987806,
+        0.03178287483751774,
+        0.03176733432337642,
+        0.03195745777338743
+      ],
+      "forward_first_seconds": 0.028793292120099068,
+      "first_apply_seconds": 1.5303058340214193,
+      "gradient_seconds": 0.08697849977761507,
+      "gradient_runs": [
+        0.08625712525099516,
+        0.0858095409348607,
+        0.08697849977761507,
+        0.08768450003117323,
+        0.090980791952461
+      ],
+      "gradient_first_seconds": 6.1675928751938045,
+      "peak_rss_bytes": 1404567552,
+      "baseline_rss_bytes": 146898944,
+      "coefficients": 31508,
+      "loss": 0.009792344644665718,
+      "side": "a",
+      "round": 2,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 2.51818776529932e-05,
+        "stl_gradient_not_finite": 0
+      }
+    },
+    {
+      "case": "planar-cross",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ea2d5516b628e2188f75f93deb251f51f39f8bb2d7752b8429c6de8b35925f3f",
+      "forward_seconds": 0.03212129231542349,
+      "forward_runs": [
+        0.031882999930530787,
+        0.03156366618350148,
+        0.03212129231542349,
+        0.03378379112109542,
+        0.03226925013586879
+      ],
+      "forward_first_seconds": 0.030958125367760658,
+      "first_apply_seconds": 1.6524358331225812,
+      "gradient_seconds": 0.08783312467858195,
+      "gradient_runs": [
+        0.08712483383715153,
+        0.08572679059579968,
+        0.08783312467858195,
+        0.08924641599878669,
+        0.08899775007739663
+      ],
+      "gradient_first_seconds": 6.068796791136265,
+      "peak_rss_bytes": 1365884928,
+      "baseline_rss_bytes": 146440192,
+      "coefficients": 31508,
+      "loss": 0.009792344644665718,
+      "side": "b",
+      "round": 2,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 2.51818776529932e-05,
+        "stl_gradient_not_finite": 0
+      },
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "planar-cross",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ea2d5516b628e2188f75f93deb251f51f39f8bb2d7752b8429c6de8b35925f3f",
+      "forward_seconds": 0.031566707883030176,
+      "forward_runs": [
+        0.03042220789939165,
+        0.03096541715785861,
+        0.031566707883030176,
+        0.03188641695305705,
+        0.032390874810516834
+      ],
+      "forward_first_seconds": 0.028808750212192535,
+      "first_apply_seconds": 1.6272520422935486,
+      "gradient_seconds": 0.0904134581796825,
+      "gradient_runs": [
+        0.08784337528049946,
+        0.08893558289855719,
+        0.09150237496942282,
+        0.09211637498810887,
+        0.0904134581796825
+      ],
+      "gradient_first_seconds": 6.174968833103776,
+      "peak_rss_bytes": 1340358656,
+      "baseline_rss_bytes": 146882560,
+      "coefficients": 31508,
+      "loss": 0.009792344644665718,
+      "side": "a",
+      "round": 3,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 2.51818776529932e-05,
+        "stl_gradient_not_finite": 0
+      }
+    },
+    {
+      "case": "planar-cross",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ea2d5516b628e2188f75f93deb251f51f39f8bb2d7752b8429c6de8b35925f3f",
+      "forward_seconds": 0.03241566615179181,
+      "forward_runs": [
+        0.03200545907020569,
+        0.03189491666853428,
+        0.03241566615179181,
+        0.03265883307904005,
+        0.033237332943826914
+      ],
+      "forward_first_seconds": 0.03081500018015504,
+      "first_apply_seconds": 1.9741639168933034,
+      "gradient_seconds": 0.09507875004783273,
+      "gradient_runs": [
+        0.09110920829698443,
+        0.09104370884597301,
+        0.09507875004783273,
+        0.09551179176196456,
+        0.09560312516987324
+      ],
+      "gradient_first_seconds": 6.233219624962658,
+      "peak_rss_bytes": 1321222144,
+      "baseline_rss_bytes": 146964480,
+      "coefficients": 31508,
+      "loss": 0.009792344644665718,
+      "side": "b",
+      "round": 3,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 2.51818776529932e-05,
+        "stl_gradient_not_finite": 0
+      },
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "planar-cross",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ea2d5516b628e2188f75f93deb251f51f39f8bb2d7752b8429c6de8b35925f3f",
+      "forward_seconds": 0.05121616693213582,
+      "forward_runs": [
+        0.043655792251229286,
+        0.05121616693213582,
+        0.051286499947309494,
+        0.05117866676300764,
+        0.05224654171615839
+      ],
+      "forward_first_seconds": 0.03738862508907914,
+      "first_apply_seconds": 2.543467041105032,
+      "gradient_seconds": 0.2021553749218583,
+      "gradient_runs": [
+        0.16114845778793097,
+        0.18936912482604384,
+        0.20526162488386035,
+        0.2021553749218583,
+        0.21901745907962322
+      ],
+      "gradient_first_seconds": 10.007961875293404,
+      "peak_rss_bytes": 1309671424,
+      "baseline_rss_bytes": 146718720,
+      "coefficients": 31508,
+      "loss": 0.009792344644665718,
+      "side": "a",
+      "round": 4,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 2.51818776529932e-05,
+        "stl_gradient_not_finite": 0
+      }
+    },
+    {
+      "case": "planar-cross",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ea2d5516b628e2188f75f93deb251f51f39f8bb2d7752b8429c6de8b35925f3f",
+      "forward_seconds": 0.03297779243439436,
+      "forward_runs": [
+        0.031279709190130234,
+        0.03297779243439436,
+        0.03282845811918378,
+        0.0338793327100575,
+        0.03473145794123411
+      ],
+      "forward_first_seconds": 0.029932250268757343,
+      "first_apply_seconds": 1.8390906658023596,
+      "gradient_seconds": 0.14628520794212818,
+      "gradient_runs": [
+        0.13717129221186042,
+        0.1375453332439065,
+        0.14628520794212818,
+        0.1645430000498891,
+        0.15623745787888765
+      ],
+      "gradient_first_seconds": 8.010149874724448,
+      "peak_rss_bytes": 1340522496,
+      "baseline_rss_bytes": 146866176,
+      "coefficients": 31508,
+      "loss": 0.009792344644665718,
+      "side": "b",
+      "round": 4,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 2.51818776529932e-05,
+        "stl_gradient_not_finite": 0
+      },
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "planar-cross",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ea2d5516b628e2188f75f93deb251f51f39f8bb2d7752b8429c6de8b35925f3f",
+      "forward_seconds": 0.057504292111843824,
+      "forward_runs": [
+        0.05510233296081424,
+        0.05618999991565943,
+        0.057504292111843824,
+        0.07383083272725344,
+        0.07352091604843736
+      ],
+      "forward_first_seconds": 0.04230437474325299,
+      "first_apply_seconds": 3.693225458264351,
+      "gradient_seconds": 0.15564241586253047,
+      "gradient_runs": [
+        0.1533672083169222,
+        0.15505408309400082,
+        0.15564241586253047,
+        0.1604683338664472,
+        0.16175974998623133
+      ],
+      "gradient_first_seconds": 10.128095707856119,
+      "peak_rss_bytes": 1315291136,
+      "baseline_rss_bytes": 147636224,
+      "coefficients": 31508,
+      "loss": 0.009792344644665718,
+      "side": "a",
+      "round": 5,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 2.51818776529932e-05,
+        "stl_gradient_not_finite": 0
+      }
+    },
+    {
+      "case": "planar-cross",
+      "environment": "native",
+      "library": "estel",
+      "backend": "jax",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "ea2d5516b628e2188f75f93deb251f51f39f8bb2d7752b8429c6de8b35925f3f",
+      "forward_seconds": 0.05289245909079909,
+      "forward_runs": [
+        0.050610083155333996,
+        0.051448500249534845,
+        0.05289245909079909,
+        0.05378962540999055,
+        0.05440887529402971
+      ],
+      "forward_first_seconds": 0.04357637511566281,
+      "first_apply_seconds": 2.395246165804565,
+      "gradient_seconds": 0.138393959030509,
+      "gradient_runs": [
+        0.13426295900717378,
+        0.138393959030509,
+        0.14577675005421042,
+        0.13691508304327726,
+        0.14578916691243649
+      ],
+      "gradient_first_seconds": 8.451231916900724,
+      "peak_rss_bytes": 1340080128,
+      "baseline_rss_bytes": 146980864,
+      "coefficients": 31508,
+      "loss": 0.009792344644665718,
+      "side": "b",
+      "round": 5,
+      "check": {
+        "statistics": "equal to STL's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "gradient_relative_error": 2.51818776529932e-05,
+        "stl_gradient_not_finite": 0
+      },
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    }
+  ]
+}

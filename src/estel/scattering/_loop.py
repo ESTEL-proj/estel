@@ -56,7 +56,7 @@ from ..backend._protocol import Backend
 from ..data._base import Data
 from ..data._moments import cov_sum_valid, divide, gram_sum, modulus, standardize, sum_valid
 from ..wavelets._operator import WaveletOperator
-from ._filters import STFilters
+from ._filters import STFilters, window
 from ._plan import STPlan
 
 S1_EPSILON = 1e-8
@@ -138,14 +138,15 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
     if filters.valid is not None:
         x = xp.where(filters.valid, x, xp.zeros_like(x))
     moments = plan.moments
+    weights = window(moments, filters.moments)
     mean_pre_std = std_pre_std = None
     if plan.standardize:
         x, mean_pre_std, std_pre_std = standardize(
-            x, filters.moments, moments.denominator, axes, global_sum=total
+            x, weights, moments.denominator, axes, global_sum=total
         )
     pending: list[_Sum] = [
-        _Sum("mean", sum_valid(x, filters.moments, axes), moments.denominator),
-        _Sum("var", cov_sum_valid(x, x, filters.moments, axes), moments.denominator),
+        _Sum("mean", sum_valid(x, weights, axes), moments.denominator),
+        _Sum("var", cov_sum_valid(x, x, weights, axes), moments.denominator),
     ]
     means: dict[str, list[Any]] = {"mean": [], "var": [], "S1": [], "S2": [], "S3": [], "S4": []}
 
@@ -156,10 +157,11 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
         moduli = {**moduli, j3: u}
 
         if j3 in plan.first_layer:
-            weights, denominator = filters.first_layer[j3], plan.first_layer[j3].denominator
+            weights = window(plan.first_layer[j3], filters.first_layer[j3])
+            denominator = plan.first_layer[j3].denominator
             # Auto terms, every channel at once; cross terms, pair by pair (M-S1, M-S2).
             auto_s1 = sum_valid(u, weights, axes)  # (Nb, L, Nc)
-            auto_s2 = sum_valid(u * u, weights, axes)
+            auto_s2 = cov_sum_valid(u, u, weights, axes)
             pending.extend(_Sum("S1", auto_s1[:, :, c], denominator) for c in pairs.auto)
             if pairs.cross:
                 rooted = divide(w, u, S1_EPSILON, 0.5)  # z / (|z| + eps)^(1/2), OP-16
@@ -231,6 +233,10 @@ def _second_layer(
     band = w  # (Nb, L3, Nc, *spatial)
     windows = filters.second_layer[j3]
     with_s3 = any((j2, j3) in plan.s3 for j2 in level.arms)
+    with_s4 = any(key[2] == j3 for key in plan.s4)
+    n_batch, n_arms = int(v.shape[0]), len(level.arms)
+    row = {j2: position for position, j2 in enumerate(level.arms)}
+    grid = (n_batch, L, n_arms, L, n_channels)
     if windows is not None:
         # Each map is zero outside its own window: a pair is then summed over the
         # intersection of its two windows, STL's window for that pair.
@@ -238,17 +244,16 @@ def _second_layer(
         v = v * of_arms[(slice(None), None, None, *([slice(None)] * plan.ndim))]
         if with_s3 and level.band_window is not None:
             band = band * windows[level.band_window]
-    n_batch, n_arms = int(v.shape[0]), len(level.arms)
     rows = xp.reshape(v, (n_batch, L, n_arms * L * n_channels, -1))
-    row = {j2: position for position, j2 in enumerate(level.arms)}
-    grid = (n_batch, L, n_arms, L, n_channels)
     cross = gram = None
     if with_s3:
-        cross = xp.reshape(
-            gram_sum(rows, xp.reshape(band, (n_batch, L, n_channels, -1))), (*grid, n_channels)
-        )  # [Nb, l3, j2, l2, c1, c2]
-    if any(key[2] == j3 for key in plan.s4):
-        gram = xp.reshape(gram_sum(rows), (*grid, *grid[2:]))  # [Nb, l3, j1, l1, c1, j2, l2, c2]
+        cross = gram_sum(rows, xp.reshape(band, (n_batch, L, n_channels, -1)))
+    if with_s4:
+        gram = gram_sum(rows)
+    if cross is not None:
+        cross = xp.reshape(cross, (*grid, n_channels))  # [Nb, l3, j2, l2, c1, c2]
+    if gram is not None:
+        gram = xp.reshape(gram, (*grid, *grid[2:]))  # [Nb, l3, j1, l1, c1, j2, l2, c2]
     sums: list[_Sum] = []
     for j2 in level.arms:
         if cross is not None and (j2, j3) in plan.s3:

@@ -33,6 +33,16 @@ What it holds, for STL's loop structure (maths.md §1.6 to 1.7; STL ``ST_Operato
   windows are reproduced exactly. Weights are stored once per distinct level, border and
   mask: the means that have the same three share one array.
 
+* **Windows have a kind** (``MeanWeights.kind``; maths_step2.md M-WIN; Part III, §19.12,
+  point 1; task T2.13): ``full``, every pixel of the level (periodic data without missing
+  values); ``slice``, a rectangle (non-periodic data without missing values); ``weights``, a
+  0/1 map (data with missing values). For the means of the field and of the first layer, the
+  loop multiplies by the weights only for the third: a full window is a plain sum, a slice a
+  sum over a slice. In the second layer a full window sets nothing to zero, and the other two
+  multiply each map by its 0/1 window: summing the nested rectangles of a level on slices,
+  one product per shell between two of them, was measured slower with the gradient than this
+  product (issue #91), and the common window of M-WIN would change values.
+
 Each mean of the loop is a (co)variance of operands described by their convolution history,
 the scales of the convolutions applied, which in ESTEL is plan data rather than data state
 (Part I, §2.3):

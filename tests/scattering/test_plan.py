@@ -259,6 +259,30 @@ def test_second_layer_has_no_window_on_periodic_data_without_missing_values() ->
         assert (level.windows, level.arm_windows, level.band_window) == ((), (), None)
 
 
+@pytest.mark.maths("M-MEAN", "M-BORDER")
+@pytest.mark.parametrize("ndim", sorted(GEOMETRIES))
+def test_windows_have_a_kind(ndim: int) -> None:
+    """maths_step2.md M-WIN: a window is full on periodic data without missing values, a
+    slice, the rectangle inside the border, on non-periodic data without missing values, and
+    weights where pixels are missing; the rectangle is the one its weights fill. A map keeps
+    no missing pixel at a coarse level where the downsampling validated them all (M-DOWN-MASK):
+    its window is a slice again."""
+    n = 64 if ndim == 2 else 128
+    assert {w.kind for w in _all_means(_plan(_data(ndim, n, pbc=True), 3, L=1))} == {"full"}
+    plan = _plan(_data(ndim, n, pbc=False), 3, L=1)
+    assert (plan.moments.kind, plan.first_layer[0].kind) == ("full", "slice")
+    assert plan.first_layer[0].box == ((2, n - 2),) * ndim
+    assert all(found.box is not None for found in _all_means(plan))
+    masked = _plan(_data(ndim, n, False, _sparse_mask(ndim, n)), 3, L=1)
+    assert (masked.moments.kind, masked.first_layer[0].kind) == ("weights", "weights")
+    assert masked.first_layer[0].box is None
+    for found in (*_all_means(plan), *_all_means(masked)):
+        if found.box is not None:
+            inside = np.zeros(found.weights.shape)
+            inside[tuple(slice(*bounds) for bounds in found.box)] = 1
+            np.testing.assert_array_equal(inside, found.weights)
+
+
 @pytest.mark.maths("M-MASK")
 def test_s3_uses_the_union_where_the_layer_2_mask_misses_layer_1() -> None:
     """maths.md M-MASK: a covariance uses the union of its operands' masks. STL takes the

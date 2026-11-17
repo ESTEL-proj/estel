@@ -62,6 +62,12 @@ History = tuple[int, ...]
 
 LowpassRealization = Literal["smoothing_cascade"]
 
+Box = tuple[tuple[int, int], ...]
+"""A rectangle of pixels of a level: its bounds ``(start, stop)`` on each spatial axis."""
+
+WindowKind = Literal["full", "slice", "weights"]
+"""The kinds of the window of a mean (maths_step2.md M-WIN)."""
+
 WAVELETS = ("bump_steerable",)
 """The wavelets of 1.0.0 (maths.md M-WAV-2D, M-WAV-1D)."""
 
@@ -148,6 +154,21 @@ class MeanWeights:
     denominator: float
     """The number of pixels that enter the mean, ``weights.sum()``, at least 1: a mean with
     no valid pixel has no ``MeanWeights`` (OP-3)."""
+    box: Box | None = None
+    """When the window is a rectangle, its bounds ``(start, stop)`` on each spatial axis:
+    ``weights`` is 1 inside and 0 outside, and the mean is a sum over a slice, or over the
+    whole grid, with no weights (maths_step2.md M-WIN). ``None`` when it is not: data with
+    missing values."""
+
+    @property
+    def kind(self) -> WindowKind:
+        """The kind of the window (maths_step2.md M-WIN; Part III, §19.12, point 1):
+        ``"full"``, every pixel of the level; ``"slice"``, a rectangle; ``"weights"``, a 0/1
+        map."""
+        if self.box is None:
+            return "weights"
+        whole = all(b == (0, n) for b, n in zip(self.box, self.weights.shape, strict=True))
+        return "full" if whole else "slice"
 
 
 # ---------------------------------------------------------------------- the static part
@@ -528,7 +549,13 @@ class WaveletOperator:
         if denominator == 0.0:
             return None
         weights.flags.writeable = False
-        return MeanWeights(level=level, border=border, weights=weights, denominator=denominator)
+        return MeanWeights(
+            level=level,
+            border=border,
+            weights=weights,
+            denominator=denominator,
+            box=window_box(weights),
+        )
 
     # ------------------------------------------------------------------ pure functions
 
@@ -612,6 +639,22 @@ class WaveletOperator:
 
 
 # ---------------------------------------------------------------------- helpers
+
+
+def window_box(weights: FloatMap) -> Box | None:
+    """The rectangle a 0/1 window is, as its bounds on each axis, or ``None`` when the window
+    is not a rectangle (or is empty): the smallest rectangle that holds its pixels, when it
+    holds nothing else."""
+    inside = weights != 0
+    if not inside.any():
+        return None
+    bounds = []
+    for axis in range(weights.ndim):
+        others = tuple(a for a in range(weights.ndim) if a != axis)
+        along = np.flatnonzero(inside.any(axis=others))
+        bounds.append((int(along[0]), int(along[-1]) + 1))
+    filled = math.prod(stop - start for start, stop in bounds) == int(inside.sum())
+    return tuple(bounds) if filled and bool((weights[inside] == 1).all()) else None
 
 
 def _is_index(value: object) -> bool:

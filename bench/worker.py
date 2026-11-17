@@ -32,18 +32,25 @@ from bench._cases import Inputs, read_inputs
 LIBRARIES = {"estel": "bench._estel", "stl": "bench._stl"}
 
 
-def timed(call: Callable[[], Any], warmup: int, repeats: int) -> tuple[list[float], Any]:
-    """The wall times of ``repeats`` calls, after ``warmup`` calls that are not timed, and the
-    result of the last call."""
+def timed(
+    call: Callable[[], Any], warmup: int, repeats: int
+) -> tuple[list[float], Any, float | None]:
+    """The wall times of ``repeats`` calls, after ``warmup`` calls that are not part of them,
+    the result of the last call, and the wall time of the very first call (None without
+    warm-up): on a backend that compiles, the first call holds the compilation."""
     result = None
-    for _ in range(warmup):
+    first = None
+    for index in range(warmup):
+        start = time.perf_counter()
         result = call()
+        if index == 0:
+            first = time.perf_counter() - start
     times = []
     for _ in range(repeats):
         start = time.perf_counter()
         result = call()
         times.append(time.perf_counter() - start)
-    return times, result
+    return times, result, first
 
 
 def peak_rss_bytes() -> int:
@@ -68,22 +75,30 @@ def measure(
 ) -> tuple[dict[str, Any], dict[str, NDArray[Any]]]:
     """Measure a case in the current process, with ``library`` (``"estel"`` or ``"stl"``): the
     forward pass, then the forward pass with the gradient of the loss, each as ``warmup`` runs
-    then ``repeats`` timed runs, and the peak resident memory after both. The baseline is the
+    then ``repeats`` timed runs, and the peak resident memory after both. The first call of each
+    is timed apart (``forward_first_seconds``, ``gradient_first_seconds``), and so is the very
+    first call of the operator, made on the second field when the run is built
+    (``first_apply_seconds``): on JAX these hold the compilation of the gradient and of the
+    forward pass. The baseline is the
     resident memory once the library and the inputs are loaded, just before the operator is
     built: the peak minus the baseline is the memory of the computation itself. Returns the
     measurements and the results of the last runs as NumPy arrays."""
     module = importlib.import_module(LIBRARIES[library])
     baseline = rss_bytes()
     run = module.Run(inputs)
-    forward, statistics_ = timed(run.forward, warmup, repeats)
-    gradient, loss_and_gradient = timed(run.gradient, warmup, repeats)
+    forward, statistics_, forward_first = timed(run.forward, warmup, repeats)
+    gradient, loss_and_gradient, gradient_first = timed(run.gradient, warmup, repeats)
     peak = peak_rss_bytes()
     arrays: dict[str, NDArray[Any]] = run.arrays(statistics_, loss_and_gradient)
     measurements = {
         "forward_seconds": statistics.median(forward),
         "forward_runs": forward,
+        "forward_first_seconds": forward_first,
+        # The very first call of the operator, on the second field, when the run is built.
+        "first_apply_seconds": getattr(run, "first_apply_seconds", None),
         "gradient_seconds": statistics.median(gradient),
         "gradient_runs": gradient,
+        "gradient_first_seconds": gradient_first,
         "peak_rss_bytes": peak,
         "baseline_rss_bytes": baseline,
         "coefficients": int(arrays["vector"].size),

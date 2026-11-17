@@ -9,6 +9,13 @@ measured too, just before. Every ESTEL run is checked against STL's statistics o
 inputs, with the parity tolerances of Part II, §14.3, and the native run against the statistics
 and the gradient of ``main``; the benchmark fails otherwise. Prints a table and writes
 ``bench/results/<date>-<machine>.json``. Outside CI: see ``bench/README.md``.
+
+    python -m bench --compare A B [--rounds 5] [--case NAME] [--backend torch|jax]
+
+compares two commits natively (task T2.13, issue #91, decision 1): in each round, A then B, or
+B then A in the odd rounds, each in a fresh process; per round, the ratios B / A of the times
+and of the memory; the median ratio and its range over the rounds. With A = B it gives the
+noise floor of the comparison on this machine.
 """
 
 from __future__ import annotations
@@ -19,6 +26,7 @@ import json
 import os
 import platform
 import re
+import statistics
 import subprocess
 import sys
 from dataclasses import asdict, replace
@@ -46,7 +54,14 @@ TIMEOUT_SECONDS = 45 * 60
 # (T6.1), this comparison is what validates the gradients of an optimisation.
 MAIN_GRADIENT_RTOL = 1e-4
 MAIN_REF = "origin/main"
-SCHEMA = 2  # 2: the runs of ``main`` (``tree``) and the check against them (``check_main``)
+SCHEMA = 3  # 2: the runs of ``main`` (``tree``) and the check against them (``check_main``);
+# 3: the time of the first call of each measure; the comparisons of two commits (``comparison``)
+COMPARE_ROUNDS = 5
+# What a comparison measures: the name of its ratio, and the value in a run.
+COMPARE_MEASURES = ("forward", "gradient", "memory", "peak")
+# A change is kept when a time ratio is below 1 in every round on at least one case and above
+# this in no round on any case (issue #91, decision 1).
+COMPARE_LOSS = 1.05
 
 
 class BenchError(RuntimeError):
@@ -200,15 +215,21 @@ def _run_process(command: list[str], what: str, env: dict[str, str] | None = Non
 
 
 def run_native(
-    case: Case, work: Path, backend: str, settings: Settings, main_source: Path | None = None
+    case: Case,
+    work: Path,
+    backend: str,
+    settings: Settings,
+    main_source: Path | None = None,
+    label: str | None = None,
 ) -> Path:
     """Measure ESTEL on this machine; returns the path of the results, without suffix.
 
-    With ``main_source``, the ``src`` directory of an export of ``main`` (:func:`export_main`),
+    With ``main_source``, the ``src`` directory of an export of a commit (:func:`export_main`),
     the process imports that ``estel`` instead of the working tree's: the same worker, the same
-    interpreter and libraries, the same inputs.
+    interpreter and libraries, the same inputs. ``label`` names the results (by default
+    ``estel``, or ``estel-main`` with ``main_source``).
     """
-    tree = "estel" if main_source is None else "estel-main"
+    tree = label or ("estel" if main_source is None else "estel-main")
     out = work / f"native-{tree}-{case.name}"
     arguments = _worker_arguments(
         "estel", str(work / f"{case.name}.npz"), str(out), backend, settings
@@ -217,9 +238,9 @@ def run_native(
     what = f"ESTEL on case {case.name!r} (native)"
     if main_source is not None:
         # PYTHONPATH comes before the environment's site-packages, where the working tree is
-        # installed: this process imports the estel of main.
+        # installed: this process imports the estel of that commit.
         env = {**os.environ, "PYTHONPATH": str(main_source)}
-        what = f"ESTEL of main on case {case.name!r} (native)"
+        what = f"ESTEL of {label or 'main'} on case {case.name!r} (native)"
     _run_process([sys.executable, *arguments], what, env)
     return out
 
@@ -401,6 +422,213 @@ def _reference(work: Path, case: Case, digest: str) -> dict[str, NDArray[Any]]:
     )
 
 
+# ---------------------------------------------------------------------- comparison of two commits
+
+
+def _measure_of(run: dict[str, Any], measure: str) -> float:
+    """The value of ``measure`` in a run: the median time of the forward pass or of the forward
+    pass with the gradient, the memory of the computation (the peak minus the baseline), or
+    the peak resident memory of the process."""
+    if measure == "memory":
+        return float(run["peak_rss_bytes"] - run["baseline_rss_bytes"])
+    if measure == "peak":
+        return float(run["peak_rss_bytes"])
+    return float(run[f"{measure}_seconds"])
+
+
+def comparison_ratios(rounds: list[tuple[dict[str, Any], dict[str, Any]]]) -> dict[str, Any]:
+    """The ratios B / A of a case over the rounds of a comparison: for each measure of
+    ``COMPARE_MEASURES``, the ratio of each round, their median and their range.
+
+    ``rounds`` holds, per round, the run of A and the run of B (the measurements of
+    ``bench/worker.py``). A ratio below 1 is a gain of B.
+    """
+    out: dict[str, Any] = {}
+    for measure in COMPARE_MEASURES:
+        ratios = [_measure_of(b, measure) / _measure_of(a, measure) for a, b in rounds]
+        out[measure] = {
+            "ratios": ratios,
+            "median": statistics.median(ratios),
+            "min": min(ratios),
+            "max": max(ratios),
+        }
+    return out
+
+
+def comparison_verdict(ratios: dict[str, dict[str, Any]]) -> dict[str, list[str]]:
+    """What the criterion of issue #91 (decision 1) reads in the ratios of every case: the
+    measures, ``case: measure``, whose ratio is below 1 in every round (a gain), and those whose
+    ratio is above ``COMPARE_LOSS`` in at least one round (a loss); for the time measures, and
+    for the memory of the computation."""
+    gains, losses = [], []
+    for case, of_case in ratios.items():
+        for measure in ("forward", "gradient", "memory"):
+            found = of_case[measure]
+            if found["max"] < 1:
+                gains.append(f"{case}: {measure}")
+            if measure != "memory" and found["max"] > COMPARE_LOSS:
+                losses.append(f"{case}: {measure}")
+    return {"below_1_in_every_round": gains, f"above_{COMPARE_LOSS}_in_a_round": losses}
+
+
+def format_comparison(ratios: dict[str, dict[str, Any]]) -> str:
+    """The table of a comparison: per case and measure, the median ratio B / A and its range
+    over the rounds."""
+    header = ("case", "forward", "forward + gradient", "memory (peak - baseline)", "peak memory")
+
+    def cell(found: dict[str, Any]) -> str:
+        return f"{found['median']:.3f} ({found['min']:.3f} to {found['max']:.3f})"
+
+    rows = [
+        (case, *(cell(of_case[measure]) for measure in COMPARE_MEASURES))
+        for case, of_case in ratios.items()
+    ]
+    widths = [max(len(row[i]) for row in (header, *rows)) for i in range(len(header))]
+    lines = [
+        "| " + " | ".join(c.ljust(w) for c, w in zip(row, widths, strict=True)) + " |"
+        for row in (header, *rows)
+    ]
+    rule = "|" + "|".join("-" * (width + 2) for width in widths) + "|"
+    return "\n".join([lines[0], rule, *lines[1:]])
+
+
+def _first_calls(rounds: list[tuple[dict[str, Any], dict[str, Any]]]) -> dict[str, Any]:
+    """The median, over the rounds, of the time of the very first call of the operator, and of
+    the first call and of the later calls of each time measure, for A and for B: on JAX the
+    first calls hold the compilation, of the forward pass and of the gradient."""
+    out: dict[str, Any] = {}
+    for side, runs in (("a", [a for a, _ in rounds]), ("b", [b for _, b in rounds])):
+        applies = [
+            float(run["first_apply_seconds"]) for run in runs if run.get("first_apply_seconds")
+        ]
+        out[f"{side}_first_apply_seconds"] = (
+            statistics.median(applies) if len(applies) == len(runs) else None
+        )
+        for measure in ("forward", "gradient"):
+            first = [run.get(f"{measure}_first_seconds") for run in runs]
+            known = [float(value) for value in first if value is not None]
+            out[f"{side}_{measure}_first_seconds"] = (
+                statistics.median(known) if len(known) == len(first) else None
+            )
+            out[f"{side}_{measure}_seconds"] = statistics.median(
+                run[f"{measure}_seconds"] for run in runs
+            )
+    return out
+
+
+def run_comparison(args: argparse.Namespace) -> Path:
+    """Compare the commits ``args.compare`` (A, B) natively, on the selected cases: R rounds,
+    each measuring A then B, or B then A in the odd rounds, every measure in a fresh process
+    (warm-up, then the timed runs, their median); per round the ratios B / A. Every run is
+    checked against STL's statistics, and B against the statistics and the gradient of A."""
+    settings, cases = load_cases(args.cases_file)
+    if args.threads is not None:
+        settings = replace(settings, threads=args.threads)
+    if args.repeats is not None:
+        settings = replace(settings, repeats=args.repeats)
+    unknown = sorted(set(args.case or ()) - set(cases))
+    if unknown:
+        raise BenchError(f"No case {unknown} in {args.cases_file}: choose among {sorted(cases)}.")
+    if args.rounds < 1:
+        raise BenchError(f"--rounds {args.rounds}: a comparison has at least one round.")
+    selected = [cases[name] for name in (args.case or cases)]
+    work = args.results / ".work"
+    work.mkdir(parents=True, exist_ok=True)
+    sides = {}
+    for side, ref in zip(("a", "b"), args.compare, strict=True):
+        source, commit = export_main(ref, work)
+        sides[side] = {"ref": ref, "commit": commit, "source": source}
+
+    described: dict[str, dict[str, Any]] = {}
+    ratios: dict[str, dict[str, Any]] = {}
+    first_calls: dict[str, dict[str, Any]] = {}
+    differences: list[dict[str, Any]] = []
+    runs: list[dict[str, Any]] = []
+    for case in selected:
+        digest = write_inputs(case, settings.dtype, work / f"{case.name}.npz")
+        expected = _reference(work, case, digest)
+        rounds: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        for index in range(args.rounds):
+            found: dict[str, dict[str, Any]] = {}
+            arrays: dict[str, dict[str, NDArray[Any]]] = {}
+            for side in ("a", "b") if index % 2 == 0 else ("b", "a"):
+                ref = sides[side]["ref"]
+                print(f"== {case.name}: round {index + 1}, {side.upper()} ({ref})", flush=True)
+                out = run_native(
+                    case, work, args.backend, settings, sides[side]["source"], f"compare-{side}"
+                )
+                run = {**_record(out, "native", described), "side": side, "round": index + 1}
+                arrays[side] = _load(out.with_suffix(".npz"))
+                run["check"] = check_against_stl(case.name, arrays[side], expected, settings.dtype)
+                found[side] = run
+            found["b"]["check_a"] = check_against_main(
+                case.name, arrays["b"], arrays["a"], settings.dtype
+            )
+            rounds.append((found["a"], found["b"]))
+            runs.extend(found[side] for side in ("a", "b"))
+        ratios[case.name] = comparison_ratios(rounds)
+        first_calls[case.name] = _first_calls(rounds)
+        differences.append({"case": case.name, "check_main": rounds[-1][1]["check_a"]})
+
+    date = datetime.date.today().isoformat()
+    verdict = comparison_verdict(ratios)
+    document = {
+        "schema": SCHEMA,
+        "date": date,
+        "machine": args.machine or machine_name(),
+        "comparison": {
+            "a": {key: str(sides["a"][key]) for key in ("ref", "commit")},
+            "b": {key: str(sides["b"][key]) for key in ("ref", "commit")},
+            "rounds": args.rounds,
+            "ratios": ratios,
+            "first_calls": first_calls,
+            "verdict": verdict,
+        },
+        "backend": args.backend,
+        "settings": asdict(settings),
+        "cases": {case.name: asdict(case) for case in selected},
+        "environments": described,
+        "runs": runs,
+    }
+    args.results.mkdir(parents=True, exist_ok=True)
+    path = results_path(args.results, date, f"{document['machine']}-compare")
+    path.write_text(json.dumps(document, indent=2) + "\n")
+    a, b = sides["a"], sides["b"]
+    print(
+        f"\nB = {b['ref']} ({b['commit'][:12]}) against A = {a['ref']} ({a['commit'][:12]}), "
+        f"{args.backend}, native: ratios B / A, the median of {args.rounds} rounds and its range "
+        "(below 1: B gains)."
+    )
+    print(format_comparison(ratios))
+    for name, measures in verdict.items():
+        print(f"{name}: {', '.join(measures) or 'none'}")
+    if args.backend == "jax":
+        print("\nFirst call and later calls (s), the median of the rounds:")
+        for case_name, calls in first_calls.items():
+            print(f"  {case_name}: " + ", ".join(
+                f"{key.removesuffix('_seconds')} {value:.3f}"
+                for key, value in calls.items() if value is not None
+            ))  # fmt: skip
+    print(
+        f"\nEvery run equals STL within the {settings.dtype} parity tolerances; B equals A "
+        f"within them, and its gradient within {MAIN_GRADIENT_RTOL:g}. Largest differences of "
+        "the last round, relative to the largest value of A:"
+    )
+    print(format_main_differences(differences))
+    _warn_power(described.get("native", {}).get("power") or _power())
+    print(f"Results written to {path.relative_to(REPO) if path.is_relative_to(REPO) else path}")
+    return path
+
+
+def _warn_power(power: dict[str, Any] | None) -> None:
+    if power and (power["low_power_mode"] or power["source"] != "AC Power"):
+        print(
+            f"WARNING: measured on {power['source']}, Low Power Mode "
+            f"{'on' if power['low_power_mode'] else 'off'}: the times are slower than on AC "
+            "power and do not compare with other results. Do not commit them as a reference."
+        )
+
+
 def run_benchmark(args: argparse.Namespace) -> Path:
     settings, cases = load_cases(args.cases_file)
     if args.threads is not None:
@@ -495,13 +723,7 @@ def run_benchmark(args: argparse.Namespace) -> Path:
             "Largest differences, relative to the largest value of main:"
         )
         print(format_main_differences(compared))
-    power = described.get("native", {}).get("power") or _power()
-    if power and (power["low_power_mode"] or power["source"] != "AC Power"):
-        print(
-            f"WARNING: measured on {power['source']}, Low Power Mode "
-            f"{'on' if power['low_power_mode'] else 'off'}: the times are slower than on AC "
-            "power and do not compare with other results. Do not commit them as a reference."
-        )
+    _warn_power(described.get("native", {}).get("power") or _power())
     print(f"Results written to {path.relative_to(REPO) if path.is_relative_to(REPO) else path}")
     return path
 
@@ -523,13 +745,24 @@ def main(argv: list[str] | None = None) -> int:
         help="the commit the native run is compared with, measured just before it "
         f"(default: {MAIN_REF}); an empty string skips it",
     )  # fmt: skip
+    parser.add_argument(
+        "--compare", nargs=2, metavar=("A", "B"),
+        help="compare two commits natively instead: per round, the ratios B / A of the times "
+        "and of the memory (A = B gives the noise floor)",
+    )  # fmt: skip
+    parser.add_argument("--rounds", type=int, default=COMPARE_ROUNDS,
+                        help=f"rounds of --compare (default: {COMPARE_ROUNDS})")  # fmt: skip
     parser.add_argument("--cases-file", type=Path, default=CASES_FILE)
     parser.add_argument("--results", type=Path, default=RESULTS)
     parser.add_argument("--container", default="docker", help="container runtime")
     parser.add_argument("--parity-image", default="estel-stl-parity")
     parser.add_argument("--image", default="estel-bench")
+    args = parser.parse_args(argv)
     try:
-        run_benchmark(parser.parse_args(argv))
+        if args.compare:
+            run_comparison(args)
+        else:
+            run_benchmark(args)
     except BenchError as error:
         print(f"make bench: {error}", file=sys.stderr)
         return 1

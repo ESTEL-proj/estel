@@ -6,16 +6,26 @@ statistics: the scattering loop (``estel.scattering._loop``), then the normalisa
 (maths.md M-NORM; ``estel.statistics._normalization``). It holds no state and modifies
 nothing: with ``norm="self"`` the reference is computed from the statistics and returned
 with them, and the operator, not this function, keeps it.
+
+**Compiled where the backend compiles** (Part I, §2.2.2; task T2.13). The loop is called
+through ``Backend.jit`` with the plan as its static argument: on JAX the whole loop is one
+compiled program per plan and per shape and dtype of the data, built at the first call and
+reused by the later ones; the data and the filters are its arguments, never constants of the
+program (Part I, §3.1, rule 4). On PyTorch ``jit`` is the identity. Derivatives and other
+transformations pass through the compiled loop unchanged.
 """
 
 from __future__ import annotations
+
+import functools
+from collections.abc import Callable
 
 import numpy as np
 
 from ..backend import _registry
 from ..data._base import Data
 from ..scattering._filters import STFilters
-from ..scattering._loop import scattering_values
+from ..scattering._loop import ScatteringValues, scattering_values
 from ..scattering._plan import STPlan
 from ..statistics._grid import auto_scales, base_grids
 from ..statistics._normalization import (
@@ -26,6 +36,20 @@ from ..statistics._normalization import (
     self_reference,
 )
 from ..statistics._statistics import STStatistics
+
+
+@functools.cache
+def _loop(backend_name: str) -> Callable[..., ScatteringValues]:
+    """The scattering loop of a backend, compiled where it compiles (``Backend.jit``, the
+    plan static): one function per backend, made once, so that its compiled programs are
+    reused from one call to the next. The compiled programs belong to the function made here:
+    ``_loop.cache_clear()`` drops them, for a test that replaces a hook of the loop."""
+    backend = _registry.backend_named(backend_name)
+
+    def loop(data: Data, plan: STPlan, filters: STFilters) -> ScatteringValues:
+        return scattering_values(data, plan, filters)
+
+    return backend.jit(loop, static_argnames=("plan",))
 
 
 def scattering(
@@ -79,7 +103,7 @@ def check_data(data: object, plan: STPlan, filters: STFilters) -> None:
     """Raise unless ``data`` is data the plan was built for, on the filters' backend and dtype."""
     if not isinstance(data, Data):
         raise TypeError(f"expected a Data object, such as estel.Data2D, got {type(data).__name__}.")
-    backend = _registry.backend_of(filters.moments) or ""
+    backend = _registry.backend_of(filters.wavelets.smoothing) or ""
     _registry.check_backend(backend, data.array, owner="these filters")
     if data.mask is None or plan.mask is None:
         same_mask = data.mask is None and plan.mask is None
@@ -104,11 +128,11 @@ def check_data(data: object, plan: STPlan, filters: STFilters) -> None:
             f"{plan.n_channels}: the number of channels is fixed at construction. Build a new "
             "STOperator for these data."
         )
-    if data.array.dtype != filters.moments.dtype:
+    if data.array.dtype != filters.wavelets.smoothing.dtype:
         raise TypeError(
             f"the data are {data.array.dtype}, but the operator computes in "
-            f"{filters.moments.dtype}, the default dtype when it was built. Build the data and "
-            "the operator with the same default dtype (estel.set_default_dtype)."
+            f"{filters.wavelets.smoothing.dtype}, the default dtype when it was built. Build the "
+            "data and the operator with the same default dtype (estel.set_default_dtype)."
         )
 
 
@@ -127,9 +151,9 @@ def compute(
                 'norm="ref" needs a reference: pass ref=, statistics computed with '
                 'norm="self" (maths.md M-NORM).'
             )
-        check_reference(reference, plan, int(data.shape[0]), filters.moments.dtype)
+        check_reference(reference, plan, int(data.shape[0]), filters.wavelets.smoothing.dtype)
     backend = _registry.backend_named(data.backend)
-    found = scattering_values(data, plan, filters)
+    found = _loop(backend.name)(data, plan=plan, filters=filters)
     values = {name: getattr(found, name) for name in ("mean", "var", "S1", "S2", "S3", "S4")}
     grids = base_grids(plan)
     if plan.norm == "self":

@@ -1,0 +1,25 @@
+# A supplementary case of the benchmark of step 1 (task T2.13, issue #91): not one of the three
+# cases of bench/cases.toml, which judge the optimisations, and never part of a recorded baseline.
+#
+# None of the three cases has windows that are slices: `planar-periodic` and `planar-cross` have
+# full windows, `planar-masked` has weights. This case, `planar-masked` without its missing
+# pixels, is the one where the windows without weights (maths_step2 M-WIN) read slices:
+#
+#   make bench BENCH_ENV=container BENCH_ARGS="--cases-file bench/cases_open.toml"
+#   make bench BENCH_ARGS="--cases-file bench/cases_open.toml --compare A B"
+
+[settings]
+dtype = "float32"
+device = "cpu"
+threads = 4
+warmup = 1
+repeats = 5
+
+[cases.planar-open]
+shape = [512, 512]
+channels = 1
+J = 7
+L = 4
+pbc = false
+seed = 3
+target_seed = 4
