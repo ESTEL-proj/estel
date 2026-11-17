@@ -17,12 +17,12 @@ transformations pass through the compiled loop unchanged.
 
 from __future__ import annotations
 
+import functools
 from collections.abc import Callable
 
 import numpy as np
 
 from ..backend import _registry
-from ..backend._protocol import Backend
 from ..data._base import Data
 from ..scattering._filters import STFilters
 from ..scattering._loop import ScatteringValues, scattering_values
@@ -37,17 +37,14 @@ from ..statistics._normalization import (
 )
 from ..statistics._statistics import STStatistics
 
-_LOOPS: dict[str, Callable[..., ScatteringValues]] = {}
 
-
-def _loop(backend: Backend) -> Callable[..., ScatteringValues]:
-    """The scattering loop of ``backend``, compiled where it compiles (``Backend.jit``, the
+@functools.cache
+def _loop(backend_name: str) -> Callable[..., ScatteringValues]:
+    """The scattering loop of a backend, compiled where it compiles (``Backend.jit``, the
     plan static): one function per backend, made once, so that its compiled programs are
     reused from one call to the next."""
-    name = backend.name
-    if name not in _LOOPS:
-        _LOOPS[name] = backend.jit(scattering_values, static_argnames=("plan",))
-    return _LOOPS[name]
+    backend = _registry.backend_named(backend_name)
+    return backend.jit(scattering_values, static_argnames=("plan",))
 
 
 def scattering(
@@ -151,7 +148,7 @@ def compute(
             )
         check_reference(reference, plan, int(data.shape[0]), filters.wavelets.smoothing.dtype)
     backend = _registry.backend_named(data.backend)
-    found = _loop(backend)(data, plan=plan, filters=filters)
+    found = _loop(backend.name)(data, plan=plan, filters=filters)
     values = {name: getattr(found, name) for name in ("mean", "var", "S1", "S2", "S3", "S4")}
     grids = base_grids(plan)
     if plan.norm == "self":

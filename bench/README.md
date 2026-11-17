@@ -112,8 +112,10 @@ make bench BENCH_ENV=native
 
 Other options go through `BENCH_ARGS` (`uv run python -m bench --help`): `--backend jax` runs
 ESTEL on JAX, natively. On JAX the computation is compiled at its first call: every run records
-the time of the first call of each measure (`forward_first_seconds`, `gradient_first_seconds`),
-which holds the compilation, apart from the timed calls. JAX has no setting for the number of
+the time of the very first call of the operator (`first_apply_seconds`, made on the second field
+when the run is built), which holds the compilation of the forward pass, and the time of the
+first call of each measure (`forward_first_seconds`, `gradient_first_seconds`), the second of
+which holds the compilation of the gradient, apart from the timed calls. JAX has no setting for the number of
 threads of its CPU computations: its times are not at the `threads` of the cases file.
 
 ## Comparing two commits

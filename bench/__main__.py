@@ -493,10 +493,17 @@ def format_comparison(ratios: dict[str, dict[str, Any]]) -> str:
 
 
 def _first_calls(rounds: list[tuple[dict[str, Any], dict[str, Any]]]) -> dict[str, Any]:
-    """The median, over the rounds, of the time of the first call and of the later calls of
-    each time measure, for A and for B: on JAX the first call holds the compilation."""
+    """The median, over the rounds, of the time of the very first call of the operator, and of
+    the first call and of the later calls of each time measure, for A and for B: on JAX the
+    first calls hold the compilation, of the forward pass and of the gradient."""
     out: dict[str, Any] = {}
     for side, runs in (("a", [a for a, _ in rounds]), ("b", [b for _, b in rounds])):
+        applies = [
+            float(run["first_apply_seconds"]) for run in runs if run.get("first_apply_seconds")
+        ]
+        out[f"{side}_first_apply_seconds"] = (
+            statistics.median(applies) if len(applies) == len(runs) else None
+        )
         for measure in ("forward", "gradient"):
             first = [run.get(f"{measure}_first_seconds") for run in runs]
             known = [float(value) for value in first if value is not None]

@@ -68,6 +68,7 @@ def test_harness_measures_and_checks_a_tiny_case(
     measurements, arrays = measure("estel", inputs, warmup=1, repeats=2)
     assert len(measurements["forward_runs"]) == len(measurements["gradient_runs"]) == 2
     assert measurements["forward_first_seconds"] > 0 < measurements["gradient_first_seconds"]
+    assert measurements["first_apply_seconds"] > 0
     assert 0 < measurements["forward_seconds"] < measurements["gradient_seconds"]
     assert measurements["peak_rss_bytes"] >= measurements["baseline_rss_bytes"] > 2**20
     assert measurements["coefficients"] == arrays["vector"].size > 0

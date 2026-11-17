@@ -76,8 +76,10 @@ def measure(
     """Measure a case in the current process, with ``library`` (``"estel"`` or ``"stl"``): the
     forward pass, then the forward pass with the gradient of the loss, each as ``warmup`` runs
     then ``repeats`` timed runs, and the peak resident memory after both. The first call of each
-    is timed apart (``forward_first_seconds``, ``gradient_first_seconds``): on JAX it holds the
-    compilation. The baseline is the
+    is timed apart (``forward_first_seconds``, ``gradient_first_seconds``), and so is the very
+    first call of the operator, made on the second field when the run is built
+    (``first_apply_seconds``): on JAX these hold the compilation of the gradient and of the
+    forward pass. The baseline is the
     resident memory once the library and the inputs are loaded, just before the operator is
     built: the peak minus the baseline is the memory of the computation itself. Returns the
     measurements and the results of the last runs as NumPy arrays."""
@@ -92,6 +94,8 @@ def measure(
         "forward_seconds": statistics.median(forward),
         "forward_runs": forward,
         "forward_first_seconds": forward_first,
+        # The very first call of the operator, on the second field, when the run is built.
+        "first_apply_seconds": getattr(run, "first_apply_seconds", None),
         "gradient_seconds": statistics.median(gradient),
         "gradient_runs": gradient,
         "gradient_first_seconds": gradient_first,
