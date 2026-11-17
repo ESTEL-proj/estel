@@ -6,16 +6,26 @@ statistics: the scattering loop (``estel.scattering._loop``), then the normalisa
 (maths.md M-NORM; ``estel.statistics._normalization``). It holds no state and modifies
 nothing: with ``norm="self"`` the reference is computed from the statistics and returned
 with them, and the operator, not this function, keeps it.
+
+**Compiled where the backend compiles** (Part I, §2.2.2; task T2.13). The loop is called
+through ``Backend.jit`` with the plan as its static argument: on JAX the whole loop is one
+compiled program per plan and per shape and dtype of the data, built at the first call and
+reused by the later ones; the data and the filters are its arguments, never constants of the
+program (Part I, §3.1, rule 4). On PyTorch ``jit`` is the identity. Derivatives and other
+transformations pass through the compiled loop unchanged.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 
 from ..backend import _registry
+from ..backend._protocol import Backend
 from ..data._base import Data
 from ..scattering._filters import STFilters
-from ..scattering._loop import scattering_values
+from ..scattering._loop import ScatteringValues, scattering_values
 from ..scattering._plan import STPlan
 from ..statistics._grid import auto_scales, base_grids
 from ..statistics._normalization import (
@@ -26,6 +36,18 @@ from ..statistics._normalization import (
     self_reference,
 )
 from ..statistics._statistics import STStatistics
+
+_LOOPS: dict[str, Callable[..., ScatteringValues]] = {}
+
+
+def _loop(backend: Backend) -> Callable[..., ScatteringValues]:
+    """The scattering loop of ``backend``, compiled where it compiles (``Backend.jit``, the
+    plan static): one function per backend, made once, so that its compiled programs are
+    reused from one call to the next."""
+    name = backend.name
+    if name not in _LOOPS:
+        _LOOPS[name] = backend.jit(scattering_values, static_argnames=("plan",))
+    return _LOOPS[name]
 
 
 def scattering(
@@ -129,7 +151,7 @@ def compute(
             )
         check_reference(reference, plan, int(data.shape[0]), filters.wavelets.smoothing.dtype)
     backend = _registry.backend_named(data.backend)
-    found = scattering_values(data, plan, filters)
+    found = _loop(backend)(data, plan=plan, filters=filters)
     values = {name: getattr(found, name) for name in ("mean", "var", "S1", "S2", "S3", "S4")}
     grids = base_grids(plan)
     if plan.norm == "self":
