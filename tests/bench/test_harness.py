@@ -37,11 +37,11 @@ TINY = Case(
 )  # fmt: skip
 
 
-def test_cases_file_holds_the_three_cases_of_the_issue() -> None:
+def test_cases_file_holds_the_four_cases() -> None:
     settings, cases = load_cases()
     assert (settings.dtype, settings.device) == ("float32", "cpu")
     assert (settings.warmup, settings.repeats) == (1, 5)
-    assert sorted(cases) == ["planar-cross", "planar-masked", "planar-periodic"]
+    assert sorted(cases) == ["planar-cross", "planar-masked", "planar-open", "planar-periodic"]
     masked = cases["planar-masked"]
     assert not masked.pbc
     assert len(set(masked.mask_holes)) >= 3  # a few holes of different sizes
@@ -50,6 +50,11 @@ def test_cases_file_holds_the_three_cases_of_the_issue() -> None:
     assert mask.sum() == sum(side**2 for side in masked.mask_holes)  # no overlap
     assert 0.08 < mask.mean() < 0.12  # about 10 % of missing pixels
     assert input_mask(cases["planar-periodic"]) is None
+    # planar-open is planar-masked without its missing pixels (T2.14, issue #92).
+    opened = cases["planar-open"]
+    assert (opened.shape, opened.J, opened.pbc) == (masked.shape, masked.J, masked.pbc)
+    assert (opened.seed, opened.target_seed) == (masked.seed, masked.target_seed)
+    assert input_mask(opened) is None
 
 
 def test_harness_measures_and_checks_a_tiny_case(

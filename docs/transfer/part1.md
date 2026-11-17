@@ -409,6 +409,7 @@ Tier 1 is set up after 1.0.0. The scheduler, the container runtime and the netwo
 - **Cases** (`bench/cases.toml`), public and defined together with the maintainers: one per geometry at a small and a medium size; the 2D+1D cases of the STOC deliverable at reduced sizes; JAX compile time; peak memory; synthesis time per iteration; in step 2, the Rust engine against the Python engine. Few cases, each clear, at a realistic size, run outside CI. The first ones, 2D cases on CPU, run from phase P2 and judge the optimisations of step 1, their statistics and their gradients (Part II, §15.2, T2.11, T2.12); a synthesis case joins them with T6.1; the others come with their phases (T7.1).
 - **Thresholds.** `bench/thresholds.toml` (protected) holds the "significant change" threshold of each metric, chosen by humans. To begin with, a factor 2 in speed or in peak memory; it may be refined later.
 - **Correctness.** Every benchmark run also asserts the correctness of its results, so that no gain can come from a wrong computation.
+- **Comparisons.** An optimisation is judged by the comparison mode of the benchmark: the branch and `main` measured in the same session, on AC power, in alternating rounds of fresh processes, and the statistics and the gradient of each case compared with `main`'s. It is judged on the median ratio of each measure, against the noise floor of `main` against `main`: about ±2.5 % on the reference laptop, where a single round can be 5 to 20 % off. Each result enters the table of Part III, §19.14.
 
 ## 7. Versioning and merge policy
 
