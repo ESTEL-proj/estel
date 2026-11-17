@@ -18,4 +18,4 @@ Principle: **compute on structured arrays, store in a flat compact buffer, never
 - **`Layout` and `Segment`**: frozen, hashable descriptions (family, level, named index table, complex flags, offset) usable as JAX static arguments.
 - **Full-grid views** (`stats.full_grid("S4")`) are for humans, plots and comparison with 1.0.x; they are never called inside `scattering()`.
 - **Reductions** (normalisation, `iso`, `angular_fourier`, `scale_cosine`) become static linear maps applied per segment.
-- **Open points:** the canonical set (keep STL's duplicates or not, LF20) and where the conversion is implemented (R1). The level-wise Gram reorganisation of the loop is adopted only after a benchmark and a human validation.
+- **Open points:** the canonical set (keep STL's duplicates or not, LF20) and where the conversion is implemented (R1). The Gram form (T2.12) and the compact layout (T2.15) are tasks of step 1, judged by the benchmark (T2.11).

@@ -13,7 +13,7 @@ These rules apply to L1 and L2 from the first commit of step 1. From phase P1, E
 5. **Explicit randomness.** Every random function takes a key or a seed (`make_key(seed)`).
 6. **Complex convolutions are two real convolutions**; kernels are stored as real pairs.
 7. **float32 by default, float64 on request.** No hard-coded float64 constant, no silent dtype change; plan arrays are cast to the operator's dtype at construction; tests run in both dtypes.
-8. **Short Python loops.** JAX unrolls them. Step 1 keeps STL's loop structure (loops over scales and levels, never over coefficients); reorganising it is step 2 work, after a benchmark and human validation.
+8. **Short Python loops.** JAX unrolls them. Loops run over scales and levels, never over coefficients. Before 1.0.0, a reorganisation of STL's loop is allowed only if every value stays within the parity tolerance and the benchmark shows its gain (Part I, §3.1, rule 8); one that changes values is step 2 work.
 9. **Data and statistics are pytrees** (arrays as leaves, metadata static).
 
 ## The scattering loop without in-place updates ([§3.1.1](../transfer/part1.md#311-the-scattering-loop-without-in-place-updates))
