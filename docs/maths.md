@@ -2,7 +2,7 @@
 
 [Back to the overview](transfer/overview.md)
 
-**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it, and checked numerically by the oracle `estel._spec`, which agrees with ESTEL to the parity tolerance (task T2.6); ESTEL itself agrees with STL's fixtures. Sections 3 (tensor products), 4 (HEALPix) and 5 (syntheses) are drafts written in the same way; each is verified by the first task of its phase (T3.0, T5.0, T6.0).
+**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it, and checked numerically by the oracle `estel._spec`, which agrees with ESTEL to the parity tolerance (task T2.6); ESTEL itself agrees with STL's fixtures. Sections 3 (tensor products) and 4 (HEALPix) are drafts written in the same way; each is verified by the first task of its phase (T3.0, T5.0). Section 5 (syntheses) is checked against STL's code for periodic syntheses, and numerically where it says so (task T6.0); its non-periodic and masked parts come after 1.0.0 (Part III, §16, LF47).
 
 **Role of this file.** This file is the reference version of the mathematics of step 1; it changes only through pull requests that a maintainer requests and merges.
 
@@ -270,7 +270,7 @@ With `standardize=True` (off by default), the field is centred and scaled before
 - The field is centred first, then σ² is the second moment of the centred field: this is the one place where STL computes a true variance.
 - Population normalisation: divided by the number of valid pixels, not minus one.
 - μ and σ are kept with the statistics (`mean_pre_std`, `std_pre_std`).
-- STL's function has a `mean_field` option, which averages μ and σ over the batch. The operator always calls it with `mean_field=False`; the syntheses call it with their own `mean_field` (M-SYN-TARGET).
+- STL's function has a `mean_field` option, which averages μ over the batch and takes for σ the square root of the batch mean of the variances (M-SYN-TARGET). The operator always calls it with `mean_field=False`; the syntheses call it with their own `mean_field` (M-SYN-TARGET).
 - The inverse, used by the syntheses: x = x′ σ + μ.
 - **Source:** `WaveletOperator2Dkernel_torch.standardize`, `unstandardize`; `ST_Operator.apply`.
 
