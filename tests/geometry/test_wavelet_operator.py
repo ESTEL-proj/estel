@@ -125,6 +125,30 @@ def test_downsample_is_the_hook_step_with_the_maps_of_its_level(
     _equal(backend, u2, expected)
 
 
+@pytest.mark.maths("M-W1")
+@pytest.mark.parametrize("ndim", [2, 1])
+def test_apply_band_first_is_apply_with_the_orientation_leading(
+    backend: Backend, ndim: int
+) -> None:
+    """``apply(x, j, band_first=True)`` holds the values of ``apply(x, j)`` with the orientation
+    of the convolution as the leading axis of the maps (Part III, §19.12, point 2), on the
+    field and on first-layer data, whose own orientation axis stays in place."""
+    data = _data(ndim, pbc=False)
+    xp = backend.xp
+    L = 4 if ndim == 2 else 1  # noqa: N806
+    operator = WaveletOperator(data, 2, L)
+    spatial = tuple(range(-ndim, 0))
+    w = operator.apply(data.array, 0)
+    first = operator.apply(data.array, 0, band_first=True)
+    assert tuple(first.shape) == (2, L, 3, *(N,) * ndim)
+    _equal(backend, first, xp.permute_dims(w, (0, 2, 1, *(a % w.ndim for a in spatial))))
+    u = modulus(w)
+    second = operator.apply(u, 0, band_first=True)
+    assert tuple(second.shape) == (2, L, 3, L, *(N,) * ndim)
+    v = operator.apply(u, 0)
+    _equal(backend, second, xp.permute_dims(v, (0, 3, 1, 2, *(a % v.ndim for a in spatial))))
+
+
 @pytest.mark.maths("M-BORDER", "M-MASK", "M-MEAN")
 def test_mean_weights_are_the_crop_times_the_union_of_the_masks() -> None:
     """The weights of a covariance: the crop of the larger border of its operands (M-BORDER),

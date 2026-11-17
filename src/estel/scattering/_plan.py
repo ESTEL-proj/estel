@@ -24,6 +24,15 @@ What it holds, for STL's loop structure (maths.md §1.6 to 1.7; STL ``ST_Operato
   the pixels that enter the mean, 0 elsewhere, and their sum; and the means that have no
   valid pixel, whose coefficients are NaN (OP-3).
 
+* **The windows of the second layer** (``second_layer``, one :class:`SecondLayerWindows` per
+  level; maths_step2.md M-GRAM): the scales whose second-layer maps the level computes, and
+  the window of each of these maps and of the band map, the weights of a mean of that map
+  alone. The loop sets each map to zero outside its own window, takes one Gram product, and
+  divides each mean by its denominator, which is the number of pixels of the two windows'
+  intersection: the weights of S3 and S4 above are the products of two windows, and STL's
+  windows are reproduced exactly. Weights are stored once per distinct level, border and
+  mask: the means that have the same three share one array.
+
 Each mean of the loop is a (co)variance of operands described by their convolution history,
 the scales of the convolutions applied, which in ESTEL is plan data rather than data state
 (Part I, §2.3):
@@ -126,6 +135,32 @@ def channel_pairs(matrix: NDArray[np.bool_]) -> ChannelPairs:
 
 
 @dataclass(frozen=True, eq=False)
+class SecondLayerWindows:
+    """The second-layer maps of one level j3 and their windows, for the Gram form (maths_step2.md
+    M-GRAM; Part III, §19.3).
+
+    The window of a map is the weights of a mean of that map alone: the crop of its own border
+    (M-BORDER) times its own valid pixels (M-MASK). The window of a pair of maps is the
+    intersection of their windows, the larger of their borders and the union of their masks,
+    which is the weights of their mean in the plan (``s3``, ``s4``).
+    """
+
+    arms: tuple[int, ...]
+    """The scales j2 ≤ j3 whose maps ψ_{j3} ⋆ U_{j2} enter a mean with a valid pixel, in
+    increasing order: the rows of the Gram matrix, with the channels and the orientations."""
+    windows: tuple[NDArray[np.float64], ...]
+    """The distinct windows of the level, each 1 on the pixels of the window and 0 elsewhere,
+    read-only, of the spatial shape of the level; empty when every window is the whole grid
+    (periodic data without missing values), and nothing is set to zero."""
+    arm_windows: tuple[int, ...]
+    """For each scale of :attr:`arms`, the position of its window in :attr:`windows`; empty
+    when :attr:`windows` is."""
+    band_window: int | None
+    """The position in :attr:`windows` of the window of the band map W_{j3} x, the other
+    operand of S3; ``None`` when :attr:`windows` is empty or the level has no S3."""
+
+
+@dataclass(frozen=True, eq=False)
 class _PlanFields:
     """The fields of :class:`STPlan`, internal to ESTEL (the plan is public and
     opaque)."""
@@ -183,6 +218,9 @@ class _PlanFields:
     s4: Mapping[tuple[int, int, int], MeanWeights]
     """For each triple of :attr:`s4_triples` not in :attr:`empty_s4_triples`: the weights of
     S4, at level ``j3`` (M-S4)."""
+    second_layer: Mapping[int, SecondLayerWindows]
+    """For each level j3 with an S3 or an S4 mean: its second-layer maps and their windows
+    (M-GRAM)."""
     empty_scales: tuple[int, ...]
     """The scales whose S1 and S2 have no valid pixel: NaN coefficients, not computed (M-MEAN,
     OP-3). Empty without missing values, as for the next two."""
@@ -272,6 +310,8 @@ def build_plan(
     )
     weights = {key: w for key, w in candidates.items() if w is not None}
     _check_empty(means, weights)
+    s3 = {(j2, j3): weights[("S3", j2, j3)] for j2, j3 in s3_pairs if ("S3", j2, j3) in weights}
+    s4 = {t: weights[("S4", *t)] for t in s4_triples if ("S4", *t) in weights}
 
     return STPlan(
         geometry=wavelets.geometry,
@@ -298,10 +338,9 @@ def build_plan(
         first_layer=MappingProxyType(
             {j: weights[("S1", j)] for j in scales if ("S1", j) in weights}
         ),
-        s3=MappingProxyType(
-            {(j2, j3): weights[("S3", j2, j3)] for j2, j3 in s3_pairs if ("S3", j2, j3) in weights}
-        ),
-        s4=MappingProxyType({t: weights[("S4", *t)] for t in s4_triples if ("S4", *t) in weights}),
+        s3=MappingProxyType(s3),
+        s4=MappingProxyType(s4),
+        second_layer=MappingProxyType(_second_layer(levels, weights, s3, s4)),
         empty_scales=tuple(j for j in scales if ("S1", j) not in weights),
         empty_s3_pairs=tuple(p for p in s3_pairs if ("S3", *p) not in weights),
         empty_s4_triples=tuple(t for t in s4_triples if ("S4", *t) not in weights),
@@ -317,6 +356,54 @@ def build_plan(
 
 
 # ---------------------------------------------------------------------- helpers
+
+
+def _second_layer(
+    levels: tuple[int, ...],
+    weights: Mapping[Any, MeanWeights],
+    s3: Mapping[tuple[int, int], MeanWeights],
+    s4: Mapping[tuple[int, int, int], MeanWeights],
+) -> dict[int, SecondLayerWindows]:
+    """The second-layer maps of each level that has an S3 or an S4 mean, and their windows
+    (:class:`SecondLayerWindows`)."""
+    found = {j3: _second_layer_windows(j3, weights, s3, s4) for j3 in levels}
+    return {j3: level for j3, level in found.items() if level is not None}
+
+
+def _second_layer_windows(
+    j3: int,
+    weights: Mapping[Any, MeanWeights],
+    s3: Mapping[tuple[int, int], MeanWeights],
+    s4: Mapping[tuple[int, int, int], MeanWeights],
+) -> SecondLayerWindows | None:
+    """The second-layer maps of level ``j3`` and their windows, or ``None`` when the level has
+    no S3 and no S4 mean.
+
+    The window of the map ψ_{j3} ⋆ U_{j2} is the weights of S4 at (j2, j2, j3), a mean of that
+    map alone, and the window of the band map W_{j3} x those of S1 at j3: a map that enters a
+    mean with a valid pixel has a valid pixel itself, so both exist.
+    """
+    arms = tuple(
+        j2
+        for j2 in range(j3 + 1)
+        if (j2, j3) in s3 or any(j2 in key[:2] and key[2] == j3 for key in s4)
+    )
+    if not arms:
+        return None
+    of_arms = [weights[("S4", j2, j2, j3)] for j2 in arms]
+    of_band = weights[("S1", j3)] if any(key[1] == j3 for key in s3) else None
+    used = [*of_arms, *([] if of_band is None else [of_band])]
+    if all(w.denominator == w.weights.size for w in used):
+        return SecondLayerWindows(arms=arms, windows=(), arm_windows=(), band_window=None)
+    # The weights of one level, border and mask are one object (``mean_weights``).
+    distinct = list({id(w.weights): w.weights for w in used}.values())
+    position = {id(window): d for d, window in enumerate(distinct)}
+    return SecondLayerWindows(
+        arms=arms,
+        windows=tuple(distinct),
+        arm_windows=tuple(position[id(w.weights)] for w in of_arms),
+        band_window=None if of_band is None else position[id(of_band.weights)],
+    )
 
 
 def _cross_matrix(matrix: Any, n_channels: int) -> NDArray[np.bool_]:

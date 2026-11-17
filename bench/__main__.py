@@ -4,10 +4,11 @@
 
 Runs the cases of ``bench/cases.toml``, each in a process of its own (``bench/worker.py``), in
 two environments: ``container``, the parity container with ESTEL installed, where STL and ESTEL
-are measured side by side; and ``native``, ESTEL on this machine. Every ESTEL run is checked
-against STL's statistics on the same inputs, with the parity tolerances of Part II, §14.3, and
-the benchmark fails otherwise. Prints a table and writes ``bench/results/<date>-<machine>.json``.
-Outside CI: see ``bench/README.md``.
+are measured side by side; and ``native``, ESTEL on this machine, where the ESTEL of ``main`` is
+measured too, just before. Every ESTEL run is checked against STL's statistics on the same
+inputs, with the parity tolerances of Part II, §14.3, and the native run against the statistics
+and the gradient of ``main``; the benchmark fails otherwise. Prints a table and writes
+``bench/results/<date>-<machine>.json``. Outside CI: see ``bench/README.md``.
 """
 
 from __future__ import annotations
@@ -40,7 +41,12 @@ CONTAINER_PYTHON = "/opt/venv/master/bin/python"
 # A measured process that runs longer is stopped: the maintainer resizes a case on which STL
 # takes more than about 30 minutes (issue #89, decision 8).
 TIMEOUT_SECONDS = 45 * 60
-SCHEMA = 1
+# The gradient of the loss against that of ``main``: max |g - g_main| <= this x max |g_main|
+# (Part II, §15.2, T2.12 to T2.15; issue #90, decision 2). Until the planar syntheses exist
+# (T6.1), this comparison is what validates the gradients of an optimisation.
+MAIN_GRADIENT_RTOL = 1e-4
+MAIN_REF = "origin/main"
+SCHEMA = 2  # 2: the runs of ``main`` (``tree``) and the check against them (``check_main``)
 
 
 class BenchError(RuntimeError):
@@ -88,6 +94,72 @@ def check_against_stl(
     }
 
 
+def _relative_difference(actual: NDArray[Any], expected: NDArray[Any]) -> float | None:
+    """The largest ``|actual - expected|`` over the finite values of ``expected``, relative to
+    its largest modulus; None when ``expected`` has no finite value or is zero."""
+    finite = np.isfinite(expected)
+    if not finite.any():
+        return None
+    largest = float(np.abs(expected[finite]).max())
+    if largest == 0:
+        return None
+    return float(np.abs(actual[finite] - expected[finite]).max()) / largest
+
+
+def check_against_main(
+    case: str,
+    actual: dict[str, NDArray[Any]],
+    expected: dict[str, NDArray[Any]],
+    dtype: str,
+    gradient_rtol: float = MAIN_GRADIENT_RTOL,
+) -> dict[str, Any]:
+    """Compare the results of an ESTEL run with those of the ESTEL of ``main`` on the same
+    inputs (Part II, §15.2, T2.12; issue #90, decision 2).
+
+    The statistics must agree with the parity tolerances of Part II, §14.3 for ``dtype``, as in
+    :func:`check_against_stl`, and the gradient of the loss within ``gradient_rtol``:
+    ``max |g - g_main| <= gradient_rtol x max |g_main|``, every value finite. Raises
+    ``BenchError`` otherwise. Returns the measured differences: for each family and for the
+    gradient, the largest difference relative to the largest value of ``main``.
+    """
+    scale = float(np.sqrt(np.max(expected["var"])))
+    for name in (*FAMILIES, "vector"):
+        try:
+            assert_parity(
+                actual[name], expected[name], dtype, scale=scale if name == "mean" else None
+            )
+        except AssertionError as error:
+            raise BenchError(
+                f"case {case!r}: {name} differs from that of main on the same inputs beyond "
+                f"the {dtype} parity tolerance, so this is not an optimisation of step 1 (Part "
+                f"I, §3.1, rule 8). Stop and comment on the task's issue with the case and "
+                f"these numbers. {error}"
+            ) from None
+    gradient, main_gradient = actual["gradient"], expected["gradient"]
+    difference = _relative_difference(gradient, main_gradient)
+    if (
+        gradient.shape != main_gradient.shape
+        or not np.isfinite(gradient).all()
+        or not np.isfinite(main_gradient).all()
+        or (difference is not None and difference > gradient_rtol)
+    ):
+        raise BenchError(
+            f"case {case!r}: the gradient of the loss differs from that of main: max |g - "
+            f"g_main| = {difference} x max |g_main|, above {gradient_rtol:g}, or a value is not "
+            f"finite ({int((~np.isfinite(gradient)).sum())} here, "
+            f"{int((~np.isfinite(main_gradient)).sum())} on main). Stop and comment on the "
+            "task's issue with the case and these numbers."
+        )
+    return {
+        "statistics": f"equal to main's within the {dtype} parity tolerances (Part II, §14.3)",
+        "statistics_relative_difference": {
+            name: _relative_difference(actual[name], expected[name]) for name in FAMILIES
+        },
+        "gradient_relative_difference": difference,
+        "gradient_rtol": gradient_rtol,
+    }
+
+
 # ---------------------------------------------------------------------- measured processes
 
 
@@ -106,9 +178,9 @@ def _worker_arguments(
     ]  # fmt: skip
 
 
-def _run_process(command: list[str], what: str) -> None:
+def _run_process(command: list[str], what: str, env: dict[str, str] | None = None) -> None:
     try:
-        completed = subprocess.run(command, cwd=REPO, timeout=TIMEOUT_SECONDS)
+        completed = subprocess.run(command, cwd=REPO, timeout=TIMEOUT_SECONDS, env=env)
     except subprocess.TimeoutExpired:
         raise BenchError(
             f"{what} ran for more than {TIMEOUT_SECONDS // 60} minutes and was stopped. The "
@@ -127,14 +199,59 @@ def _run_process(command: list[str], what: str) -> None:
         )
 
 
-def run_native(case: Case, work: Path, backend: str, settings: Settings) -> Path:
-    """Measure ESTEL on this machine; returns the path of the results, without suffix."""
-    out = work / f"native-estel-{case.name}"
+def run_native(
+    case: Case, work: Path, backend: str, settings: Settings, main_source: Path | None = None
+) -> Path:
+    """Measure ESTEL on this machine; returns the path of the results, without suffix.
+
+    With ``main_source``, the ``src`` directory of an export of ``main`` (:func:`export_main`),
+    the process imports that ``estel`` instead of the working tree's: the same worker, the same
+    interpreter and libraries, the same inputs.
+    """
+    tree = "estel" if main_source is None else "estel-main"
+    out = work / f"native-{tree}-{case.name}"
     arguments = _worker_arguments(
         "estel", str(work / f"{case.name}.npz"), str(out), backend, settings
     )
-    _run_process([sys.executable, *arguments], f"ESTEL on case {case.name!r} (native)")
+    env = None
+    what = f"ESTEL on case {case.name!r} (native)"
+    if main_source is not None:
+        # PYTHONPATH comes before the environment's site-packages, where the working tree is
+        # installed: this process imports the estel of main.
+        env = {**os.environ, "PYTHONPATH": str(main_source)}
+        what = f"ESTEL of main on case {case.name!r} (native)"
+    _run_process([sys.executable, *arguments], what, env)
     return out
+
+
+def export_main(ref: str, work: Path) -> tuple[Path, str]:
+    """The ``src`` directory of ``ref`` (``origin/main``), exported once per commit under
+    ``work``, and its commit. No checkout and no worktree: sessions never check out ``main``
+    (AGENTS.md, rule 14)."""
+    commit = _git("rev-parse", "--verify", f"{ref}^{{commit}}")
+    if not commit:
+        raise BenchError(
+            f"No commit {ref!r} to compare with: run git fetch origin first, or pass --main "
+            "REF with the commit the optimisation starts from."
+        )
+    destination = work / f"main-{commit[:12]}"
+    if not (destination / "src" / "estel" / "__init__.py").is_file():
+        destination.mkdir(parents=True, exist_ok=True)
+        archive = subprocess.run(
+            ["git", "-C", str(REPO), "archive", commit, "src"], capture_output=True
+        )
+        if (
+            archive.returncode != 0
+            or subprocess.run(
+                ["tar", "-x", "-C", str(destination)], input=archive.stdout
+            ).returncode
+            != 0
+        ):
+            raise BenchError(
+                f"Exporting src/ of {ref} ({commit[:12]}) to {destination} failed: "
+                f"{archive.stderr.decode().strip() or 'read the error above'}."
+            )
+    return destination / "src", commit
 
 
 def run_container(
@@ -214,7 +331,8 @@ def format_table(runs: list[dict[str, Any]]) -> str:
               "peak memory (GiB)", "peak - baseline (GiB)")  # fmt: skip
     rows = [
         (
-            run["case"], run["environment"], run["library"],
+            run["case"], run["environment"],
+            f"{run['library']} (main)" if run.get("tree") == "main" else run["library"],
             f"{run['forward_seconds']:.3f}", f"{run['gradient_seconds']:.3f}",
             f"{run['peak_rss_bytes'] / 2**30:.2f}",
             f"{(run['peak_rss_bytes'] - run['baseline_rss_bytes']) / 2**30:.2f}",
@@ -232,6 +350,31 @@ def format_table(runs: list[dict[str, Any]]) -> str:
 
     rule = "|" + "|".join("-" * (width + 2) for width in widths) + "|"
     return "\n".join([line(header), rule, *(line(row) for row in rows)])
+
+
+def format_main_differences(runs: list[dict[str, Any]]) -> str:
+    """The differences with ``main`` of the runs checked against it: for each family and for
+    the gradient, the largest difference relative to the largest value of ``main``."""
+    header = ("case", *FAMILIES, "gradient")
+
+    def cell(value: float | None) -> str:
+        return "-" if value is None else f"{value:.1e}"
+
+    rows = [
+        (
+            run["case"],
+            *(cell(run["check_main"]["statistics_relative_difference"][f]) for f in FAMILIES),
+            cell(run["check_main"]["gradient_relative_difference"]),
+        )
+        for run in runs
+    ]
+    widths = [max(len(row[i]) for row in (header, *rows)) for i in range(len(header))]
+    lines = [
+        "| " + " | ".join(c.ljust(w) for c, w in zip(row, widths, strict=True)) + " |"
+        for row in (header, *rows)
+    ]
+    rule = "|" + "|".join("-" * (width + 2) for width in widths) + "|"
+    return "\n".join([lines[0], rule, *lines[1:]])
 
 
 def _record(out: Path, environment: str, environments: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -280,6 +423,9 @@ def run_benchmark(args: argparse.Namespace) -> Path:
     described: dict[str, dict[str, Any]] = {}
     if "container" in environments:
         image_id = build_image(args.container, args.parity_image, args.image)
+    main_source, main_commit = None, None
+    if "native" in environments and args.main:
+        main_source, main_commit = export_main(args.main, work)
     runs: list[dict[str, Any]] = []
     for case in selected:
         inputs = work / f"{case.name}.npz"
@@ -290,6 +436,15 @@ def run_benchmark(args: argparse.Namespace) -> Path:
             runs.append({**_record(out, "container", described), "check": "the reference"})
         expected = _reference(work, case, digest)
         for environment in environments:
+            of_main = None
+            if environment == "native" and main_source is not None:
+                # main first, then the working tree, one after the other on the same inputs.
+                print(f"== {case.name}: ESTEL of {args.main}, native", flush=True)
+                out = run_native(case, work, args.backend, settings, main_source)
+                run = {**_record(out, environment, described), "tree": "main"}
+                of_main = _load(out.with_suffix(".npz"))
+                run["check"] = check_against_stl(case.name, of_main, expected, settings.dtype)
+                runs.append(run)
             print(f"== {case.name}: ESTEL, {environment}", flush=True)
             if environment == "container":
                 out = run_container(case, "estel", work, settings, args.container, args.image)
@@ -298,6 +453,8 @@ def run_benchmark(args: argparse.Namespace) -> Path:
             run = _record(out, environment, described)
             actual = _load(out.with_suffix(".npz"))
             run["check"] = check_against_stl(case.name, actual, expected, settings.dtype)
+            if of_main is not None:
+                run["check_main"] = check_against_main(case.name, actual, of_main, settings.dtype)
             runs.append(run)
     if "container" in described:
         described["container"].update(
@@ -314,6 +471,7 @@ def run_benchmark(args: argparse.Namespace) -> Path:
         "date": date,
         "machine": args.machine or machine_name(),
         "estel_commit": _git("rev-parse", "HEAD"),
+        "main": None if main_commit is None else {"ref": args.main, "commit": main_commit},
         "estel_uncommitted_changes": bool(
             _git("status", "--porcelain", "--", "src", "bench", ":(exclude)bench/results")
         ),
@@ -329,6 +487,14 @@ def run_benchmark(args: argparse.Namespace) -> Path:
     print()
     print(format_table(runs))
     print(f"\nEvery ESTEL run equals STL within the {settings.dtype} parity tolerances.")
+    compared = [run for run in runs if "check_main" in run]
+    if compared and main_commit is not None:
+        print(
+            f"\nAgainst {args.main} ({main_commit[:12]}), native: statistics within the "
+            f"{settings.dtype} parity tolerances, gradient within {MAIN_GRADIENT_RTOL:g}. "
+            "Largest differences, relative to the largest value of main:"
+        )
+        print(format_main_differences(compared))
     power = described.get("native", {}).get("power") or _power()
     if power and (power["low_power_mode"] or power["source"] != "AC Power"):
         print(
@@ -352,6 +518,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--threads", type=int, help="override the threads of the cases file")
     parser.add_argument("--repeats", type=int, help="override the repeats of the cases file")
     parser.add_argument("--machine", help="name of this machine in the results file")
+    parser.add_argument(
+        "--main", default=MAIN_REF, metavar="REF",
+        help="the commit the native run is compared with, measured just before it "
+        f"(default: {MAIN_REF}); an empty string skips it",
+    )  # fmt: skip
     parser.add_argument("--cases-file", type=Path, default=CASES_FILE)
     parser.add_argument("--results", type=Path, default=RESULTS)
     parser.add_argument("--container", default="docker", help="container runtime")

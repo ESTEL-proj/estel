@@ -223,6 +223,42 @@ def test_masked_weights_are_crop_times_valid_union(ndim: int, pbc: bool) -> None
         assert not w.weights.flags.writeable
 
 
+@pytest.mark.maths("M-MASK", "M-MEAN", "M-BORDER")
+@pytest.mark.parametrize("pbc", [False, True])
+@pytest.mark.parametrize("ndim", sorted(GEOMETRIES))
+def test_second_layer_windows_give_the_weights_of_every_pair(ndim: int, pbc: bool) -> None:
+    """maths_step2.md M-GRAM: the weights of an S3 or an S4 mean are the product of the windows
+    of its two maps, so that maps set to zero outside their own windows, multiplied and
+    summed, are STL's mean of that pair. And the weights are stored once per distinct level,
+    border and mask."""
+    n = 64 if ndim == 2 else 128
+    plan = _plan(_data(ndim, n, pbc, _sparse_mask(ndim, n)), 3, L=1)
+    assert sorted(plan.second_layer) == [0, 1, 2]
+    for j3, level in plan.second_layer.items():
+        assert level.arms == tuple(range(j3 + 1))
+        assert level.band_window is not None
+        arm = {j2: level.windows[d] for j2, d in zip(level.arms, level.arm_windows, strict=True)}
+        band = level.windows[level.band_window]
+        np.testing.assert_array_equal(band, plan.first_layer[j3].weights)
+        for j2 in level.arms:
+            np.testing.assert_array_equal(plan.s3[(j2, j3)].weights, arm[j2] * band)
+            for j1 in range(j2 + 1):
+                np.testing.assert_array_equal(plan.s4[(j1, j2, j3)].weights, arm[j1] * arm[j2])
+        # One array per distinct window, and no two equal.
+        assert len({w.tobytes() for w in level.windows}) == len(level.windows)
+    stored = {id(w.weights): w for w in _all_means(plan)}
+    assert len({(w.level, w.border, w.weights.tobytes()) for w in stored.values()}) == len(stored)
+    assert len(stored) < len(_all_means(plan))
+
+
+def test_second_layer_has_no_window_on_periodic_data_without_missing_values() -> None:
+    """Every window is the whole grid: nothing is set to zero, and the arms are every j2 ≤ j3."""
+    plan = _plan(_data(2, 32, pbc=True), 3)
+    for j3, level in plan.second_layer.items():
+        assert level.arms == tuple(range(j3 + 1))
+        assert (level.windows, level.arm_windows, level.band_window) == ((), (), None)
+
+
 @pytest.mark.maths("M-MASK")
 def test_s3_uses_the_union_where_the_layer_2_mask_misses_layer_1() -> None:
     """maths.md M-MASK: a covariance uses the union of its operands' masks. STL takes the
