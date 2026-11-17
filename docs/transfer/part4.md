@@ -108,7 +108,7 @@ Every point of the review list (C: critical before the start, S: needed during s
 | C15 | `apply` or `forward` | `apply` kept; Pablo is considering the question | §24.2 |
 | C16 | Rust: engine or backend | An engine, kept as it is; splitting it into primitives would lose its gains | Part I, §2.2.4 |
 | C17 | Masks | Static, as in STL | Part I, §2.3, §3.1 |
-| C18 | Loops and memory | Step 1 keeps STL's loop; contraction in step 2; any reorganisation after a benchmark | Part I, §3.1; Part III, §19.3, LF31 |
+| C18 | Loops and memory | Step 1 keeps STL's loop; contraction in step 2; any reorganisation after a benchmark. Replaced by the row "Efficiency in step 1" of §22.5 | Part I, §3.1; Part III, §19.3, LF31 |
 | C19 | Translation invariance | Not tested in 1.0.0; step 2 | Part I, §5.1; Part III, §20.8, LF25 |
 | C20 | Reference S2 scale | Compared too, with the S2 coefficients | Part I, §5.1, §5.2 |
 | C21 | Versioning | Three numbers plus two reference counters; majors for value changes decided case by case | Part I, §7; §24.2 |
@@ -240,7 +240,7 @@ Everything still to decide, in one table. A point leaves it when it is decided (
 | Q26 | The vocabulary of the code (issue #72) | Erwan | 1.0.0 | R-V01 to R-V10 |
 | Q27 | The structure of `docs/maths.md` and of the specification (issue #73) | Erwan | 1.0.0 | R-S03 to R-S06, R-S09 |
 | Q28 | L0 primitives with no user at the end of phase P6 are removed; the signature of `gather_weighted` is checked against Q9 | the maintainers | end of P6 | R-S02 |
-| Q29 | Preparations in 1.0.0 that change no value: windows with a kind (full, slice, weights), index sets and evaluation positions from the plan, the band orientation as the leading axis of the second-layer maps, families as a list, `estimate_memory` with temporaries and the L-BFGS history, a benchmark with gradients at the freeze (Part III, §19.12) | the maintainers | 1.0.0 | R-S01, R-P01, R-P14 |
+| Q29 | Preparations in 1.0.0 that change no value: windows with a kind (full, slice, weights), index sets and evaluation positions from the plan, the band orientation as the leading axis of the second-layer maps, families as a list, `estimate_memory` with temporaries and the L-BFGS history, a benchmark with gradients (Part III, §19.12). The windows, the band orientation as the leading axis and the benchmark are now tasks of step 1 (Part II, §15.2, T2.11 to T2.13; §22.5) | the maintainers | 1.0.0 | R-S01, R-P01, R-P14 |
 
 ## 24. Deferred work and points to discuss later
 

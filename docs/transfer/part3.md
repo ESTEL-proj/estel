@@ -459,7 +459,7 @@ None of these changes a value. Each exists to make a later change local.
 
 | Order | Content | Changes values? |
 | --- | --- | --- |
-| 1 | Baseline: the benchmark of 1.0.0 | no |
+| 1 | Baseline: the benchmark, from phase P2 (Part II, §15.2, T2.11) | no |
 | 2 | Gram form by blocks, windows, real arithmetic | no (within tolerance) |
 | 3 | Centred covariances; low-pass filter in every family, without the final downsampling; and, if validated, the strided second layer and a real-valued `iso` | yes: one bump of `STATISTICS_REFERENCE` for all of them |
 | 4 | Canonical set and compact layout; pruned plans | storage and interface; values unchanged |
