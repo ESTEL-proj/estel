@@ -114,8 +114,7 @@ hold every S4 and every S3 of that band and orientation: S4\[j₁, ℓ₁, j₂,
 
 - **Rules.**
   - **Layout:** the band orientation is the leading axis of the second-layer maps; the arms of one orientation then form the matrix A without a copy.
-  - **Borders:** STL's borders take few values at a level (2, 3 and 4 pixels for K = 5). One product per distinct border reproduces STL's per-pair windows exactly: the Gram form does not need the common window of M-WIN.
-  - **Masks:** missing pixels are set to zero once in the maps; with a window common to the level, no weight enters the product. With masks that differ from one pair to another, as in STL, the present form stays.
+  - **Windows:** STL's window for a pair is the intersection of the windows of its two maps: the union of their masks, and the larger of their two borders. With every map set to zero outside its own window, the product A A^H sums each pair over that intersection, and the number of its pixels is the product M M^T of the 0/1 windows M of the maps. So G = (A A^H) / (M M^T), element by element, reproduces STL's per-pair windows exactly, masks and borders included, without the common window of M-WIN; a pair with no valid pixel gives NaN, as in STL (OP-3). With a window common to the level, M M^T is one number and the formula above holds.
   - **Single precision:** one product over all the pixels accumulates in the precision of the data. Relative error of a mean in float32: 2e-8 at 16,000 pixels, 2e-6 at 4 million, against 1e-8 for the pairwise sum used today. Products by blocks of pixels, added in float64, stay at 3e-9 at every size. The Gram form is computed by blocks.
 - **Tensor products:** the present form has one operation per triple of scales, 22,400 for 2D+1D+1D with J = (6, 4, 4), each with a temporary of 4,096 numbers per pixel. The Gram form is a prerequisite there (Part IV, R-T06).
 - **[to verify]** by a benchmark on PyTorch and JAX, CPU and GPU.
