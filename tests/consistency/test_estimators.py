@@ -1,13 +1,14 @@
 """Consistency of the estimators (Part I, §5.1; task T2.16, issue #98; maths.md M-BORDER, M-MASK,
 M-DOWN-MASK, M-MEAN).
 
-The statistics of one stationary process, estimated in three ways, must agree within their
-statistical error:
+The statistics of one stationary process, estimated in three ways on the same periodic fields,
+must agree within their statistical error:
 
-- **periodic**: the whole periodic field, ``pbc=True``, no mask: the reference;
-- **window**: an N x N window cut from a periodic field of side 4N, ``pbc=False``, no mask;
-- **masked**: the periodic field with holes, ``pbc=True``: a fixed, seeded mask of five square
-  holes of different sizes, 10.1 % of the pixels.
+- **periodic**: the whole field, ``pbc=True``, no mask: the reference;
+- **non-periodic**: the same field read with ``pbc=False``, no mask: the same pixels, the
+  borders cropped (M-BORDER);
+- **masked**: the same field with holes, ``pbc=True``: a fixed, seeded mask of five square holes
+  of different sizes, 10.1 % of the pixels (M-MASK, M-DOWN-MASK).
 
 **The process** is drawn by FFT, so it is periodic by construction: y = exp(g / 2), with g a
 Gaussian field of unit variance and of spectrum 1 / (k0² + k²), k0 = 1/64 cycle per pixel; the
@@ -15,83 +16,86 @@ field is (y - E y) / std(y), with the moments of the log-normal law, so its mean
 variance one over the draws, not in each draw. The spectrum is a power law above k0, with the
 same variance in every octave, so every scale has content, and the exponential makes S3 and S4
 differ from zero. Below k0 it is flat: the correlations of g fall as exp(-2π k0 r), 3e-6 at
-r = 128, so the fields of side N and 4N are draws of the same process, whatever their side. A
-bare power law would not do: the field of side 4N would hold scales the field of side N cannot.
+r = 128, so the opposite sides of a field are independent and the process is the same at both
+sizes.
+
+**No window cut from a larger field** (decision 2 of the issue named one; removed after the
+review of the pull request #101). With ``pbc=False`` no mean reads across a border, so the
+non-periodic estimate of a periodic field has the expectation of the estimate of a window of the
+same process. But it is paired with the periodic estimate, and a window is another draw: its
+standard error was 1 % of S2 at j = 0 where the paired one is 0.1 %, and a window wrongly read
+with ``pbc=True`` stayed under |z| = 4. In the first version of the test the window (N = 128 with
+256 draws, N = 256 with 64, cut from fields of side 4N) showed no gap either: largest |z| 3.50.
 
 **The criterion** (issue #98, decisions 3 and 4). Over K seeded draws and for each coefficient,
-real and imaginary part apart, z is the gap between the mean of an estimate and the mean of the
-periodic one, divided by its standard error over the draws. The masked estimate is paired with
-the periodic one, draw by draw (the same field): the standard error is that of the differences.
-The window comes from other fields: the standard error is the root of the sum of the two
-variances of the means. The test asserts |z| ≤ 5.5 for every compared coefficient: the
-threshold of decision 4, 4, corrected for the number of comparisons (see *The threshold*). A
-part that is zero in every draw of both estimates (the imaginary parts of the auto S1 and S2) is
-not compared.
+real and imaginary part apart, z is the mean over the draws of the difference between an
+estimate and the periodic one, divided by the standard error of that difference. The test
+asserts |z| ≤ 5.5 for every compared coefficient: the threshold of decision 4, 4, corrected for
+the number of comparisons (see *The threshold*). A part that is zero in every draw of both
+estimates (the imaginary parts of the auto S1 and S2) is not compared, nor are ``mean`` and
+``var`` of the non-periodic estimate, which have no border and equal the periodic ones.
 
 **The rule of the compared coefficients.** A coefficient is compared when its mean keeps at least
 a quarter of the pixels of its level: the pixels left by the border crop (M-BORDER) and by the
 masks (M-MASK), counted by the plan, over the (N / 2^j)² pixels of the level of the mean. The
 others, and the means with no pixel (OP-3), are left out.
 
-**Two sizes, the same number of pixels**: N = 128 with K = 256 draws, and N = 256 with K = 64,
-both with J = 5 and L = 4, raw statistics (``norm="none"``). The standard errors of the two sizes
-are then close, and a gap that did not shrink with the size would show at both.
-
-**A fourth estimate, paired** (not in the decisions of the issue; added because the window has
-little power). The window and the periodic field are different draws, so the comparison sees
-only a gap larger than the cosmic variance: 1 % of S2 at j = 0, 4 % at j = 4. The **open**
-estimate is the periodic field itself read with ``pbc=False``: the same pixels, the borders
-cropped. Its expectation is that of the window, and it is paired with the periodic estimate, so
-its standard error is that of the border alone: 0.07 % of S2 at j = 0, 2 to 3 % at j = 4. The
-masked estimate, paired too, has 0.2 % at j = 0 and 3 % at j = 4 (N = 256).
+**Two sizes, 64 draws each**: N = 128 and N = 256, with J = 5 and L = 4, raw statistics
+(``norm="none"``). 64 draws is the smallest number that keeps z close to Gaussian: over nine
+runs (seeds and sizes), the largest |z| was 7.0 with 16 draws (three runs above 5.5), 4.85 with
+32, and 5.06 with 64. The relative standard error of S2, from j = 0 to the coarsest compared
+scale, is then: non-periodic, 0.12 % to 5 % at N = 128 and 0.06 % to 1.8 % at N = 256; masked,
+0.4 % to 2.8 % at N = 128 and 0.2 % to 2.5 % at N = 256. A gap smaller than that is not seen.
 
 **Measured** (PyTorch, float64, seed 0; for each family the largest |z| and the mean of z²,
-about 1 if the standard errors are right, with the number of compared real numbers; ``mean`` and
-``var`` of the open estimate equal the periodic ones, having no border):
+about 1 if the standard errors are right, with the number of compared real numbers):
 
-=======  ====  ==================  ==================  ==================
-size     fam.  window              masked              open
-=======  ====  ==================  ==================  ==================
-N = 128  mean  0.27, 0.07 (1)      0.90, 0.81 (1)      equal
-N = 128  var   0.57, 0.33 (1)      0.67, 0.45 (1)      equal
-N = 128  S1    1.05, 0.30 (20)     1.79, 0.73 (16)     2.07, 0.97 (20)
-N = 128  S2    1.14, 0.29 (20)     2.20, 0.71 (16)     1.96, 1.30 (20)
-N = 128  S3    3.09, 0.75 (320)    2.84, 0.80 (224)    3.47, 1.55 (320)
-N = 128  S4    3.42, 0.93 (2496)   2.92, 0.80 (1344)   3.97, 1.44 (2496)
-N = 256  mean  1.48, 2.20 (1)      1.02, 1.05 (1)      equal
-N = 256  var   0.86, 0.73 (1)      1.89, 3.58 (1)      equal
-N = 256  S1    1.96, 1.38 (20)     2.51, 1.48 (16)     2.05, 1.61 (20)
-N = 256  S2    1.85, 1.16 (20)     2.46, 2.13 (16)     2.26, 1.58 (20)
-N = 256  S3    3.03, 0.98 (480)    3.75, 1.33 (320)    3.86, 1.33 (480)
-N = 256  S4    3.50, 1.05 (4464)   3.57, 1.24 (2560)   5.06, 1.22 (4464)
-=======  ====  ==================  ==================  ==================
+=======  ====  ==================  ==================
+size     fam.  non-periodic        masked
+=======  ====  ==================  ==================
+N = 128  mean  equal               0.49, 0.24 (1)
+N = 128  var   equal               0.90, 0.80 (1)
+N = 128  S1    1.89, 1.01 (20)     0.72, 0.20 (16)
+N = 128  S2    1.95, 0.97 (20)     1.18, 0.38 (16)
+N = 128  S3    3.00, 1.00 (320)    2.79, 0.86 (224)
+N = 128  S4    3.55, 1.01 (2496)   3.28, 1.03 (1344)
+N = 256  mean  equal               1.02, 1.05 (1)
+N = 256  var   equal               1.89, 3.58 (1)
+N = 256  S1    2.05, 1.61 (20)     2.51, 1.48 (16)
+N = 256  S2    2.26, 1.58 (20)     2.46, 2.13 (16)
+N = 256  S3    3.86, 1.33 (480)    3.75, 1.33 (320)
+N = 256  S4    5.06, 1.22 (4464)   3.57, 1.24 (2560)
+=======  ====  ==================  ==================
 
-Over all the compared numbers the mean of z² is 1.09 at N = 128 and 1.16 at N = 256. The
+Over all the compared numbers the mean of z² is 1.00 at N = 128 and 1.24 at N = 256. The
 coefficients of a family are correlated, so the mean of z² of a small family moves far from 1
-from one seed to the next (0.3 to 3.4 for S1 over six seeds): it is an indication, not asserted.
+from one seed to the next: it is an indication, not asserted.
 
-**No systematic gap was found**, at either size, by any of the three comparisons: the list of
-decision 4 of the issue (the gaps exempted from the threshold, each with its open point) is
-empty.
+**No systematic gap was found**, at either size, by either comparison: the list of decision 4 of
+the issue (the gaps exempted from the threshold, each with its open point) is empty. One exists
+at a smaller size, outside this test: at N = 64 with J = 5 the coarsest level has 4 x 4 pixels,
+its border is too large and is reduced (OP-13), and the non-periodic S1 and S2 at j = 4 are 10
+to 26 % below the periodic ones (|z| up to 11 with 256 draws). At N = 128 and 256 the means
+with a reduced border keep less than a quarter of their pixels, and are not compared.
 
-**The threshold** (review of the pull request #101). The test compares 20 200 real numbers. At
-|z| ≤ 4, one independent Gaussian value in 16 000 fails: about one chance failure per seed, and
-three seeds of five did fail in the first version (98 to 102, by one or two coefficients between
-4.07 and 4.52). The threshold is therefore corrected for the number of comparisons (Bonferroni):
-at |z| ≤ 5.5 a Gaussian value fails with probability 3.8e-8, so 8e-4 for the whole test. The
-seed, 0, was fixed before its result was seen. Seeds 1 to 5 pass as well, with largest |z| 3.78,
-3.89, 4.37, 3.80 and 4.31.
+**The threshold** (review of the pull request #101). The test compares 12 356 real numbers. At
+|z| ≤ 4, one independent Gaussian value in 16 000 fails, and five of the six seeds tried have a
+coefficient above 4, by chance.
+The threshold is therefore corrected for the number of comparisons (Bonferroni): at |z| ≤ 5.5 a
+Gaussian value fails with probability 3.8e-8, so 5e-4 for the whole test. The seed, 0, was fixed
+before its result was seen. Seeds 1 to 5 pass as well, with largest |z| 4.11, 4.93, 4.35, 3.54
+and 4.31.
 
-The largest |z| of seed 0, 5.06 (open, S4, N = 256), is above what Gaussian values give, and is
-chance all the same: with 64 draws the means of a log-normal field have heavier tails. Measured
-again with 256 draws, that coefficient is at 1.95, and at 0.27 on the 192 new draws alone; the
-two others above 4 (4.85 and 4.07) fall to 2.51 and 1.70. A systematic gap would have doubled.
-A coefficient above the threshold after a change is measured the same way before it is called
-a gap.
+The largest |z| of seed 0, 5.06 (non-periodic, S4, N = 256), is above what Gaussian values give,
+and is chance all the same: with 64 draws the means of a log-normal field have heavier tails.
+Measured again with 256 draws, that coefficient is at 1.95, and at 0.27 on the 192 new draws
+alone; the two others above 4 (4.85 and 4.07) fall to 2.51 and 1.70. A systematic gap would have
+doubled. A coefficient above the threshold after a change is measured the same way before it is
+called a gap.
 
-Slow: 320 draws and four estimates of each, at 128 x 128 and 256 x 256 with J = 5, since the
-standard error of a mean falls only as the root of the number of pixels: 48 s of CPU time on
-PyTorch (24 s for each size), full tier only (issue #98, decision 7).
+Slow: 64 draws and three estimates of each, at 128 x 128 and 256 x 256 with J = 5, since the
+standard error of a mean falls only as the root of the number of pixels: 24 s of CPU time on
+PyTorch (4 s for N = 128, 20 s for N = 256), full tier only (issue #98, decision 7).
 """
 
 from __future__ import annotations
@@ -115,8 +119,6 @@ K0 = 1 / 64
 """The frequency below which the spectrum of the Gaussian field is flat, in cycles per pixel."""
 SIGMA = 0.5
 """The field is the exponential of ``SIGMA`` times a Gaussian field of unit variance."""
-WINDOW_FACTOR = 4
-"""The window of side N is cut from a periodic field of side ``WINDOW_FACTOR`` x N."""
 HOLES_PER_512 = (112, 88, 64, 40, 24)
 """The sides of the square holes of the mask for N = 512, scaled with N: 10.1 % of the pixels,
 as in the benchmark case ``planar-masked``."""
@@ -124,7 +126,7 @@ MIN_KEPT = 0.25
 """A coefficient is compared when its mean keeps at least this fraction of the pixels of its
 level."""
 Z_MAX = 5.5
-"""The largest |z| allowed: 4 corrected for 20 200 comparisons (Bonferroni; risk 8e-4)."""
+"""The largest |z| allowed: 4 corrected for 12 356 comparisons (Bonferroni; risk 5e-4)."""
 SYSTEMATIC_GAPS: dict[str, str] = {}
 """The systematic gaps found, each with the open point of maths.md that records it (issue #98,
 decision 4): none."""
@@ -206,11 +208,12 @@ def _estimate(fields: NDArray[np.float64], mask: NDArray[np.bool_] | None, pbc: 
 
 
 def _z_scores(
-    estimate: Estimate, periodic: Estimate, paired: bool
+    estimate: Estimate, periodic: Estimate
 ) -> dict[str, tuple[NDArray[np.float64], NDArray[np.bool_]]]:
     """For each family, the z-score of each real number of ``estimate`` against ``periodic``
     (real parts, then imaginary parts for a complex family, on a new first axis), and which are
-    compared. ``paired``: the two estimates are of the same draws."""
+    compared. The two estimates are of the same draws: the standard error is that of their
+    differences."""
     scores = {}
     for family in FAMILIES:
         ours, reference = estimate.values[family], periodic.values[family]
@@ -221,10 +224,7 @@ def _z_scores(
             ours, reference = ours[:, None], reference[:, None]
         draws = reference.shape[0]
         gap = ours.mean(axis=0) - reference.mean(axis=0)
-        if paired:
-            error = (ours - reference).std(axis=0, ddof=1) / np.sqrt(draws)
-        else:
-            error = np.sqrt((ours.var(axis=0, ddof=1) + reference.var(axis=0, ddof=1)) / draws)
+        error = (ours - reference).std(axis=0, ddof=1) / np.sqrt(draws)
         kept = np.broadcast_to(estimate.kept[family] >= MIN_KEPT, gap.shape)
         compared = kept & np.isfinite(gap) & (error > 0)
         # Where nothing varies over the draws, the two estimates are equal: a structural zero,
@@ -236,17 +236,13 @@ def _z_scores(
 
 
 def _comparisons(n: int, draws: int) -> dict[str, dict[str, Any]]:
-    """The z-scores of the window, masked and open estimates against the periodic one, for
-    ``draws`` draws at side ``n``."""
+    """The z-scores of the non-periodic and masked estimates against the periodic one, for ``draws``
+    draws at side ``n``."""
     fields = np.stack([_draw(n, draw) for draw in range(draws)])
-    window = np.stack(
-        [_draw(WINDOW_FACTOR * n, draw)[n : 2 * n, n : 2 * n] for draw in range(draws)]
-    )
     periodic = _estimate(fields, None, pbc=True)
     return {
-        "window": _z_scores(_estimate(window, None, pbc=False), periodic, paired=False),
-        "masked": _z_scores(_estimate(fields, _holes(n), pbc=True), periodic, paired=True),
-        "open": _z_scores(_estimate(fields, None, pbc=False), periodic, paired=True),
+        "non-periodic": _z_scores(_estimate(fields, None, pbc=False), periodic),
+        "masked": _z_scores(_estimate(fields, _holes(n), pbc=True), periodic),
     }
 
 
@@ -256,9 +252,9 @@ def test_the_mask_has_holes_of_different_sizes() -> None:
         assert _holes(n).mean() == pytest.approx(0.101, abs=1e-3)
 
 
-@pytest.mark.parametrize(("n", "draws"), [(128, 256), (256, 64)], ids=["N128-K256", "N256-K64"])
+@pytest.mark.parametrize(("n", "draws"), [(128, 64), (256, 64)], ids=["N128", "N256"])
 def test_the_estimates_agree_within_their_statistical_error(n: int, draws: int) -> None:
-    """Every compared coefficient of the window, masked and open estimates is within
+    """Every compared coefficient of the non-periodic and masked estimates is within
     ``Z_MAX`` standard errors of the periodic estimate; no systematic gap is exempted
     (``SYSTEMATIC_GAPS``)."""
     assert not SYSTEMATIC_GAPS
@@ -266,8 +262,9 @@ def test_the_estimates_agree_within_their_statistical_error(n: int, draws: int) 
     for name, scores in _comparisons(n, draws).items():
         for family in FAMILIES:
             z, compared = scores[family]
-            # The open estimate has no border for mean and var: they equal the periodic ones.
-            assert compared.any() or (name == "open" and family in ("mean", "var")), (name, family)
+            # Without a border, mean and var of the non-periodic estimate equal the periodic ones.
+            without_border = name == "non-periodic" and family in ("mean", "var")
+            assert compared.any() or without_border, (name, family)
             for index in np.argwhere(compared & (np.abs(z) > Z_MAX)):
                 where = tuple(int(i) for i in index)
                 outliers.append(
