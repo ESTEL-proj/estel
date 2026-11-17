@@ -23,8 +23,10 @@ real and imaginary part apart, z is the gap between the mean of an estimate and 
 periodic one, divided by its standard error over the draws. The masked estimate is paired with
 the periodic one, draw by draw (the same field): the standard error is that of the differences.
 The window comes from other fields: the standard error is the root of the sum of the two
-variances of the means. The test asserts |z| ≤ 4 for every compared coefficient. A part that is
-zero in every draw of both estimates (the imaginary parts of the auto S1 and S2) is not compared.
+variances of the means. The test asserts |z| ≤ 5.5 for every compared coefficient: the
+threshold of decision 4, 4, corrected for the number of comparisons (see *The threshold*). A
+part that is zero in every draw of both estimates (the imaginary parts of the auto S1 and S2) is
+not compared.
 
 **The rule of the compared coefficients.** A coefficient is compared when its mean keeps at least
 a quarter of the pixels of its level: the pixels left by the border crop (M-BORDER) and by the
@@ -43,41 +45,52 @@ cropped. Its expectation is that of the window, and it is paired with the period
 its standard error is that of the border alone: 0.07 % of S2 at j = 0, 2 to 3 % at j = 4. The
 masked estimate, paired too, has 0.2 % at j = 0 and 3 % at j = 4 (N = 256).
 
-**Measured** (PyTorch, float64; the largest |z| of each family, with the number of compared real
-numbers; ``mean`` and ``var`` of the open estimate equal the periodic ones, having no border):
+**Measured** (PyTorch, float64, seed 0; for each family the largest |z| and the mean of z²,
+about 1 if the standard errors are right, with the number of compared real numbers; ``mean`` and
+``var`` of the open estimate equal the periodic ones, having no border):
 
-=======  ====  ===========  ===========  ===========
-size     fam.  window       masked       open
-=======  ====  ===========  ===========  ===========
-N = 128  mean  0.24 (1)     0.41 (1)     equal
-N = 128  var   0.07 (1)     0.82 (1)     equal
-N = 128  S1    1.11 (20)    0.38 (12)    1.19 (20)
-N = 128  S2    0.74 (20)    0.41 (12)    1.37 (20)
-N = 128  S3    2.77 (320)   2.51 (192)   2.43 (320)
-N = 128  S4    3.02 (2496)  3.22 (1216)  2.88 (2496)
-N = 256  mean  0.15 (1)     1.44 (1)     equal
-N = 256  var   0.50 (1)     1.73 (1)     equal
-N = 256  S1    1.11 (20)    2.09 (20)    2.20 (20)
-N = 256  S2    1.28 (20)    1.79 (20)    2.38 (20)
-N = 256  S3    2.86 (480)   3.40 (352)   3.93 (480)
-N = 256  S4    3.54 (4464)  3.13 (2688)  3.86 (4464)
-=======  ====  ===========  ===========  ===========
+=======  ====  ==================  ==================  ==================
+size     fam.  window              masked              open
+=======  ====  ==================  ==================  ==================
+N = 128  mean  0.27, 0.07 (1)      0.90, 0.81 (1)      equal
+N = 128  var   0.57, 0.33 (1)      0.67, 0.45 (1)      equal
+N = 128  S1    1.05, 0.30 (20)     1.79, 0.73 (16)     2.07, 0.97 (20)
+N = 128  S2    1.14, 0.29 (20)     2.20, 0.71 (16)     1.96, 1.30 (20)
+N = 128  S3    3.09, 0.75 (320)    2.84, 0.80 (224)    3.47, 1.55 (320)
+N = 128  S4    3.42, 0.93 (2496)   2.92, 0.80 (1344)   3.97, 1.44 (2496)
+N = 256  mean  1.48, 2.20 (1)      1.02, 1.05 (1)      equal
+N = 256  var   0.86, 0.73 (1)      1.89, 3.58 (1)      equal
+N = 256  S1    1.96, 1.38 (20)     2.51, 1.48 (16)     2.05, 1.61 (20)
+N = 256  S2    1.85, 1.16 (20)     2.46, 2.13 (16)     2.26, 1.58 (20)
+N = 256  S3    3.03, 0.98 (480)    3.75, 1.33 (320)    3.86, 1.33 (480)
+N = 256  S4    3.50, 1.05 (4464)   3.57, 1.24 (2560)   5.06, 1.22 (4464)
+=======  ====  ==================  ==================  ==================
+
+Over all the compared numbers the mean of z² is 1.09 at N = 128 and 1.16 at N = 256. The
+coefficients of a family are correlated, so the mean of z² of a small family moves far from 1
+from one seed to the next (0.3 to 3.4 for S1 over six seeds): it is an indication, not asserted.
 
 **No systematic gap was found**, at either size, by any of the three comparisons: the list of
-decision 4 of the issue (the gaps exempted from |z| ≤ 4, each with its open point) is empty.
+decision 4 of the issue (the gaps exempted from the threshold, each with its open point) is
+empty.
 
-**The seed, and what |z| ≤ 4 can tell.** The test compares 20 200 real numbers; of independent
-Gaussian values one in 16 000 exceeds 4, and the means of 64 draws of a log-normal field have
-heavier tails. Of the five seeds tried, 98 to 102, two pass (99 and 101) and three have one or
-two coefficients of the window estimate at N = 256 between 4.07 and 4.52, different ones for
-each seed; none at N = 128, none in the masked or open estimates. For seed 98 (S2, j = 4,
-orientation 0: z = -4.07 with 64 draws) the same coefficient is at -2.34 with 256 draws, and at
--0.60 on the 192 new draws alone: chance, where a systematic gap would have doubled. The test
-keeps seed 99, the first that passes. A coefficient above 4 after a change is therefore measured
-again with more draws before it is called a gap.
+**The threshold** (review of the pull request #101). The test compares 20 200 real numbers. At
+|z| ≤ 4, one independent Gaussian value in 16 000 fails: about one chance failure per seed, and
+three seeds of five did fail in the first version (98 to 102, by one or two coefficients between
+4.07 and 4.52). The threshold is therefore corrected for the number of comparisons (Bonferroni):
+at |z| ≤ 5.5 a Gaussian value fails with probability 3.8e-8, so 8e-4 for the whole test. The
+seed, 0, was fixed before its result was seen. Seeds 1 to 5 pass as well, with largest |z| 3.78,
+3.89, 4.37, 3.80 and 4.31.
+
+The largest |z| of seed 0, 5.06 (open, S4, N = 256), is above what Gaussian values give, and is
+chance all the same: with 64 draws the means of a log-normal field have heavier tails. Measured
+again with 256 draws, that coefficient is at 1.95, and at 0.27 on the 192 new draws alone; the
+two others above 4 (4.85 and 4.07) fall to 2.51 and 1.70. A systematic gap would have doubled.
+A coefficient above the threshold after a change is measured the same way before it is called
+a gap.
 
 Slow: 320 draws and four estimates of each, at 128 x 128 and 256 x 256 with J = 5, since the
-standard error of a mean falls only as the root of the number of pixels: 47 s of CPU time on
+standard error of a mean falls only as the root of the number of pixels: 48 s of CPU time on
 PyTorch (24 s for each size), full tier only (issue #98, decision 7).
 """
 
@@ -94,9 +107,9 @@ from numpy.typing import NDArray
 from estel import Data2D, STOperator
 
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
-SEED = 99
-"""The seed of every draw, with the side of the field and the number of the draw; the module
-docstring says how it was chosen."""
+SEED = 0
+"""The seed of every draw, with the side of the field and the number of the draw; fixed before
+its result was seen."""
 J, L = 5, 4
 K0 = 1 / 64
 """The frequency below which the spectrum of the Gaussian field is flat, in cycles per pixel."""
@@ -110,7 +123,8 @@ as in the benchmark case ``planar-masked``."""
 MIN_KEPT = 0.25
 """A coefficient is compared when its mean keeps at least this fraction of the pixels of its
 level."""
-Z_MAX = 4.0
+Z_MAX = 5.5
+"""The largest |z| allowed: 4 corrected for 20 200 comparisons (Bonferroni; risk 8e-4)."""
 SYSTEMATIC_GAPS: dict[str, str] = {}
 """The systematic gaps found, each with the open point of maths.md that records it (issue #98,
 decision 4): none."""
