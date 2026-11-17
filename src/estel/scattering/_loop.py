@@ -54,10 +54,18 @@ from typing import Any, NamedTuple
 from ..backend import _registry
 from ..backend._protocol import Backend
 from ..data._base import Data
-from ..data._moments import cov_sum_valid, divide, gram_sum, modulus, standardize, sum_valid
+from ..data._moments import (
+    cov_sum_valid,
+    crop,
+    divide,
+    gram_sum,
+    modulus,
+    standardize,
+    sum_valid,
+)
 from ..wavelets._operator import WaveletOperator
-from ._filters import STFilters
-from ._plan import STPlan
+from ._filters import STFilters, window
+from ._plan import SecondLayerWindows, STPlan
 
 S1_EPSILON = 1e-8
 """ε of the cross S1 terms, ``z / (|z| + ε)^(1/2)`` (maths.md M-S1, OP-16)."""
@@ -138,14 +146,15 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
     if filters.valid is not None:
         x = xp.where(filters.valid, x, xp.zeros_like(x))
     moments = plan.moments
+    weights = window(moments, filters.moments)
     mean_pre_std = std_pre_std = None
     if plan.standardize:
         x, mean_pre_std, std_pre_std = standardize(
-            x, filters.moments, moments.denominator, axes, global_sum=total
+            x, weights, moments.denominator, axes, global_sum=total
         )
     pending: list[_Sum] = [
-        _Sum("mean", sum_valid(x, filters.moments, axes), moments.denominator),
-        _Sum("var", cov_sum_valid(x, x, filters.moments, axes), moments.denominator),
+        _Sum("mean", sum_valid(x, weights, axes), moments.denominator),
+        _Sum("var", cov_sum_valid(x, x, weights, axes), moments.denominator),
     ]
     means: dict[str, list[Any]] = {"mean": [], "var": [], "S1": [], "S2": [], "S3": [], "S4": []}
 
@@ -156,10 +165,11 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
         moduli = {**moduli, j3: u}
 
         if j3 in plan.first_layer:
-            weights, denominator = filters.first_layer[j3], plan.first_layer[j3].denominator
+            weights = window(plan.first_layer[j3], filters.first_layer[j3])
+            denominator = plan.first_layer[j3].denominator
             # Auto terms, every channel at once; cross terms, pair by pair (M-S1, M-S2).
             auto_s1 = sum_valid(u, weights, axes)  # (Nb, L, Nc)
-            auto_s2 = sum_valid(u * u, weights, axes)
+            auto_s2 = cov_sum_valid(u, u, weights, axes)
             pending.extend(_Sum("S1", auto_s1[:, :, c], denominator) for c in pairs.auto)
             if pairs.cross:
                 rooted = divide(w, u, S1_EPSILON, 0.5)  # z / (|z| + eps)^(1/2), OP-16
@@ -231,24 +241,31 @@ def _second_layer(
     band = w  # (Nb, L3, Nc, *spatial)
     windows = filters.second_layer[j3]
     with_s3 = any((j2, j3) in plan.s3 for j2 in level.arms)
-    if windows is not None:
-        # Each map is zero outside its own window: a pair is then summed over the
-        # intersection of its two windows, STL's window for that pair.
-        of_arms = xp.stack([windows[d] for d in level.arm_windows], axis=0)
-        v = v * of_arms[(slice(None), None, None, *([slice(None)] * plan.ndim))]
-        if with_s3 and level.band_window is not None:
-            band = band * windows[level.band_window]
+    with_s4 = any(key[2] == j3 for key in plan.s4)
     n_batch, n_arms = int(v.shape[0]), len(level.arms)
-    rows = xp.reshape(v, (n_batch, L, n_arms * L * n_channels, -1))
     row = {j2: position for position, j2 in enumerate(level.arms)}
     grid = (n_batch, L, n_arms, L, n_channels)
-    cross = gram = None
-    if with_s3:
-        cross = xp.reshape(
-            gram_sum(rows, xp.reshape(band, (n_batch, L, n_channels, -1))), (*grid, n_channels)
-        )  # [Nb, l3, j2, l2, c1, c2]
-    if any(key[2] == j3 for key in plan.s4):
-        gram = xp.reshape(gram_sum(rows), (*grid, *grid[2:]))  # [Nb, l3, j1, l1, c1, j2, l2, c2]
+    if level.shells:
+        # Windows that are nested rectangles: one product per shell, on slices (M-WIN).
+        gram, cross = _shell_sums(backend, level, v, band, with_s3, with_s4)
+    else:
+        if windows is not None:
+            # Each map is zero outside its own window: a pair is then summed over the
+            # intersection of its two windows, STL's window for that pair.
+            of_arms = xp.stack([windows[d] for d in level.arm_windows], axis=0)
+            v = v * of_arms[(slice(None), None, None, *([slice(None)] * plan.ndim))]
+            if with_s3 and level.band_window is not None:
+                band = band * windows[level.band_window]
+        rows = xp.reshape(v, (n_batch, L, n_arms * L * n_channels, -1))
+        cross = gram = None
+        if with_s3:
+            cross = gram_sum(rows, xp.reshape(band, (n_batch, L, n_channels, -1)))
+        if with_s4:
+            gram = gram_sum(rows)
+    if cross is not None:
+        cross = xp.reshape(cross, (*grid, n_channels))  # [Nb, l3, j2, l2, c1, c2]
+    if gram is not None:
+        gram = xp.reshape(gram, (*grid, *grid[2:]))  # [Nb, l3, j1, l1, c1, j2, l2, c2]
     sums: list[_Sum] = []
     for j2 in level.arms:
         if cross is not None and (j2, j3) in plan.s3:
@@ -271,6 +288,53 @@ def _second_layer(
                     for c1, c2 in pairs.ordered
                 )
     return sums
+
+
+def _shell_sums(
+    backend: Backend, level: SecondLayerWindows, v: Any, band: Any, with_s3: bool, with_s4: bool
+) -> tuple[Any, Any]:
+    """The Gram sums of a level whose windows are nested rectangles (maths_step2.md M-WIN,
+    M-GRAM): ``(gram, cross)``, the sums of S4, ``(Nb, L3, P, P)``, and of S3,
+    ``(Nb, L3, P, Nc)``, with P the rows of the level, or ``None`` for a family the level does
+    not have.
+
+    Every pixel of a shell of the plan is in the same windows: the shell is summed by one
+    product of the maps of these windows, the first scales of the level, read on slices, and
+    the products of the shells are added, each filled with zeros for the other maps. A pair is
+    then summed over the shells of the smaller of its two windows, which is their
+    intersection, as when each map is set to zero outside its window, with no weights.
+    """
+    xp = backend.xp
+    n_batch, n_orientations, n_arms = (int(n) for n in v.shape[:3])
+    per_arm = int(v.shape[3]) * int(v.shape[4])
+    total = n_arms * per_arm
+    n_channels = int(band.shape[2])
+
+    def pixels(x: Any, strips: Sequence[tuple[tuple[int, int], ...]], n_rows: int) -> Any:
+        flat = [
+            xp.reshape(
+                crop(x, tuple(slice(start, stop) for start, stop in strip)),
+                (n_batch, n_orientations, n_rows, -1),
+            )
+            for strip in strips
+        ]
+        return flat[0] if len(flat) == 1 else xp.concat(flat, axis=-1)
+
+    gram = cross = None
+    for shell in level.shells:
+        n_rows = shell.n_arms * per_arm
+        rows = pixels(
+            v if shell.n_arms == n_arms else v[:, :, : shell.n_arms], shell.strips, n_rows
+        )
+        missing = (0, total - n_rows)
+        if with_s4:
+            part = backend.pad(gram_sum(rows), (missing, missing), (-2, -1), "zeros")
+            gram = part if gram is None else gram + part
+        if with_s3 and shell.band:
+            part = gram_sum(rows, pixels(band, shell.strips, n_channels))
+            part = backend.pad(part, (missing,), (-2,), "zeros")
+            cross = part if cross is None else cross + part
+    return gram, cross
 
 
 def _divide_level(backend: Backend, pending: Sequence[_Sum], total: Any) -> list[tuple[str, Any]]:

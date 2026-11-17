@@ -78,21 +78,38 @@ def divide(x: Any, y: Any, eps: float = 1e-8, pow: float = 1.0) -> Any:
     return x / (y + eps) ** pow
 
 
+def crop(x: Any, window: Any) -> Any:
+    """``x`` on the pixels of a window that is a rectangle: ``window`` is a tuple of slices,
+    one per trailing (spatial) axis of ``x``. A view, no weights (maths_step2.md M-WIN)."""
+    return x[(Ellipsis, *window)]
+
+
 def sum_valid(x: Any, weights: Any, axes: Sequence[int]) -> Any:
-    """The weighted sum of ``x`` over the valid pixels, ``sum(weights · x, axes)``: the
+    """The sum of ``x`` over the pixels of a window, along ``axes``, the spatial axes: the
     numerator of :func:`mean_valid`, before the division by the denominator.
+
+    ``weights`` is the window, in one of its three kinds (maths_step2.md M-WIN; Part III,
+    §19.12, point 1): ``None``, every pixel, a plain sum; a tuple of slices, one per spatial
+    axis, a sum over that slice; or the 0/1 array of the plan, ``sum(weights · x)``, for data
+    with missing values. The three give the same value up to the order of the sum.
 
     The scattering loop sums first, adds the partial sums of every partition of the data (the
     identity in 1.0.0; ``estel.scattering._loop._global_sum``), then divides.
     """
     xp = _backend(x).xp
+    if weights is None:
+        return xp.sum(x, axis=tuple(axes))
+    if isinstance(weights, tuple):
+        return xp.sum(crop(x, weights), axis=tuple(axes))
     return xp.sum(weights * x, axis=tuple(axes))
 
 
 def cov_sum_valid(x: Any, y: Any, weights: Any, axes: Sequence[int]) -> Any:
-    """The weighted sum of ``x · conj(y)`` over the valid pixels: the numerator of
-    :func:`cov_valid`."""
+    """The sum of ``x · conj(y)`` over the pixels of a window (see :func:`sum_valid`): the
+    numerator of :func:`cov_valid`. ``x`` and ``y`` have the same spatial shape."""
     xp = _backend(x).xp
+    if isinstance(weights, tuple):
+        x, y, weights = crop(x, weights), crop(y, weights), None
     product = x * xp.conj(y) if _is_complex(xp, y) else x * y
     return sum_valid(product, weights, axes)
 
@@ -147,9 +164,11 @@ def mean_valid(x: Any, weights: Any, denominator: float, axes: Sequence[int]) ->
     """The mean of ``x`` over the valid pixels: ``sum(weights · x, axes) / denominator``
     (maths.md M-NOT, M-MEAN).
 
-    ``weights`` is the real array of the plan (1 where a pixel enters the mean, 0 on the border
-    crop and on invalid pixels; ``MeanWeights.weights``), broadcast against the trailing
-    ``axes`` of ``x``; ``denominator`` is its sum, a Python float computed once in the plan
+    ``weights`` is the window of the mean (:func:`sum_valid`): the real array of the plan (1
+    where a pixel enters the mean, 0 on the border crop and on invalid pixels;
+    ``MeanWeights.weights``), broadcast against the trailing ``axes`` of ``x``, or, for a
+    window without missing values, a tuple of slices or ``None``; ``denominator`` is the number
+    of its pixels, a Python float computed once in the plan
     (``MeanWeights.denominator``). ``x`` must be finite where the weights are 0.
     """
     return sum_valid(x, weights, axes) / denominator

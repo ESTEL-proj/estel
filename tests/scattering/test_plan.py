@@ -259,6 +259,33 @@ def test_second_layer_has_no_window_on_periodic_data_without_missing_values() ->
         assert (level.windows, level.arm_windows, level.band_window) == ((), (), None)
 
 
+@pytest.mark.maths("M-MEAN", "M-BORDER")
+@pytest.mark.parametrize("ndim", sorted(GEOMETRIES))
+def test_windows_without_missing_values_are_slices_cut_in_shells(ndim: int) -> None:
+    """maths_step2.md M-WIN, without the common window: on non-periodic data without missing
+    values a window is a rectangle, read as a slice, and the nested windows of a level of the
+    second layer are cut in shells; the shells of the first scales of a level, added, are the
+    window of each of its maps. With missing values the windows are weights."""
+    n = 64 if ndim == 2 else 128
+    plan = _plan(_data(ndim, n, pbc=False), 3, L=1)
+    assert (plan.moments.kind, plan.first_layer[0].kind) == ("full", "slice")
+    assert plan.first_layer[0].box == ((2, n - 2),) * ndim
+    for j3, level in plan.second_layer.items():
+        assert level.windows == ()
+        assert len(level.shells) == min(j3 + 1, 2)  # the border of j2 = j3, and that of j2 < j3
+        assert all(shell.band for shell in level.shells)
+        for position, j2 in enumerate(level.arms):
+            window = np.zeros(plan.wavelets.level_shapes[j3])
+            for shell in level.shells:
+                for strip in shell.strips if position < shell.n_arms else ():
+                    window[tuple(slice(*bounds) for bounds in strip)] += 1
+            np.testing.assert_array_equal(window, plan.s4[(j2, j2, j3)].weights)
+    masked = _plan(_data(ndim, n, False, _sparse_mask(ndim, n)), 3, L=1)
+    assert masked.first_layer[0].kind == "weights"
+    assert masked.first_layer[0].box is None
+    assert not any(level.shells for level in masked.second_layer.values())
+
+
 @pytest.mark.maths("M-MASK")
 def test_s3_uses_the_union_where_the_layer_2_mask_misses_layer_1() -> None:
     """maths.md M-MASK: a covariance uses the union of its operands' masks. STL takes the

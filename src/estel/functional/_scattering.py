@@ -79,7 +79,7 @@ def check_data(data: object, plan: STPlan, filters: STFilters) -> None:
     """Raise unless ``data`` is data the plan was built for, on the filters' backend and dtype."""
     if not isinstance(data, Data):
         raise TypeError(f"expected a Data object, such as estel.Data2D, got {type(data).__name__}.")
-    backend = _registry.backend_of(filters.moments) or ""
+    backend = _registry.backend_of(filters.wavelets.smoothing) or ""
     _registry.check_backend(backend, data.array, owner="these filters")
     if data.mask is None or plan.mask is None:
         same_mask = data.mask is None and plan.mask is None
@@ -104,11 +104,11 @@ def check_data(data: object, plan: STPlan, filters: STFilters) -> None:
             f"{plan.n_channels}: the number of channels is fixed at construction. Build a new "
             "STOperator for these data."
         )
-    if data.array.dtype != filters.moments.dtype:
+    if data.array.dtype != filters.wavelets.smoothing.dtype:
         raise TypeError(
             f"the data are {data.array.dtype}, but the operator computes in "
-            f"{filters.moments.dtype}, the default dtype when it was built. Build the data and "
-            "the operator with the same default dtype (estel.set_default_dtype)."
+            f"{filters.wavelets.smoothing.dtype}, the default dtype when it was built. Build the "
+            "data and the operator with the same default dtype (estel.set_default_dtype)."
         )
 
 
@@ -127,7 +127,7 @@ def compute(
                 'norm="ref" needs a reference: pass ref=, statistics computed with '
                 'norm="self" (maths.md M-NORM).'
             )
-        check_reference(reference, plan, int(data.shape[0]), filters.moments.dtype)
+        check_reference(reference, plan, int(data.shape[0]), filters.wavelets.smoothing.dtype)
     backend = _registry.backend_named(data.backend)
     found = scattering_values(data, plan, filters)
     values = {name: getattr(found, name) for name in ("mean", "var", "S1", "S2", "S3", "S4")}
