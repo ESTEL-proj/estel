@@ -53,14 +53,28 @@ def peak_rss_bytes() -> int:
     return peak if sys.platform == "darwin" else peak * 1024
 
 
+def rss_bytes() -> int:
+    """The resident memory of this process now: from ``/proc`` on Linux, from ``ps`` (in
+    kilobytes) on macOS."""
+    if sys.platform == "darwin":
+        command = ["ps", "-o", "rss=", "-p", str(os.getpid())]
+        return int(subprocess.run(command, capture_output=True, text=True).stdout) * 1024
+    resident_pages = int(Path("/proc/self/statm").read_text().split()[1])
+    return resident_pages * os.sysconf("SC_PAGE_SIZE")
+
+
 def measure(
     library: str, inputs: Inputs, warmup: int, repeats: int
 ) -> tuple[dict[str, Any], dict[str, NDArray[Any]]]:
     """Measure a case in the current process, with ``library`` (``"estel"`` or ``"stl"``): the
     forward pass, then the forward pass with the gradient of the loss, each as ``warmup`` runs
-    then ``repeats`` timed runs, and the peak resident memory after both. Returns the
+    then ``repeats`` timed runs, and the peak resident memory after both. The baseline is the
+    resident memory once the library and the inputs are loaded, just before the operator is
+    built: the peak minus the baseline is the memory of the computation itself. Returns the
     measurements and the results of the last runs as NumPy arrays."""
-    run = importlib.import_module(LIBRARIES[library]).Run(inputs)
+    module = importlib.import_module(LIBRARIES[library])
+    baseline = rss_bytes()
+    run = module.Run(inputs)
     forward, statistics_ = timed(run.forward, warmup, repeats)
     gradient, loss_and_gradient = timed(run.gradient, warmup, repeats)
     peak = peak_rss_bytes()
@@ -71,6 +85,7 @@ def measure(
         "gradient_seconds": statistics.median(gradient),
         "gradient_runs": gradient,
         "peak_rss_bytes": peak,
+        "baseline_rss_bytes": baseline,
         "coefficients": int(arrays["vector"].size),
         "loss": float(arrays["loss"]),
     }

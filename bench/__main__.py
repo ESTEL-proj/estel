@@ -208,14 +208,16 @@ def results_path(directory: Path, date: str, machine: str) -> Path:
 
 
 def format_table(runs: list[dict[str, Any]]) -> str:
-    """The short table of the runs: times in seconds (median), peak memory in GiB."""
+    """The short table of the runs: times in seconds (median), memory in GiB: the peak of
+    the process, and the peak minus its baseline, the memory of the computation itself."""
     header = ("case", "environment", "library", "forward (s)", "forward + gradient (s)",
-              "peak memory (GiB)")  # fmt: skip
+              "peak memory (GiB)", "peak - baseline (GiB)")  # fmt: skip
     rows = [
         (
             run["case"], run["environment"], run["library"],
             f"{run['forward_seconds']:.3f}", f"{run['gradient_seconds']:.3f}",
             f"{run['peak_rss_bytes'] / 2**30:.2f}",
+            f"{(run['peak_rss_bytes'] - run['baseline_rss_bytes']) / 2**30:.2f}",
         )
         for run in runs
     ]  # fmt: skip

@@ -31,7 +31,10 @@ Each case runs in a process of its own ([`worker.py`](worker.py)), which measure
 - **forward + gradient**: the loss L = ‖`to_vector`(S(x)) − t‖² and its gradient with respect to
   the field, with t the statistics of a second seeded field;
 - **peak memory**: the peak resident memory of the process (`ru_maxrss`) after both, the backward
-  pass included. It counts the interpreter and the imported libraries, about 0.3 GiB.
+  pass included. It counts the interpreter and the imported libraries;
+- **baseline memory**: the resident memory of the process once the library and the inputs are
+  loaded, just before the operator is built. The table shows the peak minus the baseline, the
+  memory of the computation itself, which compares between STL and ESTEL.
 
 Times are wall times: one warm-up run, then the median of 5 runs; every run is kept in the
 results. The number of threads is fixed (`threads` in `cases.toml`, 4) and recorded.
