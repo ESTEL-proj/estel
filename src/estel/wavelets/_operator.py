@@ -416,6 +416,21 @@ def build_wavelet_filters(
     )
 
 
+def constant_kernels(
+    plan: WaveletPlan, filters: WaveletFilters, backend_name: str
+) -> WaveletFilters:
+    """``filters`` with its small kernels, the wavelet bank and the smoothing kernel, built
+    again from ``plan`` in the same dtype: called inside a compiled function, they are
+    constants of the compiled program instead of its arguments (Part I, §3.1, rule 4; LF29).
+    The maps of the downsampling, which are large, stay the arrays of ``filters``."""
+    backend = _registry.backend_named(backend_name)
+    dtype: FloatDType = "float64" if str(filters.smoothing.dtype).endswith("64") else "float32"
+    return filters._replace(
+        kernels=backend.asarray(plan.bank(), COMPLEX[dtype]),
+        smoothing=backend.asarray(smoothing_kernel(plan.ndim), dtype),
+    )
+
+
 # ---------------------------------------------------------------------- the operator
 
 

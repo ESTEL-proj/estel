@@ -36,15 +36,28 @@ from ..statistics._normalization import (
     self_reference,
 )
 from ..statistics._statistics import STStatistics
+from ..wavelets._operator import constant_kernels
 
 
 @functools.cache
 def _loop(backend_name: str) -> Callable[..., ScatteringValues]:
     """The scattering loop of a backend, compiled where it compiles (``Backend.jit``, the
     plan static): one function per backend, made once, so that its compiled programs are
-    reused from one call to the next."""
+    reused from one call to the next. Where it is compiled, the small kernels are constants
+    of the program (:func:`_loop_with_constant_kernels`)."""
     backend = _registry.backend_named(backend_name)
-    return backend.jit(scattering_values, static_argnames=("plan",))
+    compiled = backend.jit(_loop_with_constant_kernels, static_argnames=("plan",))
+    # A backend that does not compile returns the function itself.
+    return scattering_values if compiled is _loop_with_constant_kernels else compiled
+
+
+def _loop_with_constant_kernels(data: Data, plan: STPlan, filters: STFilters) -> ScatteringValues:
+    """The scattering loop with the wavelet bank and the smoothing kernel built from the plan
+    inside the compiled function, so that they are constants of the program (LF29; Part I,
+    §3.1, rule 4): a few dozen numbers. The large arrays, the masks, the reweighting maps and
+    the weights, stay arguments."""
+    wavelets = constant_kernels(plan.wavelets, filters.wavelets, data.backend)
+    return scattering_values(data, plan, filters._replace(wavelets=wavelets))
 
 
 def scattering(
