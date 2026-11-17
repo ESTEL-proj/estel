@@ -245,27 +245,15 @@ def _second_layer(
         if with_s3 and level.band_window is not None:
             band = band * windows[level.band_window]
     rows = xp.reshape(v, (n_batch, L, n_arms * L * n_channels, -1))
-    cross = None
+    cross = gram = None
     if with_s3:
         cross = gram_sum(rows, xp.reshape(band, (n_batch, L, n_channels, -1)))
-    per_arm = L * n_channels
-    upper: list[Any] = []
     if with_s4:
-        # G is Hermitian: for each scale, its rows times those of the scales from it on, the
-        # upper triangle of G by blocks of scales (M-CANON). [Nb, l3, l1, c1, j2 - j1, l2, c2]
-        upper = [
-            xp.reshape(
-                gram_sum(rows)
-                if n_arms == 1
-                else gram_sum(
-                    rows[:, :, p * per_arm : (p + 1) * per_arm], rows[:, :, p * per_arm :]
-                ),
-                (n_batch, L, L, n_channels, n_arms - p, L, n_channels),
-            )
-            for p in range(n_arms)
-        ]
+        gram = gram_sum(rows)
     if cross is not None:
         cross = xp.reshape(cross, (*grid, n_channels))  # [Nb, l3, j2, l2, c1, c2]
+    if gram is not None:
+        gram = xp.reshape(gram, (*grid, *grid[2:]))  # [Nb, l3, j1, l1, c1, j2, l2, c2]
     sums: list[_Sum] = []
     for j2 in level.arms:
         if cross is not None and (j2, j3) in plan.s3:
@@ -276,14 +264,13 @@ def _second_layer(
                 for c1, c2 in pairs.ordered
             )
         for j1 in range(j2 + 1):
-            if upper and (j1, j2, j3) in plan.s4:
+            if gram is not None and (j1, j2, j3) in plan.s4:
                 denominator = plan.s4[(j1, j2, j3)].denominator
-                block = upper[row[j1]][:, :, :, :, row[j2] - row[j1]]  # [Nb, l3, l1, c1, l2, c2]
                 sums.extend(
                     # (Nb, L3, L1, L2) -> (Nb, L1, L2, L3)
                     _Sum(
                         "S4",
-                        xp.permute_dims(block[:, :, :, c1, :, c2], (0, 2, 3, 1)),
+                        xp.permute_dims(gram[:, :, row[j1], :, c1, row[j2], :, c2], (0, 2, 3, 1)),
                         denominator,
                     )
                     for c1, c2 in pairs.ordered
