@@ -42,9 +42,14 @@ from ..statistics._statistics import STStatistics
 def _loop(backend_name: str) -> Callable[..., ScatteringValues]:
     """The scattering loop of a backend, compiled where it compiles (``Backend.jit``, the
     plan static): one function per backend, made once, so that its compiled programs are
-    reused from one call to the next."""
+    reused from one call to the next. The compiled programs belong to the function made here:
+    ``_loop.cache_clear()`` drops them, for a test that replaces a hook of the loop."""
     backend = _registry.backend_named(backend_name)
-    return backend.jit(scattering_values, static_argnames=("plan",))
+
+    def loop(data: Data, plan: STPlan, filters: STFilters) -> ScatteringValues:
+        return scattering_values(data, plan, filters)
+
+    return backend.jit(loop, static_argnames=("plan",))
 
 
 def scattering(

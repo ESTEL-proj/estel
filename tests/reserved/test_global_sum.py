@@ -10,18 +10,34 @@ trivial implementation through a counting wrapper, so that the interface cannot 
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import numpy as np
 import pytest
 
 from estel import Data, Data1D, Data2D, STOperator, _config
+from estel.functional import _scattering
 from estel.scattering import _loop
 
 
 @pytest.fixture(autouse=True)
 def _run_dtype(monkeypatch: pytest.MonkeyPatch, dtype: str) -> None:
     monkeypatch.setattr(_config, "_dtype", dtype)
+
+
+@pytest.fixture
+def replace_global_sum(monkeypatch: pytest.MonkeyPatch) -> Iterator[Callable[[Any], None]]:
+    """Replace the hook. On a backend that compiles the loop (JAX; task T2.13), the hook is
+    read when the loop is compiled: the compiled loops are dropped when the hook changes, and
+    again after the test, so that no other test runs a loop compiled with a replaced hook."""
+
+    def replace(hook: Any) -> None:
+        monkeypatch.setattr(_loop, "_global_sum", hook)
+        _scattering._loop.cache_clear()
+
+    yield replace
+    _scattering._loop.cache_clear()
 
 
 def _operator(data: Data, J: int, **kwargs: Any) -> STOperator:  # noqa: N803
@@ -38,7 +54,7 @@ def _vector(data: Data, operator: STOperator) -> Any:
 
 @pytest.mark.parametrize(("standardize", "extra"), [(False, 0), (True, 2)])
 def test_global_sum_is_called_once_per_level(
-    monkeypatch: pytest.MonkeyPatch, standardize: bool, extra: int
+    replace_global_sum: Callable[[Any], None], standardize: bool, extra: int
 ) -> None:
     data = Data2D(np.random.default_rng(0).standard_normal((2, 2, 32, 32)), pbc=False)
     operator = _operator(data, 3, standardize=standardize)
@@ -49,18 +65,20 @@ def test_global_sum_is_called_once_per_level(
         calls.append(tuple(int(n) for n in partial_sums.shape))
         return partial_sums
 
-    monkeypatch.setattr(_loop, "_global_sum", counting)
+    replace_global_sum(counting)
     np.testing.assert_array_equal(_vector(data, operator), baseline)
     assert len(calls) == operator.J + extra
     assert all(len(shape) == 2 and shape[0] == 2 for shape in calls)  # (Nb, n), stacked
 
 
-def test_global_sum_sits_between_the_sum_and_the_division(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_global_sum_sits_between_the_sum_and_the_division(
+    replace_global_sum: Callable[[Any], None],
+) -> None:
     """Doubling every partial sum, as two identical partitions would, doubles every mean."""
     data = Data1D(np.random.default_rng(1).standard_normal((1, 2, 64)) + 0.5, pbc=True)
     operator = _operator(data, 3)
     baseline = operator.apply(data)
-    monkeypatch.setattr(_loop, "_global_sum", lambda partial_sums: 2 * partial_sums)
+    replace_global_sum(lambda partial_sums: 2 * partial_sums)
     doubled = operator.apply(data)
     for family in ("mean", "var", "S1", "S2", "S3", "S4"):
         np.testing.assert_allclose(
