@@ -78,7 +78,7 @@ Decisions taken from 4 to 16 November 2026. Tables 22.1 to 22.3 record the decis
 | Versions | MAJOR.MINOR.PATCH, plus `STATISTICS_REFERENCE` and `SYNTHESIS_REFERENCE`; whether a change of statistics values is also a major is decided case by case | Q16, N22, C21 |
 | Merging | Auto-merge when green; protected paths need CODEOWNERS; AI review advisory | N16, N17 |
 | Before 1.0.0 | 1.Pull requests merge when CI passes; the three CODEOWNERS review step 1 as a whole at its end | Q8, C4 |
-| Tolerances | Per dtype, rtol and atol; the normalisation references are reference values too | Q14, C20 |
+| Tolerances | Per dtype, rtol and atol; the normalisation references are reference values too | C20 |
 | Synthesis | Built-in optimiser per backend; references per backend; synthesis tests and parity after 1.0.0 | N10, N13, Q6, S3 |
 | Agents | Context files mirrored for every agent; a machine-readable API manifest | N18, N19 |
 | Mathematics | `maths.md` as an executable specification; a disagreement fails CI; during the review, the maths tab is its reference version | N25, C7 |
