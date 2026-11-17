@@ -270,8 +270,11 @@ class Data:
         ``x`` is an array of this object's backend, ``(Nb, Nc, *spatial)`` at that level, real
         or complex; ``tables`` are, for planar data, the complex bank of the geometry, cast to
         the backend and to the complex dtype matching ``x``. The result is complex, with the
-        orientation axis inserted before the spatial axes: ``(Nb, Nc, L, *spatial)``. Each
-        geometry implements it
+        orientation axis of the convolution right after the batch axis:
+        ``(Nb, L, Nc, *spatial)``, for the first and the second layer alike. The maps of one
+        orientation are then contiguous, and those of the second layer form the matrix of the
+        Gram form without a copy (Part III, §19.12, point 2; maths_step2.md M-GRAM). The hook
+        builds the result in that layout directly. Each geometry implements it
         (planar: ``pad`` + ``conv_axes``, M-CONV-2D).
         """
         raise NotImplementedError(

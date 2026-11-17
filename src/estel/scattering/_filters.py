@@ -4,11 +4,11 @@ T2.5).
 The arrays of the wavelet operator (``wavelets``, a ``WaveletFilters``; Part I, §2.3): the
 wavelet bank, the smoothing kernel and the maps of each downsampling (maths.md M-WAV-2D,
 M-WAV-1D, M-SMOOTH-2D, M-SMOOTH-1D, M-DOWN-MASK); and everything derived from the plan to apply
-them: the valid pixels, the weights of every mean, with their border windows (M-MEAN, M-BORDER,
-M-MASK), and the grid positions of the coefficients. They are backend arrays in the operator's
-dtype, built once from the plan
-(:func:`build_filters`) and passed to the computation as an argument rather than baked in
-(Part I, §3.1, rules 4 and 7).
+them: the valid pixels, the weights of the means of the field and of the first layer and the
+windows of the second-layer maps, with their border crops (M-MEAN, M-BORDER, M-MASK;
+maths_step2.md M-GRAM), and the grid positions of the coefficients. They are backend arrays in
+the operator's dtype, built once from the plan (:func:`build_filters`) and passed to the
+computation as an argument rather than baked in (Part I, §3.1, rules 4 and 7).
 
 ``STFilters`` is public as a name only (Part II, §12.6): users get it from
 ``STOperator.filters`` and pass it to ``estel.functional.scattering``. Its fields are those of
@@ -43,10 +43,12 @@ class _FilterFields(NamedTuple):
     """The weights of ``mean`` and ``var`` (``plan.moments``)."""
     first_layer: Mapping[int, Any]
     """The weights of S1 and S2, per scale of ``plan.first_layer``."""
-    s3: Mapping[tuple[int, int], Any]
-    """The weights of S3, per pair of ``plan.s3``."""
-    s4: Mapping[tuple[int, int, int], Any]
-    """The weights of S4, per triple of ``plan.s4``."""
+    second_layer: Mapping[int, Any]
+    """The windows of the second-layer maps and of the band map, per level of
+    ``plan.second_layer``: the distinct windows of the level stacked, ``(D, *spatial)``, or
+    ``None`` when every window is the whole grid (maths_step2.md M-GRAM). S3 and S4 need no
+    other weights: each mean is a Gram product of windowed maps, divided by the denominator
+    of the plan."""
     s1_index: tuple[Any, ...]
     """The grid positions ``(c1, c2, j)`` of the S1 and S2 values (:func:`first_layer_keys`)."""
     s3_index: tuple[Any, ...]
@@ -124,8 +126,10 @@ def build_filters(plan: STPlan, backend_name: str, dtype: FloatDType, device: An
         valid=None if plan.mask is None else boolean(~plan.mask),
         moments=real(plan.moments.weights),
         first_layer={j: real(w.weights) for j, w in plan.first_layer.items()},
-        s3={key: real(w.weights) for key, w in plan.s3.items()},
-        s4={key: real(w.weights) for key, w in plan.s4.items()},
+        second_layer={
+            j3: real(np.stack(level.windows)) if level.windows else None
+            for j3, level in plan.second_layer.items()
+        },
         s1_index=index(first_layer_keys(plan), 3),
         s3_index=index(s3_keys(plan), 4),
         s4_index=index(s4_keys(plan), 5),

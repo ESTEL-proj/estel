@@ -58,7 +58,9 @@ def test_apply_is_the_hook_conv_with_the_bank_of_the_geometry(
     backend: Backend, ndim: int, pbc: bool
 ) -> None:
     """``apply(x, j)`` is ``_conv`` with the bump-steerable bank, on the field and, with the
-    orientation axis of a first convolution kept, on the first layer: W x, then ψ ⋆ |W x|."""
+    orientation axis of a first convolution kept, on the first layer: W x, then ψ ⋆ |W x|.
+    The orientation of the convolution is right after the batch axis, in both layers (Part
+    III, §19.12, point 2)."""
     data = _data(ndim, pbc)
     L = 2  # noqa: N806
     operator = WaveletOperator(data, 2, L)
@@ -66,16 +68,16 @@ def test_apply_is_the_hook_conv_with_the_bank_of_the_geometry(
     bank = bump_steerable_2d(L) if ndim == 2 else bump_steerable_1d(conjugate=True)
     kernels = backend.asarray(bank, COMPLEX[_dtype(backend, x)])
     w = operator.apply(x, 0)
-    assert tuple(w.shape) == (2, 3, L, *(N,) * ndim)
+    assert tuple(w.shape) == (2, L, 3, *(N,) * ndim)
     _equal(backend, w, data._conv(x, kernels, 0))
 
     u = operator.downsample(modulus(w), 0, history=(0,))
     v = operator.apply(u, 1)
     half = (N // 2,) * ndim
-    assert tuple(v.shape) == (2, 3, L, L, *half)
+    assert tuple(v.shape) == (2, L, L, 3, *half)  # (Nb, L2, L1, Nc, *spatial)
     xp = backend.xp
-    flat = data._conv(xp.reshape(u, (2, 3 * L, *half)), kernels, 1)
-    _equal(backend, v, xp.reshape(flat, (2, 3, L, L, *half)))
+    flat = data._conv(xp.reshape(u, (2, L * 3, *half)), kernels, 1)
+    _equal(backend, v, xp.reshape(flat, (2, L, L, 3, *half)))
 
 
 @pytest.mark.maths("M-DOWN", "M-DOWN-MASK", "M-MASK")
@@ -117,7 +119,7 @@ def test_downsample_is_the_hook_step_with_the_maps_of_its_level(
     _equal(backend, x2, data._downsample(x1, step("smooth_invalid", "smooth_reweight", 1, 2), 1))
     assert tuple(x2.shape) == (2, 3, *(N // 4,) * ndim)
 
-    u = modulus(operator.apply(x, 0))[:, :, 0]
+    u = modulus(operator.apply(x, 0))[:, 0]
     u1 = operator.downsample(u, 0, history=(0,))
     _equal(backend, u1, data._downsample(u, step("layer1", "wav_reweight", 0, (1, 0)), 0))
     u2 = operator.downsample(u1, 1, history=(0,))

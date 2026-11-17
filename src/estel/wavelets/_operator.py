@@ -142,7 +142,9 @@ class MeanWeights:
     border too large for the grid (OP-13); the reduction, if any, is in ``weights``."""
     weights: FloatMap
     """1 on the pixels that enter the mean, 0 on the border crop and on invalid pixels; a
-    read-only float64 array of the spatial shape at ``level``."""
+    read-only float64 array of the spatial shape at ``level``. The means of one call to
+    ``WaveletOperator.mean_weights`` with the same level, border and invalid pixels share one
+    array: the weights are stored once per distinct level, border and mask."""
     denominator: float
     """The number of pixels that enter the mean, ``weights.sum()``, at least 1: a mean with
     no valid pixel has no ``MeanWeights`` (OP-3)."""
@@ -477,8 +479,10 @@ class WaveletOperator:
         flexible"); the geometry turns it into crop weights (``Data._crop_weights``), reducing
         a border too large for the grid as STL does, with one warning for all the means
         (OP-13). Its invalid pixels are the union of its operands' masks (M-MASK,
-        "Covariances"). A mean with no pixel left has ``None`` (OP-3). NumPy only: called once,
-        when a plan is built.
+        "Covariances"). A mean with no pixel left has ``None`` (OP-3). Means with the same
+        level, border and invalid pixels share one weights array, so that the weights are
+        stored once per distinct level, border and mask. NumPy only: called once, when a plan
+        is built.
         """
         plan = self._plan
         borders = {
@@ -491,21 +495,34 @@ class WaveletOperator:
             crops = {pair: self._data._crop_weights(*pair) for pair in needed}
         if caught:
             warnings.warn(caught[0].message, stacklevel=3)
-        return {
-            key: self._mean_weights(histories, level, borders[key], crops[(level, borders[key])])
+        masks = plan.masks
+        invalid = {
+            key: None
+            if masks is None
+            else np.logical_or.reduce([_invalid(masks, h, level) for h in histories])
             for key, (histories, level) in means.items()
         }
+        # Level, border and invalid pixels: the means that share them share their weights.
+        signature = {
+            key: (means[key][1], borders[key], b"" if found is None else found.tobytes())
+            for key, found in invalid.items()
+        }
+        first = {signature[key]: key for key in reversed(list(means))}
+        distinct = {
+            found: self._mean_weights(found[0], found[1], crops[found[:2]], invalid[key])
+            for found, key in first.items()
+        }
+        return {key: distinct[signature[key]] for key in means}
 
+    @staticmethod
     def _mean_weights(
-        self, histories: Sequence[History], level: int, border: int, crop: FloatMap
+        level: int, border: int, crop: FloatMap, invalid: BoolMap | None
     ) -> MeanWeights | None:
-        """The crop of ``border`` times the valid pixels of the union of the operands' masks;
-        ``None`` when no pixel is left (OP-3)."""
-        masks = self._plan.masks
-        if masks is None:
+        """The crop of ``border`` times the valid pixels, those outside ``invalid``, the union
+        of the operands' masks; ``None`` when no pixel is left (OP-3)."""
+        if invalid is None:
             weights = np.array(crop, dtype=np.float64)
         else:
-            invalid = np.logical_or.reduce([_invalid(masks, h, level) for h in histories])
             weights = np.where(invalid, 0.0, crop)
         denominator = float(weights.sum())
         if denominator == 0.0:
@@ -520,9 +537,12 @@ class WaveletOperator:
 
         ``x`` is an array of the data's backend, ``(Nb, Nc, *O, *spatial)`` with the spatial
         shape of level ``j`` and any axes ``O`` in between (the orientations of a first
-        convolution), real or complex; the result is ``(Nb, Nc, *O, L, *spatial)``. Calls the
-        hook ``_conv`` with the tables of the level. Pure: nothing is modified, nothing depends
-        on array values.
+        convolution), real or complex; the result is ``(Nb, L, Nc, *O, *spatial)``: the
+        orientation of this convolution right after the batch axis, for the first and the
+        second layer alike, so that the second-layer maps of one band orientation form a
+        matrix without a copy (Part III, §19.12, point 2; maths_step2.md M-GRAM). Calls the
+        hook ``_conv`` with the tables of the level. Pure: nothing is
+        modified, nothing depends on array values.
         """
         plan, filters = self._plan, self._arrays("apply")
         if not _is_index(j) or not 0 <= j < plan.J:
@@ -533,7 +553,7 @@ class WaveletOperator:
         xp = _registry.backend_named(self._data.backend).xp
         flat = xp.reshape(x, (lead[0], -1, *spatial))
         out = self._data._conv(flat, filters.kernels, j)
-        return xp.reshape(out, (*lead, plan.L, *spatial))
+        return xp.reshape(out, (lead[0], plan.L, *lead[1:], *spatial))
 
     def downsample(self, x: Any, level: int, history: History = ()) -> Any:
         """One normalised downsampling step of ``x``, from ``level`` to ``level + 1``, with the

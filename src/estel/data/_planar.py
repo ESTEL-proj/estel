@@ -47,6 +47,8 @@ def _planar_conv(self: Data, x: Any, tables: Any, level: int) -> Any:
     M-WAV-1D).
 
     A complex kernel on a real array is two real correlations; on a complex array, four.
+    The real and imaginary parts are read with the orientation axis right after the batch
+    axis, ``(Nb, L, Nc, *spatial)``, when the complex result is assembled: no further copy.
     """
     _check_array(self, x, "_conv")
     backend = _registry.backend_named(self.backend)
@@ -72,6 +74,8 @@ def _planar_conv(self: Data, x: Any, tables: Any, level: int) -> Any:
         imag = correlate(x_re, k_im) + correlate(x_im, k_re)
     else:
         real, imag = correlate(padded, k_re), correlate(padded, k_im)
+    order = (0, 2, 1, *range(3, 3 + self.ndim))  # (Nb, Nc, L, ...) -> (Nb, L, Nc, ...)
+    real, imag = xp.permute_dims(real, order), xp.permute_dims(imag, order)
     return backend.real_pairs_to_complex(xp.stack([real, imag], axis=-1))
 
 

@@ -75,8 +75,8 @@ def test_conv_is_padded_correlation(
     x = _field((2, 3) + (16,) * ndim, complex_=complex_input)
     in_dtype = COMPLEX[dtype] if complex_input else dtype
     out = data._conv(backend.asarray(x, in_dtype), backend.asarray(kernels, COMPLEX[dtype]), 0)
-    # One output per orientation, inserted before the spatial axes: (Nb, Nc, L, *spatial).
-    expected = np.stack([_correlate(x, k, 2, 2, pbc, 1) for k in kernels], axis=2)
+    # One output per orientation, right after the batch axis: (Nb, L, Nc, *spatial).
+    expected = np.stack([_correlate(x, k, 2, 2, pbc, 1) for k in kernels], axis=1)
     _assert_close(backend, out, expected, dtype)
     assert np.asarray(backend.to_numpy(out)).dtype == np.dtype(COMPLEX[dtype])
 

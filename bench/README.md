@@ -49,7 +49,11 @@ computes in the dtype of its input, float32 here, and stores S1 to S4 in complex
   STL `master`) with ESTEL installed in the same Python environment ([`Dockerfile`](Dockerfile)):
   STL and ESTEL on the same interpreter, NumPy and PyTorch, so that their times compare.
   `make bench` rebuilds this image from the working tree before each run.
-- **`native`**: ESTEL on this machine, in the environment of `uv.lock`.
+- **`native`**: ESTEL on this machine, in the environment of `uv.lock`. Each case is measured
+  twice here, one after the other: the ESTEL of `main` (`estel (main)` in the table), then the
+  working tree. `main` is `origin/main` (`--main REF` names another commit): its `src/` is
+  exported once to `bench/results/.work/`, with no checkout, and the same worker imports it. Run
+  `git fetch origin` first.
 
 The image is `linux/amd64`. On an arm64 host (Apple silicon) the container is emulated: its times
 compare STL with ESTEL, not with the native run, and the results say so (`emulated`).
@@ -70,6 +74,14 @@ compared and the pixels are counted (`stl_gradient_not_finite`).
 STL's results stay in `bench/results/.work/` (ignored by git), so that a later native run is
 checked without the container. They are used only for inputs with the same digest.
 
+The native run is compared with `main` too, on the same inputs (Part II, §15.2, T2.12 to T2.15):
+the statistics within the same float32 tolerances, and the gradient of the loss within
+max |g − g_main| ≤ 1e-4 × max |g_main|, every value finite. `make bench` fails otherwise: an
+optimisation of step 1 changes no value beyond the parity tolerance (Part I, §3.1, rule 8), and
+until the planar syntheses exist (T6.1) this comparison is what validates its gradients. The
+measured differences are printed, each relative to the largest value of `main`, and recorded
+with the run (`check_main`).
+
 ## Commands
 
 From the repository root. The container needs Docker (`CONTAINER=podman` works too) and the
@@ -82,6 +94,11 @@ make parity-image
 ```bash
 make bench
 ```
+
+Before and after an optimisation, run it twice in a row on AC power, so that `main` and the
+working tree alternate (main, branch, main, branch), and commit the results. On this kind of
+machine the times vary by about 15 % from one run to the next: a gain in time is one above about
+20 %.
 
 One case, or one environment:
 

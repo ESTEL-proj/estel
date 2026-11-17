@@ -11,6 +11,8 @@ second order (Part I, §3.2.3):
   S1 terms with ``y = |x|``, ``ε = 1e-8`` and ``pow = 1/2`` (M-S1, OP-16);
 * :func:`sum_valid` and :func:`cov_sum_valid`: the weighted sums, before the division, which the
   loop adds across the partitions of the data (``_global_sum``) and then divides;
+* :func:`gram_sum`: the sums over the pixels of every product of two maps of a set, as one
+  matrix product (maths_step2.md M-GRAM): the second-layer sums of a level;
 * :func:`mean_valid` and :func:`cov_valid`: the mean of M-NOT, ``sum(w · a) / sum(w)`` over the
   spatial axes, with the weights and the denominator of the plan (``MeanWeights``): missing
   pixels and border crops are weights, never boolean indexing (Part I, §3.1.1). ``cov_valid``
@@ -93,6 +95,52 @@ def cov_sum_valid(x: Any, y: Any, weights: Any, axes: Sequence[int]) -> Any:
     xp = _backend(x).xp
     product = x * xp.conj(y) if _is_complex(xp, y) else x * y
     return sum_valid(product, weights, axes)
+
+
+GRAM_BLOCK = 16384
+"""The number of pixels of a block of :func:`gram_sum` in single precision."""
+
+
+def gram_sum(a: Any, b: Any = None) -> Any:
+    """The sums over the pixels of the products of the maps of ``a`` with the conjugates of
+    those of ``b``, as a matrix product: ``G[..., p, q] = Σ_n a[..., p, n] · conj(b[..., q, n])``,
+    that is ``a b^H`` (maths_step2.md M-GRAM). Without ``b``, the Gram matrix ``a a^H``.
+
+    ``a`` is ``(..., P, n)`` and ``b`` ``(..., Q, n)``, complex, with their pixels flattened on
+    the last axis; the result is ``(..., P, Q)``, in the dtype of ``a``. The maps are already
+    zero outside their windows: no weight enters the product, and the sum of a pair runs over
+    the intersection of its two windows.
+
+    **Single precision.** One product over all the pixels would accumulate in the precision of
+    the data. In single precision the pixels are cut in blocks of :data:`GRAM_BLOCK`, each block
+    is one product, and the products are added in double precision, then cast back. The blocks
+    are cut with ``unstack``, one operation whose derivative fills the gradient once, where a
+    slice per block would fill it once per block. In double precision, and on a backend without
+    double precision (JAX in its 32-bit mode), it is one product.
+    """
+    xp = _backend(a).xp
+    other = a if b is None else b
+
+    def product(x: Any, y: Any) -> Any:
+        return xp.matmul(x, xp.conj(xp.matrix_transpose(y)))
+
+    wide = xp.result_type(xp.complex128)  # complex64 on JAX in its 32-bit mode
+    n = int(a.shape[-1])
+    if a.dtype == wide or n <= GRAM_BLOCK:
+        return product(a, other)
+    count = n // GRAM_BLOCK
+    head = count * GRAM_BLOCK
+
+    def blocks(x: Any) -> list[Any]:
+        whole = x if head == n else x[..., :head]
+        cut = xp.reshape(whole, (*tuple(x.shape[:-1]), count, GRAM_BLOCK))
+        tail = [] if head == n else [x[..., head:]]
+        return [*xp.unstack(cut, axis=-2), *tail]
+
+    of_a = blocks(a)
+    of_b = of_a if b is None else blocks(b)
+    parts = [xp.astype(product(x, y), wide) for x, y in zip(of_a, of_b, strict=True)]
+    return xp.astype(xp.sum(xp.stack(parts, axis=0), axis=0), a.dtype)
 
 
 def mean_valid(x: Any, weights: Any, denominator: float, axes: Sequence[int]) -> Any:

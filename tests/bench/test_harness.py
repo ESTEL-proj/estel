@@ -13,7 +13,15 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from bench.__main__ import BenchError, check_against_stl, format_table, results_path
+from bench.__main__ import (
+    BenchError,
+    check_against_main,
+    check_against_stl,
+    export_main,
+    format_main_differences,
+    format_table,
+    results_path,
+)
 from bench._cases import Case, input_mask, load_cases, read_inputs, write_inputs
 from bench.worker import measure
 
@@ -71,10 +79,37 @@ def test_harness_measures_and_checks_a_tiny_case(
     with pytest.raises(BenchError, match="ESTEL's S3 differs from STL's"):
         check_against_stl("tiny", wrong, arrays, "float32")
 
+    # The check against main (Part II, §15.2, T2.12), with these results in the place of
+    # main's: the statistics within the parity tolerance, the gradient within 1e-4.
+    close = {**arrays, "gradient": arrays["gradient"] * (1 + 5e-5)}
+    against_main = check_against_main("tiny", close, arrays, "float32")
+    assert against_main["statistics_relative_difference"]["S4"] == 0
+    assert 4e-5 < against_main["gradient_relative_difference"] < 6e-5
+    assert "| tiny | 0.0e+00 |" in format_main_differences(
+        [{"case": "tiny", "check_main": against_main}]
+    )
+    with pytest.raises(BenchError, match="S3 differs from that of main"):
+        check_against_main("tiny", wrong, arrays, "float32")
+    far = {**arrays, "gradient": arrays["gradient"] * (1 + 1e-3)}
+    with pytest.raises(BenchError, match="gradient of the loss differs from that of main"):
+        check_against_main("tiny", far, arrays, "float32")
+
     # The table and the results file, which is never overwritten.
     run = {"case": "tiny", "environment": "native", "library": "estel", **measurements}
     assert "| tiny | native      | estel   |" in format_table([run])
+    assert "| estel (main) |" in format_table([{**run, "tree": "main"}])
     first = results_path(tmp_path, "2026-11-17", "machine")
     first.write_text(json.dumps(run))
     assert first.name == "2026-11-17-machine.json"
     assert results_path(tmp_path, "2026-11-17", "machine").name == "2026-11-17-machine-2.json"
+
+
+def test_main_is_exported_without_a_checkout(tmp_path: Path) -> None:
+    """The ESTEL the native run is compared with is the ``src`` of a commit, exported once:
+    here that of HEAD, in the place of ``origin/main``."""
+    source, commit = export_main("HEAD", tmp_path)
+    assert source == tmp_path / f"main-{commit[:12]}" / "src"
+    assert (source / "estel" / "__init__.py").is_file()
+    assert export_main("HEAD", tmp_path) == (source, commit)  # exported once
+    with pytest.raises(BenchError, match="git fetch origin"):
+        export_main("no-such-ref", tmp_path)

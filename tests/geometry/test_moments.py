@@ -12,7 +12,8 @@ import pytest
 from numpy.typing import NDArray
 
 from estel.backend._protocol import Backend, DType
-from estel.data._moments import cov_valid, divide, mean_valid, modulus, standardize
+from estel.data import _moments
+from estel.data._moments import cov_valid, divide, gram_sum, mean_valid, modulus, standardize
 
 # Precision tests against NumPy float64: float32 runs in the fast tier too (Part I, §5.4).
 pytestmark = [pytest.mark.maths("M-MEAN", "M-MOM"), pytest.mark.dtype]
@@ -94,6 +95,27 @@ def test_mean_and_cov_over_valid_pixels(backend: Backend, dtype: DType) -> None:
     np.testing.assert_allclose(
         backend.to_numpy(real), (x.real * y.real)[..., valid].mean(-1), rtol=10 * RTOL[dtype]
     )
+
+
+@pytest.mark.parametrize("block", [5, 13, 100])
+def test_gram_sum_is_the_matrix_product_by_blocks(
+    backend: Backend, dtype: DType, block: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """maths_step2.md M-GRAM: ``a b^H`` over the pixels, and ``a a^H`` without ``b``; the same
+    values whether the 13 pixels are cut in blocks with a remainder (5), in one block (13) or
+    not at all (100), in the dtype of the maps."""
+    monkeypatch.setattr(_moments, "GRAM_BLOCK", block)
+    rng = np.random.default_rng(1)
+    a, b = _complex(rng, (2, 3, 4, 13)), _complex(rng, (2, 3, 2, 13))
+    maps, other = backend.asarray(a, COMPLEX[dtype]), backend.asarray(b, COMPLEX[dtype])
+    for got, expected in (
+        (gram_sum(maps), a @ np.conj(np.swapaxes(a, -1, -2))),
+        (gram_sum(maps, other), a @ np.conj(np.swapaxes(b, -1, -2))),
+    ):
+        assert str(backend.to_numpy(got).dtype) == COMPLEX[dtype]
+        np.testing.assert_allclose(
+            backend.to_numpy(got), expected, rtol=RTOL[dtype], atol=RTOL[dtype]
+        )
 
 
 def test_standardize_as_stl(backend: Backend, dtype: DType) -> None:

@@ -6,11 +6,26 @@ it takes the data, the static plan and the filters, and returns the statistics w
 normalisation, as STL's full-grid arrays (:class:`ScatteringValues`). The normalisation and the
 ``STStatistics`` object are added by ``estel.functional.scattering``.
 
-It follows STL's loop (``ST_Operator.apply`` at `master` ``8eaf769``, ``_compute_ST_loop`` at
-`2D+1D` ``8f51143``): for each scale j3, the first layer W_{j3} x and U_{j3} = |W_{j3} x| at
-level j3, the S1 and S2 means; for each j2 ≤ j3, the second layer ψ_{l3} ⋆ U_{j2} at level j3
-and the S3 means; for each j1 ≤ j2, the S4 means; then the field and every U_{j2} go down one
-level. The convolutions and the downsamplings are those of the wavelet operator
+It follows STL's loop over the levels (``ST_Operator.apply`` at `master` ``8eaf769``,
+``_compute_ST_loop`` at `2D+1D` ``8f51143``): for each scale j3, the first layer W_{j3} x and
+U_{j3} = |W_{j3} x| at level j3, the S1 and S2 means; the second layer ψ_{l3} ⋆ U_{j2} at level
+j3 for every j2 ≤ j3 at once, and the S3 and S4 means of the level; then the field and every
+U_{j2} go down one level.
+
+**The second layer is a Gram product** (maths_step2.md M-GRAM; Part III, §19.3; task T2.12).
+Where STL loops over j2 and j1 and takes one mean of a product array per pair of scales, the
+second-layer maps of a level are computed by one convolution, with the band orientation l3 as
+their leading axis, ``(Nb, L3, j2, L2, Nc, *spatial)``: for one l3, the maps of every scale,
+channel and orientation are the rows of a matrix A, with no copy. Each map is set to zero
+outside its own window (its border crop and its valid pixels), and the sums of every S4 of the
+level are the matrix A A^H, those of every S3 the product of A with the windowed band map
+W_{j3} x: one matrix product each, for all the band orientations (:func:`gram_sum`, by blocks
+of pixels added in double precision when the data are in single precision). The sum of a pair
+then runs over the intersection of its two windows, the larger of the two borders and the
+union of the two masks, which is STL's window for that pair, and it is divided by the number
+of pixels of that intersection, the denominator of the plan. The product also holds the pairs
+STL does not compute (j1 > j2, about half of it): they are not read. Every value is STL's up
+to the order of the sums. The convolutions and the downsamplings are those of the wavelet operator
 (``WaveletOperator.apply``, ``downsample``; Part I, §2.3): the loop sees levels, maps and
 weights, and does not depend on the geometry. Nothing is written in place (Part I, §3.1,
 rule 1): every step returns a new array, the
@@ -39,7 +54,7 @@ from typing import Any, NamedTuple
 from ..backend import _registry
 from ..backend._protocol import Backend
 from ..data._base import Data
-from ..data._moments import cov_sum_valid, divide, modulus, standardize, sum_valid
+from ..data._moments import cov_sum_valid, divide, gram_sum, modulus, standardize, sum_valid
 from ..wavelets._operator import WaveletOperator
 from ._filters import STFilters
 from ._plan import STPlan
@@ -136,59 +151,34 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
 
     moduli: dict[int, Any] = {}
     for j3 in plan.levels:
-        w = wavelets.apply(x, j3)  # W_{j3} x: (Nb, Nc, L, *spatial)
+        w = wavelets.apply(x, j3)  # W_{j3} x: (Nb, L, Nc, *spatial)
         u = modulus(w)  # U_{j3} x
         moduli = {**moduli, j3: u}
 
         if j3 in plan.first_layer:
             weights, denominator = filters.first_layer[j3], plan.first_layer[j3].denominator
             # Auto terms, every channel at once; cross terms, pair by pair (M-S1, M-S2).
-            auto_s1 = sum_valid(u, weights, axes)  # (Nb, Nc, L)
+            auto_s1 = sum_valid(u, weights, axes)  # (Nb, L, Nc)
             auto_s2 = sum_valid(u * u, weights, axes)
-            pending.extend(_Sum("S1", auto_s1[:, c], denominator) for c in pairs.auto)
+            pending.extend(_Sum("S1", auto_s1[:, :, c], denominator) for c in pairs.auto)
             if pairs.cross:
                 rooted = divide(w, u, S1_EPSILON, 0.5)  # z / (|z| + eps)^(1/2), OP-16
                 pending.extend(
                     _Sum(
                         "S1",
-                        cov_sum_valid(rooted[:, c1], rooted[:, c2], weights, axes),
+                        cov_sum_valid(rooted[:, :, c1], rooted[:, :, c2], weights, axes),
                         denominator,
                     )
                     for c1, c2 in pairs.cross
                 )
-            pending.extend(_Sum("S2", auto_s2[:, c], denominator) for c in pairs.auto)
+            pending.extend(_Sum("S2", auto_s2[:, :, c], denominator) for c in pairs.auto)
             pending.extend(
-                _Sum("S2", cov_sum_valid(w[:, c1], w[:, c2], weights, axes), denominator)
+                _Sum("S2", cov_sum_valid(w[:, :, c1], w[:, :, c2], weights, axes), denominator)
                 for c1, c2 in pairs.cross
             )
 
-        second: dict[int, Any] = {}
-        for j2 in range(j3 + 1):
-            # ψ_{l3} ⋆ U_{j2} x at level j3: (Nb, Nc, L2, L3, *spatial)
-            v = wavelets.apply(moduli[j2], j3)
-            second = {**second, j2: v}
-            if (j2, j3) in plan.s3:
-                weights, denominator = filters.s3[(j2, j3)], plan.s3[(j2, j3)].denominator
-                pending.extend(
-                    _Sum(
-                        "S3", cov_sum_valid(v[:, c1], w[:, c2][:, None], weights, axes), denominator
-                    )
-                    for c1, c2 in pairs.ordered
-                )
-            for j1 in range(j2 + 1):
-                if (j1, j2, j3) in plan.s4:
-                    weights = filters.s4[(j1, j2, j3)]
-                    denominator = plan.s4[(j1, j2, j3)].denominator
-                    pending.extend(
-                        _Sum(
-                            "S4",
-                            cov_sum_valid(
-                                second[j1][:, c1][:, :, None], v[:, c2][:, None], weights, axes
-                            ),
-                            denominator,
-                        )
-                        for c1, c2 in pairs.ordered
-                    )
+        if j3 in plan.second_layer:
+            pending.extend(_second_layer(backend, wavelets, plan, filters, j3, moduli, w))
 
         for family, value in _divide_level(backend, pending, total):
             means[family].append(value)
@@ -213,6 +203,74 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
         mean_pre_std=mean_pre_std,
         std_pre_std=std_pre_std,
     )
+
+
+def _second_layer(
+    backend: Backend,
+    wavelets: WaveletOperator,
+    plan: STPlan,
+    filters: STFilters,
+    j3: int,
+    moduli: dict[int, Any],
+    w: Any,
+) -> list[_Sum]:
+    """The sums of the S3 and S4 means of level ``j3``, in the order of STL's loop (for j2,
+    S3 then, for j1, S4; the channel pairs inside), as two Gram products (M-GRAM).
+
+    ``moduli`` holds U_{j2} at level j3, ``(Nb, L, Nc, *spatial)``, for every j2 ≤ j3, and
+    ``w`` is the band map W_{j3} x, ``(Nb, L, Nc, *spatial)``: every map has the orientation
+    of its last convolution right after the batch axis.
+    """
+    xp = backend.xp
+    level = plan.second_layer[j3]
+    pairs, n_channels, L = plan.pairs, plan.n_channels, plan.L  # noqa: N806
+    # The moduli of the level, stacked (real, 1/(2L) of the second layer), then one
+    # convolution: ψ_{l3} ⋆ U_{j2} x, (Nb, L3, j2, L2, Nc, *spatial), l3 leading.
+    arms = xp.stack([moduli[j2] for j2 in level.arms], axis=1)
+    v = wavelets.apply(arms, j3)
+    band = w  # (Nb, L3, Nc, *spatial)
+    windows = filters.second_layer[j3]
+    with_s3 = any((j2, j3) in plan.s3 for j2 in level.arms)
+    if windows is not None:
+        # Each map is zero outside its own window: a pair is then summed over the
+        # intersection of its two windows, STL's window for that pair.
+        of_arms = xp.stack([windows[d] for d in level.arm_windows], axis=0)
+        v = v * of_arms[(slice(None), None, None, *([slice(None)] * plan.ndim))]
+        if with_s3 and level.band_window is not None:
+            band = band * windows[level.band_window]
+    n_batch, n_arms = int(v.shape[0]), len(level.arms)
+    rows = xp.reshape(v, (n_batch, L, n_arms * L * n_channels, -1))
+    row = {j2: position for position, j2 in enumerate(level.arms)}
+    grid = (n_batch, L, n_arms, L, n_channels)
+    cross = gram = None
+    if with_s3:
+        cross = xp.reshape(
+            gram_sum(rows, xp.reshape(band, (n_batch, L, n_channels, -1))), (*grid, n_channels)
+        )  # [Nb, l3, j2, l2, c1, c2]
+    if any(key[2] == j3 for key in plan.s4):
+        gram = xp.reshape(gram_sum(rows), (*grid, *grid[2:]))  # [Nb, l3, j1, l1, c1, j2, l2, c2]
+    sums: list[_Sum] = []
+    for j2 in level.arms:
+        if cross is not None and (j2, j3) in plan.s3:
+            denominator = plan.s3[(j2, j3)].denominator
+            sums.extend(
+                # (Nb, L3, L2) -> (Nb, L2, L3)
+                _Sum("S3", xp.permute_dims(cross[:, :, row[j2], :, c1, c2], (0, 2, 1)), denominator)
+                for c1, c2 in pairs.ordered
+            )
+        for j1 in range(j2 + 1):
+            if gram is not None and (j1, j2, j3) in plan.s4:
+                denominator = plan.s4[(j1, j2, j3)].denominator
+                sums.extend(
+                    # (Nb, L3, L1, L2) -> (Nb, L1, L2, L3)
+                    _Sum(
+                        "S4",
+                        xp.permute_dims(gram[:, :, row[j1], :, c1, row[j2], :, c2], (0, 2, 3, 1)),
+                        denominator,
+                    )
+                    for c1, c2 in pairs.ordered
+                )
+    return sums
 
 
 def _divide_level(backend: Backend, pending: Sequence[_Sum], total: Any) -> list[tuple[str, Any]]:
