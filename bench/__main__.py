@@ -29,7 +29,7 @@ from numpy.typing import NDArray
 from tests.parity._compare import assert_parity
 
 from bench._cases import CASES_FILE, Case, Settings, load_cases, write_inputs
-from bench.worker import _cpu_model
+from bench.worker import _cpu_model, _power
 
 REPO = Path(__file__).resolve().parent.parent
 RESULTS = REPO / "bench" / "results"
@@ -329,6 +329,13 @@ def run_benchmark(args: argparse.Namespace) -> Path:
     print()
     print(format_table(runs))
     print(f"\nEvery ESTEL run equals STL within the {settings.dtype} parity tolerances.")
+    power = described.get("native", {}).get("power") or _power()
+    if power and (power["low_power_mode"] or power["source"] != "AC Power"):
+        print(
+            f"WARNING: measured on {power['source']}, Low Power Mode "
+            f"{'on' if power['low_power_mode'] else 'off'}: the times are slower than on AC "
+            "power and do not compare with other results. Do not commit them as a reference."
+        )
     print(f"Results written to {path.relative_to(REPO) if path.is_relative_to(REPO) else path}")
     return path
 

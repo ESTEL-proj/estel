@@ -104,6 +104,10 @@ commit, the settings, the cases, and every run. `<machine>` comes from the CPU m
 takes the suffix `-2`. Commit the results of a run made on a clean tree, with the pull request of
 the optimisation they judge, before and after.
 
+On macOS the results record the power source and Low Power Mode (`power`), and `make bench` warns
+when the machine is on battery or in Low Power Mode: such times are slower by a factor of about
+two and do not compare with the others.
+
 If a case does not fit in memory, or a process runs for more than 45 minutes, `make bench` stops:
 report what was measured on the task's issue, so that the maintainer resizes the case.
 

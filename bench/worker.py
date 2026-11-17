@@ -104,6 +104,18 @@ def _cpu_model() -> str:
     return platform.processor() or "unknown"
 
 
+def _power() -> dict[str, Any] | None:
+    """On macOS, the power source and whether Low Power Mode is on: both slow the machine, so a
+    result measured on battery or in Low Power Mode does not compare with the others."""
+    if sys.platform != "darwin":
+        return None
+    source = subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True).stdout
+    settings = subprocess.run(["pmset", "-g"], capture_output=True, text=True).stdout
+    low = [line.split()[-1] == "1" for line in settings.splitlines() if "lowpowermode" in line]
+    return {"source": source.partition("'")[2].partition("'")[0] or "unknown",
+            "low_power_mode": any(low)}  # fmt: skip
+
+
 def describe_environment(versions: dict[str, str]) -> dict[str, Any]:
     """The machine as this process sees it: CPU model and cores, memory, OS, Python and library
     versions. In a container these are the container's: the cores and the memory it is given."""
@@ -115,6 +127,7 @@ def describe_environment(versions: dict[str, str]) -> dict[str, Any]:
         "memory_bytes": memory,
         "os": platform.platform(),
         "python": platform.python_version(),
+        "power": _power(),
         "versions": {"numpy": np.__version__, **versions},
     }
 
