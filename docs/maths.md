@@ -663,27 +663,44 @@ The rule of §1.11 applies. OP-2, OP-8, OP-10, OP-12, OP-24, OP-25 and OP-26 als
 
 ## 3. Tensor products
 
-**Status:** draft, written from the STL code by reading it, not checked numerically; verified by task T3.0.
+**Status:** checked against STL's code, entry by entry, and numerically in the parity container where an entry says so (task T3.0, 17 November 2026). Not implemented yet: the oracle and the tests come with T3.2.
 
-**Source:** STL-Dev `2D+1D` at `8f51143`: `Tensor_Product_Kernel_Torch.py`, `ST_Operator_Tensor_Product.py`, `ST_Statistics.py`. Entries of sections 1 and 2 not mentioned here apply block by block.
+**Source:** STL-Dev `2D+1D` at `8f51143`: `Tensor_Product_Kernel_Torch.py`, `ST_Operator_Tensor_Product.py`, `ST_Statistics.py`, and what they call in `ST_Operator.py` (`apply`, `_finalize_compute`) and in the block operators (`STL_2D_Kernel_Torch.py`, `STL_1D_Kernel_Torch.py`). Entries of sections 1 and 2 not mentioned here apply block by block.
+
+**Numerical checks.** They ran in the parity container (environment `2d1d`, PyTorch 2.15.0, float64), with `compute_PS=False`. The reference is an evaluation of the formulas of this section written apart from STL's loop: it takes from STL only the kernels of the block operators and their convolution and downsampling along one block, brings a field to its level in every block first, then applies the block convolutions. It is compared with the statistics of `ST_Operator_TensorProd`, without normalisation, on seven cases, with two maps of two channels unless said:
+
+| Case | Blocks | Sizes | Periodic | J |
+| --- | --- | --- | --- | --- |
+| A | 2D, 1D | 16 × 16, 16 | yes, yes | (2, 2) |
+| B | 2D, 1D | 16 × 16, 16 | no, no | (2, 2) |
+| C | 2D, 1D | 16 × 16, 8 | yes, no | default: (2, 1) |
+| D | 2D, 1D, 1D | 16 × 16, 8, 16 | no, yes, no | default: (2, 1, 2) |
+| E | 1D, 2D | 16, 16 × 16 | no, yes | (2, 2) |
+| F | 2D, 1D | 16 × 16, 12 | yes, yes | (2, 3): no low-pass filter in block 1 |
+| G | 2D, 1D | 32 × 16, 32 | no, no | (3, 3); one map, one channel |
+
+In the seven cases, S1, S2, S3 and S4 have their NaN at the same entries as the reference, and differ from it by at most 1.2e-15 of the largest coefficient of the family. "Checked" below names what a check adds to this comparison.
 
 ### 3.0 Notation — M-NOT-TP
 
-- **Blocks.** A tensor-product field has B blocks, a = 0 … B−1. Block a is a planar geometry of section 1 (2D) or 2 (1D), with its own sizes N⁽ᵃ⁾, periodicity `pbc[a]`, number of scales J\_a and number of orientations L\_a.
-- **Multi-indices.** A scale is j = (j₀, …, j\_{B−1}), an orientation ℓ = (ℓ₀, …, ℓ\_{B−1}), a level d = (d₀, …, d\_{B−1}). x⁽ᵈ⁾ is the field downsampled d\_a times along block a.
-- **Partial order.** j ≤ j′ means j\_a ≤ j′\_a for every block a. It is a partial order: two scales may be incomparable.
-- **Block convolution.** ⋆\_a is the filtering of M-CONV-2D or of §2.1 along the axes of block a only.
+- **Blocks.** A tensor-product field has B blocks, a = 0 … B−1. Block a is a planar geometry of section 1 (2D) or 2 (1D), with its own sizes N⁽ᵃ⁾, periodicity `pbc[a]`, number of scales J\_a and number of orientations L\_a. L = L₀ ⋯ L\_{B−1} is the number of product orientations.
+- **Multi-indices.** A scale is j = (j₀, …, j\_{B−1}), an orientation ℓ = (ℓ₀, …, ℓ\_{B−1}), a level d = (d₀, …, d\_{B−1}). x⁽ᵈ⁾ is the field downsampled d\_a times along block a, by M-DOWN along the axes of that block (M-SMOOTH-2D or M-SMOOTH-1D); the downsamplings of different blocks act on different axes and commute.
+- **Level of a scale.** The level of scale j is j itself: j\_a downsamplings along block a for a wavelet, and J\_a for the low-pass filter of block a (M-LP).
+- **Partial order.** j ≤ j′ means j\_a ≤ j′\_a for every block a. It is a partial order: two scales may be incomparable (M-IDX-TP).
+- **Block convolution.** ⋆\_a is the filtering of M-CONV-2D or of §2.1 along the axes of block a only, with the padding of that block (circular if `pbc[a]`, replicate otherwise).
 
 ### 3.1 Data — M-DATA-TP
 
-- **Shape.** Arrays are `(Nb, Nc, *N⁽⁰⁾, …, *N⁽ᴮ⁻¹⁾)`: the spatial axes of the blocks, in block order, with no axis between them.
-- **Structure.** The list of block geometries is part of the data: for example `[2D, 1D]` for space and time, `[2D, 1D, 1D]` for space, depth and time.
-- **Size.** Each size of block a must be divisible by 2^(J\_a−1), as in M-DATA-2D, block by block.
+- **Shape.** Arrays are `(Nb, Nc, *N⁽⁰⁾, …, *N⁽ᴮ⁻¹⁾)`: the spatial axes of the blocks, in block order, with no axis between them. An array with the spatial axes only is promoted to `(1, 1, …)`, one with a single leading axis to `(1, Nc, …)`. Data must be real.
+- **Structure.** The list of block geometries is part of the data: for example `[2D, 1D]` for space and time, `[2D, 1D, 1D]` for space, depth and time. STL accepts any list of 2D and 1D blocks, in any order: `[1D, 2D]`, `[1D, 1D]`, `[2D, 2D]` and a single block also run. **⚠ OP-82**
+- **Size.** Each size of block a must be divisible by 2^(J\_a−1), as in M-DATA-2D, block by block. Nothing checks it when the operator is built: the computation fails at the first downsampling that meets an odd size (**⚠ OP-8**).
+- **J and L.** Lists with one entry per block; an entry `None`, or no list at all, gives the default of the block. **⚠ OP-83**
 - **Default J.** J\_a = ⌊log₂ min N⁽ᵃ⁾⌋ − 2, for each block. A short block gets few scales: 8 time steps give J = 1.
-- **Default L.** The default of each block's geometry: 4 for a 2D block; **2 for a 1D block**, not 1 as for 1D data alone (M-WAV-1D).
-- **Periodicity.** One boolean per block.
-- **Missing data.** Not supported: with a mask, every mean raises `NotImplementedError`. **⚠ OP-41**
-- **Source:** `STL_TensorProd_Kernel_Torch`, `get_wavelet_op`; `Wavelet_Operator_TensorProd_Kernel_Torch.__init__`, `cov`.
+- **Default L.** The default of each block's geometry: 4 for a 2D block; **2 for a 1D block**, not 1 as for 1D data alone (M-WAV-1D). A 1D block accepts L = 1 or 2, as in section 2.
+- **Periodicity.** One boolean per block. Without it, the first convolution fails (**⚠ OP-4**).
+- **Missing data.** Not supported. An operator built from data that hold a NaN, or with a mask, fails at construction: the operator of the first block raises a `NotImplementedError` whose message asks for a 2D mask. The `NotImplementedError` written in the covariance of the tensor-product operator is never reached. **⚠ OP-41** An operator built from data without NaN and applied to data that hold one raises nothing: every statistic is NaN. **⚠ OP-80**
+- **Checked:** the default J of a 1D block is 1, 1, 2, 2, 3, 4 for N = 8, 12, 16, 31, 32, 64, and that of a 32 × 8 block is 1; the defaults of a 32 × 32 × 8 field are J = (3, 1) and L = (4, 2), and L = 1 for 1D data alone; arrays of shape (16, 16, 16) and (3, 16, 16, 16) give statistics with (Nb, Nc) = (1, 1) and (1, 3); a size 12 with J = 3 runs and a size 10 fails in the downsampling (`ValueError`); the three cases of missing data behave as written (0 finite value out of 33,938 in the third).
+- **Source:** `STL_TensorProd_Kernel_Torch`, `get_wavelet_op`; `Wavelet_Operator_TensorProd_Kernel_Torch.__init__`; `ST_Operator.apply`.
 
 ### 3.2 First layer — M-W1-TP
 
@@ -693,41 +710,56 @@ The wavelet of scale j and orientation ℓ is the product of the block wavelets.
 W_{j,\ell}\, x_c = \psi^{(B-1)}_{\ell_{B-1}} \star_{B-1} \Big( \cdots \big( \psi^{(0)}_{\ell_0} \star_0 x_c^{(j)} \big) \cdots \Big), \qquad U_{j,\ell}\, x_c = \lvert W_{j,\ell}\, x_c \rvert
 ```
 
+- **Block wavelets.** The kernels of the blocks are those of sections 1 and 2: one kernel of K = 5 taps per axis and per block, the same at every level (M-WAV-2D; M-WAV-1D with L = 2).
 - **One modulus, after all the blocks.** The intermediate results are complex: the second and later block convolutions filter a complex array with a complex kernel, which STL does in one complex convolution. In ESTEL this is four real convolutions (Part I, §3.1, rule 6), or the complex-to-complex convolution of LF30.
 - **Orientation axes.** One per block, placed in block order in front of the spatial axes: `(Nb, Nc, L₀, …, L_{B−1}, spatial axes)`.
 - **Why L = 2 in 1D blocks.** The product of analytic wavelets covers one sign combination of the block frequencies. With L\_a = 2 in a 1D block, its conjugate filter gives the other sign, so the products cover every combination that differs for a real field.
-- **Order of the blocks.** Convolutions along different axes commute exactly in theory; in floating point their order changes the rounding. STL's order is block 0 first. **[to verify, T3.2]** that ESTEL's dispatch along axes gives STL's values at the parity tolerance.
-- **Source:** `Wavelet_Operator_TensorProd_Kernel_Torch.apply`; `ST_Operator_TensorProd._compute_ST_loop`.
+- **How STL reaches it.** STL does not bring the field to level j first. It filters along block 0 a field at level j₀ in block 0 and at level 0 in the other blocks, downsamples the complex result along block 1 to level j₁ (M-DOWN, on the real and the imaginary parts), filters along block 1, and so on: the result of the blocks 0 … a is kept and serves every scale that starts with (j₀, …, j\_a). A downsampling along a block and a filtering along another act on different axes and commute exactly, with circular and with replicate padding: STL's values are those of the formula up to rounding.
+- **Order of the blocks.** Convolutions along different axes commute exactly in theory; in floating point their order changes the rounding. STL's order is block 0 first. ESTEL's dispatch along axes is compared with STL's values at the parity tolerance in T3.2.
+- **Checked:** the kernels of the blocks of a `[2D, 1D]` operator are bit for bit those of the 2D operator and of the 1D operator with L = 2, whose second kernel is the conjugate of the first. The comparison of the seven cases, in which the reference follows the formula and STL its own order, bounds the effect of the order of the operations by 1.2e-15. With the blocks exchanged (`[2D, 1D]` on a field, `[1D, 2D]` on the same field with its axes permuted; periodic and not), S1 to S4 agree to 1.0e-15 and are not bit for bit equal.
+- **Source:** `Wavelet_Operator_TensorProd_Kernel_Torch.apply`, `downsample`; `ST_Operator_TensorProd._compute_ST_loop` (`l_data_multi_res`, `data_l1`).
 
 ### 3.3 Low-pass filter — M-LP
 
 With `lowpass="ST"` (STL's default), each block may contribute a low-pass filter φ⁽ᵃ⁾\_J besides its wavelets.
 
 - **Index.** The low-pass filter of block a is the scale j\_a = J\_a, after its wavelets j\_a = 0 … J\_a − 1. It has one orientation, stored at index 0; the other orientation entries are NaN.
-- **Realisation.** The cascade of the smoothing kernels: the field at level J\_a along block a, with no further computation.
-- **Existence.** Block a has a low-pass filter only if each of its sizes is divisible by 2^(J\_a), one more downsampling than its wavelets need. Otherwise STL warns and gives the block no low-pass filter. **⚠ OP-34**
-- **Mixed scales.** A scale with the low-pass filter in some blocks and a wavelet in at least one other is a zero-mean filter on a periodic domain, because of its wavelet factor. S1 and S2 are computed as for the wavelets.
+- **Realisation.** The cascade of the smoothing kernels: the field at level J\_a along block a, with no further computation. In a scale that mixes it with wavelets of earlier blocks, it is the complex result of these blocks that is downsampled to level J\_a (M-W1-TP).
+- **Existence.** Block a has a low-pass filter only if each of its sizes is divisible by 2^(J\_a), one more downsampling than its wavelets need. Otherwise STL warns (`UserWarning`) and gives the block no low-pass filter; there is then no scale with the low-pass filter in every block. **⚠ OP-34**
+- **Mixed scales.** A scale with the low-pass filter in some blocks and a wavelet in at least one other is a zero-mean filter on a periodic domain, because of its wavelet factor. S1 and S2 are computed as for the wavelets, without centring.
 - **The scale with the low-pass filter in every block** is the only filter without zero mean. With X the field at level (J₀, …, J\_{B−1}):
 
 ```latex
 S_1 = \big\langle \lvert X - \langle X \rangle \rvert \big\rangle, \qquad S_2 = \big\langle \lvert X - \langle X \rangle \rvert^2 \big\rangle
 ```
 
-  S2 is then the variance of the coarse-grained field. This is the only centred covariance of STL. **⚠ OP-42**
-- **No low-pass term in S3 and S4.** They are expected to nearly vanish when their last filter contains a low-pass filter, and are not computed. Since j₁ ≤ j₂ ≤ j₃ componentwise and the low-pass filter is the coarsest scale of its block, this removes every S3 and S4 that involves a low-pass filter. **⚠ OP-43**
-- **Other values of `lowpass`.** `"PS"` adds a low-pass bin to the power spectrum, `("ST", "PS")` both, `None` neither. ESTEL 1.0.0 has no tensor-product spectrum: `lowpass` takes `"ST"` or `None`.
+  S2 is then the variance of the coarse-grained field. This is the only centred covariance of STL. ⟨·⟩ runs over every pixel of X, periodic or not (M-BORDER-TP). **⚠ OP-42**
+- **Cross-channel terms.** As M-S1 and M-S2, on the filtered field of the scale; for the scale with the low-pass filter in every block, on X − ⟨X⟩.
+- **No low-pass term in S3 and S4.** They are expected to nearly vanish when their last filter contains a low-pass filter, and are not computed. Since j₁ ≤ j₂ ≤ j₃ componentwise and the low-pass filter is the coarsest scale of its block, this removes every S3 and S4 that involves a low-pass filter. The wavelet scales are computed as without low-pass filters. **⚠ OP-43**
+- **Other values of `lowpass`.** `"PS"` adds a low-pass bin to the power spectrum, `("ST", "PS")` both, `None` neither; `True` and `False` are read as `"ST"` and `None`, and any other value raises a `ValueError`. ESTEL 1.0.0 has no tensor-product spectrum: `lowpass` takes `"ST"` or `None`.
+- **Checked:** in the cases with a low-pass filter in every block, S2 of the last scale equals the variance of X over all its pixels, computed apart, to 8.4e-16; S1 at a low-pass scale holds one value at orientation 0 of that block and NaN at the others. The mean of a mixed scale, relative to the mean of its modulus, is below 8.1e-17 when every block is periodic (A, F) and reaches 2 to 7 % when one is not (B, C, D, E, G). Case F: a size 12 with J = 3 gives the warning, the flags (yes, no), S1 of shape `(…, 3, 3, 4, 2)` and no centred scale. With `lowpass=None`, S1 and S2 are bit for bit the wavelet scales of the `"ST"` run, and S3 and S4 are bit for bit the same. `True`, `False`, `"PS"` and `("ST", "PS")` give the flags and the shapes of `"ST"`, `None`, `None` and `"ST"`.
 - **Source:** `ST_Operator_TensorProd.__init__`, `_scales_S1_S2`, `_compute_ST_loop`; `Wavelet_Operator_TensorProd_Kernel_Torch.lowpass`, `lowpass_dg`.
 
 ### 3.4 Index sets — M-IDX-TP
 
-- **Wavelet scales:** 𝒥\_w = {j : 0 ≤ j\_a ≤ J\_a − 1 for every a}.
+- **Wavelet scales:** 𝒥\_w = {j : 0 ≤ j\_a ≤ J\_a − 1 for every a}, J₀ ⋯ J\_{B−1} scales.
 - **All scales:** 𝒥 = {j : 0 ≤ j\_a ≤ J′\_a − 1}, with J′\_a = J\_a + 1 if block a has a low-pass filter, J\_a otherwise.
 - **S1 and S2:** every j ∈ 𝒥.
 - **S3:** j₃ ∈ 𝒥\_w and j₂ ≤ j₃ (componentwise, equality included).
 - **S4:** j₃ ∈ 𝒥\_w and j₁ ≤ j₂ ≤ j₃.
-- The loops enumerate each set in lexicographic order; the order has no effect on the values.
-- For B = 1 this is the index set of sections 1 and 2.
-- **Source:** `_compute_ST_loop` (`J_range`, `j3_range`, `j2_range`).
+
+**The partial order, written out.**
+
+- **Definition.** For two scales, j ≤ j′ if and only if j\_a ≤ j′\_a in every block a: j′ is at least as coarse as j in every block. The relation is reflexive, antisymmetric and transitive.
+- **Not total.** With two blocks or more, some scales are incomparable: neither (0, 1) ≤ (1, 0) nor (1, 0) ≤ (0, 1). In space and time, (0, 1) is finer in space and coarser in time than (1, 0): there is no S3 between these two scales, in either direction, and no S4 that holds both.
+- **A product of block index sets.** (j₂, j₃) is a pair of S3 if and only if j₂,ₐ ≤ j₃,ₐ in every block, and (j₁, j₂, j₃) a triple of S4 if and only if j₁,ₐ ≤ j₂,ₐ ≤ j₃,ₐ in every block. The index set of a tensor product is therefore the Cartesian product of the index sets of its blocks (sections 1 and 2), for S3 and for S4.
+- **Sizes.** S3 has ∏ₐ J\_a (J\_a + 1) / 2 pairs of scales, out of (∏ₐ J\_a)²; S4 has ∏ₐ J\_a (J\_a + 1)(J\_a + 2) / 6 triples, out of (∏ₐ J\_a)³. For J = (2, 2): 4 wavelet scales, 9 pairs out of 16, 16 triples out of 64. The pairs with j₃ = (1, 1) are the four j₂; with j₃ = (0, 1), j₂ ∈ {(0, 0), (0, 1)}; with j₃ = (1, 0), j₂ ∈ {(0, 0), (1, 0)}; with j₃ = (0, 0), j₂ = (0, 0).
+- **Low-pass scales.** The low-pass scale of a block is above each of its wavelet scales, but it enters no pair and no triple: S3 and S4 take j₃ in 𝒥\_w, hence j₁ and j₂ too (M-LP).
+- **Enumeration.** The loops enumerate each set in lexicographic order, the last block varying fastest. Lexicographic order extends the partial order: j ≤ j′ implies that j comes first, so every j₂ ≤ j₃ has been met when j₃ is reached. The order has no effect on the values.
+- **Storage.** The full-grid tensors have one scale axis per block and per filter (M-S-TP); the entries outside the sets are NaN.
+- **One block.** For B = 1 and `lowpass=None` this is the index set of sections 1 and 2. With `lowpass="ST"`, S1 and S2 of a single block have one more scale than in sections 1 and 2 (OP-82).
+- **Checked:** the finite entries of S1 to S4 are those of the sets, entry by entry, in the seven cases. Their numbers per channel pair equal the formulas of §3.9 for (16, 16, 16) with J = (2, 2): 45, 45, 576, 8,192; (32, 32, 16) with J = (3, 2): 65, 65, 1,152, 20,480; (16, 16, 12) with J = (2, 3) and no low-pass filter in block 1: 54, 54, 1,152, 20,480; (16, 16, 8, 16) with J = (2, 1, 2): 135, 135, 2,304, 65,536. A tensor product of one 2D block with `lowpass=None` gives bit for bit the statistics of the 2D operator (16 × 16, periodic).
+- **Source:** `_compute_ST_loop` (`J_range`, `j3_range`, `j2_range`, `is_lowpass`).
 
 *Whether the componentwise order is the right one is LF27. The names of the indices follow the rule decided in the review of 16 November 2026 (Part IV, R-A01): j₃ is the wavelet applied last.*
 
@@ -745,6 +777,9 @@ S_4[c_1,c_2,j_1,j_2,j_3,\ell_1,\ell_2,\ell_3] = \Big\langle \big( W_{j_3,\ell_3}
 
 Here W\_{j₃,ℓ₃} applied to a field already at level j₃ means the block convolutions of M-W1-TP without further downsampling.
 
+- **`mean` and `var`.** M-MOM over the spatial axes of all the blocks together, without border; the standardisation M-STD likewise.
+- **S1 and S2.** M-S1 and M-S2 on U\_{j,ℓ}, for every scale of 𝒥; the low-pass scales follow M-LP.
+- **How STL reaches the second layer.** As for the first layer (M-W1-TP), STL interleaves the downsamplings and the block convolutions: the modulus U\_{j₂} is brought to level j₃ along block 0 and filtered along block 0, the complex result is downsampled along block 1 and filtered along block 1, and so on, and the result of the blocks 0 … a serves every j₃ that starts with the same indices. The values are those of the formulas up to rounding.
 - **Shapes** of the full-grid tensors, with one scale axis and one orientation axis per block:
 
 | Family | Shape |
@@ -754,24 +789,31 @@ Here W\_{j₃,ℓ₃} applied to a field already at level j₃ means the block c
 | S4 | `(Nb, Nc, Nc, (j₁), (j₂), (j₃), (ℓ₁), (ℓ₂), (ℓ₃))`, each group with one axis per block |
 
 - **A correction in the frozen commit.** Before `8f51143`, S4 paired the orientations of ψ₁ and ψ₂ in every block but the first, instead of combining them: its entries with ℓ₁ ≠ ℓ₂ in those blocks were copies. The commit fixes it. Parity is with `8f51143` only.
-- **Channel pairs, the cross S1, storage:** as M-S1 and M-CHAN.
-- **The variant with fewer convolutions** raises `NotImplementedError` in the tensor-product loop; it is not transferred.
-- **Source:** `_compute_ST_loop`.
+- **Channel pairs, the cross S1, storage:** as M-S1 and M-CHAN. S1 and S2 are stored as complex numbers, with a null imaginary part for the auto terms.
+- **The variant with fewer convolutions** raises `NotImplementedError` in the tensor-product loop, after the S1 and S2 of the first scale; it is not transferred.
+- **Checked:** the comparison of the seven cases covers S1 to S4, auto and cross-channel, entry by entry, hence the place of every scale and orientation axis and the S4 of the frozen commit. For a 32 × 32 × 8 field with the defaults, the shapes are S1 and S2 `(1, 1, 1, 4, 2, 4, 2)`, S3 `(1, 1, 1, 3, 1, 3, 1, 4, 2, 4, 2)` and S4 `(1, 1, 1, 3, 1, 3, 1, 3, 1, 4, 2, 4, 2, 4, 2)`. With `standardize=True`, `mean` is 2e-17 and `var` − 1 is 2e-16.
+- **Source:** `_compute_ST_loop` (`data_l1m`, `data_l1m_multi_res`, `data_l1m_l2`); `ST_Operator.apply`.
 
 ### 3.6 Borders — M-BORDER-TP
 
-- Each block has its own border width, computed by M-BORDER (or its 1D form) from the convolution history and the level of that block alone.
+- Each block has its own border width, computed by M-BORDER (or its 1D form) from the convolution history and the level of that block alone: 0 if the block is periodic.
+- **In a non-periodic block,** with ⌊K/2⌋ = 2: β\_a = 2 for a first-layer field at a wavelet scale; β\_a = ⌈2^(j₂,ₐ − j₃,ₐ) · 2⌉ + 2 for a second-layer field, that is 4, 3, 3, … for j₃,ₐ − j₂,ₐ = 0, 1, 2, …
+- **The low-pass filter is not a convolution** in this count: along a block taken at its low-pass scale, β\_a = 0, although each step of the cascade pads the block by replication. The field X of M-LP and the data (`mean`, `var`) have no border in any block. **⚠ OP-81**
 - A covariance uses, block by block, the larger border of its two arguments.
 - The crop removes the border of block a along the axes of block a.
-- A border too large for a block is reduced as in M-BORDER, with one printed warning (OP-13).
-- **Source:** `_get_crop_border_size_from_children`, `_crop`, `cov`.
+- A border too large for a block (2β\_a ≥ the smallest size of the block at that level) is reduced as in M-BORDER, block by block, with one printed warning for the operator (OP-13).
+- **Checked:** the reference of the cases B, C, D, E and G computes its borders from the rules above, the reduction included (it occurs in each of them: a border of 4 on 8 pixels becomes 3), and agrees with STL to 1.2e-15.
+- **Source:** `_get_crop_border_size_from_children`, `_crop`, `cov`; `mean`, `square_mean` (inherited from the 2D operator).
 
 ### 3.7 Normalisation and reductions — M-NORM-TP
 
-- **Normalisation:** M-NORM with multi-indices. S3 and S4 are normalised with the wavelet scales of the S2 reference only: the low-pass scales of S2 have no counterpart in S3 and S4.
-- **Reductions:** `iso`, `angular_fourier` and `scale_cosine` are written for one scale and one orientation axis per layer. On tensor-product statistics they fail. ESTEL raises a clear error. **⚠ OP-44**
+- **Reference.** As in M-NORM: the square root of the channel diagonal of S2, with the shape of S2 without one channel axis, `(Nb, Nc, J′₀ …, L₀ …)`; it holds the low-pass scales, and NaN where S2 does.
+- **Normalisation:** M-NORM with multi-indices. S1 and S2 are normalised at every scale of 𝒥; the normalised auto S2 of the scale with the low-pass filter in every block is 1 with `norm="self"`. S3 and S4 are normalised with the wavelet scales of the S2 reference only: the low-pass scales of S2 have no counterpart in S3 and S4. S3 is divided by the reference of (c₁, j₂, ℓ₂) times that of (c₂, j₃, ℓ₃); S4 by that of (c₁, j₁, ℓ₁) times that of (c₂, j₂, ℓ₂).
+- **Reductions:** `iso`, `angular_fourier` and `scale_cosine` are written for one scale and one orientation axis per layer. On tensor-product statistics, STL's `to_iso` and `to_scale_ft` raise a `TypeError`, and so does `to_angular_ft` with its default number of harmonics; asked through the operator, the error comes after the whole computation. Two cases are not clean failures: `to_iso` has already averaged S1 and S2 over their last orientation axis when it fails, and `to_angular_ft` with an integer number of harmonics runs, as a Fourier transform over the last two (S3) or three (S4) orientation axes, which belong to different blocks. ESTEL raises a clear error. **⚠ OP-44**
 - **Flattening:** M-FLAT applies unchanged.
-- **Source:** `ST_Statistics._normalize_scatcov`, `to_iso`, `to_angular_ft`, `to_scale_ft`.
+- **`select`** is an empty method in STL (it returns 1), and nothing names the blocks.
+- **Checked** (16 × 16 × 16, J = (2, 2), block 0 not periodic, two maps of two channels): the reference has shape `(2, 2, 3, 3, 4, 2)`, and `(1, 2, 3, 3, 4, 2)` with the batch mean; the normalised S1 to S4 equal those computed without normalisation, divided as written, bit for bit; the normalised S2 of the centred scale is 1 − 2e-16. The five outcomes of the reductions are those written; `to_flatten` returns 8,860 complex coefficients for one map of one channel (33,938 with the NaN).
+- **Source:** `ST_Statistics._normalize_scatcov`, `to_norm`, `to_iso`, `to_angular_ft`, `to_scale_ft`, `to_flatten`, `select`.
 
 ### 3.8 Defaults — M-DEF-TP
 
@@ -779,28 +821,48 @@ Here W\_{j₃,ℓ₃} applied to a field already at level j₃ means the block c
 | --- | --- |
 | J\_a | ⌊log₂ min N⁽ᵃ⁾⌋ − 2 |
 | L\_a | 4 for a 2D block, 2 for a 1D block |
+| K (kernel size) | 5 in every block |
+| Wavelet type | bump-steerable in every block |
+| Border method | fully flexible in every block |
 | `lowpass` | `"ST"` |
+| `norm` | as in M-DEF |
 | `compute_PS` | True in STL; unavailable for tensor products in ESTEL 1.0.0 |
 | Masks | not supported |
 | Other parameters | those of each block's geometry (M-DEF, M-DEF-1D) |
 
+**Checked:** an operator built with no argument on a 32 × 32 × 8 field has these values.
+
 ### 3.9 Counts
 
-For reference, the number of non-redundant coefficients of the STOC deliverable (Table 1): 2D, 1,474; 2D+1D space and time, 587,324; 2D+1D+1D, 18,513,572. S4 holds nearly all of them. The full-grid tensors allocate 3.9, 13 and 26 times more (Part III, §19.1).
+**What STL computes.** Per map and per channel pair, with λ\_a = 1 if block a has a low-pass filter and 0 otherwise, and L = ∏ₐ L\_a:
+
+| Family | Coefficients computed | Entries of the full-grid tensor |
+| --- | --- | --- |
+| S1, S2 | ∏ₐ (J\_a L\_a + λ\_a) | ∏ₐ (J\_a + λ\_a) L\_a |
+| S3 | L² ∏ₐ J\_a (J\_a + 1) / 2 | L² ∏ₐ J\_a² |
+| S4 | L³ ∏ₐ J\_a (J\_a + 1)(J\_a + 2) / 6 | L³ ∏ₐ J\_a³ |
+
+Checked against the finite entries of STL's tensors (M-IDX-TP). For 16 × 16 × 16 with J = (2, 2): 8,192 coefficients of S4 in a tensor of 32,768.
+
+**Non-redundant coefficients.** For reference, the number of non-redundant coefficients of the STOC deliverable (Table 1): 2D, 1,474; 2D+1D space and time, 587,324; 2D+1D+1D, 18,513,572. S4 holds nearly all of them. The full-grid tensors allocate 3.9, 13 and 26 times more (Part III, §19.1). These numbers are quoted, not derived here.
 
 ---
 
 ### 3.10 Open points found in the tensor-product code
 
-The rule of §1.11 applies. OP-34 also concerns tensor products.
+The rule of §1.11 applies. OP-4, OP-8, OP-13 and OP-34 also concern tensor products, as noted above. OP-80 to OP-83 come from the check of T3.0.
 
 | # | Point | Proposal |
 | --- | --- | --- |
-| OP-41 | Missing data are not supported in tensor products | ESTEL raises a clear error at construction; LF8 |
-| OP-42 | The only centred statistics of STL are S1 and S2 of the scale with the low-pass filter in every block; the mixed scales rely on the zero mean of a wavelet factor, exact only on a periodic domain (OP-36) | reproduce; LF33 |
+| OP-41 | Missing data are not supported in tensor products: the construction fails in the operator of the first block, with a `NotImplementedError` that asks for a 2D mask | ESTEL raises a clear error at construction; LF8 |
+| OP-42 | The only centred statistics of STL are S1 and S2 of the scale with the low-pass filter in every block; the mixed scales rely on the zero mean of a wavelet factor, exact only on a periodic domain (OP-36). Measured: the mean of a mixed scale is 2 to 7 % of the mean of its modulus when a block is not periodic, on 16 to 32 pixels | reproduce; LF33 |
 | OP-43 | No S3 or S4 involves a low-pass filter; they are assumed to nearly vanish | reproduce; LF6 |
-| OP-44 | The reductions fail on tensor-product statistics | ESTEL raises a clear error; LF26 |
-| OP-57 | `conv_history = [[]] * nblock` makes every block share one list | **[to verify, T3.1]** whether any value depends on it |
+| OP-44 | The reductions are not defined on tensor-product statistics. In STL they raise a `TypeError`, after the computation; `to_iso` fails with S1 and S2 already averaged over one axis, and `to_angular_ft` with an integer number of harmonics returns a transform over orientation axes of different blocks, without error | ESTEL raises a clear error, before the computation; LF26 |
+| OP-57 | `conv_history = [[]] * nblock` makes every block share one list. Closed (T3.0): no value depends on it. STL never modifies these lists in place, it replaces them; with one list per block given explicitly, S1 to S4 are bit for bit the same (case B) | nothing to reproduce |
+| OP-80 | An operator built from data without NaN and applied to data that hold a NaN returns NaN for every statistic, without error; with the spectrum, the spectrum raises a `ValueError` | to decide with the errors on masks (Q12) |
+| OP-81 | Along a block taken at its low-pass scale the border is 0, also when the block is not periodic: the cascade of smoothing kernels, padded by replication at each step, is not counted as a convolution. The variance of the coarse-grained field and the mixed scales therefore use pixels that the padding has reached | reproduce; examine with LF6 and LF33 |
+| OP-82 | STL accepts a tensor product of one block. With `lowpass=None` its statistics are bit for bit those of the plain geometry; with the default `lowpass="ST"`, S1 and S2 have one more scale. J and L are then lists of one entry | to decide with the parity matrix (Q12) whether ESTEL accepts one block |
+| OP-83 | Arguments of the operator. A block shorter than 8 pixels has a default J of 0, and the construction fails with an `IndexError` in the kernel code. A list J that holds `None` is completed in place: the caller's list is modified. An integer J raises a `TypeError`, an integer L an `AssertionError` | ESTEL validates the arguments at construction, with clear errors, and leaves the caller's objects unchanged |
 
 ## 4. HEALPix
 
