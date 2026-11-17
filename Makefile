@@ -10,7 +10,7 @@ RUN ?= uv run --locked
 
 .PHONY: check check-full check-tools lint types lint-imports layers manifest mirrors mirrors-fix \
         maths-ids retired-names workflows test test-fast test-torch test-jax test-fast-torch test-fast-jax \
-        test-spec version-impact parity-image parity parity-fixtures container-runtime
+        test-spec version-impact parity-image parity parity-fixtures container-runtime bench
 
 # Backends the tests run on (Part I, §3.1). CI runs one per job: make test-fast TEST_BACKENDS=torch
 TEST_BACKENDS ?= torch jax
@@ -149,6 +149,19 @@ parity-fixtures: container-runtime
 		-v "$(CURDIR)/tools/stl_parity:/mnt/stl_parity:ro" \
 		-v "$(CURDIR)/$(PARITY_FIXTURES):/mnt/fixtures" \
 		$(PARITY_IMAGE) /bin/sh /mnt/stl_parity/run_fixtures.sh $(CASES)
+
+# Benchmark of step 1 (Part I, §6.3; task T2.11; bench/README.md): outside CI. Measures the cases
+# of bench/cases.toml, STL and ESTEL in the parity container (build it first: make
+# parity-image) and ESTEL natively, checks every ESTEL run against STL, prints a table and writes
+# bench/results/<date>-<machine>.json. One case: make bench BENCH_CASE=planar-periodic; one
+# environment: make bench BENCH_ENV=native (or container); other options: BENCH_ARGS.
+BENCH_CASE ?=
+BENCH_ENV ?=
+BENCH_ARGS ?=
+
+bench:
+	$(RUN) python -m bench --container $(CONTAINER) --parity-image $(PARITY_IMAGE) \
+		$(if $(BENCH_CASE),--case $(BENCH_CASE)) $(if $(BENCH_ENV),--env $(BENCH_ENV)) $(BENCH_ARGS)
 
 container-runtime:
 	@command -v $(CONTAINER) >/dev/null 2>&1 || { \

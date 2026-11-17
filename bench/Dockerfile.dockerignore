@@ -1,0 +1,8 @@
+# Build context of bench/Dockerfile: what installing ESTEL needs, and nothing else.
+*
+!pyproject.toml
+!AGENTS.md
+!LICENSE
+!NOTICE
+!src/estel
+**/__pycache__

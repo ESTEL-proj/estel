@@ -1,0 +1,46 @@
+# Benchmark cases of step 1 (Part I, §6.3; Part II, §15.2, task T2.11; issue #89).
+#
+# Few cases, each clear, at a realistic size, run outside CI by `make bench` (bench/README.md).
+# They judge the optimisations of step 1 (T2.12 to T2.15) before and after: changing a case makes
+# the earlier results of bench/results/ incomparable, so cases are added, not edited.
+#
+# Every case is 2D, one batch element, without power spectrum, norm="none", and measures the
+# forward pass, the forward pass with the gradient of a loss, and the peak resident memory.
+
+[settings]
+dtype = "float32"   # the default of ESTEL; STL follows the dtype of its input
+device = "cpu"
+threads = 4         # intra-op threads of the backend, fixed in every environment
+warmup = 1          # runs before the timed ones
+repeats = 5         # timed runs; the result is their median
+
+[cases.planar-periodic]
+shape = [512, 512]
+channels = 1
+J = 7
+L = 4
+pbc = true
+seed = 1            # the field
+target_seed = 2     # the second field, whose statistics are the target of the loss
+
+[cases.planar-masked]
+shape = [512, 512]
+channels = 1
+J = 7
+L = 4
+pbc = false
+seed = 3
+target_seed = 4
+# Missing pixels: square holes of these sides, placed without overlap by a seeded draw;
+# 26,560 pixels of 262,144, 10.1 %.
+mask_seed = 5
+mask_holes = [112, 88, 64, 40, 24]
+
+[cases.planar-cross]
+shape = [256, 256]
+channels = 2        # with the cross terms: every pair of channels, STL's and ESTEL's default
+J = 6
+L = 4
+pbc = true
+seed = 6
+target_seed = 7
