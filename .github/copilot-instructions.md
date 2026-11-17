@@ -46,7 +46,7 @@ The static plan (`STPlan`) is built in NumPy when an operator is constructed. Ma
 - Shapes are static; index sets, crop widths, stencils and mean denominators live in the plan.
 - No `.item()`, `float(x)`, `if x.isnan().any()` inside the computation.
 - Every computation runs in float32 (default) and float64; no hard-coded float64 constant.
-- Keep STL's loop structure in step 1; loops run over scales and levels, never over coefficients.
+- Loops run over scales and levels, never over coefficients. Before 1.0.0, a reorganisation of STL's loop is allowed only if every value stays within the parity tolerance and the benchmark shows its gain (Part I, §3.1, rule 8).
 - Safe modulus (double `where`); masks are weights; no `custom_vjp` in the Python engine. Second order must work on PyTorch and JAX.
 
 ## Protected paths (CODEOWNER approval)
