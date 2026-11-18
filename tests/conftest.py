@@ -36,6 +36,7 @@ pytest process of its own costs more than its tests.
 
 from __future__ import annotations
 
+import gc
 import importlib.util
 import math
 import os
@@ -364,6 +365,20 @@ def pytest_runtest_setup(item: pytest.Item) -> Generator[None, None, None]:
         return (yield)
     finally:
         item.stash[_CPU] = _cpu_seconds() - start
+
+
+def pytest_runtest_teardown(item: pytest.Item) -> None:
+    """In a JAX run, drop the compiled programs JAX keeps in memory, after each test (task
+    T2.17). JAX keeps every program it compiles for the life of the process, and a worker runs
+    hundreds of tests, each with its own plans and shapes: four workers reached the 16 GB of
+    CI's runners, which stopped the full tier. The programs stay in the compilation cache on
+    disk (``_persistent_jax_cache``), so the next test loads those it needs instead of compiling
+    them again. It changes no result. Clearing every ten tests lowered no peak."""
+    if backend_name() == "jax":
+        import jax
+
+        jax.clear_caches()  # type: ignore[no-untyped-call]
+        gc.collect()
 
 
 @pytest.hookimpl(wrapper=True)

@@ -1,8 +1,8 @@
-# Tier 0 (Part I, §6.1): GitHub-hosted CPU, every push and pull request.
+# Tier 0 (Part I, §6.1): GitHub-hosted CPU, every pull request and every push to main.
 name: tier0
 
 # Two tiers (Part I, §5.4 and §6.1; tests/conftest.py):
-# - fast, on pull requests and pushes to other branches than the default one: the check tools,
+# - fast, on pull requests: the check tools,
 #   the tests not marked slow or serial in float64 on PyTorch and those marked dtype in float32
 #   too, and the tests marked jax_smoke on JAX; the tests of tools/ only when the change touches
 #   tools/, tests/tools/ or pyproject.toml. Each backend runs in one process, beside the check
@@ -11,8 +11,12 @@ name: tier0
 #   test, on both backends, in both dtypes, slow tests included.
 # A pull request runs again when a label is added or removed: full-ci switches the tier, and
 # tools/version_impact.py reads the labels.
+# A push runs the workflow on main only (task T2.17): a push to the branch of a pull request
+# already runs it once, as a pull request, and used to run it a second time as a push. A branch
+# without a pull request is checked locally (make check), or by hand (workflow_dispatch).
 on:
   push:
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
   schedule:
@@ -37,7 +41,7 @@ env:
 # (jax)" runs float64 and "make check (jax, float32)" float32; in the fast tier the latter only
 # reports that it has nothing to do.
 #
-# Scope (task T0.7): a pull request, or a push to another branch than the default one, whose
+# Scope (task T0.7): a pull request, or a run by hand on another branch than the default one, whose
 # files are all in the no-test scope of tools/ci_scope.py (docs/, .github/, changes/; .gitignore,
 # LICENSE, NOTICE and README.md at the root; every AGENTS.md and CLAUDE.md, at any depth) skips
 # the test suites, unless a test reads one of them (docs/maths.md, for example). The PyTorch job

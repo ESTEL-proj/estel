@@ -5,6 +5,12 @@
 # as CI does on main, nightly and on a pull request labelled full-ci: both backends, both dtypes,
 # slow tests included.
 
+# Python writes its bytecode (__pycache__), whatever the session's environment says (task
+# T2.17): the shells of coding agents set PYTHONDONTWRITEBYTECODE, and every run then compiled
+# every module of the tests, of ESTEL and of its dependencies again, about 3 s of a warm
+# `make check`. Python checks each bytecode file against the size and the time of its source.
+unexport PYTHONDONTWRITEBYTECODE
+
 # CI's JAX fast-tier job runs with RUN="uv run --no-sync": its environment leaves torch out.
 RUN ?= uv run --locked
 
