@@ -1,4 +1,4 @@
-"""Check that public names retired by a renaming task do not come back (Part IV, §22.5, R-A12).
+"""Check that public names retired by a renaming task do not come back (Part IV, §22, R-A12).
 
 A retired name (``RETIRED`` below) must not appear in
 
@@ -34,7 +34,7 @@ REPO = Path(__file__).resolve().parents[1]
 
 # The public names retired by a renaming task, each with the name that replaces it, in one
 # place. A renaming task adds the names it retires here, with its news fragment
-# (changes/76.major.md for the first ones: R-A02 to R-A11 and R-S08 of Part IV, §22.5).
+# (changes/76.major.md for the first ones: R-A02 to R-A11 and R-S08 of Part IV, §22).
 RETIRED: dict[str, str] = {
     "vanilla": 'norm="none"',
     "store_ref": 'norm="self"',

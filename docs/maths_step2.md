@@ -2,7 +2,7 @@
 
 [Back to the overview](transfer/overview.md) · [Mathematics of step 1](maths.md)
 
-**Status:** proposals, 16 November 2026. Step 2 is described in prose in Part III of the specification (§19 and §20); this file gives the definitions that an implementation and an oracle need. Nothing here is decided unless Part IV, §22.4 records it, and nothing here describes what ESTEL 1.0.0 computes: that is `docs/maths.md`.
+**Status:** proposals, 16 November 2026. Step 2 is described in prose in Part III of the specification (§19 and §20); this file gives the definitions that an implementation and an oracle need. Nothing here is decided unless the decision log (Part IV, §22) records it, and nothing here describes what ESTEL 1.0.0 computes: that is `docs/maths.md`.
 
 **Role of this file.** Like `docs/maths.md`, it changes only through pull requests that a maintainer requests and merges. Its IDs are defined here; `tools/check_maths_ids.py` checks those of `docs/maths.md` only.
 
