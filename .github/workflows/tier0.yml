@@ -243,6 +243,10 @@ jobs:
 
       - name: Tests on JAX, full tier, float64
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
+        # A test that runs for more than 4 minutes prints the stack of every thread, so that a
+        # job stopped at its time limit names the test it was in (task T2.17).
+        env:
+          PYTEST_ADDOPTS: "-o faulthandler_timeout=240 --durations=25"
         run: make test TEST_BACKENDS=jax TEST_DTYPE=float64
 
       - name: No tests (no-test scope only)
