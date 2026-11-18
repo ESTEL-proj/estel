@@ -180,38 +180,40 @@ Every decision from 4 November 2026 on, in order: one row per decision, with its
 
 ## 23. Points to settle
 
-Everything still to decide, in one table. A point leaves it when it is decided (it then goes to the log, §22) or deferred (to the register, Part III, §16). The source column keeps the earlier IDs.
+Everything still to decide, in one table. A point leaves it when it is decided (it then goes to the log, §22) or deferred (to the register, Part III, §16). The source column says where a point comes from. An open point of the maths tab that is still to decide has the status `open (Qn)` there, with the question that holds it here.
 
 | ID | Point to settle | With | Before | Source |
 | --- | --- | --- | --- | --- |
-| Q1 | Compact layout: is the conversion between structured arrays and the compact buffer written once, in shared Python on a few generic primitives, or in each backend? | the maintainers | step 2 (LF14) | R1 |
-| Q2 | Low-pass filter in S3 and S4: which combinations (the low-pass filter as the last filter only, +0.3 to +3.5 % coefficients, or also as a first filter, +38 to +112 %), and the half-pixel shift of the even smoothing kernel without the final downsampling | the maintainers | step 2 (LF6) | R2; R-P12 |
-| Q3 | Whether a change of statistics values is also a major version: decided case by case | the maintainers | each case | D2 |
-| Q4 | Budget when a pull request legitimately changes synthesis results: syntheses to convergence, possibly for hours | the maintainers | T6.1 | D3 |
-| Q5 | With `engine="auto"`, route second-order requests to the Python engine while the Rust engine is at order 1 | the maintainers | step 2 (LF3) | D4 |
-| Q6 | The hidden subset of reference inputs, now that the benchmark cases are public | the maintainers | P7 | D5 |
-| Q7 | HEALPix on the sphere only in 1.0.0, the parity harness running STL with `ellipsoid="sphere"` (an ellipsoid later, LF43) | Jean-Marc, Pablo | T5.0 | R-H01; OP-45 |
-| Q8 | float32 inside healpix-analyse: the harness disables the cache; reproduce the float32 kernel, or compare with a patched run | Jean-Marc | T5.0 | R-H02; OP-46 |
-| Q9 | HEALPix design: the list of geometry functions to port with a reference test each; the memory of the gather tables (32-bit indices, tables per pixel batch, the largest `nside` of 1.0.0); the kernel folded into the interpolation as one sparse operator per gauge; the geometry cached on disk. The tables per pixel batch, the folded kernel and the cache on disk are tried after the implementation of P5 that follows STL (§22, "Efficiency in step 1") | Jean-Marc | T5.0 | R-H03, R-H04, R-H07 |
-| Q10 | HEALPix: confirm that `PatchScattering`, `PyramidScattering`, `LocalScattering`, `S3Multiscale` and `AdjointOps` are not transferred; the edge of a partial sky; the argument name, `depth` or `nside` | Jean-Marc | T5.1 | R-H05, R-H06; OP-50 |
-| Q11 | Tensor products: the loop written as a recursion over blocks with a cache of prefixes, and on the Gram form from the start. The recursion with a cache of prefixes is tried after the implementation of P3 that follows STL's loop, on the Gram form that exists by then (T2.12; §22, "Efficiency in step 1") | Pablo | T3.0 | R-T01, R-T06 |
-| Q12 | Tensor products: the parity matrix of P3 (2D+1D in full, 2D+1D+1D at the smallest sizes that exercise every branch); block names for `select`; confirm the errors on masks and reductions and `lowpass="ST"` in 1.0.0 | Pablo | T3.0 | R-T03, R-T04, R-T05 |
-| Q13 | Document in the reference document that uncentred statistics are biased on short non-periodic blocks, and schedule LF33 early in step 2 | the maintainers | 1.0.0 | R-T02; OP-36, OP-42 |
-| Q15 | Syntheses: one named concept for `mean_field`; explicit arguments for J − 1, the weights 3.5 and 3.5², the seed | the maintainers | T6.1 | R-Y02, R-Y04 |
-| Q16 | The default length of the L-BFGS history (STL: 50 pairs, 100 numbers per pixel), after a convergence test at 10 and 20 | the maintainers | T6.1 | R-P16 |
-| Q17 | Part III, §20.11: rule 1 amended (the maps that end with a low-pass filter are centred themselves, for stability in single precision), and rule 7 corrected (standardisation: mean and standard deviation) | Erwan | before LF33 | R-E02, R-A10 |
-| Q18 | The strided second layer (LF38) and the strict scale order (LF35): validation on syntheses and inference, then option or default | the maintainers | step 2, H1 | R-P02, R-P15 |
-| Q19 | The scope of the Rust engine, after a benchmark of the reorganised Python engine against STL-Dev-MPI | Jean-Marc | step 2, H2 | R-P09 |
-| Q20 | Partitioned execution (LF34) as the single way to scale out, absorbing LF4 and LF19 | Jean-Marc | step 2, before LF4 | R-P04 |
-| Q21 | `iso`: return the real parts only of the reduced S3 and S4; the meaning of `iso` in 1D with L = 2 | the maintainers | step 2 (LF32) | R-P11; OP-5, OP-40 |
-| Q22 | Group the changes of values of step 2 in one bump of `STATISTICS_REFERENCE` | the maintainers | step 2 | R-P13 |
-| Q23 | The power spectrum: computed by the scattering operator (`compute_PS`), or by its own operator only | the maintainers | P4 | R-S07 |
-| Q25 | The notation of the maths tab: the table of symbols and the collisions (issue #71) | Erwan | 1.0.0 | R-N01 to R-N18 |
-| Q26 | The vocabulary of the code (issue #72) | Erwan | 1.0.0 | R-V01 to R-V10 |
-| Q27 | The structure of `docs/maths.md` and of the specification (issue #73) | Erwan | 1.0.0 | R-S03 to R-S06, R-S09 |
-| Q28 | L0 primitives with no user at the end of phase P6 are removed; the signature of `gather_weighted` is checked against Q9 | the maintainers | end of P6 | R-S02 |
-| Q29 | Preparations in 1.0.0 that change no value: windows with a kind (full, slice, weights), index sets and evaluation positions from the plan, the band orientation as the leading axis of the second-layer maps, families as a list, `estimate_memory` with temporaries and the L-BFGS history, a benchmark with gradients (Part III, §19.12). The windows, the band orientation as the leading axis and the benchmark are now tasks of step 1 (Part II, §15.2, T2.11 to T2.13; §22, "Efficiency in step 1") | the maintainers | 1.0.0 | R-S01, R-P01, R-P14 |
+| Q1 | Compact layout: is the conversion between structured arrays and the compact buffer written once, in shared Python on a few generic primitives, or in each backend? | the maintainers | step 2 (LF14) | questions of drafts 0.2 to 0.4 |
+| Q2 | Low-pass filter in S3 and S4: which combinations (the low-pass filter as the last filter only, +0.3 to +3.5 % coefficients, or also as a first filter, +38 to +112 %), and the half-pixel shift of the even smoothing kernel without the final downsampling | the maintainers | step 2 (LF6) | questions of drafts 0.2 to 0.4; review of 16 November 2026 |
+| Q3 | Whether a change of statistics values is also a major version: decided case by case | the maintainers | each case | points to discuss of 12 November 2026 |
+| Q4 | Budget when a pull request legitimately changes synthesis results: syntheses to convergence, possibly for hours | the maintainers | T6.1 | points to discuss of 12 November 2026 |
+| Q5 | With `engine="auto"`, route second-order requests to the Python engine while the Rust engine is at order 1 | the maintainers | step 2 (LF3) | points to discuss of 12 November 2026 |
+| Q6 | The hidden subset of reference inputs, now that the benchmark cases are public | the maintainers | P7 | points to discuss of 12 November 2026 |
+| Q7 | HEALPix on the sphere only in 1.0.0, the parity harness running STL with `ellipsoid="sphere"` (an ellipsoid later, LF43) | Jean-Marc, Pablo | T5.1 | review of 16 November 2026; OP-45 |
+| Q8 | float32 inside healpix-analyse: the harness disables the cache; reproduce the float32 kernel, or compare with a patched run | Jean-Marc | T5.1 | review of 16 November 2026; OP-46 |
+| Q9 | HEALPix design: the list of geometry functions to port with a reference test each; the memory of the gather tables (32-bit indices, tables per pixel batch, the largest `nside` of 1.0.0); the kernel folded into the interpolation as one sparse operator per gauge; the geometry cached on disk. The tables per pixel batch, the folded kernel and the cache on disk are tried after the implementation of P5 that follows STL (§22, "Efficiency in step 1"); whether the ported tables are compared with those of healpix-analyse as operators (OP-92) | Jean-Marc | T5.1 | review of 16 November 2026 |
+| Q10 | HEALPix: confirm that `PatchScattering`, `PyramidScattering`, `LocalScattering`, `S3Multiscale` and `AdjointOps` are not transferred; the edge of a partial sky; the argument name, `depth` or `nside`; the order of `cell_ids` (OP-90) and `nside` required with `cell_ids` (OP-91) | Jean-Marc | T5.1 | review of 16 November 2026; OP-50 |
+| Q11 | Tensor products: the loop written as a recursion over blocks with a cache of prefixes, and on the Gram form from the start. The recursion with a cache of prefixes is tried after the implementation of P3 that follows STL's loop, on the Gram form that exists by then (T2.12; §22, "Efficiency in step 1") | Pablo | T3.1 | review of 16 November 2026 |
+| Q12 | Tensor products: the parity matrix of P3 (2D+1D in full, 2D+1D+1D at the smallest sizes that exercise every branch); block names for `select`; confirm the errors on masks and reductions and `lowpass="ST"` in 1.0.0; data with a NaN on an operator without mask (OP-80); a tensor product of one block (OP-82) | Pablo | T3.1 | review of 16 November 2026 |
+| Q13 | Document in the reference document that uncentred statistics are biased on short non-periodic blocks, and schedule LF33 early in step 2 | the maintainers | 1.0.0 | review of 16 November 2026; OP-36; OP-42 |
+| Q15 | Syntheses: one named concept for `mean_field`; explicit arguments for J − 1, the weights 3.5 and 3.5², the seed | the maintainers | T6.1 | review of 16 November 2026 |
+| Q16 | The default length of the L-BFGS history (STL: 50 pairs, 100 numbers per pixel), after a convergence test at 10 and 20 | the maintainers | T6.1 | review of 16 November 2026 |
+| Q17 | Part III, §20.11: rule 1 amended (the maps that end with a low-pass filter are centred themselves, for stability in single precision), and rule 7 corrected (standardisation: mean and standard deviation) | Erwan | before LF33 | review of 16 November 2026; R-A10 |
+| Q18 | The strided second layer (LF38) and the strict scale order (LF35): validation on syntheses and inference, then option or default | the maintainers | step 2, H1 | review of 16 November 2026 |
+| Q19 | The scope of the Rust engine, after a benchmark of the reorganised Python engine against STL-Dev-MPI | Jean-Marc | step 2, H2 | review of 16 November 2026 |
+| Q20 | Partitioned execution (LF34) as the single way to scale out, absorbing LF4 and LF19 | Jean-Marc | step 2, before LF4 | review of 16 November 2026 |
+| Q21 | `iso`: return the real parts only of the reduced S3 and S4; the meaning of `iso` in 1D with L = 2 | the maintainers | step 2 (LF32) | review of 16 November 2026; OP-5; OP-40 |
+| Q22 | Group the changes of values of step 2 in one bump of `STATISTICS_REFERENCE` | the maintainers | step 2 | review of 16 November 2026 |
+| Q23 | The power spectrum: computed by the scattering operator (`compute_PS`), or by its own operator only | the maintainers | P4 | review of 16 November 2026 |
+| Q25 | The notation of the maths tab: the table of symbols and the collisions (issue #71); the 17 problems and their recommendations are listed in the maths tab, §1.0 | Erwan | 1.0.0 | issue #71 (R-N01 to R-N18) |
+| Q26 | The vocabulary of the code (issue #72) | Erwan | 1.0.0 | issue #72 (R-V01 to R-V10) |
+| Q27 | The structure of `docs/maths.md` and of the specification (issue #73) | Erwan | 1.0.0 | issue #73 (R-S03 to R-S06); issue #73 (R-S09) |
+| Q28 | L0 primitives with no user at the end of phase P6 are removed; the signature of `gather_weighted` is checked against Q9 | the maintainers | end of P6 | review of 16 November 2026 |
+| Q29 | Which of the preparations of Part III, §19.12 that are not yet in place are made before 1.0.0: the low-pass filter and the centring described by the plan (point 4), "scale" and "level" told apart (point 5), the families as a list (point 6), `estimate_memory` (point 8). Points 1, 2, 3 and 9 are in place, and point 7 is decided (§22, R-Y03) | the maintainers | 1.0.0 | review of 16 November 2026 |
 | Q30 | Precision on GPU: on NVIDIA GPUs of the Ampere generation and later, PyTorch computes convolutions in TF32 by default (about 3 significant digits instead of 7 for float32), without warning, while matrix products stay in float32. Disable TF32 during ESTEL's computations, so that float32 keeps its precision, or keep it for speed and check that the parity tolerance holds | the maintainers | the first measurement on GPU (T7.1) | review of 17 November 2026 |
+| Q31 | STL's behaviours in the syntheses, to reproduce or to correct: the caller's statistics modified in place (OP-70); the loss divided by Nb from statistics only (OP-71); the standardisation that differs between maps and statistics (OP-72); when the channel axis of the result is removed (OP-75); the L and the wavelet type of the statistics ignored (OP-76) | the maintainers | T6.1 | maths tab, §5.9 (T6.0) |
+| Q32 | Two points of the 2D code: the spectrum on rectangular images, restricted to square images in 1.0.0 or documented (OP-6); the valid range of L, since the width factor 2.5 is tuned for L = 4 (OP-9) | the maintainers | T4.1 | maths tab, §1.11 |
 
 ## 24. Deferred work and points to discuss later
 
