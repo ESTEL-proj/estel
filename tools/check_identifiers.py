@@ -18,23 +18,26 @@ removing an item from its list without its row in the log fails. Moreover:
 * a remark ``R-…`` with no row in the log is accepted only if an issue keeps it
   (``KEPT_IN_ISSUES``).
 
-Citations are searched in ``docs/**/*.md``, ``AGENTS.md`` and the Python files of ``src/``,
-``tests/``, ``tools/`` and ``bench/`` (comments and docstrings cite identifiers too); not in
-``changes/`` (history). The block of the decision log itself (from its heading to the next
-``## `` heading) is not searched: its rows tell the history and may name retired identifiers.
+Citations are searched in every Markdown file tracked by git (``git ls-files``), except those
+under ``changes/`` (history), and in the Python files of ``src/``, ``tests/``, ``tools/`` and
+``bench/`` (comments and docstrings cite identifiers too). The block of the decision log itself
+(from its heading to the next ``## `` heading) is not searched: its rows tell the history and
+may name retired identifiers.
 
 Not checked, because the same letters mean other things: S1 to S18, C1 to C23, A1 to A12 and
 R3 to R13 of the decision log (S1 to S4 are also the statistics; A, B, C, D, E and X with a
 number are also the review rules of ``docs/agents/review_rules.md``); and the ``M-``
 identifiers, which ``tools/check_maths_ids.py`` checks.
 
-The tool reads text only, uses the standard library only, and never imports estel.
+The tool reads text only (and runs ``git ls-files``), uses the standard library only, and never
+imports estel.
 """
 
 from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -100,15 +103,16 @@ KEPT_IN_ISSUES: dict[str, tuple[str, ...]] = {
 KEPT = {remark: issue for issue, remarks in KEPT_IN_ISSUES.items() for remark in remarks}
 
 ROW_RE = re.compile(r"^\|\s*([^|]*?)\s*\|")
-CITED_IN = (
-    "docs/**/*.md",
-    "AGENTS.md",
-    *(f"{d}/**/*.py" for d in ("src", "tests", "tools", "bench")),
-)
+NOT_SEARCHED = ("changes/",)
+PYTHON_DIRS = ("src", "tests", "tools", "bench")
 
 
 class ListNotFoundError(Exception):
     """A list of the specification is not where the tool looks for it."""
+
+
+class NotACheckoutError(Exception):
+    """The root is not a git checkout, so its Markdown files cannot be listed."""
 
 
 def _section(root: Path, idlist: IdList) -> Iterator[tuple[int, str]]:
@@ -183,14 +187,30 @@ def _logged(root: Path) -> set[str]:
 
 
 def _cited_files(root: Path) -> list[Path]:
-    files = {path for pattern in CITED_IN for path in root.glob(pattern) if path.is_file()}
-    return sorted(files)
+    """The Markdown files tracked by git, outside ``NOT_SEARCHED``, and the Python files."""
+    listed = subprocess.run(
+        ["git", "ls-files", "-z", "--", "*.md"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if listed.returncode != 0:
+        raise NotACheckoutError(
+            f"`git ls-files` failed in {root}: {listed.stderr.strip()} Run the tool on a git "
+            "checkout (--root), with git installed."
+        )
+    markdown = {
+        root / rel for rel in listed.stdout.split("\0") if rel and not rel.startswith(NOT_SEARCHED)
+    }
+    python = {path for d in PYTHON_DIRS for path in root.glob(f"{d}/**/*.py")}
+    return sorted(path for path in markdown | python if path.is_file())
 
 
-def citations(root: Path) -> Iterator[tuple[str, Family, str]]:
-    """Every identifier cited: (file:line, family, identifier), the decision log left out."""
+def citations(root: Path, files: list[Path]) -> Iterator[tuple[str, Family, str]]:
+    """Every identifier cited in ``files``: (file:line, family, identifier), the log left out."""
     log_heading = DECISION_LOG.heading or ""
-    for path in _cited_files(root):
+    for path in files:
         rel = path.relative_to(root).as_posix()
         in_log = False
         for number, line in enumerate(path.read_text().splitlines(), 1):
@@ -236,11 +256,12 @@ class Report:
 def check(root: Path) -> Report:
     try:
         defs = definitions(root)
-    except ListNotFoundError as error:
+        files = _cited_files(root)
+    except (ListNotFoundError, NotACheckoutError) as error:
         return Report([str(error)])
-    report = Report(list(defs.errors), files=len(_cited_files(root)))
+    report = Report(list(defs.errors), files=len(files))
     resolved: dict[str, str] = {}
-    for where, family, ident in citations(root):
+    for where, family, ident in citations(root, files):
         report.citations += 1
         if family.defined_in is not None and ident in defs.rows:
             resolved[ident] = "list"

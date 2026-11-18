@@ -410,7 +410,7 @@ Each item below changes what ESTEL computes. Each one is written in `maths.md` a
   - *all combinations*: φ may replace any of the wavelets ψ\_j1, ψ\_j2, ψ\_j3, in each block independently, adding 38–112%.
 - **Why "all combinations" grows so much.** Each block gains one scale (J becomes J + 1), and S4 counts triples of scales: for a block with J = 2 the number of triples goes from 4 to 10. These factors multiply across blocks, so blocks with few scales dominate the increase. The single orientation of φ tempers it somewhat.
 - **"All coefficients" corresponds to "all combinations".** This is to be confirmed with the counts above in mind (Part IV, §23, Q2).
-- **Consequences.** A new default changes reference values, so it bumps STATISTICS\_REFERENCE. The Rust engine implements the same terms in sync with PyTorch (Q11). In 2D the coefficient count goes from 1,474 to 1,476 for the S1/S2 terms alone (Part IV, §22, G1).
+- **Consequences.** A new default changes reference values, so it bumps STATISTICS\_REFERENCE. The Rust engine implements the same terms in sync with PyTorch. In 2D the coefficient count goes from 1,474 to 1,476 for the S1/S2 terms alone (Part IV, §22, G1).
 
 ### 20.2 Positive spectrum estimator for non-periodic data
 

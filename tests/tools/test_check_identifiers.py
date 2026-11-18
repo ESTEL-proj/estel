@@ -1,11 +1,13 @@
 """tools/check_identifiers.py fails when a cited identifier has no row in its list or in the log.
 
 This file is itself searched for citations, so every identifier written here exists in the
-repository; the small trees below define only some of them.
+repository; the small trees below define only some of them. Each tree is a git repository, since
+the tool searches the Markdown files that git tracks.
 """
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -66,9 +68,18 @@ GOOD = {
     "docs/transfer/part4.md": PART4,
     "docs/transfer/part1.md": CITES,
     "AGENTS.md": "# AGENTS\nTask T2.12.\n",
+    "src/estel/backend/AGENTS.md": "# Backend\nW1.\n",
+    "bench/README.md": "# Benchmark\nTask T2.12.\n",
     "src/estel/_module.py": '"""OP-1."""\n',
     "changes/107.minor.md": "History may name LF2.\n",
 }
+
+
+def repository(root: Path, files: dict[str, str]) -> None:
+    """Write ``files`` under ``root`` and track them in a new git repository."""
+    write(root, files)
+    for command in (["git", "init", "-q"], ["git", "add", "-A"]):
+        subprocess.run(command, cwd=root, check=True, capture_output=True)
 
 
 def test_repository_passes() -> None:
@@ -78,7 +89,8 @@ def test_repository_passes() -> None:
 
 
 def test_good_tree_passes(tmp_path: Path) -> None:
-    write(tmp_path, GOOD)
+    repository(tmp_path, GOOD)
+    write(tmp_path, {"docs/draft.md": "Not tracked by git: may name LF2.\n"})
     report = check(tmp_path)
     assert report.errors == []
     assert (report.in_lists, report.in_log, report.in_issues) == (6, 4, 3)
@@ -123,6 +135,11 @@ def test_good_tree_passes(tmp_path: Path) -> None:
             id="row-after-the-list",
         ),
         pytest.param(
+            {"src/estel/backend/AGENTS.md": "# Backend\nQ2\n"},
+            "src/estel/backend/AGENTS.md:2 cites Q2, which has no row in the points to settle",
+            id="nested-markdown",
+        ),
+        pytest.param(
             {"src/estel/_module.py": '"""OP-1."""\n# R-A09\n'},
             "src/estel/_module.py:2 cites R-A09, a remark of the review of 16 November 2026",
             id="remark",
@@ -152,7 +169,7 @@ def test_good_tree_passes(tmp_path: Path) -> None:
     ],
 )
 def test_problem_fails(tmp_path: Path, change: dict[str, str], message: str) -> None:
-    write(tmp_path, {**GOOD, **change})
+    repository(tmp_path, {**GOOD, **change})
     errors = check(tmp_path).errors
     assert len(errors) == 1, errors
     assert message in errors[0]
