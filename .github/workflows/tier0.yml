@@ -2,13 +2,12 @@
 name: tier0
 
 # Two tiers (Part I, §5.4 and §6.1; tests/conftest.py):
-# - fast, on pull requests: the check tools,
-#   the tests not marked slow or serial in float64 on PyTorch and those marked dtype in float32
-#   too, and the tests marked jax_smoke on JAX; the tests of tools/ only when the change touches
-#   tools/, tests/tools/ or pyproject.toml. Each backend runs in one process, beside the check
-#   tools. Budget: 120 s of wall time per job (last step).
-# - full, on the default branch, nightly, by hand, and on a pull request labelled full-ci: every
-#   test, on both backends, in both dtypes, slow tests included.
+# - fast, in every run: the check tools, the tests not marked slow or serial in float64 on PyTorch
+#   and those marked dtype in float32 too, and the tests marked jax_smoke on JAX; the tests of
+#   tools/ only when the change touches tools/, tests/tools/ or pyproject.toml. Each backend runs
+#   in one process, beside the check tools. Budget: 120 s of wall time per job (last step).
+# - full, added on the default branch, nightly, by hand, and on a pull request labelled full-ci:
+#   every test, on both backends, in both dtypes, slow tests included, in jobs of their own.
 # A pull request runs again when a label is added or removed: full-ci switches the tier, and
 # tools/version_impact.py reads the labels.
 # A push runs the workflow on main only (task T2.17): a push to the branch of a pull request
@@ -36,16 +35,21 @@ concurrency:
 env:
   ESTEL_TEST_BASE: origin/${{ github.base_ref || github.event.repository.default_branch }}
 
-# Three parallel jobs. "make check" (check tools and PyTorch) and "make check (jax)" are the
-# checks the main ruleset requires. In the full tier the JAX run is split by dtype: "make check
-# (jax)" runs float64 and "make check (jax, float32)" float32; in the fast tier the latter only
-# reports that it has nothing to do.
+# Jobs. "make check" (check tools and PyTorch) and "make check (jax)" are the checks the main
+# ruleset requires: they run the fast tier in every run, the full-tier ones included, so that
+# what a pull request must pass is the same with and without the label full-ci (task T2.17).
+# The full tier runs in four more jobs, under names of their own, which the ruleset does not
+# require: "full tier (torch)", and the JAX run split by dtype, its float64 half in two parts
+# (ESTEL_TEST_SHARD, tests/conftest.py): "full tier (jax, float64, part 1 of 2)", "... part 2
+# of 2)" and "full tier (jax, float32)". In one job the float64 run took 14 of its 15 minutes
+# (task T2.17). Outside the full tier they are skipped. A failing full-tier job shows on the
+# pull request and does not block its merge: read it before merging.
 #
 # Scope (task T0.7): a pull request, or a run by hand on another branch than the default one, whose
 # files are all in the no-test scope of tools/ci_scope.py (docs/, .github/, changes/; .gitignore,
 # LICENSE, NOTICE and README.md at the root; every AGENTS.md and CLAUDE.md, at any depth) skips
-# the test suites, unless a test reads one of them (docs/maths.md, for example). The PyTorch job
-# then runs only the check tools and the JAX jobs only report the skip; every job still runs and
+# the test suites, unless a test reads one of them (docs/maths.md, for example). The "make check" job
+# then runs only the check tools and the other jobs only report the skip; every job still runs and
 # succeeds, so the required checks report a result and the PR can merge. Do not move the scope
 # or the tier to a job of their own that the others `need`: if it failed, they would be skipped,
 # and a skipped required check counts as passed. The default branch always runs everything.
@@ -66,21 +70,6 @@ jobs:
     steps:
       - name: Start the clock
         run: echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
-
-      - name: Tier
-        id: tier
-        env:
-          EVENT: ${{ github.event_name }}
-          REF_NAME: ${{ github.ref_name }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          FULL_CI_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') }}
-        run: |
-          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ] || [ "$FULL_CI_LABEL" = true ] \
-             || { [ "$EVENT" = push ] && [ "$REF_NAME" = "$DEFAULT_BRANCH" ]; }; then
-            echo "tier=full" | tee -a "$GITHUB_OUTPUT"
-          else
-            echo "tier=fast" | tee -a "$GITHUB_OUTPUT"
-          fi
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -128,12 +117,12 @@ jobs:
             mypy-${{ runner.os }}-${{ hashFiles('uv.lock') }}-
             mypy-${{ runner.os }}-
 
-      - name: make check-tools (full tier or no-test scope)
-        if: steps.scope.outputs.tests == 'false' || steps.tier.outputs.tier == 'full'
+      - name: make check-tools (no-test scope)
+        if: steps.scope.outputs.tests == 'false'
         run: make check-tools
 
       - name: make check (check tools and PyTorch tests side by side, fast tier)
-        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'fast'
+        if: steps.scope.outputs.tests != 'false'
         run: make check TEST_BACKENDS=torch
 
       - name: Save mypy's cache (default branch only)
@@ -142,10 +131,6 @@ jobs:
         with:
           path: .mypy_cache
           key: mypy-${{ runner.os }}-${{ hashFiles('uv.lock') }}-${{ github.sha }}
-
-      - name: Tests on PyTorch, full tier (float32 and float64)
-        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
-        run: make test TEST_BACKENDS=torch
 
       - name: Version impact (pull requests only)
         if: github.event_name == 'pull_request'
@@ -158,7 +143,6 @@ jobs:
           --base "origin/$BASE_REF" --pr "$PR_NUMBER" --labels "$PR_LABELS"
 
       - name: Time budget of the fast tier
-        if: steps.tier.outputs.tier == 'fast'
         run: |
           elapsed=$(( $(date +%s) - JOB_START ))
           echo "This job took $elapsed s; the budget of a fast-tier job is 120 s (Part I, §5.4)."
@@ -175,24 +159,9 @@ jobs:
       - name: Start the clock
         run: echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
 
-      - name: Tier
-        id: tier
-        env:
-          EVENT: ${{ github.event_name }}
-          REF_NAME: ${{ github.ref_name }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          FULL_CI_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') }}
-        run: |
-          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ] || [ "$FULL_CI_LABEL" = true ] \
-             || { [ "$EVENT" = push ] && [ "$REF_NAME" = "$DEFAULT_BRANCH" ]; }; then
-            echo "tier=full" | tee -a "$GITHUB_OUTPUT"
-          else
-            echo "tier=fast" | tee -a "$GITHUB_OUTPUT"
-          fi
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0  # ci_scope.py diffs against the base branch
+          fetch-depth: 0  # version_impact.py and ci_scope.py diff against the base branch
           persist-credentials: false
 
       - name: Scope of the change
@@ -215,10 +184,10 @@ jobs:
         if: steps.scope.outputs.tests != 'false'
         with:
           version: "0.13.8"
-          enable-cache: false
+          enable-cache: false  # the environment itself is cached below
 
       # The fast tier on JAX never imports PyTorch: its environment leaves torch out, half the size
-      # to restore. The full tier switches to PyTorch in some tests, and needs it.
+      # to restore.
       - name: Restore the environment
         if: steps.scope.outputs.tests != 'false'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -226,45 +195,23 @@ jobs:
           path: |
             .venv
             ${{ runner.temp }}/uv-python-dir
-          key: venv-${{ runner.os }}-${{ runner.arch }}-${{ steps.tier.outputs.tier == 'fast' && 'no-torch-' || '' }}${{ hashFiles('uv.lock', '.python-version') }}
+          key: venv-${{ runner.os }}-${{ runner.arch }}-no-torch-${{ hashFiles('uv.lock', '.python-version') }}
 
       - name: Install the locked environment
         if: steps.scope.outputs.tests != 'false'
-        env:
-          TIER: ${{ steps.tier.outputs.tier }}
-        run: |
-          if [ "$TIER" = fast ]; then
-            uv sync --locked --no-install-package torch
-          else
-            uv sync --locked
-          fi
+        run: uv sync --locked --no-install-package torch
 
       - name: Tests on JAX, fast tier (jax_smoke)
-        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'fast'
+        if: steps.scope.outputs.tests != 'false'
         # Workers: in CI, XLA compiles every operation once per job (JAX's cache starts empty, see
         # above), and the workers share that work. uv run --no-sync: a sync would install torch.
         run: make test-fast TEST_BACKENDS=jax RUN="uv run --no-sync" PYTEST_WORKERS="$(nproc)"
-
-      - name: Tests on JAX, full tier, float64
-        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
-        # A test that runs for more than 4 minutes prints the stack of every thread, so that a
-        # job stopped at its time limit names the test it was in (task T2.17).
-        env:
-          PYTEST_ADDOPTS: "-o faulthandler_timeout=240 --durations=25"
-        run: |
-          ( while sleep 20; do echo "[memory] $(free -m | awk '/^Mem:/ {printf "used %d MB, available %d MB", $3, $7} /^Swap:/ {printf ", swap used %d MB of %d", $3, $2}')"; done ) &
-          make test TEST_BACKENDS=jax TEST_DTYPE=float64
-
-      - name: Out-of-memory kills, if any
-        if: always() && steps.tier.outputs.tier == 'full'
-        run: sudo dmesg | grep -iE "out of memory|oom-kill|killed process" | tail -20 || true
 
       - name: No tests (no-test scope only)
         if: steps.scope.outputs.tests == 'false'
         run: echo "Every changed file is in the no-test scope (tools/ci_scope.py); the check tools run in the make check job."
 
       - name: Time budget of the fast tier
-        if: steps.tier.outputs.tier == 'fast'
         run: |
           elapsed=$(( $(date +%s) - JOB_START ))
           echo "This job took $elapsed s; the budget of a fast-tier job is 120 s (Part I, §5.4)."
@@ -273,34 +220,18 @@ jobs:
             exit 1
           fi
 
-  check-jax-float32:
-    name: make check (jax, float32)
+  full-torch:
+    name: full tier (torch)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci') || (github.event_name == 'push' && github.ref_name == github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Tier
-        id: tier
-        env:
-          EVENT: ${{ github.event_name }}
-          REF_NAME: ${{ github.ref_name }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          FULL_CI_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') }}
-        run: |
-          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ] || [ "$FULL_CI_LABEL" = true ] \
-             || { [ "$EVENT" = push ] && [ "$REF_NAME" = "$DEFAULT_BRANCH" ]; }; then
-            echo "tier=full" | tee -a "$GITHUB_OUTPUT"
-          else
-            echo "tier=fast" | tee -a "$GITHUB_OUTPUT"
-          fi
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: steps.tier.outputs.tier == 'full'
         with:
-          fetch-depth: 0  # ci_scope.py diffs against the base branch
+          fetch-depth: 0  # version_impact.py and ci_scope.py diff against the base branch
           persist-credentials: false
 
       - name: Scope of the change
-        if: steps.tier.outputs.tier == 'full'
         id: scope
         env:
           EVENT: ${{ github.event_name }}
@@ -317,13 +248,13 @@ jobs:
           fi
 
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
+        if: steps.scope.outputs.tests != 'false'
         with:
           version: "0.13.8"
-          enable-cache: false
+          enable-cache: false  # the environment itself is cached below
 
       - name: Restore the environment
-        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
+        if: steps.scope.outputs.tests != 'false'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -332,15 +263,78 @@ jobs:
           key: venv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('uv.lock', '.python-version') }}
 
       - name: Install the locked environment
-        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
+        if: steps.scope.outputs.tests != 'false'
         run: uv sync --locked
 
-      - name: Tests on JAX, full tier, float32
-        if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
-        run: |
-          ( while sleep 20; do echo "[memory] $(free -m | awk '/^Mem:/ {printf "used %d MB, available %d MB", $3, $7} /^Swap:/ {printf ", swap used %d MB of %d", $3, $2}')"; done ) &
-          make test TEST_BACKENDS=jax TEST_DTYPE=float32
+      - name: Tests on PyTorch, full tier (float32 and float64)
+        if: steps.scope.outputs.tests != 'false'
+        run: make test TEST_BACKENDS=torch
 
-      - name: Nothing to do (fast tier or no-test scope)
-        if: steps.scope.outputs.tests == 'false' || steps.tier.outputs.tier == 'fast'
-        run: echo "The JAX float32 job runs in the full tier only (main, nightly, label full-ci); the fast tier runs the jax_smoke tests in make check (jax)."
+      - name: No tests (no-test scope only)
+        if: steps.scope.outputs.tests == 'false'
+        run: echo "Every changed file is in the no-test scope (tools/ci_scope.py); the check tools run in the make check job."
+
+  full-jax:
+    name: full tier (jax, ${{ matrix.name }})
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci') || (github.event_name == 'push' && github.ref_name == github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "float64, part 1 of 2", dtype: float64, shard: "1/2" }
+          - { name: "float64, part 2 of 2", dtype: float64, shard: "2/2" }
+          - { name: float32, dtype: float32, shard: "" }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0  # version_impact.py and ci_scope.py diff against the base branch
+          persist-credentials: false
+
+      - name: Scope of the change
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            python3 tools/ci_scope.py --base "origin/$BASE_REF" >> "$GITHUB_OUTPUT"
+          elif [ "$REF_NAME" != "$DEFAULT_BRANCH" ]; then
+            python3 tools/ci_scope.py --base "origin/$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
+          else
+            python3 tools/ci_scope.py >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        if: steps.scope.outputs.tests != 'false'
+        with:
+          version: "0.13.8"
+          enable-cache: false  # the environment itself is cached below
+
+      # The full tier switches to PyTorch in some tests, and needs it.
+      - name: Restore the environment
+        if: steps.scope.outputs.tests != 'false'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .venv
+            ${{ runner.temp }}/uv-python-dir
+          key: venv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('uv.lock', '.python-version') }}
+
+      - name: Install the locked environment
+        if: steps.scope.outputs.tests != 'false'
+        run: uv sync --locked
+
+      - name: Tests on JAX, full tier, one dtype
+        if: steps.scope.outputs.tests != 'false'
+        env:
+          DTYPE: ${{ matrix.dtype }}
+          SHARD: ${{ matrix.shard }}
+        run: make test TEST_BACKENDS=jax TEST_DTYPE="$DTYPE" TEST_SHARD="$SHARD"
+
+      - name: No tests (no-test scope only)
+        if: steps.scope.outputs.tests == 'false'
+        run: echo "Every changed file is in the no-test scope (tools/ci_scope.py); the check tools run in the make check job."

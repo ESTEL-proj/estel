@@ -126,6 +126,11 @@ PYTEST_WORKERS ?= auto
 # One dtype only, in the full tier (CI splits the JAX run in two jobs): make test-jax TEST_DTYPE=float32
 TEST_DTYPE ?=
 DTYPE_ENV := $(if $(TEST_DTYPE),ESTEL_TEST_DTYPE=$(TEST_DTYPE))
+# One part of the full tier (CI splits the JAX float64 run in two jobs; tests/conftest.py,
+# _shard): make test-jax TEST_DTYPE=float64 TEST_SHARD=1/2. The parts are disjoint and together
+# hold every test; the tests marked serial run in every part.
+TEST_SHARD ?=
+DTYPE_ENV += $(if $(TEST_SHARD),ESTEL_TEST_SHARD=$(TEST_SHARD))
 
 # One run per backend, float32 and float64 in the same process (tests/conftest.py); the JAX run
 # switches JAX's 64-bit mode on at start. The tests run in parallel, in xdist workers; in the full

@@ -44,6 +44,7 @@ import subprocess
 import sys
 import time
 import warnings
+import zlib
 from collections.abc import Generator
 from pathlib import Path
 
@@ -114,6 +115,29 @@ def _run_dtypes() -> tuple[str, ...]:
     return (value,)
 
 
+def _shard() -> tuple[int, int] | None:
+    """``ESTEL_TEST_SHARD=i/n``: this run is part ``i`` of ``n`` of the full tier (task T2.17).
+    CI splits the JAX float64 run of the full tier into two jobs this way, each well under its
+    time limit. The parts are disjoint and together hold every test: a test belongs to one part
+    by a checksum of its ID (``in_shard``), the same in every process and on every machine. The
+    tests marked ``serial`` are few and run in every part."""
+    value = os.environ.get("ESTEL_TEST_SHARD")
+    if not value:
+        return None
+    index, _, count = value.partition("/")
+    if not (index.isdigit() and count.isdigit() and 1 <= int(index) <= int(count)):
+        raise pytest.UsageError(
+            f"ESTEL_TEST_SHARD={value!r}: write it i/n with 1 <= i <= n, for example 1/2, or "
+            "unset it to run every test."
+        )
+    return int(index), int(count)
+
+
+def in_shard(nodeid: str, index: int, count: int) -> bool:
+    """Whether the test ``nodeid`` belongs to part ``index`` (from 1) of ``count``."""
+    return zlib.crc32(nodeid.encode()) % count == index - 1
+
+
 def _is_worker_or_alone(config: pytest.Config) -> bool:
     """True in a process that runs tests: an xdist worker, or a run without workers."""
     return hasattr(config, "workerinput") or not getattr(config.option, "numprocesses", None)
@@ -130,6 +154,11 @@ def pytest_configure(config: pytest.Config) -> None:
         raise pytest.UsageError(
             "The fast tier chooses its dtypes itself (float64, and float32 for the tests marked "
             "dtype): unset ESTEL_TEST_DTYPE, or run --tier full."
+        )
+    shard = _shard()  # checked here, before the collection
+    if _tier(config) == "fast" and shard is not None:
+        raise pytest.UsageError(
+            "ESTEL_TEST_SHARD splits the full tier only: unset it, or run --tier full."
         )
     if _tier(config) == "fast":
         _tools_changed()  # once, here: xdist workers inherit the answer
@@ -308,7 +337,8 @@ def _has_slow_reason(item: pytest.Item) -> bool:
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Check that every slow test says why; in the fast tier, keep only the tests of the tier."""
+    """Check that every slow test says why; in the fast tier, keep only the tests of the tier;
+    in a part of the full tier (``ESTEL_TEST_SHARD``), only the tests of the part."""
     missing = [
         item.nodeid
         for item in items
@@ -321,6 +351,16 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             "says why it cannot run in under a second on smaller data (Part I, §5.4)."
         )
     if _tier(config) != "fast":
+        shard = _shard()
+        if shard is not None:
+            away = [
+                item
+                for item in items
+                if not item.get_closest_marker("serial") and not in_shard(item.nodeid, *shard)
+            ]
+            if away:
+                config.hook.pytest_deselected(items=away)
+                items[:] = [item for item in items if item not in away]
         return
     jax = backend_name() == "jax"
     tools = _tools_changed()
@@ -373,8 +413,10 @@ def pytest_runtest_teardown(item: pytest.Item) -> None:
     hundreds of tests, each with its own plans and shapes: four workers reached the 16 GB of
     CI's runners, which stopped the full tier. The programs stay in the compilation cache on
     disk (``_persistent_jax_cache``), so the next test loads those it needs instead of compiling
-    them again. It changes no result. Clearing every ten tests lowered no peak."""
-    if backend_name() == "jax":
+    them again. It changes no result. Clearing every ten tests lowered no peak. Full tier only:
+    the fast tier is one process of small tests, where loading every program again would double
+    its time (4 s to 9 s) for no need."""
+    if backend_name() == "jax" and _tier(item.config) == "full":
         import jax
 
         jax.clear_caches()  # type: ignore[no-untyped-call]
@@ -462,6 +504,11 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
     _TOTALS.add(report)
 
 
+def _shard_label() -> str:
+    shard = _shard()
+    return "" if shard is None else f" (part {shard[0]} of {shard[1]})"
+
+
 def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
     """One line: the tier, the number of tests, their total time and the run's wall time."""
     config = terminalreporter.config
@@ -470,7 +517,7 @@ def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
     wall = time.perf_counter() - _TOTALS.start
     slowest, nodeid = _TOTALS.slowest
     terminalreporter.write_line(
-        f"tier {_tier(config)} on {backend_name()}: {_TOTALS.tests} tests, "
+        f"tier {_tier(config)}{_shard_label()} on {backend_name()}: {_TOTALS.tests} tests, "
         f"{_TOTALS.cpu:.1f} s of CPU time in calls, {_TOTALS.wall:.1f} s of test wall time, "
         f"{wall:.1f} s for the run; slowest {slowest:.2f} s of CPU ({nodeid or 'none'})"
     )
