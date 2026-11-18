@@ -36,6 +36,7 @@ pytest process of its own costs more than its tests.
 
 from __future__ import annotations
 
+import gc
 import importlib.util
 import math
 import os
@@ -43,6 +44,7 @@ import subprocess
 import sys
 import time
 import warnings
+import zlib
 from collections.abc import Generator
 from pathlib import Path
 
@@ -77,6 +79,10 @@ WALL_LIMIT_FACTOR = 5
 LOCAL_BUDGET_FACTOR = 2
 SLOW_REASON = "Slow:"
 REPO = Path(__file__).resolve().parents[1]
+# Size limit of JAX's compilation cache when the worktrees of a machine share it
+# (``_persistent_jax_cache``); the fast tier writes about 5 MB.
+JAX_CACHE_MAX_BYTES = 2 * 1024**3
+
 # What the tests of tests/tools/ test: the fast tier runs them only when the change touches it.
 TOOLS_INPUTS = ("tools", "tests/tools", "pyproject.toml")
 _SETUP_DURATION = pytest.StashKey[float]()
@@ -109,6 +115,29 @@ def _run_dtypes() -> tuple[str, ...]:
     return (value,)
 
 
+def _shard() -> tuple[int, int] | None:
+    """``ESTEL_TEST_SHARD=i/n``: this run is part ``i`` of ``n`` of the full tier (task T2.17).
+    CI splits the JAX float64 run of the full tier into two jobs this way, each well under its
+    time limit. The parts are disjoint and together hold every test: a test belongs to one part
+    by a checksum of its ID (``in_shard``), the same in every process and on every machine. The
+    tests marked ``serial`` are few and run in every part."""
+    value = os.environ.get("ESTEL_TEST_SHARD")
+    if not value:
+        return None
+    index, _, count = value.partition("/")
+    if not (index.isdigit() and count.isdigit() and 1 <= int(index) <= int(count)):
+        raise pytest.UsageError(
+            f"ESTEL_TEST_SHARD={value!r}: write it i/n with 1 <= i <= n, for example 1/2, or "
+            "unset it to run every test."
+        )
+    return int(index), int(count)
+
+
+def in_shard(nodeid: str, index: int, count: int) -> bool:
+    """Whether the test ``nodeid`` belongs to part ``index`` (from 1) of ``count``."""
+    return zlib.crc32(nodeid.encode()) % count == index - 1
+
+
 def _is_worker_or_alone(config: pytest.Config) -> bool:
     """True in a process that runs tests: an xdist worker, or a run without workers."""
     return hasattr(config, "workerinput") or not getattr(config.option, "numprocesses", None)
@@ -125,6 +154,11 @@ def pytest_configure(config: pytest.Config) -> None:
         raise pytest.UsageError(
             "The fast tier chooses its dtypes itself (float64, and float32 for the tests marked "
             "dtype): unset ESTEL_TEST_DTYPE, or run --tier full."
+        )
+    shard = _shard()  # checked here, before the collection
+    if _tier(config) == "fast" and shard is not None:
+        raise pytest.UsageError(
+            "ESTEL_TEST_SHARD splits the full tier only: unset it, or run --tier full."
         )
     if _tier(config) == "fast":
         _tools_changed()  # once, here: xdist workers inherit the answer
@@ -197,17 +231,32 @@ def _tools_changed() -> bool:
 
 
 def _persistent_jax_cache(config: pytest.Config) -> None:
-    """Keep what XLA compiles in ``.pytest_cache``, so that the other workers of the run, and the
-    next runs, load it instead of compiling it again: locally the JAX fast tier takes 9 s instead
-    of 40. It changes no result: the cache only skips compilations, whose output is the same. In
-    CI it starts empty in each job, since XLA compiles for the host's CPU, JAX keys each entry on
-    it, and GitHub's runners mix many CPU types; the workers of a job still share it."""
+    """Keep what XLA compiles, so that the other workers of the run, and the next runs, load it
+    instead of compiling it again: locally the JAX fast tier takes 9 s instead of 40. It changes
+    no result: the cache only skips compilations, whose output is the same, and JAX names each
+    entry by a hash of the program, of its own version and of XLA's flags, so an entry is never
+    read for another program.
+
+    Where: under ``ESTEL_CACHE_DIR`` when it is set and not empty, as ``make`` sets it outside CI
+    (``~/.cache/estel`` by default), shared by every worktree of the machine, so that the first
+    run of a new worktree compiles nothing the others have compiled (task T2.17); the cache is
+    then bounded (``JAX_CACHE_MAX_BYTES``, the least recently used entries leave first), which
+    also makes JAX lock it, since several sessions may write it at once. Otherwise in
+    ``.pytest_cache``. In CI it starts empty in each job, since XLA compiles for the host's CPU,
+    JAX keys each entry on it, and GitHub's runners mix many CPU types; the workers of a job
+    still share it."""
     import jax
 
-    cache = getattr(config, "cache", None)  # absent with -p no:cacheprovider
-    if cache is None:
-        return
-    directory = cache.mkdir("jax-compilation-cache")
+    shared = os.environ.get("ESTEL_CACHE_DIR")
+    if shared:
+        directory = Path(shared).expanduser() / "jax-compilation-cache"
+        directory.mkdir(parents=True, exist_ok=True)
+        jax.config.update("jax_compilation_cache_max_size", JAX_CACHE_MAX_BYTES)  # type: ignore[no-untyped-call]
+    else:
+        cache = getattr(config, "cache", None)  # absent with -p no:cacheprovider
+        if cache is None:
+            return
+        directory = cache.mkdir("jax-compilation-cache")
     jax.config.update("jax_compilation_cache_dir", str(directory))  # type: ignore[no-untyped-call]
     jax.config.update("jax_persistent_cache_min_compile_time_secs", 0)  # type: ignore[no-untyped-call]
     jax.config.update("jax_persistent_cache_min_entry_size_bytes", 0)  # type: ignore[no-untyped-call]
@@ -288,7 +337,8 @@ def _has_slow_reason(item: pytest.Item) -> bool:
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Check that every slow test says why; in the fast tier, keep only the tests of the tier."""
+    """Check that every slow test says why; in the fast tier, keep only the tests of the tier;
+    in a part of the full tier (``ESTEL_TEST_SHARD``), only the tests of the part."""
     missing = [
         item.nodeid
         for item in items
@@ -301,6 +351,16 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             "says why it cannot run in under a second on smaller data (Part I, §5.4)."
         )
     if _tier(config) != "fast":
+        shard = _shard()
+        if shard is not None:
+            away = [
+                item
+                for item in items
+                if not item.get_closest_marker("serial") and not in_shard(item.nodeid, *shard)
+            ]
+            if away:
+                config.hook.pytest_deselected(items=away)
+                items[:] = [item for item in items if item not in away]
         return
     jax = backend_name() == "jax"
     tools = _tools_changed()
@@ -345,6 +405,22 @@ def pytest_runtest_setup(item: pytest.Item) -> Generator[None, None, None]:
         return (yield)
     finally:
         item.stash[_CPU] = _cpu_seconds() - start
+
+
+def pytest_runtest_teardown(item: pytest.Item) -> None:
+    """In a JAX run, drop the compiled programs JAX keeps in memory, after each test (task
+    T2.17). JAX keeps every program it compiles for the life of the process, and a worker runs
+    hundreds of tests, each with its own plans and shapes: four workers reached the 16 GB of
+    CI's runners, which stopped the full tier. The programs stay in the compilation cache on
+    disk (``_persistent_jax_cache``), so the next test loads those it needs instead of compiling
+    them again. It changes no result. Clearing every ten tests lowered no peak. Full tier only:
+    the fast tier is one process of small tests, where loading every program again would double
+    its time (4 s to 9 s) for no need."""
+    if backend_name() == "jax" and _tier(item.config) == "full":
+        import jax
+
+        jax.clear_caches()  # type: ignore[no-untyped-call]
+        gc.collect()
 
 
 @pytest.hookimpl(wrapper=True)
@@ -428,6 +504,11 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
     _TOTALS.add(report)
 
 
+def _shard_label() -> str:
+    shard = _shard()
+    return "" if shard is None else f" (part {shard[0]} of {shard[1]})"
+
+
 def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
     """One line: the tier, the number of tests, their total time and the run's wall time."""
     config = terminalreporter.config
@@ -436,7 +517,7 @@ def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
     wall = time.perf_counter() - _TOTALS.start
     slowest, nodeid = _TOTALS.slowest
     terminalreporter.write_line(
-        f"tier {_tier(config)} on {backend_name()}: {_TOTALS.tests} tests, "
+        f"tier {_tier(config)}{_shard_label()} on {backend_name()}: {_TOTALS.tests} tests, "
         f"{_TOTALS.cpu:.1f} s of CPU time in calls, {_TOTALS.wall:.1f} s of test wall time, "
         f"{wall:.1f} s for the run; slowest {slowest:.2f} s of CPU ({nodeid or 'none'})"
     )

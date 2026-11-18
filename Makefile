@@ -5,6 +5,12 @@
 # as CI does on main, nightly and on a pull request labelled full-ci: both backends, both dtypes,
 # slow tests included.
 
+# Python writes its bytecode (__pycache__), whatever the session's environment says (task
+# T2.17): the shells of coding agents set PYTHONDONTWRITEBYTECODE, and every run then compiled
+# every module of the tests, of ESTEL and of its dependencies again, about 3 s of a warm
+# `make check`. Python checks each bytecode file against the size and the time of its source.
+unexport PYTHONDONTWRITEBYTECODE
+
 # CI's JAX fast-tier job runs with RUN="uv run --no-sync": its environment leaves torch out.
 RUN ?= uv run --locked
 
@@ -59,8 +65,22 @@ lint:
 	$(RUN) ruff check .
 	$(RUN) ruff format --check .
 
+# Caches shared by every worktree of this machine, outside the repository (task T2.17): a
+# session works in a worktree of its own, whose first `make check` would otherwise start with
+# no cache. mypy's cache and JAX's compilation cache (tests/conftest.py) are kept there. Neither
+# can give a stale result: mypy checks each entry against the source file (size, time, then
+# hash), its options and its version, and JAX names each entry by a hash of the program, of
+# its version and of its flags. Another place: ESTEL_CACHE_DIR=<directory>; none shared (the
+# caches stay in the worktree): ESTEL_CACHE_DIR= (empty), which is also what CI does, since its
+# workflow restores and saves .mypy_cache.
+ifeq ($(origin ESTEL_CACHE_DIR),undefined)
+ESTEL_CACHE_DIR := $(if $(CI),,$(or $(XDG_CACHE_HOME),$(HOME)/.cache)/estel)
+endif
+export ESTEL_CACHE_DIR
+MYPY_CACHE_DIR := $(if $(ESTEL_CACHE_DIR),$(ESTEL_CACHE_DIR)/mypy,.mypy_cache)
+
 types:
-	$(RUN) mypy
+	$(RUN) mypy --cache-dir "$(MYPY_CACHE_DIR)"
 
 # Import contracts of Part I, §2.4 (pyproject.toml); custom contract types live in tools/.
 lint-imports:
@@ -106,6 +126,11 @@ PYTEST_WORKERS ?= auto
 # One dtype only, in the full tier (CI splits the JAX run in two jobs): make test-jax TEST_DTYPE=float32
 TEST_DTYPE ?=
 DTYPE_ENV := $(if $(TEST_DTYPE),ESTEL_TEST_DTYPE=$(TEST_DTYPE))
+# One part of the full tier (CI splits the JAX float64 run in two jobs; tests/conftest.py,
+# _shard): make test-jax TEST_DTYPE=float64 TEST_SHARD=1/2. The parts are disjoint and together
+# hold every test; the tests marked serial run in every part.
+TEST_SHARD ?=
+DTYPE_ENV += $(if $(TEST_SHARD),ESTEL_TEST_SHARD=$(TEST_SHARD))
 
 # One run per backend, float32 and float64 in the same process (tests/conftest.py); the JAX run
 # switches JAX's 64-bit mode on at start. The tests run in parallel, in xdist workers; in the full
