@@ -6,7 +6,6 @@
 
 - [Appendix A — Glossary](#appendix-a--glossary)
 - [Appendix B — References](#appendix-b--references)
-- [Appendix C — Version notes](#appendix-c--version-notes)
 
 ## Appendix A — Glossary
 
@@ -65,26 +64,3 @@
 - optax L-BFGS: [optax.readthedocs.io](https://optax.readthedocs.io/en/latest/api/generated/optax.lbfgs.html).
 - import-linter: [import-linter.readthedocs.io](https://import-linter.readthedocs.io/).
 - PEP 541, package index name retention: [peps.python.org/pep-0541](https://peps.python.org/pep-0541/).
-
-## Appendix C — Version notes
-
-Times in UTC; "\~" marks an approximate time.
-
-| Version | When | By | Changes |
-| --- | --- | --- | --- |
-| 0.1 | 4 Nov, \~18:40 | Claude, for Erwan Allys | First draft: structure proposal and critical review, 18 sections |
-| 0.1 | 5 Nov, \~12:40 | Claude | Table of contents added |
-| 0.1 | 5 Nov, 14:17–15:57 | Pablo, Erwan Allys | 15 comments on draft 0.1 |
-| 0.2 | 6 Nov, \~09:00–09:45 | Claude, for Erwan Allys | Full rewrite: preamble, Parts I–IV, step 1 / step 2 split, two-step diagram, note on the Rust engines integrated, comments addressed |
-| 0.2 | 6 Nov, 09:49–09:50 | Erwan Allys | Comments resolved |
-| 0.2.1 | 6 Nov, \~10:00–10:15 | Claude | Split into six tabs; detailed contents in each part tab |
-| 0.2.2 | 6 Nov, \~10:20–10:30 | Erwan Allys, Claude | Overview contents: one section per line; "recursive acronym" removed |
-| 0.2.3 | 6 Nov, \~10:50 | Claude, for Erwan Allys | Layers clarified: an engine layer with two engines (Python, native); PyTorch and JAX as backends of the Python engine; layer diagram redrawn; "L3" dropped; this appendix added |
-| 0.2.4 | 6 Nov, \~11:00 | Claude, for Erwan Allys | Register of later features renumbered FL1–FL22 (was L1–L22, easily confused with the layers L0–L2); remaining layer mentions in Parts III and IV aligned on "Python engine" and "native engine" |
-| 0.2.5 | 6 Nov, \~11:10 | Claude, for Erwan Allys | New Part I, §3.1.1, "The scattering loop without in-place updates"; "NaN-padded view" renamed "full-grid view" (full\_grid()), primitive scatter\_dense renamed scatter\_to\_grid, with its inverse gather\_from\_grid |
-| 0.2.6 | 6 Nov, \~11:35 | Claude, for Erwan Allys | Register of later features grouped in four categories (structure, new features, optimisation, mathematical choices) with a "Changes reference values" column, and renumbered LF1–LF22 in category order (the FL numbers of 0.2.4 are retired); package tree (§11) shows where step-2 components will live |
-| 0.2.7 | 6 Nov, \~11:40–11:50 | Claude, for Erwan Allys | Register sub-sections numbered 16.1–16.4 and added to the Part III contents; contents added to the Appendices tab; ESTEL logo added to the Overview; Part I §2.4: a tensor-product object holds one array, all blocks on the same backend; Part I §3.2.3: note on why a single where is not enough |
-| 0.2.8 | 12 Nov | Claude, for Erwan Allys | New tab "maths.md — Mathematics of step 1": first draft of the 2D part, extracted from the STL code (2D+1D 8f51143, master 8eaf769), with 27 open points OP-1 to OP-27; this tab is the reference version of maths.md during the review. Organised in five sections (planar 2D, 1D, tensor products, HEALPix, syntheses); only 2D is written so far. Part II §13.2: correspondence table from the gaps G1–G18 to the open points |
-| 0.3 | 12 Nov | Claude, for Erwan Allys, from the answers of Erwan Allys to the review points (C1–C23, S1–S18, A1–A12) | Review round applied throughout (Part IV, §22): "native" renamed "rust" and the Rust engine moved into the ESTEL repository; healpix-analyse ported (test-only, pinned at aac5e26); STL sources frozen; 1.0.0 spectra limited to 2D (master); public/internal rule; class names in CapWords; static masks; versioning with two reference counters; CODEOWNERS and end-of-step review; new invariance tests; synthesis tests after 1.0.0, checkpoints in step 1; diagnostics, mask\_st, \_normalize; Part II §13.2 regrouped into four groups with G3 explicit; work breakdown of step 1 (Part II §15.2); register extended to LF31 with a Source column; Part IV §24 (deferred work, points to discuss); open questions R11–R13. Part I §1.5 (Licensing) had been added beforehand in another editing session; its rename to "rust" is the only change made to it |
-| 0.3.1 | 12 Nov | Claude, for Erwan Allys | Licence: Apache-2.0, as written by Pablo in Part I §1.5 (R5, R11 answered); CODEOWNERS handles jmdelouis and pablo-richard (R12); minimum versions confirmed (R13); work breakdown: the maths tab sections are written at the start of the phase that needs them (T2.0, T3.0, T5.0, T6.0) |
-| 0.3.2 | 12 Nov | Claude, for Erwan Allys | Philosophy of step 1 stated (Part II §9.2); errors where STL fails (OP-3, OP-8); Morlet excluded (OP-24, Part II §10); masked parity cases from P2 (OP-26, OP-27); OP-5 traced as LF32; R1 and R2 deferred to step 2 |

@@ -7,119 +7,76 @@ Nothing in this part is implemented before 1.0.0. It is documented now for two r
 ## Contents of this part
 
 - [16. Register of later features](#16-register-of-later-features)
-  - [16.1 Library structure](#161-library-structure) · [16.2 New features for the user](#162-new-features-for-the-user) · [16.3 Optimisation of existing features](#163-optimisation-of-existing-features) · [16.4 Mathematical choices](#164-mathematical-choices) · [16.5 Entries added in the reviews of 12 and 13 November 2026](#165-entries-added-in-the-reviews-of-12-and-13-november-2026) · [16.6 Entries added in the review of 16 November 2026](#166-entries-added-in-the-review-of-16-november-2026) · [16.7 Deferred work that is not a feature](#167-deferred-work-that-is-not-a-feature)
 - [17. JAX backend](#17-jax-backend)
   - [17.1 Scope](#171-scope) · [17.2 What step 1 already guarantees](#172-what-step-1-already-guarantees) · [17.3 Points specific to JAX](#173-points-specific-to-jax) · [17.4 HEALPix on JAX](#174-healpix-on-jax) · [17.5 Exit criteria](#175-exit-criteria)
 - [18. The Rust engine, from STL-Dev-MPI](#18-the-rust-engine-from-stl-dev-mpi)
   - [18.1 What STL-Dev-MPI is](#181-what-stl-dev-mpi-is) · [18.2 Integration rules](#182-integration-rules) · [18.3 MPI](#183-mpi) · [18.4 HEALPix spectra in Rust](#184-healpix-spectra-in-rust) · [18.5 Capability roadmap of the Rust engine](#185-capability-roadmap-of-the-rust-engine) · [18.6 The scope of the Rust engine, re-examined](#186-the-scope-of-the-rust-engine-re-examined)
 - [19. Compact coefficient layout](#19-compact-coefficient-layout)
-  - [19.1 Where the predictable NaNs come from](#191-where-the-predictable-nans-come-from) · [19.2 Two representations](#192-two-representations) · [19.3 Level-wise Gram products](#193-level-wise-gram-products) · [19.4 `Layout` and `Segment`](#194-layout-and-segment) · [19.5 Full-grid views](#195-full-grid-views) · [19.6 Reductions as static linear maps](#196-reductions-as-static-linear-maps) · [19.7 What the compact layout does not solve](#197-what-the-compact-layout-does-not-solve) · [19.8 The canonical set](#198-the-canonical-set) · [19.9 Implementation choice still open](#199-implementation-choice-still-open) · [19.10 Where time and memory go](#1910-where-time-and-memory-go) · [19.11 Optimisations, by leverage](#1911-optimisations-by-leverage) · [19.12 What to put in place before 1.0.0, so that nothing is closed](#1912-what-to-put-in-place-before-100-so-that-nothing-is-closed) · [19.13 A possible sequence for step 2](#1913-a-possible-sequence-for-step-2)
+  - [19.1 Where the predictable NaNs come from](#191-where-the-predictable-nans-come-from) · [19.2 Two representations](#192-two-representations) · [19.3 Level-wise Gram products](#193-level-wise-gram-products) · [19.4 `Layout` and `Segment`](#194-layout-and-segment) · [19.5 Full-grid views](#195-full-grid-views) · [19.6 Reductions as static linear maps](#196-reductions-as-static-linear-maps) · [19.7 What the compact layout does not solve](#197-what-the-compact-layout-does-not-solve) · [19.8 The canonical set](#198-the-canonical-set) · [19.9 Implementation choice still open](#199-implementation-choice-still-open) · [19.10 Where time and memory go](#1910-where-time-and-memory-go) · [19.11 Optimisations, by leverage](#1911-optimisations-by-leverage) · [19.12 What to put in place before 1.0.0, so that nothing is closed](#1912-what-to-put-in-place-before-100-so-that-nothing-is-closed) · [19.13 A possible sequence for step 2](#1913-a-possible-sequence-for-step-2) · [19.14 Results of the optimisations of step 1](#1914-results-of-the-optimisations-of-step-1)
 - [20. New mathematics](#20-new-mathematics)
   - [20.1 Low-pass filters everywhere, including S3/S4](#201-low-pass-filters-everywhere-including-s3s4) · [20.2 Positive spectrum estimator for non-periodic data](#202-positive-spectrum-estimator-for-non-periodic-data) · [20.3 NaN masks in tensor products](#203-nan-masks-in-tensor-products) · [20.4 HEALPix blocks in tensor products](#204-healpix-blocks-in-tensor-products) · [20.5 Spectrum estimators in N dimensions](#205-spectrum-estimators-in-n-dimensions) · [20.6 Wavelet optimisation](#206-wavelet-optimisation) · [20.7 Canonical set and gradients through the reference](#207-canonical-set-and-gradients-through-the-reference) · [20.8 Exact translation invariance](#208-exact-translation-invariance) · [20.9 The partial order of tensor-product scales](#209-the-partial-order-of-tensor-product-scales) · [20.10 Joint design of the smoothing kernel and the wavelets](#2010-joint-design-of-the-smoothing-kernel-and-the-wavelets) · [20.11 Centred covariances](#2011-centred-covariances)
 
 ## 16. Register of later features
 
-This register gathers every development planned after 1.0.0, and every feature or optimisation deferred during the reviews, so that none is forgotten. The ESTEL reference document carries it over into the repository (Part II, §15, P8). Deferred work that is not a feature is traced in §16.7, and points still to decide in Part IV, §23.
+This register gathers every development planned after 1.0.0, and every feature, optimisation or piece of work deferred during the reviews, so that none is forgotten. The ESTEL reference document carries it over into the repository (Part II, §15, P8). Points still to decide are in Part IV, §23.
 
-The entries are numbered LF1 to LF45 ("later feature"). LF1 to LF22 are grouped in four categories (16.1 to 16.4); LF23 to LF32, added in the review of 12 November 2026, and LF33, added in the review of 13 November 2026, follow in 16.5 with their category. The "Source" column says where each entry comes from: a decision on the Rust-engine note (Q), a review point of 12 November 2026 (Part IV, §22), or an open point of the maths tab (OP). LF34 to LF45, from the review of 16 November 2026, follow in 16.6; the deferred work that is not a feature (W1 to W4) is in 16.7.
+One table, sorted by category, then by identifier: LF1 to LF48 ("later feature") and W1 to W4 (deferred work that is not a feature). An entry leaves the table when it is done, abandoned or turned into a task, and leaves a row in the decision log (Part IV, §22): LF14, LF21, LF29 and LF31 left it this way.
 
-### 16.1 Library structure
+- **Category.** *Structure*: backends and engines, nothing the user sees, everything the code is built on. *New feature*: what users will be able to compute or do that they cannot today. *Optimisation*: the same results, faster, larger, lighter or on more configurations. *Mathematical choice*: a decision that changes what existing statistics compute; its definition is in `docs/maths_step2.md` where one is given.
+- **Changes values.** Whether the reference values change, and the version impact where it is known.
+- **When.** The place of an entry in the sequence of §19.13, or what it waits for.
+- **Source.** Where an entry comes from: a review point (Part IV, §22), an open point of the maths tab (OP), a question (Part IV, §23).
 
-Backends and engines: nothing the user sees, everything the code is built on.
-
-| ID | Feature | Why | Builds on (reserved in 1.0.0) | Changes reference values | Version impact | Details | Source |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| LF1 | JAX backend | `jit`, `vmap`, TPU and GPU, functional ecosystem | L0 protocol, functional rules | no | minor (JAX made stable; experimental since 1.0.0) | §17 | Q9, Q10 |
-| LF2 | HEALPix on JAX | HEALPix on every backend | `gather_weighted`, `segment_sum`, the NumPy tables ported in step 1 | no | minor | §17.4 | C9 |
-| LF3 | Rust engine (`estel-rust`, built from `rust/` in the ESTEL repository; CPU and GPU) | about 10× faster and 9× lighter in memory at nside 128 | `engine=` argument, engine protocol | no | minor; default for a configuration = benchmark-gated minor | §18 | Q14, Q20, C11, C12, C16 |
-| LF4 | MPI in process; to become a use of LF34 if Q20 decides so | nside 1024–2048 and beyond | `partition`, `_global_sum` hook | no | minor | §18.3 | Q16 |
-| LF5 | Rust HEALPix anafast (`estel-sht`) | differentiable spherical-harmonic spectra on CPU and GPU | HEALPix spectrum names reserved | no (new capability) | minor | §18.4 | Q17, Q18 |
-
-### 16.2 New features for the user
-
-What users will be able to compute or do that they cannot today.
-
-| ID | Feature | Why | Builds on (reserved in 1.0.0) | Changes reference values | Version impact | Details | Source |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| LF6 | Low-pass filters in every geometry and in S3/S4. At the last level the low-pass filter is applied without STL's final downsampling, which removes a size constraint (OP-34); this is a traced change of reference values. It is realised with the smoothing kernel; a dedicated low-pass kernel φ remains possible | the largest scales enter every statistic | index sets of the plan | yes (new default) | reference bump; major decided with the maintainers | §20.1, §20.10, §20.11 | Q5, G9 |
-| LF7 | Positive spectrum estimator for non-periodic data | today's estimator gives negative bins | estimator registry | yes, if it becomes the default | reference bump if default | §20.2 | G10, OP-21 |
-| LF8 | NaN masks in tensor products | gaps in space–time data | masks as weights | no (new capability) | minor | §20.3 | — |
-| LF9 | HEALPix blocks in tensor products | sphere × time, sphere × frequency | geometry hooks | no (new geometry) | major (new geometry) | §20.4 | — |
-| LF10 | v1.6.0 spectrum estimators in every geometry | NaN-aware spectra for 1D and tensor products | estimator registry, LF23 | yes, for 1D and tensor-product spectra | reference bump if values change | §20.5 | C22 |
-| LF11 | Improved plotting and diagnostics, `gaussianise`, surrogates | common needs of users and agents | public objects | no | minor | — | S7 (R3) |
-| LF12 | Synthesis: coarse-to-fine, per-iteration filtering, ensembles | quality and cost of syntheses | `SynthesisResult` | no | minor | — | — |
-| LF13 | xarray export | inspection | statistics accessors | no | minor | — | — |
-
-### 16.3 Optimisation of existing features
-
-The same results, faster, larger, lighter or on more configurations.
-
-| ID | Feature | Why | Builds on (reserved in 1.0.0) | Changes reference values | Version impact | Details | Source |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| LF14 | **In step 1 (T2.15; Part IV, §22, "Efficiency in step 1").** Compact coefficient layout; auto S1 and S2 and the diagonal of each Hermitian block of S4 stored and computed as reals (review, R-P06) | output memory 4 to 26 times smaller | storage-independent accessors | no | minor | §19 | Q21 |
-| LF15 | Second order in the Rust engine | implicit differentiation at Rust speed | `diff_order` | no | minor | §18.2 | Q13, C23 |
-| LF16 | float32 in the Rust engine | speed for specific cases | capability declaration | no | minor | §18.2 | Q15 |
-| LF17 | Tensor products in the Rust engine | 2D+1D at Rust speed | capability declaration | no | minor | §18.5 | Q22 |
-| LF18 | Non-periodic boundaries in the Rust engine | regional data | capability declaration | no | minor | §18.5 | — |
-| LF19 | Memory beyond one device for tensor products; to become a use of LF34 if Q20 decides so | the 2D+1D+1D sizes of the STOC deliverable | loop organised by levels | no | minor | §19.7 | — |
-
-### 16.4 Mathematical choices
-
-Decisions that change what existing statistics compute.
-
-| ID | Feature | Why | Builds on (reserved in 1.0.0) | Changes reference values | Version impact | Details | Source |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| LF20 | Canonical coefficient set | no duplicate coefficients | compact layout | yes | reference bump; major decided with the maintainers | §19.8 | Q1, G2, OP-14 |
-| LF21 | Gradient semantics through the reference: closed (14 November 2026). It follows from the mode: with `norm="self"` the reference is part of the computation and gradients flow through it; with `norm="ref"` it is a constant. Nothing else to design | implicit differentiation with targets that depend on parameters | `ref` argument | yes, if the default changes | reference bump if default | §20.7 | Q2, G6, OP-18 |
-| LF22 | Wavelet optimisation | better filters, satisfying a Littlewood–Paley condition, low-pass filter included (LF6), exact under rotations by π/2 (OP-58), with a smoothing kernel that sums to 1 (OP-59), each tested in CI | `WaveletOperator` | yes | reference bump; major decided with the maintainers | §20.6, §20.10 | — |
-
-### 16.5 Entries added in the reviews of 12 and 13 November 2026
-
-They continue the numbering; their category is given in the second column.
-
-| ID | Category | Feature | Why | Builds on (reserved in 1.0.0) | Changes reference values | Details | Source |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| LF23 | 16.2 New feature | 1D and tensor-product spectra, as in STL `2D+1D`: binned spectra, joint and low-pass bins | spectra for every planar geometry | `method=` names reserved | no (new capability) | Part II, §9.2 | C22 |
-| LF24 | 16.2 New feature | HEALPix spectra (`gaussian_rings`, `alm`, `anafast`), through the Rust anafast (LF5) | spectra on the sphere | `method=` names reserved | no (new capability) | §18.4 | C22, C9 |
-| LF25 | 16.4 Mathematical choice | Exact translation invariance: remove the grid locking between the centring of the downsampling kernel and the stride, without breaking Littlewood–Paley | a property users expect, and a strong test | `smoothing_kernel`, downsampling | yes | §20.8, §20.10 | C19, OP-2 |
-| LF26 | 16.4 Mathematical choice | Reductions on tensor products (`iso`, `angular_fourier`, `scale_cosine`) redefined: the product orientation mixes rotations with the direction of propagation | meaningful reduced statistics for space–time data | reductions | yes | maths tab, OP-44 | C8, OP-5 |
-| LF27 | 16.4 Mathematical choice | Relevance of the partial order of tensor-product scales: should some incomparable pairs of scales be measured? | interactions between fine-in-space, coarse-in-time and coarse-in-space, fine-in-time components are never measured | `_scale_index_set` | yes, if the set of scales changes | §20.9 | A12 |
-| LF28 | 16.4 Mathematical choice | A better regularisation of the cross S1 terms than `ε = 1e-8` | the constant is arbitrary and scale-dependent; it also breaks the scaling invariance of the cross S1, which is tested once it is replaced (Part I, §5.1) | M-S1 | yes | maths tab, OP-16 | G17, OP-16 |
-| LF29 | 16.3 Optimisation | **Tried in step 1, dropped (T2.13, PR #96):** no gain beyond the compilation of the loop on JAX. Small kernels baked in as compiled constants | possible speed-up under compilation | static plan | no | Part I, §3.1, rule 4 | review of 12 November 2026 (Pablo) |
-| LF30 | 16.3 Optimisation | Complex-to-complex convolutions instead of pairs of real ones | possible speed-up in tensor products; tried after the implementation of P3 that follows STL (Part IV, §22, "Efficiency in step 1") | `conv_axes` | no | Part I, §3.1, rule 6 | review of 12 November 2026 (Pablo) |
-| LF31 | 16.3 Optimisation | **In step 1 (T2.12; Part IV, §22, "Efficiency in step 1").** Second-layer means computed by contraction over pixels, instead of building the full product array first; measured 15 to 18 times faster than the present covariances on a CPU test, with 0.25 times the maps as extra memory instead of 3 to 8 times; computed by blocks of pixels summed in float64 in single precision; a prerequisite for tensor products (Q11) | lower memory peak, same loop | `_second_layer` | no | §19.3, §19.11; `docs/maths_step2.md`, M-GRAM | C18 |
-| LF32 | 16.4 Mathematical choice | Orientation reductions (iso, angular\_fourier) made consistent with the conjugation of complex coefficients across π, in 2D | the cyclic average over \[0, π) mixes some S3 and S4 values with what should be their conjugates | reductions | yes | maths tab, M-RED-ISO | OP-5 |
-| LF33 | 16.4 Mathematical choice | Centred covariances: S2, S3 and S4 computed as covariances, by default, wherever the plan cannot prove that one argument has a zero mean | the exact definition; indispensable as soon as a low-pass filter is the last filter (LF6); corrects border and mask effects | the `centring` field of the plan, first moments in the reference | yes, except for periodic data without mask | §20.11 | review of 13 November 2026, OP-36 |
-
-### 16.6 Entries added in the review of 16 November 2026
-
-Their category is given in the second column. Their definitions are in `docs/maths_step2.md` where one is given.
-
-| ID | Category | Feature | Why | Builds on (reserved in 1.0.0) | Changes reference values | Details | Source |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| LF34 | 16.3 Optimisation | Partitioned execution: parts with halos at fine levels, the gathered pyramid at coarse levels | one mechanism for fields larger than a device, several GPUs, MPI and HEALPix at high resolution | `_global_sum`; the plan knows the border and the halo of every map | no | §19.11; M-PART | R-P04; Q20 |
-| LF35 | 16.4 Mathematical choice | Strict scale order, j₁ ≤ j₂ < j₃, as an option | time divided by 3 and second-layer memory by 4, at the price of informative coefficients | index sets read from the plan | yes (removes coefficients) | M-STRICT | R-P02; Q18 |
-| LF36 | 16.3 Optimisation | **Tried in step 1, without gain (T2.14, issue #92):** on CPU at 512 × 512, after the Gram form, no lower memory and a gradient 12 to 53 % slower; measured again on GPU and at larger sizes in the final optimisation session (T7.1). Level-wise gradients in the Python engine: the second layer recomputed per level and band orientation during the backward pass | memory divided by about 3 with gradients, second order kept | the loop organised by level and band orientation | no | §19.11; M-GRAD | R-P03 |
-| LF37 | 16.2 New feature | Pruned plans: an operator computes only selected coefficients | large tensor products; cheaper syntheses on a subset; fine tuning, done only on a specific need (Part IV, §22, "Efficiency in step 1") | `select` and the plan share one description of a set of coefficients | no | §19.11 | R-P05 |
-| LF38 | 16.4 Mathematical choice | Strided second layer: the second layer evaluated on one pixel in two per axis, as an option | time divided by 3 and second-layer memory by 4, no coefficient dropped; an unbiased error 4 to 9 times below the scatter between realisations | evaluation positions and windows given by the plan | yes | M-STRIDE | R-P15; Q18 |
-| LF39 | 16.4 Mathematical choice | Fine-band S2 coefficients: S2 with a second set of narrower isotropic filters | constrain the spectrum inside the scattering machinery, with its handling of masks and borders | families as a list | no (new family) | §19.11 | R-P10 |
-| LF40 | 16.2 New feature | Scale cut-off j₃ − j₁ ≤ Δ | fewer coefficients for tensor products (not faster: the cost is at the fine levels) | index sets read from the plan | yes | §19.11 | R-P08 |
-| LF41 | 16.4 Mathematical choice | Voices: more than one scale per octave | finer sampling of scales | "scale" and "level" separate in the plan and the notation | yes | — | review of 16 November 2026 |
-| LF42 | 16.2 New feature | Masks per channel | data from several instruments | windows computed from the pair of maps | no (new capability) | — | review of 16 November 2026 |
-| LF43 | 16.2 New feature | An ellipsoid for HEALPix pixel centres, for Earth data | Earth observation | the geometry tables take the pixel centres as an input | no (new capability) | — | R-H01; Q7 |
-| LF44 | 16.2 New feature | Named blocks of tensor products, and labelled exports (extends LF13) | select statistics along a named block | block names in `DataTensorProd` | no | — | R-T04; Q12 |
-| LF45 | 16.2 New feature | Sibling operators: the same filters and masks, other channel pairs | change `cross_matrix` without rebuilding the heavy parts; fine tuning, done only on a specific need (Part IV, §22, "Efficiency in step 1") | the plan separates what depends on the channels | no | — | review of 16 November 2026 |
-| LF46 | 16.3 Optimisation | A first-order gradient for a loss that ends the computation, as in a synthesis: a primitive `value_and_grad_first_order`, by `torch.autograd.grad` on PyTorch, whose result is not differentiated again; `value_and_grad` stays composable, for implicit differentiation and the second order | about 30 % less memory with the gradient on PyTorch (prototype of T2.14, issue #92); the use of order-1 engines (Part I, §3.2.4) | the L0 protocol | no | a choice that depends on the use, left out of 1.0.0 (Part IV, §22, "Global optimisations only in 1.0.0") | T2.14, issue #92 |
-| LF47 | 16.2 New feature | Non-periodic and masked syntheses | STL has them, but its choices are to be reconsidered rather than reproduced: the J reduced by one for non-periodic fields (OP-52), missing pixels frozen at 10¹⁰ (OP-53), a gradient that can be NaN with masks, the taper of the start | M-SYN-INIT, M-SYN-OPS; the consistency of the estimators (T2.16) | no (new capability) | maths tab, §5 | review of 17 November 2026 |
-
-### 16.7 Deferred work that is not a feature
-
-| ID | Work | When | Source |
-| --- | --- | --- | --- |
-| W1 | Tier-1 GPU CI on the cluster: scheduler, container runtime, network rules of the gateway node (Part I, §6.2) | after 1.0.0 | S8, R4 |
-| W2 | Synthesis tests: per-backend reference outputs, cross-backend acceptance criteria, synthesis parity with STL; the comparison of the loss with STL's over the first iterations of a planar synthesis is in step 1 (Part II, §15.2, T6.1) | after 1.0.0 | S3 |
-| W3 | Cross-backend checks: syntheses matched over a few iterations when the optimisers can be standardised; gradients backend-independent up to numerical precision | after 1.0.0, with JAX (LF1) | S13 |
-| W4 | Tuning guides for syntheses (`docs/agents/tuning/`) | with W2 | C14 |
+| ID | Category | Feature | Why | Builds on (reserved in 1.0.0) | Changes values | When | Details | Source |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| LF1 | Structure | JAX backend | `jit`, `vmap`, TPU and GPU, functional ecosystem | L0 protocol, functional rules | no; minor (JAX made stable; experimental since 1.0.0) | step 2, §19.13 (5) | §17 | — |
+| LF2 | Structure | HEALPix on JAX | HEALPix on every backend | `gather_weighted`, `segment_sum`, the NumPy tables ported in step 1 | no; minor | with LF1 | §17.4 | C9 |
+| LF3 | Structure | Rust engine (`estel-rust`, built from `rust/` in the ESTEL repository; CPU and GPU) | about 10× faster and 9× lighter in memory at nside 128 | `engine=` argument, engine protocol | no; minor; default for a configuration = benchmark-gated minor | step 2, §19.13 (6) | §18 | C11, C12, C16 |
+| LF4 | Structure | MPI in process; to become a use of LF34 if Q20 decides so | nside 1024–2048 and beyond | `partition`, `_global_sum` hook | no; minor | step 2, §19.13 (7) | §18.3 | — |
+| LF5 | Structure | Rust HEALPix anafast (`estel-sht`) | differentiable spherical-harmonic spectra on CPU and GPU | HEALPix spectrum names reserved | no (new capability); minor | with LF3 | §18.4 | — |
+| LF6 | New feature | Low-pass filters in every geometry and in S3/S4. At the last level the low-pass filter is applied without STL's final downsampling, which removes a size constraint (OP-34); this is a traced change of reference values. It is realised with the smoothing kernel; a dedicated low-pass kernel φ remains possible | the largest scales enter every statistic | index sets of the plan | yes (new default); reference bump; major decided with the maintainers | step 2, §19.13 (1), completed by (8) | §20.1, §20.10, §20.11 | — |
+| LF7 | New feature | Positive spectrum estimator for non-periodic data | today's estimator gives negative bins | estimator registry | yes, if it becomes the default; reference bump if default | step 2 | §20.2 | OP-21 |
+| LF8 | New feature | NaN masks in tensor products | gaps in space–time data | masks as weights | no (new capability); minor | step 2 | §20.3 | — |
+| LF9 | New feature | HEALPix blocks in tensor products | sphere × time, sphere × frequency | geometry hooks | no (new geometry); major (new geometry) | step 2 | §20.4 | — |
+| LF10 | New feature | v1.6.0 spectrum estimators in every geometry | NaN-aware spectra for 1D and tensor products | estimator registry, LF23 | yes, for 1D and tensor-product spectra; reference bump if values change | step 2 | §20.5 | C22 |
+| LF11 | New feature | Improved plotting and diagnostics, `gaussianise`, surrogates | common needs of users and agents | public objects | no; minor | step 2 | — | S7 (R3) |
+| LF12 | New feature | Synthesis: coarse-to-fine, per-iteration filtering, ensembles | quality and cost of syntheses; each coarser level costs a quarter, and fewer iterations run at full resolution | `SynthesisResult` | no; minor | step 2, §19.13 (3) | — | — |
+| LF13 | New feature | xarray export | inspection | statistics accessors | no; minor | step 2 | — | — |
+| LF23 | New feature | 1D and tensor-product spectra, as in STL `2D+1D`: binned spectra, joint and low-pass bins | spectra for every planar geometry | `method=` names reserved | no (new capability) | step 2 | Part II, §9.2 | C22 |
+| LF24 | New feature | HEALPix spectra (`gaussian_rings`, `alm`, `anafast`), through the Rust anafast (LF5) | spectra on the sphere | `method=` names reserved | no (new capability) | step 2 | §18.4 | C22, C9 |
+| LF37 | New feature | Pruned plans: an operator computes only selected coefficients | large tensor products; cheaper syntheses on a subset; fine tuning, done only on a specific need (Part IV, §22, "Efficiency in step 1"); a gain proportional to what is dropped | `select` and the plan share one description of a set of coefficients | no | step 2, §19.13 (2); only on a specific need | §19.11 | review of 16 November 2026 |
+| LF40 | New feature | Scale cut-off j₃ − j₁ ≤ Δ | fewer coefficients for tensor products (not faster: the cost is at the fine levels) | index sets read from the plan | yes | step 2, for tensor products | §19.11 | review of 16 November 2026 |
+| LF42 | New feature | Masks per channel | data from several instruments | windows computed from the pair of maps | no (new capability) | step 2 | — | review of 16 November 2026 |
+| LF43 | New feature | An ellipsoid for HEALPix pixel centres, for Earth data | Earth observation | the geometry tables take the pixel centres as an input | no (new capability) | step 2 | — | review of 16 November 2026; Q7 |
+| LF44 | New feature | Named blocks of tensor products, and labelled exports (extends LF13) | select statistics along a named block | block names in `DataTensorProd` | no | step 2 | — | review of 16 November 2026; Q12 |
+| LF45 | New feature | Sibling operators: the same filters and masks, other channel pairs | change `cross_matrix` without rebuilding the heavy parts; fine tuning, done only on a specific need (Part IV, §22, "Efficiency in step 1") | the plan separates what depends on the channels | no | only on a specific need | — | review of 16 November 2026 |
+| LF47 | New feature | Non-periodic and masked syntheses | STL has them, but its choices are to be reconsidered rather than reproduced: the J reduced by one for non-periodic fields (OP-52), missing pixels frozen at 10¹⁰ (OP-53), a gradient that can be NaN with masks, the taper of the start | M-SYN-INIT, M-SYN-OPS; the consistency of the estimators (T2.16) | no (new capability) | after 1.0.0 | maths tab, §5 | review of 17 November 2026 |
+| LF15 | Optimisation | Second order in the Rust engine | implicit differentiation at Rust speed | `diff_order` | no; minor | with LF3 | §18.2 | C23 |
+| LF16 | Optimisation | float32 in the Rust engine | speed for specific cases | capability declaration | no; minor | with LF3 | §18.2 | — |
+| LF17 | Optimisation | Tensor products in the Rust engine | 2D+1D at Rust speed | capability declaration | no; minor | with LF3 | §18.5 | — |
+| LF18 | Optimisation | Non-periodic boundaries in the Rust engine | regional data | capability declaration | no; minor | with LF3 | §18.5 | — |
+| LF19 | Optimisation | Memory beyond one device for tensor products; to become a use of LF34 if Q20 decides so | the 2D+1D+1D sizes of the STOC deliverable | loop organised by levels | no; minor | with LF34 | §19.7 | — |
+| LF30 | Optimisation | Complex-to-complex convolutions instead of pairs of real ones | possible speed-up in tensor products; tried after the implementation of P3 that follows STL (Part IV, §22, "Efficiency in step 1"); it halves the second block of a tensor product | `conv_axes` | no | after the implementation of P3 that follows STL | Part I, §3.1, rule 6 | review of 12 November 2026 (Pablo) |
+| LF34 | Optimisation | Partitioned execution: parts with halos at fine levels, the gathered pyramid at coarse levels | one mechanism for fields larger than a device, several GPUs, MPI and HEALPix at high resolution | `_global_sum`; the plan knows the border and the halo of every map | no | step 2, §19.13 (7) | §19.11; M-PART | review of 16 November 2026; Q20 |
+| LF36 | Optimisation | **Tried in step 1, without gain (T2.14, issue #92):** on CPU at 512 × 512, after the Gram form, no lower memory and a gradient 12 to 53 % slower; measured again on GPU and at larger sizes in the final optimisation session (T7.1). Level-wise gradients in the Python engine: the second layer recomputed per level and band orientation during the backward pass | memory divided by about 3 with gradients, second order kept; with the strict order (LF35) the two gains multiply | the loop organised by level and band orientation | no | T7.1: measured again on GPU and at larger sizes | §19.11; M-GRAD | review of 16 November 2026 |
+| LF46 | Optimisation | A first-order gradient for a loss that ends the computation, as in a synthesis: a primitive `value_and_grad_first_order`, by `torch.autograd.grad` on PyTorch, whose result is not differentiated again; `value_and_grad` stays composable, for implicit differentiation and the second order | about 30 % less memory with the gradient on PyTorch (prototype of T2.14, issue #92); the use of order-1 engines (Part I, §3.2.4) | the L0 protocol | no | after 1.0.0 | a choice that depends on the use, left out of 1.0.0 (Part IV, §22, "Global optimisations only in 1.0.0") | T2.14, issue #92 |
+| LF48 | Optimisation | HEALPix: the gather tables built per pixel batch, with 32-bit indices; the kernel folded into the interpolation, one sparse operator per gauge; the geometry cached on disk | makes `nside` above 256 possible on one GPU; 2 to 3 times fewer reads and smaller tables (to verify); no geometry rebuilt | the tables of `WaveletOperator` | no | after the implementation of P5 that follows STL | Part IV, §23, Q9 | review of 16 November 2026 |
+| LF20 | Mathematical choice | Canonical coefficient set | no duplicate coefficients; 11 to 19 % of S4, and half of the cross-channel S4, not computed twice | compact layout | yes; reference bump; major decided with the maintainers | step 2, §19.13 (2) | §19.8 | OP-14 |
+| LF22 | Mathematical choice | Wavelet optimisation | better filters, satisfying a Littlewood–Paley condition, low-pass filter included (LF6), exact under rotations by π/2 (OP-58), with a smoothing kernel that sums to 1 (OP-59), each tested in CI | `WaveletOperator` | yes; reference bump; major decided with the maintainers | step 2, §19.13 (8) | §20.6, §20.10 | — |
+| LF25 | Mathematical choice | Exact translation invariance: remove the grid locking between the centring of the downsampling kernel and the stride, without breaking Littlewood–Paley | a property users expect, and a strong test | `smoothing_kernel`, downsampling | yes | step 2, §19.13 (8) | §20.8, §20.10 | C19, OP-2 |
+| LF26 | Mathematical choice | Reductions on tensor products (`iso`, `angular_fourier`, `scale_cosine`) redefined: the product orientation mixes rotations with the direction of propagation | meaningful reduced statistics for space–time data | reductions | yes | step 2 | maths tab, OP-44 | C8, OP-5 |
+| LF27 | Mathematical choice | Relevance of the partial order of tensor-product scales: should some incomparable pairs of scales be measured? | interactions between fine-in-space, coarse-in-time and coarse-in-space, fine-in-time components are never measured | `_scale_index_set` | yes, if the set of scales changes | step 2 | §20.9 | A12 |
+| LF28 | Mathematical choice | A better regularisation of the cross S1 terms than `ε = 1e-8` | the constant is arbitrary and scale-dependent; it also breaks the scaling invariance of the cross S1, which is tested once it is replaced (Part I, §5.1) | M-S1 | yes | step 2 | maths tab, OP-16 | OP-16 |
+| LF32 | Mathematical choice | Orientation reductions (iso, angular\_fourier) made consistent with the conjugation of complex coefficients across π, in 2D | the cyclic average over \[0, π) mixes some S3 and S4 values with what should be their conjugates | reductions | yes | step 2, §19.13 (1), if validated | maths tab, M-RED-ISO | OP-5 |
+| LF33 | Mathematical choice | Centred covariances: S2, S3 and S4 computed as covariances, by default, wherever the plan cannot prove that one argument has a zero mean | the exact definition; indispensable as soon as a low-pass filter is the last filter (LF6); corrects border and mask effects | the `centring` field of the plan, first moments in the reference | yes, except for periodic data without mask | step 2, §19.13 (1) | §20.11 | review of 13 November 2026, OP-36 |
+| LF35 | Mathematical choice | Strict scale order, j₁ ≤ j₂ < j₃, as an option | time divided by 3 and second-layer memory by 4, at the price of informative coefficients; a factor of 6 with the strided second layer (LF38); the dropped terms are a third of the others and carry non-Gaussian information | index sets read from the plan | yes (removes coefficients) | step 2, §19.13 (4): only if a use needs it | M-STRICT | review of 16 November 2026; Q18 |
+| LF38 | Mathematical choice | Strided second layer: the second layer evaluated on one pixel in two per axis, as an option | time divided by 3 and second-layer memory by 4, no coefficient dropped; an unbiased error 4 to 9 times below the scatter between realisations | evaluation positions and windows given by the plan | yes | step 2, §19.13 (1), if validated | M-STRIDE | review of 16 November 2026; Q18 |
+| LF39 | Mathematical choice | Fine-band S2 coefficients: S2 with a second set of narrower isotropic filters | constrain the spectrum inside the scattering machinery, with its handling of masks and borders | families as a list | no (new family) | step 2 | §19.11 | review of 16 November 2026 |
+| LF41 | Mathematical choice | Voices: more than one scale per octave | finer sampling of scales | "scale" and "level" separate in the plan and the notation | yes | step 2 | — | review of 16 November 2026 |
+| W1 | Work that is not a feature | Tier-1 GPU CI on the cluster: scheduler, container runtime, network rules of the gateway node (Part I, §6.2) | — | — | — | after 1.0.0 | — | S8, R4 |
+| W2 | Work that is not a feature | Synthesis tests: per-backend reference outputs, cross-backend acceptance criteria, synthesis parity with STL; the comparison of the loss with STL's over the first iterations of a planar synthesis is in step 1 (Part II, §15.2, T6.1) | — | — | — | after 1.0.0 | — | S3 |
+| W3 | Work that is not a feature | Cross-backend checks: syntheses matched over a few iterations when the optimisers can be standardised; gradients backend-independent up to numerical precision | — | — | — | after 1.0.0, with JAX (LF1) | — | S13 |
+| W4 | Work that is not a feature | Tuning guides for syntheses (`docs/agents/tuning/`) | — | — | — | with W2 | — | C14 |
 
 ## 17. JAX backend
 
@@ -140,7 +97,7 @@ The JAX backend is therefore the implementation of the L0 protocol in `estel/bac
 
 - **float64.** `jax_enable_x64` is switched on by `set_default_dtype("float64")`, before the first JAX computation.
 - **Compile time.** Loops over levels are unrolled when JAX traces the code. Compile time is measured for every benchmark case, with a budget; the tensor products with many levels are the cases to watch.
-- **Optimizer.** `optax.lbfgs` with `optax.scale_by_zoom_linesearch`. Trajectories differ from PyTorch's, so synthesis references are kept per backend (Q6), with cross-backend statistical criteria.
+- **Optimizer.** `optax.lbfgs` with `optax.scale_by_zoom_linesearch`. Trajectories differ from PyTorch's, so synthesis references are kept per backend, with cross-backend statistical criteria.
 - **Determinism.** `XLA_FLAGS=--xla_gpu_deterministic_ops=true` in tests.
 - **Tolerances.** A PyTorch-vs-JAX row in `tests/tolerances.toml` (Part I, §5.2).
 
@@ -157,7 +114,7 @@ In step 1, HEALPix already runs on index and weight tables built in NumPy — st
 
 ## 18. The Rust engine, from STL-Dev-MPI
 
-This section condenses the note *ESTEL: proposal for integrating the Rust engines of STL-Dev-MPI*, whose rules are numbered RE1–RE14, the decisions taken on it (Q10–Q23), and the decisions of 12 November 2026 (Part IV, §22): the Rust code moves into the ESTEL repository, and it is called "rust", not "native".
+This section condenses the note *ESTEL: proposal for integrating the Rust engines of STL-Dev-MPI*, the decisions taken on it, and the decisions of 12 November 2026 (Part IV, §22): the Rust code moves into the ESTEL repository, and it is called "rust", not "native".
 
 ### 18.1 What STL-Dev-MPI is
 
@@ -175,19 +132,19 @@ Reported by its README at nside 128, 4 members, one A100: STL-Dev autograd takes
 
 ### 18.2 Integration rules
 
-- **One repository (RE1, revised).** The Rust crates move into the ESTEL repository, under `rust/`, as one Cargo workspace (Part II, §11). maturin builds two wheels from `packages/`: `estel-rust`, optional (`pip install estel[rust]`), and `estel-sht`, required (§18.4). Both are released with `estel`, with the same version number, so they can never drift apart. A PyO3 binding (`rust/estel-py`) replaces the versioned C ABI of `stl-bridge`. ESTEL imports `estel_rust` only under `src/estel/engines/`, and installs and passes every test without it.
+- **One repository (revised).** The Rust crates move into the ESTEL repository, under `rust/`, as one Cargo workspace (Part II, §11). maturin builds two wheels from `packages/`: `estel-rust`, optional (`pip install estel[rust]`), and `estel-sht`, required (§18.4). Both are released with `estel`, with the same version number, so they can never drift apart. A PyO3 binding (`rust/estel-py`) replaces the versioned C ABI of `stl-bridge`. ESTEL imports `estel_rust` only under `src/estel/engines/`, and installs and passes every test without it.
 - **Engine, not backend.** The Rust code replaces the whole computation behind the Python frontend; it is not split into L0 primitives, which would lose its block-wise algorithm, its hand-written gradients and MPI (Part I, §2.2.4).
-- **Capabilities (RE2, Q15, Q19).** The engine declares geometries, L, kernel sizes, gauges, dtypes, masks, cross channels, devices and differentiation order. It computes in float64 by default, even when ESTEL's default is float32, unless float32 is requested explicitly; `describe()` shows it, so this is never a silent cast.
-- **Differentiation (RE3, Q13, Q21).** Today `diff_order=1`. Second order is written by hand in Rust later (LF15) — a JVP of the forward pass and a JVP of the VJP — and then passes the tests of Part I, §3.2.2 against the Python engine in float64.
-- **Purity (RE4).** The forward pass returns the values and an opaque residual (a checkpoint for HEALPix, the pyramid for 2D); the VJP takes it back. Handles are cached per plan and device, guarded by a lock.
-- **Plan mapping (RE5, Q12).** The engine's coefficient order, exported as JSON, is mapped once onto ESTEL's statistics by a static gather. The `has_fewer_convolutions` variant is not carried over, so the engine computes only coefficients that ESTEL defines.
-- **Same numbers (RE6).** The engine passes the reference tests of every configuration it claims, at float64 tolerances, plus a VJP parity test against the Python engine (relative 1e-10). It never produces reference values; its own fixtures are an independent check.
-- **Devices and memory (RE7).** Zero-copy float64 NumPy views on CPU; CUDA device pointers of PyTorch tensors on GPU; JAX through host memory until an XLA FFI binding exists. `estimate_memory()` asks the engine for its peak.
-- **Determinism (RE8).** Bit-identical results for a fixed thread count, block size and device; its own row in the tolerances.
-- **Optimizer (RE9).** The Rust L-BFGS is exposed through `lbfgs(..., impl="rust")`, tested against `torch.optim.LBFGS` on a fixed problem, and is the default synthesis optimizer when the engine is selected.
-- **Version impact (RE11).** Adding the engine or a configuration is a minor; making it the default for a configuration is a minor gated by a tier-2 benchmark. The intended end state: the engine is the default wherever it covers a configuration and wins the benchmark, and the Python engine stays the readable implementation, the second-order path and the fallback. An engine change that moves values outside tolerance is a bug in the engine, never a reason to regenerate references.
-- **CI (RE12).** Tier 0 builds the CPU wheel and runs the reference and VJP tests with `engine="rust"`; tier 1, once set up, runs the GPU build. Review rules A5, B2, C6, D8 and E4 apply in `rust/`, whose local `AGENTS.md` holds them. The binding and the capability schema are protected paths.
-- **Growth (RE13).** Every new capability follows three steps: the mathematics first (`maths.md`, `_spec`, the Python engine); then the engine declares the capability and passes its parity tests; then it ships as a minor, and becomes a default once the benchmark shows the gain. A change of mathematics updates the oracle, the Python engine and the Rust engine in the same pull request; the Rust code follows the PyTorch version, never the reverse (Q11).
+- **Capabilities.** The engine declares geometries, L, kernel sizes, gauges, dtypes, masks, cross channels, devices and differentiation order. It computes in float64 by default, even when ESTEL's default is float32, unless float32 is requested explicitly; `describe()` shows it, so this is never a silent cast.
+- **Differentiation.** Today `diff_order=1`. Second order is written by hand in Rust later (LF15) — a JVP of the forward pass and a JVP of the VJP — and then passes the tests of Part I, §3.2.2 against the Python engine in float64.
+- **Purity.** The forward pass returns the values and an opaque residual (a checkpoint for HEALPix, the pyramid for 2D); the VJP takes it back. Handles are cached per plan and device, guarded by a lock.
+- **Plan mapping.** The engine's coefficient order, exported as JSON, is mapped once onto ESTEL's statistics by a static gather. The `has_fewer_convolutions` variant is not carried over, so the engine computes only coefficients that ESTEL defines.
+- **Same numbers.** The engine passes the reference tests of every configuration it claims, at float64 tolerances, plus a VJP parity test against the Python engine (relative 1e-10). It never produces reference values; its own fixtures are an independent check.
+- **Devices and memory.** Zero-copy float64 NumPy views on CPU; CUDA device pointers of PyTorch tensors on GPU; JAX through host memory until an XLA FFI binding exists. `estimate_memory()` asks the engine for its peak.
+- **Determinism.** Bit-identical results for a fixed thread count, block size and device; its own row in the tolerances.
+- **Optimizer.** The Rust L-BFGS is exposed through `lbfgs(..., impl="rust")`, tested against `torch.optim.LBFGS` on a fixed problem, and is the default synthesis optimizer when the engine is selected.
+- **Version impact.** Adding the engine or a configuration is a minor; making it the default for a configuration is a minor gated by a tier-2 benchmark. The intended end state: the engine is the default wherever it covers a configuration and wins the benchmark, and the Python engine stays the readable implementation, the second-order path and the fallback. An engine change that moves values outside tolerance is a bug in the engine, never a reason to regenerate references.
+- **CI.** Tier 0 builds the CPU wheel and runs the reference and VJP tests with `engine="rust"`; tier 1, once set up, runs the GPU build. Review rules A5, B2, C6, D8 and E4 apply in `rust/`, whose local `AGENTS.md` holds them. The binding and the capability schema are protected paths.
+- **Growth.** Every new capability follows three steps: the mathematics first (`maths.md`, `_spec`, the Python engine); then the engine declares the capability and passes its parity tests; then it ships as a minor, and becomes a default once the benchmark shows the gain. A change of mathematics updates the oracle, the Python engine and the Rust engine in the same pull request; the Rust code follows the PyTorch version, never the reverse.
 
 ### 18.3 MPI
 
@@ -199,7 +156,7 @@ Distributed memory is one reason the engine was written in Rust. Each rank holds
 | nside 1024, L = 2, one EPYC 9655 node | 24 → 192 cores | 60.9 s → 10.2 s | 0.75 |
 | nside 2048, L = 4, Tesla T4 GPUs | 2 → 3 GPUs | 474 s → 114 s | superlinear: the sky fits in device memory |
 
-ESTEL integrates MPI in two stages (Q16):
+ESTEL integrates MPI in two stages:
 
 1. **Out of process (1.x).** Distributed runs use the STL-Dev-MPI binaries under `mpirun` or Slurm. ESTEL reads and writes their plan, statistics and map formats through `estel.io`, so that a target can be prepared and a result checked in ESTEL.
 2. **In process.** ESTEL runs under `mpirun` with mpi4py, an optional dependency. Each rank holds a `DataHealpix` slice (`partition=`, the STL-Dev-MPI partition: contiguous NESTED ranges, coarsest levels replicated). `scattering()` returns the global statistics on every rank, and the VJP the rank's slice of the gradient. Because 1.0.0 reserves `partition` and the `_global_sum` hook, this stage needs no API change. A test checks that 1, 2 and 4 ranks agree within 1e-13.
@@ -208,8 +165,8 @@ ESTEL integrates MPI in two stages (Q16):
 
 The engine's `SpectrumEngine` is a differentiable anafast: auto, cross and spin-s spectra (EE, BB, EB), with masks, forward and VJP, on CPU and GPU (spin 0 on the device). It matches `healpy.anafast(..., iter=0)` and `healpy.map2alm_spin`, which are its tests.
 
-- **It becomes the HEALPix spectrum method of ESTEL (Q17, LF24)**, hidden behind `estel.spectra`: users call the ESTEL API, on PyTorch or JAX arrays, and never see Rust.
-- **A separate, required wheel (Q18).** The anafast code is independent of the scattering engine, so it lives in its own crate, `rust/estel-sht`, and its own wheel, `estel-sht`, which ESTEL requires once HEALPix spectra exist. The scattering engine `estel-rust` stays optional. Binary wheels are built in tier 0 for Linux (x86\_64, aarch64), macOS (arm64) and Windows.
+- **It becomes the HEALPix spectrum method of ESTEL (LF24)**, hidden behind `estel.spectra`: users call the ESTEL API, on PyTorch or JAX arrays, and never see Rust.
+- **A separate, required wheel.** The anafast code is independent of the scattering engine, so it lives in its own crate, `rust/estel-sht`, and its own wheel, `estel-sht`, which ESTEL requires once HEALPix spectra exist. The scattering engine `estel-rust` stays optional. Binary wheels are built in tier 0 for Linux (x86\_64, aarch64), macOS (arm64) and Windows.
 - **No HEALPix spectra in 1.0.0.** 1.0.0 has spectra for 2D data only (Part II, §9.3). HEALPix spectra arrive with LF24, compared with STL `HealpixUpdate`'s spectra (computed through healpix-analyse, pinned at `aac5e26`) on the reference inputs.
 
 Measured on one map, nside 256, `lmax = 511` (STL-Dev-MPI `docs/spectrum.md` §5):
@@ -228,10 +185,10 @@ Measured on one map, nside 256, `lmax = 511` (STL-Dev-MPI `docs/spectrum.md` §5
 | HEALPix full sky, masks as weights, cross channels | yes | done |
 | Planar 2D, `pbc=True` | yes | done |
 | Planar 2D, `pbc=False` (border crop) | no | next, in development (LF18) |
-| Low-pass filters in S3/S4 (§20.1) | no | to implement in Rust, in sync with PyTorch (Q11, LF6) |
-| Tensor products (2D+1D, HEALPix blocks) | no | planned (Q22, LF17) |
-| float32 | no | opt-in, to implement (Q15, LF16) |
-| Second order | no | by hand, later (Q13, LF15) |
+| Low-pass filters in S3/S4 (§20.1) | no | to implement in Rust, in sync with PyTorch (LF6) |
+| Tensor products (2D+1D, HEALPix blocks) | no | planned (LF17) |
+| float32 | no | opt-in, to implement (LF16) |
+| Second order | no | by hand, later (LF15) |
 | MPI, distributed sky (HEALPix) | through the binaries | in process from ESTEL: next (LF4) |
 | HEALPix anafast: auto, cross, spin s, masks, VJP | yes (GPU for spin 0) | exposed through `estel.spectra` (LF5, LF24); spin s on GPU later |
 
@@ -243,7 +200,7 @@ A generated capability matrix, `docs/engines.md`, built from the engine's declar
 
 **What changes.** Three proposals bring part of that gain to the Python engine without a hand-written adjoint: the Gram form (LF31), level-wise gradients (LF36), and, if accepted, the strided second layer (LF38). The Python engine then keeps second-order derivatives, both backends and every geometry, which the Rust engine has only in part (Part III, §18.5).
 
-**Proposal (R-P09).** Do not decide the scope of the Rust engine now. After the reorganisation of H1, measure the Python engine against STL-Dev-MPI on the same cases, in time and in peak memory. Then decide what the Rust engine is for: the candidates are CPU clusters with MPI, the spherical harmonic transform (`estel-sht`, which nothing else replaces), and whatever gap remains on GPU.
+**Proposal (Part IV, §23, Q19).** Do not decide the scope of the Rust engine now. After the reorganisation of the first releases of step 2, measure the Python engine against STL-Dev-MPI on the same cases, in time and in peak memory. Then decide what the Rust engine is for: the candidates are CPU clusters with MPI, the spherical harmonic transform (`estel-sht`, which nothing else replaces), and whatever gap remains on GPU.
 
 **Why it matters for 1.0.0:** nothing to change. The engine interface reserved in T1.4 fits any of these outcomes.
 
@@ -386,72 +343,31 @@ Two more facts, which the count does not show:
 
 ### 19.11 Optimisations, by leverage
 
-Each item has a horizon:
+The proposals are entries of the register (§16): their effect is in its column "Why", their place in its column "When". By decreasing leverage:
 
-| Horizon | Meaning |
-| --- | --- |
-| H0 | before the 1.0.0 freeze: nothing computed differently, but structures put in place so that nothing is closed |
-| H1 | first releases of step 2: reorganise the computation, same mathematics or decided changes |
-| H2 | scale: large fields, several devices, the Rust engine, MPI |
-| H3 | research: new filters, new statistics |
-
-#### Change what is computed
-
-These have the largest effect, and each is first a scientific question: each changes values.
-
-| Reference | Proposal | Effect | Horizon |
-| --- | --- | --- | --- |
-| R-P15 | **Strided second layer:** evaluate the second layer on one pixel in two per axis (M-STRIDE) | time ÷ 3, memory of the second layer ÷ 4, **no coefficient dropped**; an unbiased error 4 to 9 times below the scatter between realisations | decide in H1, after a validation on syntheses |
-| R-P02 | **Strict scale order:** drop the second convolution at the same scale as the first (M-STRICT) | the same gain, and a factor of 6 with the line above; but the dropped terms are a third of the others and carry non-Gaussian information | a trade-off for later, not a default |
-| R-P05 | **Pruned plans:** an operator built with a selection computes only the selected coefficients | proportional to what is dropped; makes large tensor products possible | H1, with the compact layout |
-| LF20 | **Canonical set:** compute the upper triangle of each Hermitian block (M-CANON) | 11 to 19 % of S4; half of the cross-channel S4 | H1 |
-| R-P08 | **Scale cut-off** (j₃ − j₁ ≤ Δ) | fewer coefficients, **no gain in time**: the cost is at the fine levels, where there are few arms | H1, for tensor products |
-
-#### Compute the same numbers differently
-
-| Reference | Proposal | Effect | Horizon |
-| --- | --- | --- | --- |
-| R-P17, LF31 | **Gram form:** one matrix product per level and band orientation (M-GRAM), by blocks of pixels | measured on one CPU core: 15 to 18 times faster than the present covariances, with 0.25 times the maps as extra memory instead of 3 to 8 times; reproduces STL's borders exactly; a prerequisite for tensor products (R-T06) | **H1, first**; in T3.0 for tensor products |
-| R-S01 | **Windows without weights:** a plain sum, or a slice, when there is no mask | measured: the product by the weights more than doubles the time of a covariance | **H0** |
-| R-P06 | **Real arithmetic for real quantities:** auto S1 and S2, the diagonal of each Gram block | less memory, fewer operations; ends F14 | H1, with the compact layout |
-| LF30 | **Complex-to-complex convolution** in one call | halves the second block of a tensor product | H1 |
-
-#### Memory
-
-| Reference | Proposal | Effect | Horizon |
-| --- | --- | --- | --- |
-| R-P03 | **Level-wise gradients** (M-GRAD): recompute the second layer of one level and one orientation during the backward pass | memory ÷ 3, for one more forward pass of the second layer | H1 |
-| | With the strict order (R-P02) | the two gains multiply | |
-| R-H04 | **HEALPix gather tables** built per pixel batch, with 32-bit indices | makes `nside` above 256 possible on one GPU | **H0**, design of T5.0 |
-| R-H07 | **HEALPix: the kernel folded into the interpolation,** one sparse operator per gauge; the geometry cached on disk | 2 to 3 times fewer reads and smaller tables (to verify); no geometry rebuilt | **H0**, design of T5.0 |
-| R-P16 | **A shorter L-BFGS history** by default | 100 reals per pixel at 50 pairs; 20 to 40 at 10 to 20 pairs | P2, before T6.1 |
-
-#### Scale out
-
-| Reference | Proposal | Effect | Horizon |
-| --- | --- | --- | --- |
-| R-P04 | **Partitioned execution** (M-PART): parts with halos at fine levels, the gathered pyramid at coarse levels | one mechanism for fields larger than a device, several GPUs, MPI and HEALPix at high resolution | H2; the `_global_sum` hook is the H0 preparation |
-| LF12 | **Coarse-to-fine synthesis:** optimise at a coarse level first, then refine | each coarser level costs a quarter; fewer iterations at full resolution | H1 |
-| R-P09 | **The scope of the Rust engine,** after the Python engine is reorganised | see §18.6 | H2, after a benchmark |
+- **Change what is computed.** The largest effect, and each is first a scientific question, since it changes values: the strided second layer (LF38), the strict scale order (LF35), pruned plans (LF37), the canonical set (LF20), a scale cut-off (LF40).
+- **Compute the same numbers differently.** The Gram form, done in step 1 (§19.14); complex-to-complex convolutions (LF30).
+- **Memory.** Level-wise gradients (LF36), the HEALPix tables (LF48), the length of the L-BFGS history (Part IV, §23, Q16).
+- **Scale out.** Partitioned execution (LF34), coarse-to-fine synthesis (LF12), the scope of the Rust engine (§18.6; Part IV, §23, Q19).
 
 #### What does not pay
 
 - **Separable kernels.** The 5 × 5 kernels along the axes are nearly of rank 1 (99.2 % of their energy), but the diagonal ones need rank 3 for the same accuracy: 30 taps instead of 25. No gain at K = 5.
-- **A scale cut-off for speed.** See R-P08: it reduces the number of coefficients, not the time.
+- **A scale cut-off for speed.** See LF40: it reduces the number of coefficients, not the time.
 - **Optimising the coarse levels.** They are a small share of everything.
-- **Float64 accumulation with the present sums.** Tested: float32 statistics differ from float64 ones by 1e-7 to 1.5e-6 with or without it; the error is in the maps. It matters only inside the Gram form, where it is a rule (R-P07).
+- **Float64 accumulation with the present sums.** Tested: float32 statistics differ from float64 ones by 1e-7 to 1.5e-6 with or without it; the error is in the maps. It matters only inside the Gram form, where it is a rule (M-GRAM).
 - **A separable smoothing kernel in 1.0.0.** STL's 6 × 6 table is separable only to 2e-8: 12 taps instead of 36 change the values above the parity tolerance (R-E01). In step 2 it is a small gain on a small share, about 3 % of the loop.
 
 ### 19.12 What to put in place before 1.0.0, so that nothing is closed
 
-None of these changes a value. Each exists to make a later change local.
+None of these changes a value. Each exists to make a later change local. Points 1, 2, 3 and 9 are in place, and point 7 is decided (Part IV, §22, R-Y03); which of the others are made before 1.0.0 is the question Q29 (Part IV, §23).
 
-1. **Windows are objects with a kind** (full, slice, weights), given by the plan (R-S01, R-V02). The centring of step 2 and the fast path for non-periodic data build on them.
+1. **Windows are objects with a kind** (full, slice, weights), given by the plan (issue #72, issue #72 (R-V02)). The centring of step 2 and the fast path for non-periodic data build on them.
 2. **The loop reads its index sets from the plan.** Already so for S3 and S4. The strict order, the cut-off and pruned plans are then options of the plan. The same holds for the positions where a convolution is evaluated: the strided second layer is then an option too.
    **And the band orientation is the leading axis of the second-layer maps,** so that the Gram form needs no copy.
 3. **One internal sum** (`_global_sum`) between the sum over pixels and the division, called once per level. Partitioned execution and MPI insert themselves there. On JAX the loop is compiled (T2.13), and the hook is read when it is compiled: whatever replaces it must also drop the compiled loops, as its tests do.
-4. **The low-pass filter and the centring are described by the plan** (Part III, §20.10 and §20.11): decided, and partly in place. One amendment is proposed: maps that end with a low-pass filter are centred themselves, not corrected afterwards, for stability in single precision (R-E02).
-5. **"Scale" and "level" are two different things** in the plan and in the notation (R-N10): the low-pass filter without final downsampling, and voices, need it.
+4. **The low-pass filter and the centring are described by the plan** (Part III, §20.10 and §20.11): decided, and partly in place. One amendment is proposed: maps that end with a low-pass filter are centred themselves, not corrected afterwards, for stability in single precision (Part IV, §23, Q17).
+5. **"Scale" and "level" are two different things** in the plan and in the notation (issue #71 (R-N10)): the low-pass filter without final downsampling, and voices, need it.
 6. **Families are a list, not four attributes.** A low-pass index, fine-band coefficients or a new family must not change the interface of `STStatistics`.
 7. **The reference serves another operator** (R-Y03): it depends on J, L and the channel pairs only.
 8. **`estimate_memory`** reports the peak of the loop from the plan, with and without gradients, so that a user knows before running. Its formula is the count of §19.10.
@@ -459,40 +375,28 @@ None of these changes a value. Each exists to make a later change local.
 
 ### 19.13 A possible sequence for step 2
 
-| Order | Content | Changes values? |
-| --- | --- | --- |
-| 1 | Baseline: the benchmark, from phase P2 (Part II, §15.2, T2.11) | no |
-| 2 | Gram form by blocks, windows, real arithmetic | no (within tolerance) |
-| 3 | Centred covariances; low-pass filter in every family, without the final downsampling; and, if validated, the strided second layer and a real-valued `iso` | yes: one bump of `STATISTICS_REFERENCE` for all of them |
-| 4 | Canonical set and compact layout; pruned plans | storage and interface; values unchanged |
-| 5 | Level-wise gradients; coarse-to-fine synthesis | no |
-| 6 | The strict order, if a use needs it | removes coefficients |
-| 7 | JAX stable | no |
-| 8 | Measure against STL-Dev-MPI; decide the scope of the Rust engine | no |
-| 9 | Partitioned execution; MPI | no |
-| 10 | Joint design of the smoothing kernel and the wavelets (LF6, LF22, LF25) | yes |
+The order in which the entries of the register (§16) would come, to which its column "When" refers:
+
+1. One change of reference values, with one bump of `STATISTICS_REFERENCE` for all of it: centred covariances (LF33); the low-pass filter in every family, without the final downsampling (LF6); and, if validated, the strided second layer (LF38) and a real-valued `iso` (LF32).
+2. The canonical set (LF20) and pruned plans (LF37): storage and interface, values unchanged.
+3. Coarse-to-fine synthesis (LF12).
+4. The strict order (LF35), if a use needs it: it removes coefficients.
+5. JAX stable (LF1).
+6. A measure against STL-Dev-MPI, then the scope of the Rust engine (LF3; Part IV, §23, Q19).
+7. Partitioned execution (LF34) and MPI (LF4).
+8. The joint design of the smoothing kernel and the wavelets (LF6, LF22, LF25): a change of values.
 
 Two rules shape this order: changes of values are grouped, so that users see one change of reference and not five; and the reorganisations that change no value come first, so that each later change is measured on a faster and smaller engine.
 
-**Brought into step 1** (Part IV, §22, "Efficiency in step 1"): the reorganisations of rows 2 (the Gram form, windows, real arithmetic), and 4 (the compact layout, without pruned plans) change no value, and are tasks of step 1 (Part II, §15.2, T2.11 to T2.15). The table keeps their place in the order.
+**Brought into step 1** (Part IV, §22, "Efficiency in step 1"): what changes no value came first, before 1.0.0: the benchmark (T2.11), the Gram form (T2.12) and the compact layout (T2.15, done first in P3). Level-wise gradients were tried and are measured again in T7.1 (§19.14).
 
 ### 19.14 Results of the optimisations of step 1
 
-What each optimisation of step 1 brought, measured by the benchmark (Part I, §6.3) against the commit before it, on CPU (Apple M3) at the sizes of `bench/cases.toml`. Each PR of an optimisation adds or updates its row; the evidence is its PR, its issue and its results in `bench/results/`. The final optimisation session (Part II, §15.2, T7.1) confirms these conclusions on native x86 Linux and on GPU.
+What the optimisations of step 1 brought, measured by the benchmark (Part I, §6.3) on CPU (Apple M3); the detail is in the pull requests and in `bench/results/`. Each optimisation adds its result here. The final optimisation session (Part II, §15.2, T7.1) confirms these conclusions on native x86 Linux and on GPU.
 
-| Optimisation | Task, PR | Result | Measured |
-| --- | --- | --- | --- |
-| Gram form, band orientation leading, mean weights stored once | T2.12, #95 | kept | memory of the computation 39 to 49 % lower; planar-cross 24 to 29 % faster with the gradient; the forward pass alone of planar-masked about 10 % slower on Apple M3, from PyTorch's batched convolutions (issue #91) |
-| Windows without weights, for the means of the field and the first layer | T2.13, #96 | kept | memory 1 to 1.6 % lower |
-| Windows without weights inside the Gram form | T2.13, #96 | dropped | 9 % slower with the gradient |
-| Half of the Gram product (Hermitian symmetry) | T2.13, #96 | dropped | 3 to 11 % slower |
-| Real arithmetic for real quantities | T2.13, #96 | nothing to change | already real, or given by the Gram product |
-| Compilation of the loop on JAX | T2.13, #96 | kept | on JAX, 2 to 15 times faster, memory divided by 3 |
-| Small kernels as constants (LF29) | T2.13, #96 | dropped | no gain beyond the compilation |
-| Per-scale convolutions | issue #91 | deferred to T7.1 | depends on the platform |
-| Level-wise gradients (LF36) | T2.14, issue #92 | dropped; measured again in T7.1 | no memory gain, gradient 12 to 53 % slower |
-| First-order gradient on PyTorch (LF46) | T2.14, issue #92 | after 1.0.0 | about 30 % less memory with the gradient (prototype); depends on the use |
-| Compact layout (LF14) | T2.15 | moved to the start of P3 | on planar data the statistics take 0.2 to 0.5 MB, against 0.5 to 0.8 GB for the computation |
+- **Kept:** the Gram form of the second layer (memory of the computation 39 to 49 % lower, #95); the compilation of the loop on JAX (2 to 15 times faster, #96); plain sums for the means without a mask (#96).
+- **Tried without gain:** half of the Gram product, slices inside the Gram form, kernels as constants (#96); level-wise gradients (LF36, issue #92).
+- **Deferred:** per-scale convolutions and the measurements on x86 and GPU (T7.1, issue #91); a first-order gradient (LF46).
 
 ## 20. New mathematics
 
