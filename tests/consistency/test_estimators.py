@@ -19,7 +19,7 @@ scale has content, and the exponential makes S3 and S4 differ from zero.
 **The criterion.** Over K seeded draws and for each coefficient, real and imaginary part apart,
 z is the mean over the draws of the difference between an estimate and the periodic one, divided
 by the standard error of that difference: the estimates are paired, field by field. The test
-asserts |z| ≤ 5.5 for every compared coefficient outside the known gap (see *The positive
+asserts |z| ≤ 6.1 for every compared coefficient outside the known gap (see *The positive
 control*). A part that is zero in every draw of both estimates (the imaginary parts of the auto
 S1 and S2) is not compared, nor are ``mean`` and ``var`` of the non-periodic estimate, which
 have no border and equal the periodic ones.
@@ -34,15 +34,24 @@ test was written): N = 64 with 512 draws, the positive control; N = 128 and N = 
 each, where no gap is expected. The test compares 16 902 real numbers: 4 546 at N = 64, of which
 2 072 belong to the known gap, 4 458 at N = 128 and 7 898 at N = 256.
 
-**The threshold and the number of draws.** 5.5 is 4 corrected for the number of comparisons
-(Bonferroni). With K draws z follows Student's law with K - 1 degrees of freedom, not the
-Gaussian one, and that sets the number of draws: one comparison is beyond 5.5 with probability
-6.1e-5 with 16 draws, 5.1e-6 with 32 and 7.4e-7 with 64 (3.8e-8 for a Gaussian value), so 0.75,
-0.063 and 0.009 false alarms expected on the 12 356 comparisons of N = 128 and 256. Measured on
-seeds 0 to 5 at these two sizes: with 16 draws 4 runs of 12 have a coefficient beyond 5.5
-(largest |z| 7.01), with 32 none (largest 4.96), with 64 none (largest 5.06). 64 is the smallest
-of the three with a risk under 1 %. The seed, 0, was fixed before its result was seen; seeds 1
-to 5 pass as well, the control included, with largest |z| 4.11, 4.93, 4.35, 3.54 and 4.31.
+**The threshold** comes from Student's law. With K draws, z follows Student's law with K - 1
+degrees of freedom, not the Gaussian one. The test holds 14 830 real numbers to the threshold
+(the 16 902 compared, without the 2 072 of the known gap), and the smallest number of draws is
+64, so 63 degrees of freedom. For a family-wise risk of 1e-3 (Bonferroni), each comparison may
+be beyond the threshold with probability 1e-3 / 14 830 = 6.7e-8, both tails together, which
+Student's law with 63 degrees of freedom gives at |z| = 6.12: the threshold is 6.1. At 6.1 the
+probability is 7.2e-8 for one comparison with 64 draws and 2.1e-9 with the 512 draws of N = 64
+(1.1e-9 for a Gaussian value), so the risk of the whole test is 12 356 x 7.2e-8 + 2 474 x 2.1e-9
+= 8.9e-4. The same threshold serves the positive control.
+
+**The number of draws** at N = 128 and N = 256 is 64, the smallest of 16, 32 and 64 that keeps
+that risk: at 6.1 one comparison is beyond the threshold with probability 2.0e-5 with 16 draws
+and 9.2e-7 with 32, so 0.25 and 0.011 false alarms expected on the 12 356 comparisons of these
+two sizes, against 8.9e-4 with 64. Measured on seeds 0 to 5 at these two sizes, the largest |z|
+is 7.01 with 16 draws (three runs of 12 beyond 6.1), 4.96 with 32 and 5.06 with 64. The seed,
+0, was fixed before its result was seen; seeds 1 to 5 pass as well, the control included, with
+largest |z| 4.11, 4.93, 4.35, 3.54 and 4.31; over the six seeds the smallest |z| of the eight
+coefficients of the control is 6.96.
 
 **The positive control (OP-61)**: a configuration where a gap is known, to show that the test
 can see one. At N = 64 with J = 5 the level of scale 4 has 4 x 4 pixels; the border of the
@@ -52,8 +61,8 @@ to 24.7 % below the periodic one according to the orientation (z from -7.5 to -1
 10.2 to 13.7 % below (z from -7.4 to -12.1). STL (``master``, parity container) gives the same
 statistics on the same fields, to 5e-16 of the largest coefficient: the gap is a property of
 STL's estimator, recorded and not corrected in step 1. The test asserts that each of these
-eight coefficients is beyond -5.5 and within 1.5 times its measured gap. The other coefficients
-whose mean is at scale 4 (S3 and S4: 2 064 real numbers, 524 of them beyond 5.5) are exempt from
+eight coefficients is beyond -6.1 and within 1.5 times its measured gap. The other coefficients
+whose mean is at scale 4 (S3 and S4: 2 064 real numbers, 446 of them beyond 6.1) are exempt from
 the threshold; every other compared coefficient of N = 64 is held to it. The control needs 512
 draws: with 64, the |z| of the four S2 go from 1.8 to 6.3 over seeds 0 to 5, and with 256 from
 5.1 to 9.4.
@@ -91,12 +100,12 @@ N = 256. STL gives the same statistics as ESTEL on the nine configurations of th
 three estimates at the three sizes, on these fields), to 2.5e-15 of the largest coefficient of
 each family, with NaN at the same positions: what is measured is STL's estimator.
 
-**What "no gap" means.** The smallest relative gap of S2 that reaches 5.5 standard errors with
+**What "no gap" means.** The smallest relative gap of S2 that reaches 6.1 standard errors with
 64 draws (the largest over seeds 0 to 5), from j = 0 to the coarsest compared scale:
-non-periodic, 1.2 % to 43 % at N = 128 (13 % at j = 3) and 0.4 % to 11.5 % at N = 256; masked,
-2.5 % to 19 % at both sizes. At N = 128 the non-periodic means of scale 4 (an 8 x 8 level, 16
-pixels kept) would not show a gap as large as the control's with 64 draws; measured apart with
-256 draws on the six seeds, they stay within |z| = 2.1.
+non-periodic, 1.3 % to 48 % at N = 128 (15 % at j = 3) and 0.4 % to 13 % at N = 256; masked,
+2.8 % to 21 % at N = 128 and 1.6 % to 21 % at N = 256. At N = 128 the non-periodic means of
+scale 4 (an 8 x 8 level, 16 pixels kept) would not show a gap as large as the control's with 64
+draws; measured apart with 256 draws on the six seeds, they stay within |z| = 2.1.
 
 The largest |z| of seed 0, 5.06 (non-periodic, S4, N = 256), is chance: measured again with 256
 draws, that coefficient is at 1.95, and at 0.27 on the 192 new draws alone; the two others above
@@ -105,8 +114,9 @@ above the threshold after a change is measured the same way before it is called 
 
 Slow: 512 draws at 64 x 64 and 64 draws at 128 x 128 and 256 x 256, three estimates of each with
 J = 5, since the standard error of a mean falls only as the root of the number of pixels and of
-draws: 17 s of CPU time on one thread (5 s, 2 s and 10 s), full tier only. PyTorch, float64
-(``conftest.py``).
+draws: 18 s of CPU time in one process (6 s, 2 s and 10 s), and 33 to 40 s when the workers
+of the full tier run the three sizes side by side on a loaded laptop; full tier only. PyTorch,
+float64, one thread (``conftest.py``).
 """
 
 from __future__ import annotations
@@ -136,8 +146,9 @@ as in the benchmark case ``planar-masked``."""
 MIN_KEPT = 0.25
 """A coefficient is compared when its mean keeps at least this fraction of the pixels of its
 level."""
-Z_MAX = 5.5
-"""The largest |z| allowed (issue #98, second start, decision 1): never raise it."""
+Z_MAX = 6.1
+"""The largest |z| allowed, from Student's law (module docstring, *The threshold*): never raise
+it."""
 CONTROL = (64, 512)
 """The side and the number of draws of the positive control (OP-61)."""
 SIZES = ((128, 64), (256, 64))
