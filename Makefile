@@ -16,7 +16,7 @@ RUN ?= uv run --locked
 
 .PHONY: check check-full check-tools lint types lint-imports layers manifest mirrors mirrors-fix \
         maths-ids retired-names workflows test test-fast test-torch test-jax test-fast-torch test-fast-jax \
-        test-spec version-impact parity-image parity parity-fixtures container-runtime bench
+        test-spec version-impact clean-worktrees parity-image parity parity-fixtures container-runtime bench
 
 # Backends the tests run on (Part I, §3.1). CI runs one per job: make test-fast TEST_BACKENDS=torch
 TEST_BACKENDS ?= torch jax
@@ -196,3 +196,9 @@ container-runtime:
 BASE ?= origin/main
 version-impact:
 	$(RUN) python tools/version_impact.py --base $(BASE) $(if $(PR),--pr $(PR)) $(if $(LABELS),--labels $(LABELS))
+
+# Remove the worktrees of merged pull requests and their local branches (issue #109): never the
+# main checkout, the current worktree, or one with changes; never forced; needs gh logged in.
+# One line per worktree, removed or kept and why. Standard library only: no environment needed.
+clean-worktrees:
+	python3 tools/clean_worktrees.py
