@@ -1,7 +1,8 @@
 """Whether a change needs the test suites in tier 0 (task T0.7; Part I, §6.1).
 
 A change whose files are all in the no-test scope runs only the check tools: lint, types, layer
-checks, manifest, mirrors, maths IDs, retired names, workflows. The no-test scope is
+checks, manifest, mirrors, maths IDs, retired names, identifiers, workflows. The no-test
+scope is
 
 - every file under ``docs/``, ``.github/`` or ``changes/``;
 - ``.gitignore``, ``LICENSE``, ``NOTICE`` and ``README.md`` at the root;

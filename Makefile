@@ -15,7 +15,7 @@ unexport PYTHONDONTWRITEBYTECODE
 RUN ?= uv run --locked
 
 .PHONY: check check-full check-tools lint types lint-imports layers manifest mirrors mirrors-fix \
-        maths-ids retired-names workflows test test-fast test-torch test-jax test-fast-torch test-fast-jax \
+        maths-ids retired-names identifiers workflows test test-fast test-torch test-jax test-fast-torch test-fast-jax \
         test-spec version-impact clean-worktrees parity-image parity parity-fixtures container-runtime bench
 
 # Backends the tests run on (Part I, §3.1). CI runs one per job: make test-fast TEST_BACKENDS=torch
@@ -50,16 +50,16 @@ check:
 	elif [ $$elapsed -gt $(CHECK_BUDGET) ]; then \
 		echo "make check: WARNING: $$elapsed s, over its budget of $(CHECK_BUDGET) s (Part I, §5.4). $(CHECK_BUDGET_ADVICE)"; \
 	fi; \
-	echo "make check: fast tier passed in $$elapsed s, budget $(CHECK_BUDGET) s (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, workflows, fast-tier tests on $(TEST_BACKENDS))"
+	echo "make check: fast tier passed in $$elapsed s, budget $(CHECK_BUDGET) s (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, identifiers, workflows, fast-tier tests on $(TEST_BACKENDS))"
 
 check-full: check-tools test
-	@echo "make check-full: full tier passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, workflows, every test in float32 and float64 on $(TEST_BACKENDS))"
+	@echo "make check-full: full tier passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, identifiers, workflows, every test in float32 and float64 on $(TEST_BACKENDS))"
 
 # Tier 0 without the test suites. CI runs only this on a change confined to the no-test scope
 # of tools/ci_scope.py (docs/, .github/, changes/, root .gitignore, LICENSE, NOTICE, README.md,
 # every AGENTS.md and CLAUDE.md; task T0.7); run it instead of `make check` for such a change.
-check-tools: lint types lint-imports layers manifest mirrors maths-ids retired-names workflows
-	@echo "make check-tools: check tools passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, workflows)"
+check-tools: lint types lint-imports layers manifest mirrors maths-ids retired-names identifiers workflows
+	@echo "make check-tools: check tools passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, identifiers, workflows)"
 
 lint:
 	$(RUN) ruff check .
@@ -110,6 +110,11 @@ maths-ids:
 # docstrings of public names (Part IV, §22.5, R-A12); the list is in the tool.
 retired-names:
 	$(RUN) python tools/check_retired_names.py
+
+# Every identifier of the lists of the specification that is cited (OP-n, LFn, Wn, Qn, Fn, Tn.m,
+# R-…, Gn) has a row in its list or in the decision log, Part IV, §22 (issue #107).
+identifiers:
+	$(RUN) python tools/check_identifiers.py
 
 # Review rule E5: actions pinned to a commit SHA, checkouts without persisted credentials,
 # a top-level permissions block in every workflow.
