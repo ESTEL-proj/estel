@@ -1,0 +1,277 @@
+"""Check that every identifier of the lists of the specification that is cited exists (issue #107).
+
+The families checked, and the list that defines each, by a table row that starts with it:
+
+* the open points ``OP-n``: the tables of ``docs/maths.md``;
+* the register ``LFn`` and ``Wn``: the table of Part III, §16 (``docs/transfer/part3.md``);
+* the questions ``Qn``: the table of Part IV, §23 (``docs/transfer/part4.md``);
+* the risks ``Fn``: the table of Part IV, §21;
+* the tasks ``Tn.m``: the table of Part II, §15.2 (``docs/transfer/part2.md``);
+* the remarks ``R-Xnn`` of the review of 16 November 2026 and the old open points ``Gn``: no
+  list; only the decision log (Part IV, §22).
+
+The rule. A cited identifier is accepted if its list has a row for it, or if the column "ID" of
+a row of the decision log names it: that is where a closed, done or retired item lives. So
+removing an item from its list without its row in the log fails. Moreover:
+
+* an identifier is defined once: two rows with the same identifier in a list fail;
+* a remark ``R-…`` with no row in the log is accepted only if an issue keeps it
+  (``KEPT_IN_ISSUES``).
+
+Citations are searched in ``docs/**/*.md``, ``AGENTS.md`` and the Python files of ``src/``,
+``tests/``, ``tools/`` and ``bench/`` (comments and docstrings cite identifiers too); not in
+``changes/`` (history). The block of the decision log itself (from its heading to the next
+``## `` heading) is not searched: its rows tell the history and may name retired identifiers.
+
+Not checked, because the same letters mean other things: S1 to S18, C1 to C23, A1 to A12 and
+R3 to R13 of the decision log (S1 to S4 are also the statistics; A, B, C, D, E and X with a
+number are also the review rules of ``docs/agents/review_rules.md``); and the ``M-``
+identifiers, which ``tools/check_maths_ids.py`` checks.
+
+The tool reads text only, uses the standard library only, and never imports estel.
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+import sys
+from collections.abc import Iterator
+from dataclasses import dataclass
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[1]
+
+
+@dataclass(frozen=True)
+class IdList:
+    """A table of the specification whose rows define identifiers."""
+
+    name: str  # as the messages name it
+    file: str
+    heading: str | None  # the heading of its section, or None for the whole file
+
+
+OPEN_POINTS = IdList("the open points of docs/maths.md", "docs/maths.md", None)
+REGISTER = IdList("the register (Part III, §16)", "docs/transfer/part3.md", "## 16. ")
+QUESTIONS = IdList("the points to settle (Part IV, §23)", "docs/transfer/part4.md", "## 23. ")
+RISKS = IdList("the risks (Part IV, §21)", "docs/transfer/part4.md", "## 21. ")
+TASKS = IdList("the tasks (Part II, §15.2)", "docs/transfer/part2.md", "### 15.2 ")
+LISTS = (OPEN_POINTS, REGISTER, QUESTIONS, RISKS, TASKS)
+
+DECISION_LOG = IdList("the decision log (Part IV, §22)", "docs/transfer/part4.md", "## 22. ")
+
+
+@dataclass(frozen=True)
+class Family:
+    """Identifiers written alike, defined in one list (or only in the decision log)."""
+
+    name: str
+    pattern: re.Pattern[str]
+    defined_in: IdList | None
+
+
+# The look-behinds keep the letters inside other identifiers out: the W of the maths ID M-W1,
+# the F of LF12, the letter after "R-" in a remark; and, for the tasks, a T inside a word or
+# after a dot.
+FAMILIES = (
+    Family("open point", re.compile(r"\bOP-\d+\b"), OPEN_POINTS),
+    Family("later feature", re.compile(r"\bLF\d+\b"), REGISTER),
+    Family("deferred work", re.compile(r"(?<![\w-])W[1-9]\b"), REGISTER),
+    Family("question", re.compile(r"(?<![\w-])Q\d+\b"), QUESTIONS),
+    Family("risk", re.compile(r"(?<![\w-])F\d+\b"), RISKS),
+    Family("task", re.compile(r"(?<![\w.])T\d+\.\d+\b"), TASKS),
+    Family("remark of the review of 16 November 2026", re.compile(r"\bR-[A-Z]\d+\b"), None),
+    Family("old open point", re.compile(r"(?<![\w-])G\d+\b"), None),
+)
+
+
+def _remarks(prefix: str, first: int, last: int) -> tuple[str, ...]:
+    return tuple(f"R-{prefix}{n:02d}" for n in range(first, last + 1))
+
+
+# The remarks of the review of 16 November 2026 that have no row in the decision log because an
+# issue keeps them, word for word, with that issue. Only a maintainer changes these sets.
+KEPT_IN_ISSUES: dict[str, tuple[str, ...]] = {
+    "#71": _remarks("N", 1, 18),  # notation
+    "#72": _remarks("V", 1, 10),  # vocabulary of the code
+    "#73": ("R-S03", "R-S04", "R-S05", "R-S06", "R-S09"),  # structure of the specification
+}
+KEPT = {remark: issue for issue, remarks in KEPT_IN_ISSUES.items() for remark in remarks}
+
+ROW_RE = re.compile(r"^\|\s*([^|]*?)\s*\|")
+CITED_IN = (
+    "docs/**/*.md",
+    "AGENTS.md",
+    *(f"{d}/**/*.py" for d in ("src", "tests", "tools", "bench")),
+)
+
+
+class ListNotFoundError(Exception):
+    """A list of the specification is not where the tool looks for it."""
+
+
+def _section(root: Path, idlist: IdList) -> Iterator[tuple[int, str]]:
+    """The numbered lines of ``idlist``'s section (all of its file when it has no heading)."""
+    path = root / idlist.file
+    if not path.exists():
+        raise ListNotFoundError(f"{idlist.file} is missing: it holds {idlist.name}.")
+    lines = list(enumerate(path.read_text().splitlines(), 1))
+    if idlist.heading is None:
+        yield from lines
+        return
+    level = idlist.heading.split(" ", 1)[0]
+    start = next((i for i, (_, line) in enumerate(lines) if line.startswith(idlist.heading)), None)
+    if start is None:
+        raise ListNotFoundError(
+            f"{idlist.file} has no heading starting with {idlist.heading!r}, the section of "
+            f"{idlist.name}: if the list moved, update its place in tools/check_identifiers.py."
+        )
+    for number, line in lines[start + 1 :]:
+        heading = line.split(" ", 1)[0]
+        if heading and set(heading) == {"#"} and len(heading) <= len(level):
+            return
+        yield number, line
+
+
+@dataclass
+class Definitions:
+    rows: dict[str, tuple[str, int]]  # identifier -> (file, line) of its row in its list
+    logged: set[str]  # the identifiers of the column "ID" of the decision log
+    errors: list[str]
+
+
+def definitions(root: Path) -> Definitions:
+    rows: dict[str, tuple[str, int]] = {}
+    errors = []
+    for idlist in LISTS:
+        families = [f for f in FAMILIES if f.defined_in is idlist]
+        for number, line in _section(root, idlist):
+            match = ROW_RE.match(line)
+            if not match or not any(f.pattern.fullmatch(match.group(1)) for f in families):
+                continue
+            ident = match.group(1)
+            if ident in rows:
+                _, first = rows[ident]
+                errors.append(
+                    f"{idlist.file}:{number} defines {ident} again in {idlist.name}, already "
+                    f"defined at line {first}: an identifier is defined once; give one of the two "
+                    "rows a new identifier, or merge them."
+                )
+            else:
+                rows[ident] = (idlist.file, number)
+    return Definitions(rows, _logged(root), errors)
+
+
+def _logged(root: Path) -> set[str]:
+    logged: set[str] = set()
+    column = None
+    for _, line in _section(root, DECISION_LOG):
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if column is None:
+            if "ID" not in cells:
+                raise ListNotFoundError(
+                    f"{DECISION_LOG.file}: the first row of {DECISION_LOG.name} has no column "
+                    '"ID": if the log changed form, update _logged in tools/check_identifiers.py.'
+                )
+            column = cells.index("ID")
+        elif len(cells) > column:
+            logged.update(ident.strip() for ident in cells[column].split(","))
+    return logged
+
+
+def _cited_files(root: Path) -> list[Path]:
+    files = {path for pattern in CITED_IN for path in root.glob(pattern) if path.is_file()}
+    return sorted(files)
+
+
+def citations(root: Path) -> Iterator[tuple[str, Family, str]]:
+    """Every identifier cited: (file:line, family, identifier), the decision log left out."""
+    log_heading = DECISION_LOG.heading or ""
+    for path in _cited_files(root):
+        rel = path.relative_to(root).as_posix()
+        in_log = False
+        for number, line in enumerate(path.read_text().splitlines(), 1):
+            if rel == DECISION_LOG.file and line.startswith("## "):
+                in_log = line.startswith(log_heading)
+            if in_log:
+                continue
+            for family in FAMILIES:
+                for match in family.pattern.finditer(line):
+                    yield f"{rel}:{number}", family, match.group()
+
+
+def _problem(where: str, family: Family, ident: str) -> str:
+    log = DECISION_LOG.name
+    if family.defined_in is not None:
+        return (
+            f"{where} cites {ident}, which has no row in {family.defined_in.name} and none in "
+            f"{log}: add its row, or a row to the log if it is closed."
+        )
+    if ident.startswith("R-"):
+        return (
+            f"{where} cites {ident}, a remark of the review of 16 November 2026 with no row in "
+            f"{log}, and not one of the remarks kept in issues "
+            f"{', '.join(KEPT_IN_ISSUES)} (KEPT_IN_ISSUES, tools/check_identifiers.py): add its "
+            "row to the log, or cite the issue that keeps it instead of the identifier."
+        )
+    return (
+        f"{where} cites {ident}, an {family.name} with no row in {log}: cite the current "
+        "identifier of its point instead, or add its row to the log."
+    )
+
+
+@dataclass
+class Report:
+    errors: list[str]
+    files: int = 0
+    citations: int = 0
+    in_lists: int = 0
+    in_log: int = 0
+    in_issues: int = 0
+
+
+def check(root: Path) -> Report:
+    try:
+        defs = definitions(root)
+    except ListNotFoundError as error:
+        return Report([str(error)])
+    report = Report(list(defs.errors), files=len(_cited_files(root)))
+    resolved: dict[str, str] = {}
+    for where, family, ident in citations(root):
+        report.citations += 1
+        if family.defined_in is not None and ident in defs.rows:
+            resolved[ident] = "list"
+        elif ident in defs.logged:
+            resolved[ident] = "log"
+        elif ident in KEPT:
+            resolved[ident] = "issue"
+        else:
+            report.errors.append(_problem(where, family, ident))
+    report.in_lists = sum(kind == "list" for kind in resolved.values())
+    report.in_log = sum(kind == "log" for kind in resolved.values())
+    report.in_issues = sum(kind == "issue" for kind in resolved.values())
+    return report
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--root", type=Path, default=REPO, help="repository root")
+    args = parser.parse_args(argv)
+    report = check(args.root)
+    for error in report.errors:
+        print(f"check_identifiers: {error}", file=sys.stderr)
+    if not report.errors:
+        identifiers = report.in_lists + report.in_log + report.in_issues
+        print(
+            f"check_identifiers: OK, {report.citations} citations of {identifiers} identifiers "
+            f"in {report.files} files: {report.in_lists} defined in their lists, "
+            f"{report.in_log} in the decision log, {report.in_issues} kept in issues."
+        )
+    return 1 if report.errors else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
