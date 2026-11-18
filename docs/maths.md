@@ -993,7 +993,7 @@ The rule of §1.11 applies. OP-90 to OP-92 come from the check of T5.0. OP-45, O
 
 ## 5. Syntheses
 
-**Status:** 17 November 2026 (task T6.0). For periodic syntheses, the only ones of 1.0.0 (Part IV, §22.5; LF47), every entry is checked against STL's code (`Synthesis.py` and what it calls), and numerically, in the parity container, where an entry says "Checked": the Nyquist pre-filter, the start, the target, the weights and the value of the loss, the result, the operators and the settings passed to L-BFGS. The comparison of whole syntheses comes with T6.1. The non-periodic and masked parts are not checked; they are marked "after 1.0.0 (Part III, §16, LF47)".
+**Status:** 17 November 2026 (task T6.0). For periodic syntheses, the only ones of 1.0.0 (Part IV, §22, "Periodic syntheses only in 1.0.0"; LF47), every entry is checked against STL's code (`Synthesis.py` and what it calls), and numerically, in the parity container, where an entry says "Checked": the Nyquist pre-filter, the start, the target, the weights and the value of the loss, the result, the operators and the settings passed to L-BFGS. The comparison of whole syntheses comes with T6.1. The non-periodic and masked parts are not checked; they are marked "after 1.0.0 (Part III, §16, LF47)".
 
 **Source:** STL-Dev `master` at `8eaf769`, `Synthesis.py`. A synthesis looks for a field u whose statistics match those of a target. Step 1 does not compare synthesised fields with STL's (Part II, §14.3), except in the one comparison of T6.1; this section fixes the definitions.
 
@@ -1056,7 +1056,7 @@ With Φ(u) the flattened statistics of the running field, computed with `norm="r
 
 - **Families.** Φ holds `mean`, `var`, S1, S2, S3, S4 and, in the periodic case, PS (M-SYN-OPS), in the order of M-FLAT, without the structural NaN. `mean` and `var` are in the loss: they are what ties the mean and the variance of the running field to those of the standardised target.
 - **Weights.** w = 1, except 3.5 for S3 and 3.5² for S4 (`adhoc_weights`, the default). They multiply the statistics of both fields before the flattening, so a difference in S3 counts with 3.5² in the loss, and one in S4 with 3.5⁴. **⚠ OP-51**
-- **Vector.** The complex form of M-FLAT; |·| is the complex modulus. Since |z|² = (Re z)² + (Im z)², the loss is the squared Euclidean norm of a complete real vector: the real and the imaginary parts of every coefficient, those of S1, S2 and PS included. `to_vector` of ESTEL stays STL's `to_flatten(flatten_complex=True)`, as in STL (Part IV, §22.5, Q14 closed): it leaves out the imaginary parts of S1, S2 and PS, which are null for the auto terms and not for the cross-channel terms of S1 and S2. With one channel the two vectors give the same loss; with cross-channel terms they do not, and the loss of 1.0.0 is the complete one. **⚠ OP-39**
+- **Vector.** The complex form of M-FLAT; |·| is the complex modulus. Since |z|² = (Re z)² + (Im z)², the loss is the squared Euclidean norm of a complete real vector: the real and the imaginary parts of every coefficient, those of S1, S2 and PS included. `to_vector` of ESTEL stays STL's `to_flatten(flatten_complex=True)`, as in STL (Part IV, §22, Q14 closed): it leaves out the imaginary parts of S1, S2 and PS, which are null for the auto terms and not for the cross-channel terms of S1 and S2. With one channel the two vectors give the same loss; with cross-channel terms they do not, and the loss of 1.0.0 is the complete one. **⚠ OP-39**
 - **Gradient.** STL writes |z|² as `abs() ** 2`; PyTorch's gradient of it is 0 at z = 0, as that of (Re z)² + (Im z)².
 - **Batch.** With `mean_field=True`, every family is averaged over the batch, for the target and for the running fields, before the comparison: the number of running fields need not be that of the targets. With `mean_field=False`, the sum also runs over the batch, and the two numbers must be equal.
 - **From statistics.** When the target is given as statistics rather than as fields, the same loss, divided by the target's Nb (not by `nbatch`) if `mean_field=True`. The factor does not move the minimum, but it scales the gradient, hence the first step of L-BFGS and what its tolerances mean. **⚠ OP-71**
@@ -1110,7 +1110,7 @@ Checkpoints (Part II, §9.2 and §12.9): the state of the optimiser, the running
 
 ### 5.9 Open points found in the synthesis code
 
-The rule of §1.11 applies. OP-39 also concerns syntheses; for the loss it is closed by Q14 (Part IV, §22.5; M-SYN-LOSS). OP-70 to OP-76 come from the check of T6.0.
+The rule of §1.11 applies. OP-39 also concerns syntheses; for the loss it is closed by Q14 (Part IV, §22; M-SYN-LOSS). OP-70 to OP-76 come from the check of T6.0.
 
 | # | Point | Proposal |
 | --- | --- | --- |

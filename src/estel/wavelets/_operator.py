@@ -2,11 +2,11 @@
 (Part I, §2.3; Part II, §12.5; task T2.10).
 
 Internal: ESTEL computes scattering statistics, and STL's ``data.get_wavelet_op()`` has no
-public counterpart (Part IV, §22.5). ``STOperator``, its plan and its loop go through this
-module for everything that depends on the wavelets and on the geometry: level by level, the
-convolution by the wavelets, the downsampling, the shape of each level, the border rule
-(maths.md M-BORDER), the mask rules (M-MASK, M-DOWN-MASK), and the defaults of J and L (M-DEF,
-M-DEF-1D). They see levels, maps and weights only.
+public counterpart (Part IV, §22, "Wavelet operator, internal"). ``STOperator``, its plan and
+its loop go through this module for everything that depends on the wavelets and on the
+geometry: level by level, the convolution by the wavelets, the downsampling, the shape of each
+level, the border rule (maths.md M-BORDER), the mask rules (M-MASK, M-DOWN-MASK), and the
+defaults of J and L (M-DEF, M-DEF-1D). They see levels, maps and weights only.
 
 Like ``STOperator``, the wavelet operator is a static part plus arrays, applied by pure
 functions:

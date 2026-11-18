@@ -6,7 +6,7 @@ Nov 6, 2026 · @Erwan Allys
 
 &#91;image: ESTEL — Estel is a Scattering Transform Exquisite Library\]
 
-Draft 0.3 · 12 November 2026 · supersedes draft 0.2 of 6 November 2026 (version notes: Appendices, C). It integrates the decisions taken since then (Part IV, §22), the review round of 12 November 2026 (Part IV, §22.4), and the note *ESTEL: proposal for integrating the Rust engines of STL-Dev-MPI* (decisions Q10–Q23).
+Draft 0.3 · 12 November 2026 · supersedes draft 0.2 of 6 November 2026 (version notes: Appendices, C). It integrates the decisions taken since then (Part IV, §22), the review round of 12 November 2026 (Part IV, §22), and the note *ESTEL: proposal for integrating the Rust engines of STL-Dev-MPI* (decisions Q10–Q23).
 
 ## Contents
 
