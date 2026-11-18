@@ -21,26 +21,9 @@
 ## Contents of this tab
 
 - [1. Planar 2D](#1-planar-2d)
-  - [1.0 Notation — M-NOT](#10-notation--m-not)
-  - [1.1 Data — M-DATA-2D](#11-data--m-data-2d)
-  - [1.2 Wavelets](#12-wavelets): [M-CONV-2D — "Convolution" is a correlation](#m-conv-2d--convolution-is-a-correlation) · [M-WAV-2D — Bump-steerable wavelets](#m-wav-2d--bump-steerable-wavelets)
-  - [1.3 Downsampling](#13-downsampling): [M-SMOOTH-2D — Smoothing kernel](#m-smooth-2d--smoothing-kernel) · [M-DOWN — Downsampling without mask](#m-down--downsampling-without-mask) · [M-DOWN-MASK — Downsampling with missing data](#m-down-mask--downsampling-with-missing-data)
-  - [1.4 Masks of the scattering layers — M-MASK](#14-masks-of-the-scattering-layers--m-mask)
-  - [1.5 Borders — M-BORDER](#15-borders--m-border)
-  - [1.6 Moments and first layer](#16-moments-and-first-layer): [M-MEAN — Masked mean](#m-mean--masked-mean) · [M-MOM — mean and var](#m-mom--mean-and-var) · [M-STD — Standardisation](#m-std--standardisation) · [M-W1 — First layer](#m-w1--first-layer)
-  - [1.7 Scattering statistics — vanilla ScatCov](#17-scattering-statistics--vanilla-scatcov): [M-S1](#m-s1) · [M-S2](#m-s2) · [M-S3](#m-s3) · [M-S4](#m-s4) · [M-CHAN — Storage of channel pairs](#m-chan--storage-of-channel-pairs)
-  - [1.8 Normalisation and reductions](#18-normalisation-and-reductions): [M-ORDER — Order of the operations of `apply`](#m-order--order-of-the-operations-of-apply) · [M-NORM](#m-norm) · [M-RED-ISO — Isotropy](#m-red-iso--isotropy) · [M-RED-ANG — Angular Fourier transform](#m-red-ang--angular-fourier-transform) · [M-RED-SCALE — Scale cosine transform](#m-red-scale--scale-cosine-transform) · [M-FLAT — Flattening](#m-flat--flattening)
-  - [1.9 Power spectrum — M-PS-2D (from master, v1.6.0)](#19-power-spectrum--m-ps-2d-from-master-v160): [Frequencies and bins](#frequencies-and-bins) · [Estimators](#estimators) · [Choice of estimator](#choice-of-estimator)
-  - [1.10 Defaults — M-DEF](#110-defaults--m-def)
-  - [1.11 Open points found in the 2D code](#111-open-points-found-in-the-2d-code): [A. Values and correctness](#a-values-and-correctness) · [B. Conventions to document](#b-conventions-to-document) · [C. Transfer and API](#c-transfer-and-api)
+  - [1.0 Notation — M-NOT](#10-notation--m-not) · [1.1 Data — M-DATA-2D](#11-data--m-data-2d) · [1.2 Wavelets](#12-wavelets) — [M-CONV-2D](#m-conv-2d--convolution-is-a-correlation), [M-WAV-2D](#m-wav-2d--bump-steerable-wavelets) · [1.3 Downsampling](#13-downsampling) — [M-SMOOTH-2D](#m-smooth-2d--smoothing-kernel), [M-DOWN](#m-down--downsampling-without-mask), [M-DOWN-MASK](#m-down-mask--downsampling-with-missing-data) · [1.4 Masks of the scattering layers — M-MASK](#14-masks-of-the-scattering-layers--m-mask) · [1.5 Borders — M-BORDER](#15-borders--m-border) · [1.6 Moments and first layer](#16-moments-and-first-layer) — [M-MEAN](#m-mean--masked-mean), [M-MOM](#m-mom--mean-and-var), [M-STD](#m-std--standardisation), [M-W1](#m-w1--first-layer) · [1.7 Scattering statistics — vanilla ScatCov](#17-scattering-statistics--vanilla-scatcov) — [M-S1](#m-s1), [M-S2](#m-s2), [M-S3](#m-s3), [M-S4](#m-s4), [M-CHAN](#m-chan--storage-of-channel-pairs) · [1.8 Normalisation and reductions](#18-normalisation-and-reductions) — [M-ORDER](#m-order--order-of-the-operations-of-apply), [M-NORM](#m-norm), [M-RED-ISO](#m-red-iso--isotropy), [M-RED-ANG](#m-red-ang--angular-fourier-transform), [M-RED-SCALE](#m-red-scale--scale-cosine-transform), [M-FLAT](#m-flat--flattening) · [1.9 Power spectrum — M-PS-2D (from master, v1.6.0)](#19-power-spectrum--m-ps-2d-from-master-v160) · [1.10 Defaults — M-DEF](#110-defaults--m-def) · [1.11 Open points found in the 2D code](#111-open-points-found-in-the-2d-code)
 - [2. 1D](#2-1d)
-  - [2.0 Data — M-DATA-1D](#20-data--m-data-1d)
-  - [2.1 Wavelets — M-WAV-1D](#21-wavelets--m-wav-1d)
-  - [2.2 Downsampling](#22-downsampling): [M-SMOOTH-1D — Smoothing kernel](#m-smooth-1d--smoothing-kernel)
-  - [2.3 Masks, borders, moments and first layer](#23-masks-borders-moments-and-first-layer)
-  - [2.4 Scattering statistics, normalisation and reductions](#24-scattering-statistics-normalisation-and-reductions)
-  - [2.5 Defaults — M-DEF-1D](#25-defaults--m-def-1d)
-  - [2.6 Open points found in the 1D code](#26-open-points-found-in-the-1d-code)
+  - [2.0 Data — M-DATA-1D](#20-data--m-data-1d) · [2.1 Wavelets — M-WAV-1D](#21-wavelets--m-wav-1d) · [2.2 Downsampling](#22-downsampling) — [M-SMOOTH-1D](#m-smooth-1d--smoothing-kernel) · [2.3 Masks, borders, moments and first layer](#23-masks-borders-moments-and-first-layer) · [2.4 Scattering statistics, normalisation and reductions](#24-scattering-statistics-normalisation-and-reductions) · [2.5 Defaults — M-DEF-1D](#25-defaults--m-def-1d) · [2.6 Open points found in the 1D code](#26-open-points-found-in-the-1d-code)
 - [3. Tensor products](#3-tensor-products)
   - [3.0 Notation — M-NOT-TP](#30-notation--m-not-tp)
   - [3.1 Data — M-DATA-TP](#31-data--m-data-tp)
@@ -103,6 +86,28 @@
 - Cov(A, B) = M2(A, B) − M1(A) conj(M1(B)): the covariance, with M1 and M2 on the same window.
 - The scattering covariances are covariances by definition: S2 = Cov(W\_{j,ℓ} x, W\_{j,ℓ} x), S3 = Cov(ψ\_{ℓ₃} ⋆ |W\_{j₂,ℓ₂} x|, W\_{j₃,ℓ₃} x) and S4 = Cov(ψ\_{ℓ₃} ⋆ |W\_{j₁,ℓ₁} x|, ψ\_{ℓ₃} ⋆ |W\_{j₂,ℓ₂} x|), with ψ at scale j3. S1 = M1(|W\_{j,ℓ} x|) is a first moment. STL, and ESTEL 1.0.0, compute the raw moments M2 instead (OP-36); the two are equal when M1 of one argument is zero.
 - Zero-mean property: a band-pass kernel sums to zero, so a field filtered by it has M1 = 0 exactly when w is the whole periodic domain, without mask. This does not hold with a cropped border or a mask. It does not hold either when the last filter is the low-pass filter φ\_J: M1(φ\_J ⋆ |W\_{j,ℓ} x|) is S1(j), and M1(φ\_J ⋆ x) is the mean of the data.
+
+**Notation to harmonise (Q25).** The review of 16 November 2026 found the 17 problems below in the notation of this file, each with a recommendation. Nothing is decided or applied yet. The full text of the remarks, and a single table of symbols proposed in their place (R-N18), are in issue #71. This table goes once the notation is decided and applied.
+
+| Remark | What collides | Recommendation |
+| --- | --- | --- |
+| R-N01 | φ is an angle and the low-pass filter | keep φ for the low-pass filter; write the angle ϑ |
+| R-N02 | c has four meanings: the channel index, the width factor (2.5), the constant c\_L and the bin centre c\_b | keep c for the channel; κ for the width factor, a\_L for the constant; rename the bin centre with the spectra |
+| R-N03 | S is the statistics and the cumulated smoothing (S\_j, Ŝ\_j) | write the cumulated smoothing s⁽ʲ⁾, as x⁽ʲ⁾ |
+| R-N04 | w is a kernel and a window; W and W\_b exist too | keep w for the window; write a generic kernel g |
+| R-N05 | two notations for one mean, ⟨a⟩\_m and ⟨A⟩\_w; m has three meanings | one notation, ⟨·⟩\_w; keep m for the mask; write a kernel offset t |
+| R-N06 | σ has three meanings: the normalisation, the standard deviation of the data and the width of a bin | keep σ for the standard deviation; write √(S2ʳᵉᶠ) in M-NORM |
+| R-N07 | b is the batch index and the spectral bin | keep b for the batch; rename the bin index with the spectra |
+| R-N08 | N is the size of the data and the design grid (256) | write the design grid M |
+| R-N09 | ω is an integer mode and an angular frequency | ω is always an angular frequency; write the integer mode ν |
+| R-N10 | j is a scale and a resolution level | j is a scale, d a level, everywhere |
+| R-N11 | three notations for the conjugate | z̄ in displayed formulas, `conj(·)` in text; never \* |
+| R-N12 | "layer" is the layers of the architecture and the number of wavelet convolutions | keep "layer" for the architecture; write "scattering order 0, 1, 2"; not "depth" |
+| R-N13 | W, U and D are used before they are defined; S3 and S4 are defined twice | define them once, in the notation section; one definition per statistic |
+| R-N14 | the indices of the reductions (ℓ₁, ℓ₂, δ; k for a harmonic) | rewrite them with the numbering decided (Part IV, §22, R-A01); write a harmonic h |
+| R-N15 | ψ̂\_ℓ is the design profile and the transform of the kernel | write the design profile Ψ\_ℓ; ψ\_ℓ is the kernel, ψ̂\_ℓ its transform |
+| R-N16 | "kernel", "filter" and "wavelet" are sometimes used for one another | say it once: a kernel is applied at one level; a filter is the effective object seen from full resolution; a wavelet is a band-pass kernel or filter |
+| R-N17 | the conventions of the conjugate and of the direction of the scales differ between the papers | state both in the notation section, with the correspondence to Cheng et al. and Mousset et al. |
 
 ### 1.1 Data — M-DATA-2D
 
@@ -518,63 +523,65 @@ Automatic, when the operator is built, from the example data. `pbc=None` counts 
 
 **Rule for these open points.** In 1.0.0, ESTEL reproduces STL wherever STL gives a result, problems included; most open points are fixed afterwards, each as a traced change. Where STL gives no usable value (OP-8), ESTEL raises a clear error instead; a mean with no valid pixel (OP-3) gives a NaN coefficient, as in STL.
 
+**Status of a point.** Each table gives it: `reproduced`, ESTEL reproduces STL in 1.0.0, the point included; `differs`, ESTEL does otherwise, and the proposal or the entry says how; `open (Qn)`, still to decide, as the question Qn of Part IV, §23; `later (LFn)`, deferred to the register (Part III, §16); `closed`, no longer a point. A point stays in its table whatever its status.
+
 Grouped in three categories: (A) points that affect values or correctness, (B) conventions to document, (C) transfer and API points.
 
 #### A. Values and correctness
 
-| # | Point | Proposal |
-| --- | --- | --- |
-| OP-1 | Filtering is a correlation, not a convolution; complex coefficients are the conjugates of the textbook definition | reproduce, document |
-| OP-2 | Even-sized smoothing kernel with asymmetric padding (2/3): possible half-pixel shift per level, questioned by a `TODO` | reproduce for parity; revisit in a major |
-| OP-3 | Masked mean divides by zero when no pixel is valid | revised: the coefficient is NaN, as in STL, decided statically by the plan; ESTEL warns once, listing such coefficients, and raises only if a whole family is empty |
-| OP-4 | `pbc=None` breaks the scattering transform but means "periodic" for spectra | require an explicit boolean in ESTEL |
-| OP-5 | `iso` and `angular_fourier` average over orientations that cover \[0, π): the real parts of the reduced S3 and S4 are invariant under rotations by multiples of π/L, their imaginary parts are not | reproduce; decide whether `iso` returns the real parts only (LF32) |
-| OP-6 | Radial binning of the spectrum is not isotropic for rectangular images | restrict PS to square images in 1.0.0, or document |
-| OP-7 | `nan_mask` fills missing pixels with the mean before filtering, leaking near mask edges | reproduce, document; better estimator in step 2 |
-| OP-8 | The default J does not ensure that the sizes are divisible by 2^(J−1), so the default operator can fail on sizes that are not powers of two | decided: ESTEL rejects the combination at construction with a clear message; STL fails here, so parity is not concerned |
-| OP-31 | STL builds its wavelet kernels at torch's default dtype, float32 unless changed, although the rest of its computation is in float64; its kernels therefore have float32 precision | ESTEL builds them in float64; the parity harness runs STL with float64 as torch's default dtype (Part II, §14.2) |
-| OP-35 | STL computes S3 on the layer-2 mask alone, assuming it contains the layer-1 mask; for some masked 1D data the assumption fails and STL's S3 is NaN | ESTEL uses the union of the two masks, as the formula defines; both agree wherever STL gives a value |
-| OP-58 | The 2D kernels are not rotations of each other (5e-3 at 90 degrees, from the unpaired frequency −N/2 of the design grid), and their energies differ by 3.2 % between axes and diagonals | reproduce; a requirement of the joint design (Part III, §20.10) |
-| OP-59 | The 2D smoothing table sums to 1.00000004 and is separable only to 2e-8; a mean is multiplied by that sum at each downsampling | reproduce; a separable kernel is a change of values, for step 2 |
-| OP-60 | With missing data and J ≥ 2, the gradient of STL's statistics with respect to the field is NaN at the valid pixels, although every statistic is finite: at every valid pixel of the benchmark case `planar-masked` (512 × 512, J = 7, non-periodic, 10.1 % missing: 235 584 pixels of 235 584), and 0 at the missing ones. The cause is the default `replace_nan_value=NaN` of `ST_Operator` (OP-27): after each downsampling, `downsample` writes NaN in the coarse pixels declared invalid (M-DOWN-MASK). These pixels go through the wavelet convolution, the modulus (`modulus`, `data.array.abs()`) and the products of `cov`, and `maskmean` then removes them from the mean with `torch.where(~mask, x, 0.0)`. In the backward pass that `where` sends them a zero gradient, which the modulus and the products multiply by a NaN local derivative (the sign of a NaN, or the NaN factor): 0 × NaN = NaN, first in the backward pass of `abs`, and the transposed convolutions and downsamplings spread it to the valid pixels. The values are not concerned. With `replace_nan_value=None`, which STL's syntheses pass, or 0, STL's statistics are the same bit for bit and its gradient is finite, equal to ESTEL's to 4e-16 of its largest value on that case (T2.16) | ESTEL keeps a finite gradient: it uses weights, never NaN values (OP-27, M-MEAN); where STL's gradient is NaN, ESTEL's is compared with STL run with `replace_nan_value=None` |
-| OP-61 | A reduced border (OP-13) biases the coarsest non-periodic means. On a 64 × 64 field with J = 5 the level of scale 4 has 4 × 4 pixels: the border of M-BORDER (2 pixels for S1 and S2, more for S3 and S4) is too large and is reduced to 1 pixel, so the mean runs over 2 × 2 pixels that the padding still reaches. Measured on a stationary log-normal process, the same periodic fields read with `pbc=False` and with `pbc=True` (512 seeded draws, raw statistics, L = 4): at j = 4 the non-periodic S2 is 18.8 to 24.7 % below the periodic one according to the orientation (7.5 to 11.5 standard errors of the paired difference), and S1 10.2 to 13.7 % below; 446 of the 2 064 real numbers of S3 and S4 whose mean is at scale 4 are beyond 6.1 standard errors as well, the threshold of the test, and no coefficient of the finer scales is (largest 2.8). STL gives the same values on the same fields (`master`, parity container: equal to ESTEL to 5e-16 of the largest coefficient), so the gap is a property of STL's estimator. At 128 × 128 and 256 × 256 with J = 5, the means with a reduced border keep less than a quarter of the pixels of their level, and no gap is seen on the others (64 draws; at 128 × 128 the non-periodic means of scale 4, with a full border of 2 pixels on an 8 × 8 level, stay within 2.1 standard errors with 256 draws, on six seeds). `tests/consistency/` keeps the case as its positive control (T2.16) | reproduce in step 1. For step 2: a mean whose border cannot be cropped in full is not computed (a NaN coefficient with one warning, as a mean with no valid pixel, OP-3), or J is limited so that every level holds its border |
+| # | Point | Proposal | Status |
+| --- | --- | --- | --- |
+| OP-1 | Filtering is a correlation, not a convolution; complex coefficients are the conjugates of the textbook definition | reproduce, document | reproduced |
+| OP-2 | Even-sized smoothing kernel with asymmetric padding (2/3): possible half-pixel shift per level, questioned by a `TODO` | reproduce for parity; revisit in a major | reproduced |
+| OP-3 | Masked mean divides by zero when no pixel is valid | revised: the coefficient is NaN, as in STL, decided statically by the plan; ESTEL warns once, listing such coefficients, and raises only if a whole family is empty | reproduced |
+| OP-4 | `pbc=None` breaks the scattering transform but means "periodic" for spectra | require an explicit boolean in ESTEL | differs |
+| OP-5 | `iso` and `angular_fourier` average over orientations that cover \[0, π): the real parts of the reduced S3 and S4 are invariant under rotations by multiples of π/L, their imaginary parts are not | reproduce; decide whether `iso` returns the real parts only (LF32) | reproduced |
+| OP-6 | Radial binning of the spectrum is not isotropic for rectangular images | restrict PS to square images in 1.0.0, or document | open (Q32) |
+| OP-7 | `nan_mask` fills missing pixels with the mean before filtering, leaking near mask edges | reproduce, document; better estimator in step 2 | reproduced |
+| OP-8 | The default J does not ensure that the sizes are divisible by 2^(J−1), so the default operator can fail on sizes that are not powers of two | decided: ESTEL rejects the combination at construction with a clear message; STL fails here, so parity is not concerned | differs |
+| OP-31 | STL builds its wavelet kernels at torch's default dtype, float32 unless changed, although the rest of its computation is in float64; its kernels therefore have float32 precision | ESTEL builds them in float64; the parity harness runs STL with float64 as torch's default dtype (Part II, §14.2) | differs |
+| OP-35 | STL computes S3 on the layer-2 mask alone, assuming it contains the layer-1 mask; for some masked 1D data the assumption fails and STL's S3 is NaN | ESTEL uses the union of the two masks, as the formula defines; both agree wherever STL gives a value | differs |
+| OP-58 | The 2D kernels are not rotations of each other (5e-3 at 90 degrees, from the unpaired frequency −N/2 of the design grid), and their energies differ by 3.2 % between axes and diagonals | reproduce; a requirement of the joint design (Part III, §20.10) | reproduced |
+| OP-59 | The 2D smoothing table sums to 1.00000004 and is separable only to 2e-8; a mean is multiplied by that sum at each downsampling | reproduce; a separable kernel is a change of values, for step 2 | reproduced |
+| OP-60 | With missing data and J ≥ 2, the gradient of STL's statistics with respect to the field is NaN at the valid pixels, although every statistic is finite: at every valid pixel of the benchmark case `planar-masked` (512 × 512, J = 7, non-periodic, 10.1 % missing: 235 584 pixels of 235 584), and 0 at the missing ones. The cause is the default `replace_nan_value=NaN` of `ST_Operator` (OP-27): after each downsampling, `downsample` writes NaN in the coarse pixels declared invalid (M-DOWN-MASK). These pixels go through the wavelet convolution, the modulus (`modulus`, `data.array.abs()`) and the products of `cov`, and `maskmean` then removes them from the mean with `torch.where(~mask, x, 0.0)`. In the backward pass that `where` sends them a zero gradient, which the modulus and the products multiply by a NaN local derivative (the sign of a NaN, or the NaN factor): 0 × NaN = NaN, first in the backward pass of `abs`, and the transposed convolutions and downsamplings spread it to the valid pixels. The values are not concerned. With `replace_nan_value=None`, which STL's syntheses pass, or 0, STL's statistics are the same bit for bit and its gradient is finite, equal to ESTEL's to 4e-16 of its largest value on that case (T2.16) | ESTEL keeps a finite gradient: it uses weights, never NaN values (OP-27, M-MEAN); where STL's gradient is NaN, ESTEL's is compared with STL run with `replace_nan_value=None` | differs |
+| OP-61 | A reduced border (OP-13) biases the coarsest non-periodic means. On a 64 × 64 field with J = 5 the level of scale 4 has 4 × 4 pixels: the border of M-BORDER (2 pixels for S1 and S2, more for S3 and S4) is too large and is reduced to 1 pixel, so the mean runs over 2 × 2 pixels that the padding still reaches. Measured on a stationary log-normal process, the same periodic fields read with `pbc=False` and with `pbc=True` (512 seeded draws, raw statistics, L = 4): at j = 4 the non-periodic S2 is 18.8 to 24.7 % below the periodic one according to the orientation (7.5 to 11.5 standard errors of the paired difference), and S1 10.2 to 13.7 % below; 446 of the 2 064 real numbers of S3 and S4 whose mean is at scale 4 are beyond 6.1 standard errors as well, the threshold of the test, and no coefficient of the finer scales is (largest 2.8). STL gives the same values on the same fields (`master`, parity container: equal to ESTEL to 5e-16 of the largest coefficient), so the gap is a property of STL's estimator. At 128 × 128 and 256 × 256 with J = 5, the means with a reduced border keep less than a quarter of the pixels of their level, and no gap is seen on the others (64 draws; at 128 × 128 the non-periodic means of scale 4, with a full border of 2 pixels on an 8 × 8 level, stay within 2.1 standard errors with 256 draws, on six seeds). `tests/consistency/` keeps the case as its positive control (T2.16) | reproduce in step 1. For step 2: a mean whose border cannot be cropped in full is not computed (a NaN coefficient with one warning, as a mean with no valid pixel, OP-3), or J is limited so that every level holds its border | reproduced |
 
 #### B. Conventions to document
 
-| # | Point |
-| --- | --- |
-| OP-9 | Width factor 2.5 tuned for L = 4 only: the valid range of L to set |
-| OP-10 | Kernels cropped to 5×5 and centred, not renormalised; effective filters are cascades |
-| OP-11 | `var` and every STL "covariance" are non-centred second moments (OP-36) |
-| OP-12 | NaN threshold τ = 0.33 in 2D, 0.5 in 1D; reweighting 1/(1−f); a pixel whose missing fraction equals τ exactly is decided by the last bit of the smoothing kernel: ESTEL reproduces STL's correctly rounded smoothing kernel (`math.fsum`), and in float32 such ties may be decided differently from STL |
-| OP-13 | Borders too large for the array are silently reduced |
-| OP-14 | S1/S2 store c₁ ≤ c₂ only, S3/S4 both orders; conjugate duplicates (LF20) |
-| OP-15 | Scale indices of S3 named (j₁, j₂) in STL's comments, (j₂, j₃) in the code |
-| OP-16 | Definition of cross-channel S1, with ε = 10⁻⁸ |
-| OP-17 | `angular_fourier` (STL's `to_angular_ft`) keeps all L harmonics by default, contrary to a code comment |
-| OP-18 | Gradients through the normalisation reference: decided, they follow from the mode (LF21, closed): with `norm="self"` the reference is part of the computation and gradients flow through it; with `norm="ref"` it is a constant |
-| OP-19 | Only the real part of cross-spectra is kept |
-| OP-20 | The spectrum code requires even sizes (inverse FFT width) |
-| OP-21 | Spectrum border mask at 60 % of the point-spread energy, hard by default |
-| OP-22 | Orientation convention: θ\_ℓ = πℓ/L + π/2 from axis 1 |
-| OP-30 | A channel with cross statistics but no auto statistics gets NaN after `norm="self"` normalisation (STL's `store_ref`); STL only warns |
-| OP-32 | The per-level energy partition P of STL's kernels is only close to 1. Measured on the 5-tap kernels: in 1D, within 0.1 of 1 up to ω = 3π/4, falling to 0.23 at the Nyquist frequency; in 2D (L = 4, J = 5, with φ\_J), Λ lies between 0.22 and 1.76 in the disc of radius π, is anisotropic (more energy on the diagonals than on the axes), and is close to 0 in the corners of the frequency square |
-| OP-33 | Gain convention: the analytic wavelets have a maximum gain of 1, so on real data they measure half the energy of their band; Λ counts both signs to compensate. Normalised statistics do not depend on it |
-| OP-34 | Tensor products (M-LP): the low-pass filter of a block is silently dropped when the block size is not divisible by 2^(J\_a), because STL obtains it by one more downsampling than the coarsest wavelet |
-| OP-36 | STL computes raw second moments, not covariances; its `cov` has a `remove_mean` argument that was never implemented. This is exact for periodic data without mask. Otherwise the forgotten term M1(A)·conj(M1(B)), relative to the covariance, measured on a test field (orders of magnitude): from 1e-6 at j = 0 to 1e-2 at the coarsest scale for non-periodic data; about ten times more with a mask covering 20 % of the pixels; of order 1 for any term whose last filter is a low-pass filter |
-| OP-37 | When flattening to a real vector, STL keeps only the real part of S1, S2 and PS, assuming they are real; this holds for the auto terms, but the imaginary part of the cross-channel terms is dropped, with the information it carries |
-| OP-38 | Default of `cross_matrix` (STL's `compute_cross_matrix`): STL's code computes every pair c₁ ≤ c₂; its docstring says auto statistics only. ESTEL follows the code |
-| OP-39 | The real flattening drops the imaginary part of the cross-channel S1 and S2; STL's syntheses use the complex flattening, which keeps it, so `to_vector` and the synthesis loss do not see the same coefficients; to decide before T6.1 |
+| # | Point | Proposal | Status |
+| --- | --- | --- | --- |
+| OP-9 | Width factor 2.5 tuned for L = 4 only: the valid range of L to set | to set, with the check of L at construction | open (Q32) |
+| OP-10 | Kernels cropped to 5×5 and centred, not renormalised; effective filters are cascades | reproduce, document | reproduced |
+| OP-11 | `var` and every STL "covariance" are non-centred second moments (OP-36) | reproduce, document | reproduced |
+| OP-12 | NaN threshold τ = 0.33 in 2D, 0.5 in 1D; reweighting 1/(1−f); a pixel whose missing fraction equals τ exactly is decided by the last bit of the smoothing kernel: ESTEL reproduces STL's correctly rounded smoothing kernel (`math.fsum`), and in float32 such ties may be decided differently from STL | reproduce, document | reproduced |
+| OP-13 | Borders too large for the array are silently reduced | reproduce, document; its effect is measured in OP-61 | reproduced |
+| OP-14 | S1/S2 store c₁ ≤ c₂ only, S3/S4 both orders; conjugate duplicates (LF20) | reproduce; LF20 | reproduced |
+| OP-15 | Scale indices of S3 named (j₁, j₂) in STL's comments, (j₂, j₃) in the code | document; ESTEL numbers the wavelets in the order they are applied (Part IV, §22, R-A01) | reproduced |
+| OP-16 | Definition of cross-channel S1, with ε = 10⁻⁸ | reproduce; LF28 | reproduced |
+| OP-17 | `angular_fourier` (STL's `to_angular_ft`) keeps all L harmonics by default, contrary to a code comment | reproduce, document | reproduced |
+| OP-18 | Gradients through the normalisation reference: decided, they follow from the mode (LF21, closed): with `norm="self"` the reference is part of the computation and gradients flow through it; with `norm="ref"` it is a constant | decided: nothing else to design | closed |
+| OP-19 | Only the real part of cross-spectra is kept | reproduce, document | reproduced |
+| OP-20 | The spectrum code requires even sizes (inverse FFT width) | reproduce, document | reproduced |
+| OP-21 | Spectrum border mask at 60 % of the point-spread energy, hard by default | reproduce; LF7 | reproduced |
+| OP-22 | Orientation convention: θ\_ℓ = πℓ/L + π/2 from axis 1 | reproduce, document | reproduced |
+| OP-30 | A channel with cross statistics but no auto statistics gets NaN after `norm="self"` normalisation (STL's `store_ref`); STL only warns | reproduce, document | reproduced |
+| OP-32 | The per-level energy partition P of STL's kernels is only close to 1. Measured on the 5-tap kernels: in 1D, within 0.1 of 1 up to ω = 3π/4, falling to 0.23 at the Nyquist frequency; in 2D (L = 4, J = 5, with φ\_J), Λ lies between 0.22 and 1.76 in the disc of radius π, is anisotropic (more energy on the diagonals than on the axes), and is close to 0 in the corners of the frequency square | reproduce, document | reproduced |
+| OP-33 | Gain convention: the analytic wavelets have a maximum gain of 1, so on real data they measure half the energy of their band; Λ counts both signs to compensate. Normalised statistics do not depend on it | reproduce, document | reproduced |
+| OP-34 | Tensor products (M-LP): the low-pass filter of a block is silently dropped when the block size is not divisible by 2^(J\_a), because STL obtains it by one more downsampling than the coarsest wavelet | reproduce, document | reproduced |
+| OP-36 | STL computes raw second moments, not covariances; its `cov` has a `remove_mean` argument that was never implemented. This is exact for periodic data without mask. Otherwise the forgotten term M1(A)·conj(M1(B)), relative to the covariance, measured on a test field (orders of magnitude): from 1e-6 at j = 0 to 1e-2 at the coarsest scale for non-periodic data; about ten times more with a mask covering 20 % of the pixels; of order 1 for any term whose last filter is a low-pass filter | reproduce, document | reproduced |
+| OP-37 | When flattening to a real vector, STL keeps only the real part of S1, S2 and PS, assuming they are real; this holds for the auto terms, but the imaginary part of the cross-channel terms is dropped, with the information it carries | reproduce, document | reproduced |
+| OP-38 | Default of `cross_matrix` (STL's `compute_cross_matrix`): STL's code computes every pair c₁ ≤ c₂; its docstring says auto statistics only. ESTEL follows the code | follow STL's code | reproduced |
+| OP-39 | The real flattening drops the imaginary part of the cross-channel S1 and S2; STL's syntheses use the complex flattening, which keeps it, so `to_vector` and the synthesis loss do not see the same coefficients | reproduce: the synthesis loss keeps the complex form and `to_vector` stays as it is (Part IV, §22, Q14 closed) | reproduced |
 
 #### C. Transfer and API
 
-| # | Point |
-| --- | --- |
-| OP-23 | The bump-steerable bank lives in STL's Fourier-space class; port it to `wavelets/banks.py` |
-| OP-24 | STL's kernel class also offers Morlet wavelets, decided: not transferred; a general optimisation of the wavelets comes later (LF22) |
-| OP-25 | `sigma_smooth` has no effect: drop it from the API |
-| OP-26 | A missing-data mask must be one 2D map, shared by all batch elements and channels; auto-detection fails on batched examples |
-| OP-27 | Missing pixels are filled with NaN during downsampling by default, which breaks gradients; ESTEL uses weights, with identical values, verified by parity cases with masks from phase P2 |
+| # | Point | Proposal | Status |
+| --- | --- | --- | --- |
+| OP-23 | The bump-steerable bank lives in STL's Fourier-space class; port it to `wavelets/banks.py` | ported to `wavelets/_banks.py` (T2.2) | closed |
+| OP-24 | STL's kernel class also offers Morlet wavelets, decided: not transferred; a general optimisation of the wavelets comes later (LF22) | not transferred | closed |
+| OP-25 | `sigma_smooth` has no effect: drop it from the API | dropped from the API | differs |
+| OP-26 | A missing-data mask must be one 2D map, shared by all batch elements and channels; auto-detection fails on batched examples | reproduce, document | reproduced |
+| OP-27 | Missing pixels are filled with NaN during downsampling by default, which breaks gradients; ESTEL uses weights, with identical values, verified by parity cases with masks from phase P2 | ESTEL uses weights | differs |
 
 ## 2. 1D
 
@@ -657,11 +664,11 @@ M-S1 to M-S4, M-CHAN, M-NORM, M-RED-ISO, M-RED-ANG, M-RED-SCALE and M-FLAT apply
 
 The rule of §1.11 applies. OP-2, OP-8, OP-10, OP-12, OP-24, OP-25 and OP-26 also concern 1D data, as noted above.
 
-| # | Point | Proposal |
-| --- | --- | --- |
-| OP-28 | The 1D wavelet is centred on the Nyquist frequency, so only the lower half of its bump exists on the grid; it has no width factor and no normalisation, unlike the 2D wavelet | reproduce; examine with the wavelet optimisation (LF22). The 1D wavelet is the upper half of a two-channel bank whose lower half is the smoothing kernel: their per-level energy partition is within 0.1 of 1 up to 3π/4 (OP-32) |
-| OP-29 | A 2D array given as 1D data is read as `(Nc, N)`, not `(Nb, N)` | reproduce, document |
-| OP-40 | With L = 2 in 1D, `iso` averages a coefficient with its counterpart on the conjugate filter; the meaning is not established | reproduce; treat with LF32 |
+| # | Point | Proposal | Status |
+| --- | --- | --- | --- |
+| OP-28 | The 1D wavelet is centred on the Nyquist frequency, so only the lower half of its bump exists on the grid; it has no width factor and no normalisation, unlike the 2D wavelet | reproduce; examine with the wavelet optimisation (LF22). The 1D wavelet is the upper half of a two-channel bank whose lower half is the smoothing kernel: their per-level energy partition is within 0.1 of 1 up to 3π/4 (OP-32) | reproduced |
+| OP-29 | A 2D array given as 1D data is read as `(Nc, N)`, not `(Nb, N)` | reproduce, document | reproduced |
+| OP-40 | With L = 2 in 1D, `iso` averages a coefficient with its counterpart on the conjugate filter; the meaning is not established | reproduce; treat with LF32 | reproduced |
 
 ## 3. Tensor products
 
@@ -854,17 +861,17 @@ Checked against the finite entries of STL's tensors (M-IDX-TP). For 16 × 16 × 
 
 The rule of §1.11 applies. OP-4, OP-8, OP-13 and OP-34 also concern tensor products, as noted above. OP-80 to OP-83 come from the check of T3.0.
 
-| # | Point | Proposal |
-| --- | --- | --- |
-| OP-41 | Missing data are not supported in tensor products: the construction fails in the operator of the first block, with a `NotImplementedError` that asks for a 2D mask | ESTEL raises a clear error at construction; LF8 |
-| OP-42 | The only centred statistics of STL are S1 and S2 of the scale with the low-pass filter in every block; the mixed scales rely on the zero mean of a wavelet factor, exact only on a periodic domain (OP-36). Measured: the mean of a mixed scale is 2 to 7 % of the mean of its modulus when a block is not periodic, on 16 to 32 pixels | reproduce; LF33 |
-| OP-43 | No S3 or S4 involves a low-pass filter; they are assumed to nearly vanish | reproduce; LF6 |
-| OP-44 | The reductions are not defined on tensor-product statistics. In STL they raise a `TypeError`, after the computation; `to_iso` fails with S1 and S2 already averaged over one axis, and `to_angular_ft` with an integer number of harmonics returns a transform over orientation axes of different blocks, without error | ESTEL raises a clear error, before the computation; LF26 |
-| OP-57 | `conv_history = [[]] * nblock` makes every block share one list. Closed (T3.0): no value depends on it. STL never modifies these lists in place, it replaces them; with one list per block given explicitly, S1 to S4 are bit for bit the same (case B) | nothing to reproduce |
-| OP-80 | An operator built from data without NaN and applied to data that hold a NaN returns NaN for every statistic, without error; with the spectrum, the spectrum raises a `ValueError` | to decide with the errors on masks (Q12) |
-| OP-81 | Along a block taken at its low-pass scale the border is 0, also when the block is not periodic: the cascade of smoothing kernels, padded by replication at each step, is not counted as a convolution. The variance of the coarse-grained field and the mixed scales therefore use pixels that the padding has reached | reproduce; examine with LF6 and LF33 |
-| OP-82 | STL accepts a tensor product of one block. With `lowpass=None` its statistics are bit for bit those of the plain geometry; with the default `lowpass="ST"`, S1 and S2 have one more scale. J and L are then lists of one entry | to decide with the parity matrix (Q12) whether ESTEL accepts one block |
-| OP-83 | Arguments of the operator. A block shorter than 8 pixels has a default J of 0, and the construction fails with an `IndexError` in the kernel code. A list J that holds `None` is completed in place: the caller's list is modified. An integer J raises a `TypeError`, an integer L an `AssertionError` | ESTEL validates the arguments at construction, with clear errors, and leaves the caller's objects unchanged |
+| # | Point | Proposal | Status |
+| --- | --- | --- | --- |
+| OP-41 | Missing data are not supported in tensor products: the construction fails in the operator of the first block, with a `NotImplementedError` that asks for a 2D mask | ESTEL raises a clear error at construction; LF8 | differs |
+| OP-42 | The only centred statistics of STL are S1 and S2 of the scale with the low-pass filter in every block; the mixed scales rely on the zero mean of a wavelet factor, exact only on a periodic domain (OP-36). Measured: the mean of a mixed scale is 2 to 7 % of the mean of its modulus when a block is not periodic, on 16 to 32 pixels | reproduce; LF33 | reproduced |
+| OP-43 | No S3 or S4 involves a low-pass filter; they are assumed to nearly vanish | reproduce; LF6 | reproduced |
+| OP-44 | The reductions are not defined on tensor-product statistics. In STL they raise a `TypeError`, after the computation; `to_iso` fails with S1 and S2 already averaged over one axis, and `to_angular_ft` with an integer number of harmonics returns a transform over orientation axes of different blocks, without error | ESTEL raises a clear error, before the computation; LF26 | differs |
+| OP-57 | `conv_history = [[]] * nblock` makes every block share one list. Closed (T3.0): no value depends on it. STL never modifies these lists in place, it replaces them; with one list per block given explicitly, S1 to S4 are bit for bit the same (case B) | nothing to reproduce | closed |
+| OP-80 | An operator built from data without NaN and applied to data that hold a NaN returns NaN for every statistic, without error; with the spectrum, the spectrum raises a `ValueError` | to decide with the errors on masks (Q12) | open (Q12) |
+| OP-81 | Along a block taken at its low-pass scale the border is 0, also when the block is not periodic: the cascade of smoothing kernels, padded by replication at each step, is not counted as a convolution. The variance of the coarse-grained field and the mixed scales therefore use pixels that the padding has reached | reproduce; examine with LF6 and LF33 | reproduced |
+| OP-82 | STL accepts a tensor product of one block. With `lowpass=None` its statistics are bit for bit those of the plain geometry; with the default `lowpass="ST"`, S1 and S2 have one more scale. J and L are then lists of one entry | to decide with the parity matrix (Q12) whether ESTEL accepts one block | open (Q12) |
+| OP-83 | Arguments of the operator. A block shorter than 8 pixels has a default J of 0, and the construction fails with an `IndexError` in the kernel code. A list J that holds `None` is completed in place: the caller's list is modified. An integer J raises a `TypeError`, an integer L an `AssertionError` | ESTEL validates the arguments at construction, with clear errors, and leaves the caller's objects unchanged | differs |
 
 ## 4. HEALPix
 
@@ -978,17 +985,17 @@ x^{(d+1)}[n_0] = \frac{\sum_{\gamma \le \rho} e^{-\gamma^2 / 2\sigma^2}\, x^{(d)
 
 The rule of §1.11 applies. OP-90 to OP-92 come from the check of T5.0. OP-45, OP-46 and OP-50 hold the facts for the points to settle Q7, Q8 and Q10 (Part IV, §23); they are not decided here.
 
-| # | Point | Proposal |
-| --- | --- | --- |
-| OP-45 | The pixel centres are computed on the WGS84 ellipsoid by default: their latitudes are geodetic latitudes (at most 0.128° from those of the sphere), used as latitudes of a sphere by a convolution and a decimation that are otherwise spherical. A convolution changes by a relative rms of 2 % (`nside` 8) to 4 % (`nside` 16) for a white noise. The code ESTEL ports (`TorchGeometry`) supports the sphere only | to decide (Q7): ESTEL on the sphere only, and the parity harness runs STL with `ellipsoid="sphere"` |
-| OP-46 | healpix-analyse casts the kernel through float32 (5e-8 of its largest modulus; its sum becomes 9e-9) and caches its interpolation weights in float32: with the cache, enabled by default, the first operator of a geometry has float64 weights and the later ones float32 weights (S3 and S4 change by up to 2.5e-7). The decimation is in float64 | to decide (Q8), as OP-31: what the harness sets (cache disabled), and whether ESTEL reproduces the float32 kernel |
-| OP-47 | The gauge `"cosmo"` is regular at the poles and discontinuous across the equator, where the orientations of the two sides differ by 2φ − 2πg/L; the southern frame is the mirror image of the northern one, so the moduli are symmetric under a mirror through the equator, except on the equatorial ring. The reading of the draft (singular at the poles) was that of the gauge `"phi"` | reproduce; document |
-| OP-48 | The HEALPix wavelet is not the planar one (Gaussian times plane wave, divided by the sum of moduli), so coefficients are not comparable between geometries | reproduce; LF22 |
-| OP-49 | The decimation is a Gaussian of radius 3 pixels and σ = radius/2 (G12), over 26 to 32 fine pixels of which the 4 children carry 0.28 to 0.30 of the weight; it is not the planar smoothing kernel | reproduce; Part III, §20.10 |
-| OP-50 | No border is cropped on a partial sky. At the edge, the convolution renormalises its interpolation weights over the available pixels and replaces a stencil point without any available pixel by the pixel itself; the decimation renormalises over the available fine pixels. These pixels enter every mean (on a disc of 154 pixels at `nside` 16: 121 pixels with a truncated stencil, a relative rms difference of 0.48 from the full-sky values) | reproduce; to decide (Q10) |
-| OP-90 | `cell_ids` must be in ascending order: otherwise the convolution of healpix-analyse (and of `TorchGeometry`) returns its values permuted once more by the inverse sort order, and the decimation reads its input as if it were sorted; no error is raised (measured: differences of the order of the values) | ESTEL requires ascending `cell_ids`, or sorts them itself; to decide with the API of T5.1 |
-| OP-91 | A partial sky of 12 n² pixels given without `nside` is taken for a full sky of `nside` = n | ESTEL requires `nside` whenever `cell_ids` is given; to confirm |
-| OP-92 | The gather tables of `TorchGeometry` equal those of healpix-analyse as linear operators (to 1e-13, and the outputs to 2e-14), not entry by entry: about 1 % of the index entries differ (10924 of 1228800 at `nside` 16) | T5.1 compares the tables as operators; to confirm |
+| # | Point | Proposal | Status |
+| --- | --- | --- | --- |
+| OP-45 | The pixel centres are computed on the WGS84 ellipsoid by default: their latitudes are geodetic latitudes (at most 0.128° from those of the sphere), used as latitudes of a sphere by a convolution and a decimation that are otherwise spherical. A convolution changes by a relative rms of 2 % (`nside` 8) to 4 % (`nside` 16) for a white noise. The code ESTEL ports (`TorchGeometry`) supports the sphere only | to decide (Q7): ESTEL on the sphere only, and the parity harness runs STL with `ellipsoid="sphere"` | open (Q7) |
+| OP-46 | healpix-analyse casts the kernel through float32 (5e-8 of its largest modulus; its sum becomes 9e-9) and caches its interpolation weights in float32: with the cache, enabled by default, the first operator of a geometry has float64 weights and the later ones float32 weights (S3 and S4 change by up to 2.5e-7). The decimation is in float64 | to decide (Q8), as OP-31: what the harness sets (cache disabled), and whether ESTEL reproduces the float32 kernel | open (Q8) |
+| OP-47 | The gauge `"cosmo"` is regular at the poles and discontinuous across the equator, where the orientations of the two sides differ by 2φ − 2πg/L; the southern frame is the mirror image of the northern one, so the moduli are symmetric under a mirror through the equator, except on the equatorial ring. The reading of the draft (singular at the poles) was that of the gauge `"phi"` | reproduce; document | reproduced |
+| OP-48 | The HEALPix wavelet is not the planar one (Gaussian times plane wave, divided by the sum of moduli), so coefficients are not comparable between geometries | reproduce; LF22 | reproduced |
+| OP-49 | The decimation is a Gaussian of radius 3 pixels and σ = radius/2, over 26 to 32 fine pixels of which the 4 children carry 0.28 to 0.30 of the weight; it is not the planar smoothing kernel | reproduce; Part III, §20.10 | reproduced |
+| OP-50 | No border is cropped on a partial sky. At the edge, the convolution renormalises its interpolation weights over the available pixels and replaces a stencil point without any available pixel by the pixel itself; the decimation renormalises over the available fine pixels. These pixels enter every mean (on a disc of 154 pixels at `nside` 16: 121 pixels with a truncated stencil, a relative rms difference of 0.48 from the full-sky values) | reproduce; to decide (Q10) | open (Q10) |
+| OP-90 | `cell_ids` must be in ascending order: otherwise the convolution of healpix-analyse (and of `TorchGeometry`) returns its values permuted once more by the inverse sort order, and the decimation reads its input as if it were sorted; no error is raised (measured: differences of the order of the values) | ESTEL requires ascending `cell_ids`, or sorts them itself; to decide with the API of T5.1 | open (Q10) |
+| OP-91 | A partial sky of 12 n² pixels given without `nside` is taken for a full sky of `nside` = n | ESTEL requires `nside` whenever `cell_ids` is given; to confirm | open (Q10) |
+| OP-92 | The gather tables of `TorchGeometry` equal those of healpix-analyse as linear operators (to 1e-13, and the outputs to 2e-14), not entry by entry: about 1 % of the index entries differ (10924 of 1228800 at `nside` 16) | T5.1 compares the tables as operators; to confirm | open (Q9) |
 
 
 ## 5. Syntheses
@@ -1026,7 +1033,7 @@ From statistics: the target is a statistics object computed beforehand with `nor
 - **Not standardised.** The running field is in the standardised units of the target, and it is never standardised itself: the loss compares its `mean` with 0 and its `var` with 1 (M-SYN-LOSS). After the pre-filter, the start has a variance below 1, close to the fraction of modes that the filter keeps (M-SYN-NYQ). **⚠ OP-73**
 - **Missing data:** the missing pixels of the running field are set to 10¹⁰, and their gradient is set to 0 at every iteration, so they never move; they are NaN in the result. **⚠ OP-53** After 1.0.0 (Part III, §16, LF47).
 - **Randomness:** STL seeds the global generator of PyTorch (`seed`, 26 by default in the user-level functions, no seeding by default in the mid-level ones), then draws the whole batch in one call, `torch.randn((nbatch, Nc, N1, N2))`, in the dtype and on the device of the running operator; nothing else is drawn between the seeding and this call. ESTEL uses explicit keys (Part I, §3.1, rule 5). **⚠ OP-55**
-- **Taper.** The former point G11 mentioned a Tukey taper of the Gaussian start on non-periodic axes. STL's syntheses at the frozen commits apply none; the only cosine taper is the border mask of the spectrum estimator. **[to verify]** whether it comes from another code base (STL-Dev-MPI) and should be reproduced. After 1.0.0 (Part III, §16, LF47).
+- **Taper.** An earlier list of open points mentioned a Tukey taper of the Gaussian start on non-periodic axes. STL's syntheses at the frozen commits apply none; the only cosine taper is the border mask of the spectrum estimator. **[to verify]** whether it comes from another code base (STL-Dev-MPI) and should be reproduced. After 1.0.0 (Part III, §16, LF47).
 - **Checked** (same cases as M-SYN-TARGET): the start of a default synthesis is the pre-filter of `torch.randn((nbatch, Nc, N1, N2))` drawn after `torch.manual_seed(26)`, to 8.9e-16; its variance is 0.77 to 0.78 at 32 × 32, where the filter keeps 795 modes of 1024.
 - **Source:** `ScatteringMatchModel.__init__`, `optimize_from_maps`, `optimize_from_stats`.
 
@@ -1112,18 +1119,18 @@ Checkpoints (Part II, §9.2 and §12.9): the state of the optimiser, the running
 
 The rule of §1.11 applies. OP-39 also concerns syntheses; for the loss it is closed by Q14 (Part IV, §22; M-SYN-LOSS). OP-70 to OP-76 come from the check of T6.0.
 
-| # | Point | Proposal |
-| --- | --- | --- |
-| OP-51 | Weights 3.5 for S3 and 3.5² for S4 in the loss, without a stated reason | reproduce as the default; document |
-| OP-52 | The syntheses use the default J minus 1 for non-periodic fields | reproduce. After 1.0.0 (Part III, §16, LF47) |
-| OP-53 | Missing pixels of the running field are set to 10¹⁰ and frozen | ESTEL uses weights: the pixels are never read; to verify that the trajectory is unchanged. After 1.0.0 (Part III, §16, LF47) |
-| OP-54 | The Nyquist pre-filter uses the radius of the shorter side for rectangular fields | reproduce |
-| OP-55 | Global seed, and a default seed of 26 in the user-level functions | ESTEL takes an explicit key; no default seed |
-| OP-56 | In `synthesize_from_maps`, the default `prefilter_Nyquist` calls `init_running.isnan.any()`, which fails when an initial field is given | ESTEL computes the intended value. After 1.0.0 (Part III, §16, LF47) |
-| OP-70 | A synthesis from statistics modifies the caller's statistics in place: S3 and S4 stay multiplied by their weights, `mean_pre_std` and `std_pre_std` are replaced by their batch means, `compute_PS` can be set to False; a second synthesis from the same object has another target (measured: a starting loss of 1.6e2 instead of 0.96) | ESTEL is functional and leaves its inputs unchanged: the first synthesis is reproduced, not the effect on later ones; to confirm |
-| OP-71 | From statistics with `mean_field=True`, the loss is divided by the target's Nb; from maps it is not. The minimum is the same, the trajectory of L-BFGS is not | reproduce; to examine |
-| OP-72 | The standardisation differs between the two entries. From maps with `mean_field=True`: one μ and one σ for the batch, σ the square root of the mean variance, on the filtered target. From statistics: each map standardised on its own when the statistics were computed, never filtered, and the result de-standardised with the batch means of μ and of σ | reproduce; document; to examine |
-| OP-73 | The running field is never standardised, and the pre-filter leaves the start with a variance near π/4 (0.78 at 32 × 32) against a target `var` of 1 | reproduce |
-| OP-74 | PyTorch's cap on evaluations, ⌊5 × `max_iter` / 4⌋, can stop a run before `max_iter` iterations; STL prints the number of evaluations as "iterations" | reproduce the cap; ESTEL names the two counts apart |
-| OP-75 | From maps the channel axis of the result is removed only if the target was a 2D array; from statistics, whenever Nc = 1 | to decide with the API of T6.1 |
-| OP-76 | `synthesize_from_stats` builds the running operator with the default L and wavelet type, whatever those of the target's statistics: it fails for statistics computed with another L | ESTEL takes every setting of the operator from the statistics; to confirm |
+| # | Point | Proposal | Status |
+| --- | --- | --- | --- |
+| OP-51 | Weights 3.5 for S3 and 3.5² for S4 in the loss, without a stated reason | reproduce as the default; document | reproduced |
+| OP-52 | The syntheses use the default J minus 1 for non-periodic fields | reproduce. After 1.0.0 (Part III, §16, LF47) | later (LF47) |
+| OP-53 | Missing pixels of the running field are set to 10¹⁰ and frozen | ESTEL uses weights: the pixels are never read; to verify that the trajectory is unchanged. After 1.0.0 (Part III, §16, LF47) | later (LF47) |
+| OP-54 | The Nyquist pre-filter uses the radius of the shorter side for rectangular fields | reproduce | reproduced |
+| OP-55 | Global seed, and a default seed of 26 in the user-level functions | ESTEL takes an explicit key; no default seed | differs |
+| OP-56 | In `synthesize_from_maps`, the default `prefilter_Nyquist` calls `init_running.isnan.any()`, which fails when an initial field is given | ESTEL computes the intended value. After 1.0.0 (Part III, §16, LF47) | later (LF47) |
+| OP-70 | A synthesis from statistics modifies the caller's statistics in place: S3 and S4 stay multiplied by their weights, `mean_pre_std` and `std_pre_std` are replaced by their batch means, `compute_PS` can be set to False; a second synthesis from the same object has another target (measured: a starting loss of 1.6e2 instead of 0.96) | ESTEL is functional and leaves its inputs unchanged: the first synthesis is reproduced, not the effect on later ones; to confirm | open (Q31) |
+| OP-71 | From statistics with `mean_field=True`, the loss is divided by the target's Nb; from maps it is not. The minimum is the same, the trajectory of L-BFGS is not | reproduce; to examine | open (Q31) |
+| OP-72 | The standardisation differs between the two entries. From maps with `mean_field=True`: one μ and one σ for the batch, σ the square root of the mean variance, on the filtered target. From statistics: each map standardised on its own when the statistics were computed, never filtered, and the result de-standardised with the batch means of μ and of σ | reproduce; document; to examine | open (Q31) |
+| OP-73 | The running field is never standardised, and the pre-filter leaves the start with a variance near π/4 (0.78 at 32 × 32) against a target `var` of 1 | reproduce | reproduced |
+| OP-74 | PyTorch's cap on evaluations, ⌊5 × `max_iter` / 4⌋, can stop a run before `max_iter` iterations; STL prints the number of evaluations as "iterations" | reproduce the cap; ESTEL names the two counts apart | reproduced |
+| OP-75 | From maps the channel axis of the result is removed only if the target was a 2D array; from statistics, whenever Nc = 1 | to decide with the API of T6.1 | open (Q31) |
+| OP-76 | `synthesize_from_stats` builds the running operator with the default L and wavelet type, whatever those of the target's statistics: it fails for statistics computed with another L | ESTEL takes every setting of the operator from the statistics; to confirm | open (Q31) |
