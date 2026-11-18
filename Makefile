@@ -59,8 +59,22 @@ lint:
 	$(RUN) ruff check .
 	$(RUN) ruff format --check .
 
+# Caches shared by every worktree of this machine, outside the repository (task T2.17): a
+# session works in a worktree of its own, whose first `make check` would otherwise start with
+# no cache. mypy's cache and JAX's compilation cache (tests/conftest.py) are kept there. Neither
+# can give a stale result: mypy checks each entry against the source file (size, time, then
+# hash), its options and its version, and JAX names each entry by a hash of the program, of
+# its version and of its flags. Another place: ESTEL_CACHE_DIR=<directory>; none shared (the
+# caches stay in the worktree): ESTEL_CACHE_DIR= (empty), which is also what CI does, since its
+# workflow restores and saves .mypy_cache.
+ifeq ($(origin ESTEL_CACHE_DIR),undefined)
+ESTEL_CACHE_DIR := $(if $(CI),,$(or $(XDG_CACHE_HOME),$(HOME)/.cache)/estel)
+endif
+export ESTEL_CACHE_DIR
+MYPY_CACHE_DIR := $(if $(ESTEL_CACHE_DIR),$(ESTEL_CACHE_DIR)/mypy,.mypy_cache)
+
 types:
-	$(RUN) mypy
+	$(RUN) mypy --cache-dir "$(MYPY_CACHE_DIR)"
 
 # Import contracts of Part I, §2.4 (pyproject.toml); custom contract types live in tools/.
 lint-imports:

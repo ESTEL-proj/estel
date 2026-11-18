@@ -77,6 +77,10 @@ WALL_LIMIT_FACTOR = 5
 LOCAL_BUDGET_FACTOR = 2
 SLOW_REASON = "Slow:"
 REPO = Path(__file__).resolve().parents[1]
+# Size limit of JAX's compilation cache when the worktrees of a machine share it
+# (``_persistent_jax_cache``); the fast tier writes about 5 MB.
+JAX_CACHE_MAX_BYTES = 2 * 1024**3
+
 # What the tests of tests/tools/ test: the fast tier runs them only when the change touches it.
 TOOLS_INPUTS = ("tools", "tests/tools", "pyproject.toml")
 _SETUP_DURATION = pytest.StashKey[float]()
@@ -197,17 +201,32 @@ def _tools_changed() -> bool:
 
 
 def _persistent_jax_cache(config: pytest.Config) -> None:
-    """Keep what XLA compiles in ``.pytest_cache``, so that the other workers of the run, and the
-    next runs, load it instead of compiling it again: locally the JAX fast tier takes 9 s instead
-    of 40. It changes no result: the cache only skips compilations, whose output is the same. In
-    CI it starts empty in each job, since XLA compiles for the host's CPU, JAX keys each entry on
-    it, and GitHub's runners mix many CPU types; the workers of a job still share it."""
+    """Keep what XLA compiles, so that the other workers of the run, and the next runs, load it
+    instead of compiling it again: locally the JAX fast tier takes 9 s instead of 40. It changes
+    no result: the cache only skips compilations, whose output is the same, and JAX names each
+    entry by a hash of the program, of its own version and of XLA's flags, so an entry is never
+    read for another program.
+
+    Where: under ``ESTEL_CACHE_DIR`` when it is set and not empty, as ``make`` sets it outside CI
+    (``~/.cache/estel`` by default), shared by every worktree of the machine, so that the first
+    run of a new worktree compiles nothing the others have compiled (task T2.17); the cache is
+    then bounded (``JAX_CACHE_MAX_BYTES``, the least recently used entries leave first), which
+    also makes JAX lock it, since several sessions may write it at once. Otherwise in
+    ``.pytest_cache``. In CI it starts empty in each job, since XLA compiles for the host's CPU,
+    JAX keys each entry on it, and GitHub's runners mix many CPU types; the workers of a job
+    still share it."""
     import jax
 
-    cache = getattr(config, "cache", None)  # absent with -p no:cacheprovider
-    if cache is None:
-        return
-    directory = cache.mkdir("jax-compilation-cache")
+    shared = os.environ.get("ESTEL_CACHE_DIR")
+    if shared:
+        directory = Path(shared).expanduser() / "jax-compilation-cache"
+        directory.mkdir(parents=True, exist_ok=True)
+        jax.config.update("jax_compilation_cache_max_size", JAX_CACHE_MAX_BYTES)  # type: ignore[no-untyped-call]
+    else:
+        cache = getattr(config, "cache", None)  # absent with -p no:cacheprovider
+        if cache is None:
+            return
+        directory = cache.mkdir("jax-compilation-cache")
     jax.config.update("jax_compilation_cache_dir", str(directory))  # type: ignore[no-untyped-call]
     jax.config.update("jax_persistent_cache_min_compile_time_secs", 0)  # type: ignore[no-untyped-call]
     jax.config.update("jax_persistent_cache_min_entry_size_bytes", 0)  # type: ignore[no-untyped-call]
