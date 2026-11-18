@@ -289,7 +289,7 @@ In step 1, `maths.md` records the mathematics of STL **as it is**, including cho
 | M-NOT | Notation: batch, channels, blocks, levels, slots, ⟨·⟩ over valid pixels | 1 |
 | M-DATA | Fields, masks, valid-pixel weights, pbc per block | 1 |
 | M-WAV-1D, M-WAV-2D | Bump-steerable kernels: construction in Fourier space, crop to 5 taps or 5×5, orientations; the analytic 1D wavelet and its conjugate | 1 |
-| M-WAV-HPX | HEALPix gauge-oriented kernels, stencils, decimation. The definitions of the STL-Dev-MPI `CLAUDE.md` §3, which give the same numbers as the PyTorch code (Q10) | 1 |
+| M-WAV-HPX | HEALPix gauge-oriented kernels, stencils, decimation. The definitions of the STL-Dev-MPI `CLAUDE.md` §3, which give the same numbers as the PyTorch code | 1 |
 | M-SMOOTH-2D, M-SMOOTH-1D, M-LP | Smoothing kernel s, the filter of one downsampling step; low-pass filter φ\_J, the effective filter of scale J, realised as the cascade of the smoothing kernels | 1 |
 | M-DOWN | Normalised downsampling, and the threshold below which an output pixel is masked | 1 |
 | M-BORDER | Padding modes; crop widths as a function of the convolutions applied | 1 |
@@ -318,7 +318,7 @@ In step 1, `maths.md` records the mathematics of STL **as it is**, including cho
 | Invariances | Time reversal swaps the 1D wavelet and its conjugate; S1 ∝ \|a\| and S2 ∝ a² for x → a·x; normalised coefficients unchanged for x → a·x with a > 0, and with a < 0 too except S3, whose sign changes, and mean, which is not normalised (M-NORM); coefficients without box and low-pass terms unchanged for x → x + constant; batch independence; channel-permutation equivariance; block-permutation equivariance of tensor products; an all-valid mask equals no mask; a single-block tensor product equals the plain geometry, which is the reference. Exact translation invariance is not tested in 1.0.0: STL's downsampling probably breaks it (LF25). Nor is invariance under rotations: STL's 2D kernels are not exact rotations of each other (maths tab, OP-58), so a rotation by π/2 matches only to about 1e-2; it is a requirement of the joint design of the filters, tested with it (Part III, §20.10). Two invariances hold only approximately with STL's definitions, and are tested where they are exact: the scaling of the cross S1, because of its ε (OP-16), and the constant shift of 2D data with a mask, because the 2D smoothing kernel sums to 1.00000004 (OP-59) | every PR |
 | Consistency of the estimators | The statistics of one stationary process, estimated on a periodic field, on the same field read as non-periodic, and on the same field with a mask, agree within their statistical error (paired z-scores, with a threshold corrected for the number of comparisons); only the scales that keep enough valid pixels are compared. A configuration where a gap is known (a positive control) shows that the test can see one. A systematic gap is a property of STL's estimator: in step 1 it is measured and recorded as an open point, not corrected (Part II, §15.2, T2.16) | full tier |
 | Differentiation | The §3.2.2 table, float64 | every PR, CPU |
-| Synthesis | In step 1, only the synthesis API: it runs, writes checkpoints and resumes from them; and one comparison with STL: for periodic planar data, a synthesis started from the same field as STL, with the same settings, in float64, follows STL's loss over its first iterations, within a tolerance set by the task (Part II, §15.2, T6.1). Synthesis reference outputs, cross-backend criteria and parity come after 1.0.0 (Part III, §16.7) | every PR (API); full tier (the comparison with STL) |
+| Synthesis | In step 1, only the synthesis API: it runs, writes checkpoints and resumes from them; and one comparison with STL: for periodic planar data, a synthesis started from the same field as STL, with the same settings, in float64, follows STL's loss over its first iterations, within a tolerance set by the task (Part II, §15.2, T6.1). Synthesis reference outputs, cross-backend criteria and parity come after 1.0.0 (Part III, §16) | every PR (API); full tier (the comparison with STL) |
 | maths ↔ spec ↔ tests | Every `M-` ID has a `_spec` function and at least one test, and vice versa | every PR |
 | API | `api/manifest.json` up to date; public vs internal (§2.4); every error message names the fix | every PR |
 | Reserved interfaces | Each interface reserved for step 2 (Part II, §9.4) is exercised through its trivial implementation | every PR |
@@ -385,7 +385,7 @@ Nothing leaves the full tier: a test marked `slow` or left out of the fast tier 
 | Tier | Trigger | Where | Budget | Content |
 | --- | --- | --- | --- | --- |
 | 0 | every push and PR; nightly | GitHub-hosted CPU | fast tier ≤ 2 min, full tier ≤ 15 min | ruff, type check, §2.4 checks (including public vs internal), manifest, mirrors, maths IDs, the tests on CPU, differentiation, also on JAX, in parallel jobs (§3.1). PRs run the fast tier of §5.4; `main`, the nightly run and PRs labelled `full-ci` run the full tier: all tests in float32 and float64, the whole suite on both backends. In step 2: CPU build of the Rust wheels |
-| 1 | PR, after tier 0 passes. **Set up after 1.0.0** (Part III, §16.7) | HPC GPU, constrained (§6.2) | ≤ 20 min wall time, 1 GPU | `pytest -m gpu`: reference values on GPU, determinism (two runs bit-identical), GPU syntheses, benchmark smoke test. In step 2: GPU build of the Rust wheels |
+| 1 | PR, after tier 0 passes. **Set up after 1.0.0** (Part III, §16) | HPC GPU, constrained (§6.2) | ≤ 20 min wall time, 1 GPU | `pytest -m gpu`: reference values on GPU, determinism (two runs bit-identical), GPU syntheses, benchmark smoke test. In step 2: GPU build of the Rust wheels |
 | 2 | `bench` label set by humans; release candidates | dedicated, pinned GPU node, outside CI | hours | full benchmark; results committed by a bot to `bench/results/` with a hardware fingerprint |
 
 ### 6.2 Constrained GPU access from CI
@@ -403,7 +403,7 @@ The repository is public, and the code in a PR is written by agents and will run
 - **Results come back as a check status and artifacts only.** The runner holds no write token to the repository.
 - **A pinned node type.** Smoke-benchmark numbers are recorded but never gate a merge, because a shared HPC node is too noisy. Benchmark decisions that affect versions come only from tier 2.
 
-Tier 1 is set up after 1.0.0. The scheduler, the container runtime and the network rules of the gateway node are confirmed then (Part III, §16.7).
+Tier 1 is set up after 1.0.0. The scheduler, the container runtime and the network rules of the gateway node are confirmed then (Part III, §16).
 
 ### 6.3 Benchmarks
 
@@ -450,7 +450,7 @@ How the two steps map onto versions:
 **How CI sees a bump of a reference counter.** `STATISTICS_REFERENCE` and `SYNTHESIS_REFERENCE` are integer constants in `src/estel/_reference.py`, a protected file (§5.3), exported by `estel/__init__.py`. `tools/version_impact.py` reads them on the base branch and on the PR:
 
 - a PR that changes `tests/reference/` must increase `STATISTICS_REFERENCE` by exactly one, and a PR that changes `STATISTICS_REFERENCE` must change `tests/reference/`; before 1.0.0 a mismatch is only reported, from 1.0.0 it fails;
-- `SYNTHESIS_REFERENCE` follows the same rule for the synthesis references, once they exist (after 1.0.0, Part III, §16.7, W2). It stays 0 until then, and goes to 1 with the first synthesis references; at the 1.0.0 freeze, only `STATISTICS_REFERENCE` goes to 1;
+- `SYNTHESIS_REFERENCE` follows the same rule for the synthesis references, once they exist (after 1.0.0, Part III, §16, W2). It stays 0 until then, and goes to 1 with the first synthesis references; at the 1.0.0 freeze, only `STATISTICS_REFERENCE` goes to 1;
 - no label is involved: the bump is in the code, visible in the diff, and approved through CODEOWNERS.
 
 Each PR adds a news fragment `changes/<PR>.<major|minor|patch>.md` (towncrier). CI fails if the declared bump is below the required one.
@@ -482,20 +482,7 @@ Every coding agent reads the same rules:
 
 ### 8.2 Golden rules
 
-The top of `AGENTS.md`:
-
-1. Statistics never change silently. If your change alters any reference value, stop: it requires bumping `STATISTICS_REFERENCE` and a human decision. Open an issue instead.
-2. Never edit protected paths (§5.3). Never weaken, skip or delete a test to make CI pass.
-3. `torch` and `jax` are imported only in `src/estel/backend/`. L1 and L2 code is functional: no in-place updates, no Python control flow on array values (§3.1).
-4. Every mathematical change goes through `docs/maths.md` (with an `M-` ID), `_spec`, and a reference regeneration by a human.
-5. Declare the version impact in `changes/`. CI computes the real one.
-6. One topic per PR, branched from `main`. Name follow-ups explicitly (rules E1, E2).
-7. Public API changes start in `api/manifest.json`. Additions are minors, breaking changes majors.
-8. Error messages say what to do next: agents read them.
-9. Before opening a PR, run `make check` (tier 0, locally).
-10. When the specification is ambiguous, ask in an issue. Do not choose.
-11. **Step discipline.** Before 1.0.0, never add a capability STL does not have, except those this document lists explicitly. After 1.0.0, a new capability enters as an opt-in feature described in Part III of the transfer document — later, in the ESTEL reference document.
-12. **Public or internal.** Only names listed in `api/manifest.json` are public. Anything else lives in a private module or starts with an underscore (§2.4).
+The golden rules are the top of `AGENTS.md`, their only copy: every session reads them first, and the mirrored files (§8.1) follow them. They are not repeated here.
 
 ### 8.3 Review rules
 

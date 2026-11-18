@@ -7,7 +7,6 @@
 - [21. Critical review: failure modes](#21-critical-review-failure-modes)
 - [22. Decision log](#22-decision-log)
 - [23. Points to settle](#23-points-to-settle)
-- [24. Deferred work and points to discuss later](#24-deferred-work-and-points-to-discuss-later)
 
 ## 21. Critical review: failure modes
 
@@ -21,26 +20,26 @@ The plan is sound in its core: a frozen skeleton, versions tied to reference val
 | F4 | **Benchmark gaming** | Minor versions are earned by benchmark gains, so an agent can specialise on the benchmark sizes | Public cases defined with the maintainers; thresholds chosen by humans (a factor 2 to begin with); correctness asserted in every run (Part I, §6.3) | mitigated |
 | F5 | **The two scattering loops diverge** | In STL they are already two loops (\~190 and \~700 lines). Overriding the mother loop invites copy-paste | `STOperatorTensorProd` overrides only a fixed set of hooks (Part II, §12.6); a line budget on its file; the single-block invariance test | mitigated |
 | F6 | **Backend neutrality on paper only** | If step 1 ran only on PyTorch, PyTorch idioms could settle into L1 and L2 unnoticed, and the JAX port would become a rewrite | AST checks (Part I, §2.4) and the experimental JAX backend, which runs the whole test suite from phase P1 (Part I, §3.1) | largely mitigated |
-| F7 | **The memory wall** | The compact layout shrinks outputs, but the largest tensor products fail on intermediates (about 34 GB for the first layer of 2D+1D+1D) | `estimate_memory`; a budget error; the Rust engine bounds memory by block for HEALPix and 2D; contraction of the second-layer means (LF31); streaming later (LF19) | partly mitigated in step 2 |
+| F7 | **The memory wall** | The compact layout shrinks outputs, but the largest tensor products fail on intermediates (about 34 GB for the first layer of 2D+1D+1D) | `estimate_memory`; a budget error; the Rust engine bounds memory by block for HEALPix and 2D; the Gram form of the second layer, in place since T2.12; streaming later (LF19) | partly mitigated: the Gram form removed the temporaries of the second layer in step 1 (Part III, §19.14); the rest in step 2 |
 | F8 | **Fragile second-order derivatives** | The modulus at zero, NaN gradients through `where`, the regularised division, in-place operations | The rules of Part I, §3.2.3 and their float64 tests | mitigated |
 | F9 | **Major-version churn** | Many mathematical changes are queued (Part III, §20); if each changed default were its own major, versions would climb fast and downstream pins break | Opt-in first; `STATISTICS_REFERENCE` separates value changes from interface changes, and whether a value change is a major is decided case by case (Part I, §7.1) | mitigated |
 | F10 | **Reproducibility across hardware and dependencies** | float32 GPU results vary with GPU generation and CUDA versions; synthesis trajectories move with PyTorch, optax and XLA | Tolerances per device class; deterministic mode in tests; a lock file (Part I, §1.6); synthesis references per backend, regenerated with human approval through `SYNTHESIS_REFERENCE` (Q6) | mitigated |
 | F11 | **Agents misconfigure a wide API** | STL's `ST_Operator` takes about 25 arguments, some set in two places | Options set once (rule A6), validated once, with errors that name the fix; `describe()`, `estimate_memory()`, the manifest | mitigated |
 | F12 | **The HEALPix dependency** | STL's HEALPix path relies on healpix-analyse: young, PyTorch-only, heavy dependencies | The parts STL uses are ported into ESTEL (Part II, §9.3); healpix-analyse is test-only, pinned at `aac5e26` | resolved |
-| F13 | **Step 2 leaks into step 1** | The temptation to "just add" a small improvement while porting | The step rule (Part I, §1.3), golden rule 11 (with its one listed exception, synthesis checkpoints), review rule X9; every non-STL behaviour shows up as a parity failure | mitigated |
+| F13 | **Step 2 leaks into step 1** | The temptation to "just add" a small improvement while porting | The step rule (Part I, §1.3), golden rule 11 (with its one listed exception, synthesis checkpoints), review rule X9; every non-STL behaviour shows up as a parity failure | mitigated; a reorganisation that changes no value now belongs to step 1, under a written rule (§22, "Efficiency in step 1") |
 | F14 | **STL patterns get copied** | Class-name checks, `__class__` reassignment, module-level backend globals, mutable `conv_history`, complex storage of real quantities | AST checks; in step 1, full-grid tensors keep STL's shapes and dtypes for parity, and real storage of real quantities comes with the compact layout (LF14); a "do not copy" section in `docs/agents/architecture.md` | mitigated |
 | F15 | **Downstream breaks on internals** | Implicit differentiation downstream calls the pure functions directly; anything that looks public will be used | `estel.functional` is in the manifest; the public/internal rule and its CI check (Part I, §2.4) | mitigated |
 | F16 | **Name squatting** | `estel` is free on PyPI | Publish 1.0.0 on PyPI as soon as it is ready (Part II, §15, P8) | planned |
 | F17 | **Engine and mathematics diverge** | Two implementations of the same statistics (Python, Rust) | One repository: a change of mathematics updates the oracle, the Python engine and the Rust engine in the same pull request; static plan mapping and engine parity tests (Part III, §18.2) | mitigated |
-| F18 | **This document and the reference document drift** | After 1.0.0, two documents describe ESTEL | The reference document is written with 1.0.0, in `docs/reference.md`, including the register of later features and §24; this document is then archived | planned (P8) |
+| F18 | **This document and the reference document drift** | After 1.0.0, two documents describe ESTEL | The reference document is written with 1.0.0, in `docs/reference.md`, including the register of later features; this document is then archived | planned (P8) |
 | F19 | **Reserved interfaces that constrain step 2 wrongly** | An interface designed before its use may not fit it | Keep reserved interfaces minimal and tested; remove or redesign them in a major rather than working around them | accepted |
 | F20 | **The parity harness cannot be rerun** | STL's dependencies drift and its environment can no longer be installed | A pinned container image, archived with the parity report (Part II, §14.2) | mitigated |
 | F21 | **A late, heavy review** | The CODEOWNERS review step 1 as a whole, at its end: problems found late are costly, and the review itself is large | Each phase produces its parity report and test results; the maintainers may look at any phase as soon as it ends; the work breakdown (Part II, §15.2) keeps each change small and traceable | open |
-| F22 | **Deferred points are forgotten** | Many decisions defer work to later steps | Every deferred feature is in the register (Part III, §16), every other deferred item in Part III, §16.7, each with its source; both are carried over into the ESTEL reference document | mitigated |
+| F22 | **Deferred points are forgotten** | Many decisions defer work to later steps | Every deferred feature is in the register (Part III, §16), the deferred work that is not a feature with it (W1 to W4), each with its source; both are carried over into the ESTEL reference document | mitigated; a check that every identifier cited exists follows (issue #107) |
 
 ## 22. Decision log
 
-Every decision from 4 November 2026 on, in order: one row per decision, with its date, its identifier, its point, the decision and where it is applied. The rows of 4 to 6 November 2026 are the decisions up to draft 0.2, updated where later decisions replaced them; they have no identifier. R3 to R13 are the questions of drafts 0.2 to 0.4 and of 12 November 2026, all answered (R1 and R2, still open, became Q1 and Q2, §23). C1 to C23 (critical before the start), S1 to S18 (needed during step 1) and A1 to A12 (API and naming) are the points of the review round of 12 November 2026, and the decisions of 13 November 2026; "Traced" means a point is not implemented now and is recorded where shown, so that it is not forgotten. R-… are the remarks of the review of 16 November 2026 (86 remarks, R-A00 to R-P17) that were decided here; the others went to the maths tab, to the register (Part III, §16.6), to the points to settle (§23), or to issues #71 to #73. From 16 November 2026 on, the column "Where" also gives the pull request that brought the decision.
+Every decision from 4 November 2026 on, in order: one row per decision, with its date, its identifier, its point, the decision and where it is applied. The rows of 4 to 6 November 2026 are the decisions up to draft 0.2, updated where later decisions replaced them; they have no identifier. R3 to R13 are the questions of drafts 0.2 to 0.4 and of 12 November 2026, all answered (R1 and R2, still open, became Q1 and Q2, §23). C1 to C23 (critical before the start), S1 to S18 (needed during step 1) and A1 to A12 (API and naming) are the points of the review round of 12 November 2026, and the decisions of 13 November 2026; "Traced" means a point is not implemented now and is recorded where shown, so that it is not forgotten. R-… are the remarks of the review of 16 November 2026 (86 remarks, R-A00 to R-P17) that were decided here; the others went to the maths tab, to the register (Part III, §16), to the points to settle (§23), or to issues #71 to #73. From 16 November 2026 on, the column "Where" also gives the pull request that brought the decision.
 
 | Date | ID | Point | Decision | Where |
 | --- | --- | --- | --- | --- |
@@ -52,7 +51,7 @@ Every decision from 4 November 2026 on, in order: one row per decision, with its
 | 4–6 November 2026 | — | Fourier-space wavelets | Obsolete in ESTEL | — |
 | 4–6 November 2026 | — | Applications | Component separation and inverse problems stay downstream; they need true implicit differentiation | — |
 | 4–6 November 2026 | — | Utilities | Plotting and diagnostics stay in the core | — |
-| 4–6 November 2026 | — | Later features | Gathered in Part III, §16; the deferred work in Part III, §16.7; both carried over into the reference document | S10 |
+| 4–6 November 2026 | — | Later features | Gathered in Part III, §16; the deferred work that is not a feature with them; both carried over into the reference document | S10 |
 | 4–6 November 2026 | — | Classes | A simple mother class, overridden for tensor products; explicit 1D and 2D classes; one `STOperator`, one `STOperatorTensorProd`, one `STStatistics`, one generic `WaveletOperator` branching on `ndim`; class names in CapWords | A9 |
 | 4–6 November 2026 | — | Backends | PyTorch in step 1, with JAX experimental from P1; JAX stable in step 2; L0 and JAX-ready rules from the first commit | — |
 | 4–6 November 2026 | — | Selection | Global default, fixed when an operator is built; float32 default; float64 path for tests | — |
@@ -72,7 +71,7 @@ Every decision from 4 November 2026 on, in order: one row per decision, with its
 | 4–6 November 2026 | — | Deferred | Q1 (canonical set) and Q2 (gradients through the reference): after 1.0.0 | — |
 | 4–6 November 2026 | — | Document | One tab per part; a short contents in the Overview tab, a developed one in each part | — |
 | 6–13 November 2026 | R3 | **Utilities in step 1?** | answered: later (LF11) | Part II, §12.10 |
-| 6–13 November 2026 | R4 | **GPU CI on the cluster** | answered: after 1.0.0; details then | Part I, §6.2; §24.1 |
+| 6–13 November 2026 | R4 | **GPU CI on the cluster** | answered: after 1.0.0; details then | Part I, §6.2; Part III, §16, W1 |
 | 6–13 November 2026 | R5 | **Licence** | answered: Apache-2.0 | Part I, §1.5 |
 | 6–13 November 2026 | R6 | **healpix-analyse in step 1** | answered: ported, no runtime dependency | Part II, §9.3 |
 | 6–13 November 2026 | R7 | **Parity precision** | answered: STL runs in float64 | Part II, §14.3 |
@@ -89,37 +88,37 @@ Every decision from 4 November 2026 on, in order: one row per decision, with its
 | 12–13 November 2026 | C5 | Public API | The current document holds; where it is silent, STL is the default, and doubts are raised with the maintainers | Part II, §12.1 |
 | 12–13 November 2026 | C6 | Public vs internal | Agreed: manifest, private modules, underscores, CI check | Part I, §2.4, §8.2; Part II, §11, §12 |
 | 12–13 November 2026 | C7 | `maths.md` | Started; stick to STL; improvements are for step 2 | maths tab; Part II, §15.2, T0.5 |
-| 12–13 November 2026 | C8 | Open points of STL's mathematics | G4 later (LF26); G5 defined in the maths tab | Part II, §13.2 |
+| 12–13 November 2026 | C8 | Open points of STL's mathematics | G4 later (LF26); G5 defined in the maths tab | maths tab, OP-44, M-S1 |
 | 12–13 November 2026 | C9 | healpix-analyse | Port what is needed; no runtime dependency | Part II, §9.3; Part I, §1.6 |
 | 12–13 November 2026 | C10 | healpix-analyse version for parity | The latest pushed version, `aac5e26` (v2026.10.2) | Part II, §9.1, §14.2 |
 | 12–13 November 2026 | C11 | Rust engine repository | Everything in the same repository | Part II, §11; Part III, §18.2 |
 | 12–13 November 2026 | C12 | Naming | "rust", not "native" | everywhere |
 | 12–13 November 2026 | C13 | Work breakdown | Done | Part II, §15.2 |
 | 12–13 November 2026 | C14 | Agent context and policy files | Drafted from Part I | Part I, §8; draft files of 12 November 2026 |
-| 12–13 November 2026 | C15 | `apply` or `forward` | `apply` kept; Pablo is considering the question | §24.2 |
+| 12–13 November 2026 | C15 | `apply` or `forward` | `apply` kept; Pablo is considering the question | §22, R-A09 |
 | 12–13 November 2026 | C16 | Rust: engine or backend | An engine, kept as it is; splitting it into primitives would lose its gains | Part I, §2.2.4 |
 | 12–13 November 2026 | C17 | Masks | Static, as in STL | Part I, §2.3, §3.1 |
 | 12–13 November 2026 | C18 | Loops and memory | Step 1 keeps STL's loop; contraction in step 2; any reorganisation after a benchmark. Replaced by the row "Efficiency in step 1" of §22 | Part I, §3.1; Part III, §19.3, LF31 |
 | 12–13 November 2026 | C19 | Translation invariance | Not tested in 1.0.0; step 2 | Part I, §5.1; Part III, §20.8, LF25 |
 | 12–13 November 2026 | C20 | Reference S2 scale | Compared too, with the S2 coefficients | Part I, §5.1, §5.2 |
-| 12–13 November 2026 | C21 | Versioning | Three numbers plus two reference counters; majors for value changes decided case by case | Part I, §7; §24.2 |
+| 12–13 November 2026 | C21 | Versioning | Three numbers plus two reference counters; majors for value changes decided case by case | Part I, §7; §23, Q3 |
 | 12–13 November 2026 | C22 | Cross-spectrum conflict | 1.0.0: 2D spectra as in `master` only; 1D, tensor-product and HEALPix spectra later | Part II, §9; Part III, LF23, LF24 |
 | 12–13 November 2026 | C23 | Second order | For PyTorch and JAX now; for Rust later | Part I, §3.2.4; Part III, LF15 |
 | 12–13 November 2026 | S1 | JAX trace test | Yes, from P1; superseded by the experimental JAX backend (row 'JAX in step 1') | Part I, §3.1 |
 | 12–13 November 2026 | S2 | Contracts of the L0 primitives | Those that affect values are in `maths.md` | Part II, §12.3 |
-| 12–13 November 2026 | S3 | Parity cases | Scattering statistics first; synthesis tests after 1.0.0 | Part I, §5.1; §24.1 |
+| 12–13 November 2026 | S3 | Parity cases | Scattering statistics first; synthesis tests after 1.0.0 | Part I, §5.1; Part III, §16, W2 |
 | 12–13 November 2026 | S4 | Reference inputs | No SST crop; STL's data are public | Part I, §5.1 |
 | 12–13 November 2026 | S5 | Parity precision | STL runs in float64 | Part II, §14.3 |
 | 12–13 November 2026 | S6 | Single-block tensor product | To check; the plain geometry is the reference | Part I, §5.1; Part II, §14.4 |
 | 12–13 November 2026 | S7 | Utilities | Later | Part III, LF11 |
-| 12–13 November 2026 | S8 | GPU CI | After 1.0.0 | Part I, §6.1; §24.1 |
+| 12–13 November 2026 | S8 | GPU CI | After 1.0.0 | Part I, §6.1; Part III, §16, W1 |
 | 12–13 November 2026 | S9 | Benchmark thresholds | A factor 2 in speed or memory, to begin with | Part I, §6.3 |
 | 12–13 November 2026 | S10 | Reference document | Written with 1.0.0, in the repository, with the register of later features | Part II, §11, §15; F18 |
 | 12–13 November 2026 | S11 | PyPI | As soon as 1.0.0 is ready | Part II, §15, P8; F16 |
 | 12–13 November 2026 | S12 | More invariance tests | Added now | Part I, §5.1 |
-| 12–13 November 2026 | S13 | Cross-backend synthesis and gradients | After 1.0.0, traced | §24.1 |
+| 12–13 November 2026 | S13 | Cross-backend synthesis and gradients | After 1.0.0, traced | Part III, §16, W3 |
 | 12–13 November 2026 | S14 | SST crop | Removed | Part I, §5.1 |
-| 12–13 November 2026 | S15 | Synthesis budget | To discuss later | §24.2 |
+| 12–13 November 2026 | S15 | Synthesis budget | To discuss later | §23, Q4 |
 | 12–13 November 2026 | S16 | Hidden benchmark pool | No: public cases defined together | Part I, §6.3 |
 | 12–13 November 2026 | S17 | `sum(w)` | Precomputed in the plan | Part I, §3.1.1; Part II, §12.4 |
 | 12–13 November 2026 | S18 | Memory of immutable objects | Explained; measured in P2 | Part I, §3.1.1 |
@@ -130,11 +129,11 @@ Every decision from 4 November 2026 on, in order: one row per decision, with its
 | 12–13 November 2026 | A5 | Spectra interface | One `method=` for every geometry, HEALPix included | Part II, §12.8 |
 | 12–13 November 2026 | A6 | Document title | Kept | — |
 | 12–13 November 2026 | A7 | Part II cross-references | Now name their tab | Part II |
-| 12–13 November 2026 | A8 | Rust second order | Developed later (LF15); automatic routing to the Python engine to discuss | §24.2 |
+| 12–13 November 2026 | A8 | Rust second order | Developed later (LF15); automatic routing to the Python engine to discuss | §23, Q5 |
 | 12–13 November 2026 | A9 | Class names | CapWords: `STOperator`, `STOperatorTensorProd`, `STStatistics` | Part I, §2.3; Part II, §12 |
 | 12–13 November 2026 | A10 | Tensor-product dispatch | Along each block's axes, without `swapaxes`; benchmarked in P3 | Part II, §12.4, §15 |
 | 12–13 November 2026 | A11 | Synthesis checkpoints | In step 1, although STL lacks them | Part II, §9.2, §12.9 |
-| 12–13 November 2026 | A12 | G3, partial order | Written explicitly with its consequences; relevance examined later | Part II, §13.2; Part III, §20.9, LF27 |
+| 12–13 November 2026 | A12 | G3, partial order | Written explicitly with its consequences; relevance examined later | maths tab, M-IDX-TP; Part III, §20.9, LF27 |
 | 12–13 November 2026 | — | float32 readiness (Erwan's comment on Part I) | Every computation runs in float32 as well as float64 | Part I, §3.1, rule 7 |
 | 12–13 November 2026 | OP-24 | Morlet wavelets | Excluded: bump-steerable only; a general optimisation of the wavelets later (LF22) | Part II, §10; maths tab |
 | 12–13 November 2026 | OP-3, OP-8 | Where STL fails | ESTEL raises a clear error; parity is compared only where STL works; OP-3 revised (row 'OP-3 revised') | Part II, §9.2; maths tab |
@@ -151,7 +150,8 @@ Every decision from 4 November 2026 on, in order: one row per decision, with its
 | 12–13 November 2026 | — | Centred covariances | The scattering covariances are covariances by definition; STL's raw moments are a simplification. 1.0.0 reproduces STL. Step 2 centres by default, only where the plan cannot prove a zero mean, by correcting coefficients; one window per level; band-pass kernels sum to zero by requirement; `centre` and `norm` are independent | Part III, LF33, §20.11; maths tab, OP-36 |
 | 12–13 November 2026 | — | Mean of the data | Removed first and stored apart, explicitly; if it is not, the terms ending with a low-pass filter are centred explicitly | Part III, §20.11 |
 | 12–13 November 2026 | — | T2.5 public interface | norm_batch_mean False as in STL; reference stored in the operator, internal; LF21 closed; functional.scattering(x, plan, filters, ref=None) with ScatteringPlan and ScatteringFilters public and opaque; channels and compute_cross_matrix fixed at construction; MPI hook _global_sum, internal; "reduction" reserved for iso, angular_ft and scale_ft; one select method; to_vector as STL (OP-37) | Part II, §9.4, §11, §12.6, §12.7; Part III, LF21; maths tab, OP-37 |
-| 16 November 2026 | — | Lists of the specification | four lists, one purpose each: open points of the mathematics (OP, maths tab), everything later (register, Part III, §16), everything decided (this log), everything still to decide (§23). The G list of Part II, §13.2 is retired; §23 and §24.2 are merged into §23; §24.1 moves to Part III, §16.7 | Part II, §13.2; Part III, §16; §23 |
+| 14 November 2026 | LF21 | Gradient semantics through the reference | closed: it follows from the mode. With `norm="self"` the reference is part of the computation and gradients flow through it; with `norm="ref"` it is a constant. The entry left the register on 18 November 2026 | maths tab, OP-18 |
+| 16 November 2026 | — | Lists of the specification | four lists, one purpose each: open points of the mathematics (OP, maths tab), everything later (register, Part III, §16), everything decided (this log), everything still to decide (§23). The G list of Part II, §13.2 is retired; §23 and §24.2 are merged into §23; §24.1 moves to Part III, §16.7. Replaced on 18 November 2026 by the row "Lists and identifiers" | Part III, §16; §23 |
 | 16 November 2026 | R-A00 | Default channel pairs | `compute_cross_matrix=None` computes every pair c₁ ≤ c₂, as STL's code | maths tab, M-CHAN, OP-38 |
 | 16 November 2026 | R-A01 | Index numbering | STL's numbering, as a rule: indices numbered from the end. j₃, ℓ₃ is the wavelet applied last; j₂, ℓ₂ the arm of S3, also the second arm of S4; j₁, ℓ₁ the extra arm of S4. S3 is an S4 whose first arm is replaced by the field. S1 and S2 keep (j, ℓ) | maths tab, M-S3, M-S4 |
 | 16 November 2026 | R-A02 | `norm` | values `"none"`, `"self"`, `"ref"`; `norm_batch_mean` becomes `ref_batch_mean` | PR #76 |
@@ -166,7 +166,7 @@ Every decision from 4 November 2026 on, in order: one row per decision, with its
 | 16 November 2026 | R-A11 | `functional.scattering` | first argument named `data` | PR #76 |
 | 16 November 2026 | R-A12 | Messages | errors, warnings and the docstrings of public names speak ESTEL's vocabulary and do not mention STL; the link with STL is in maths.md, through the M- and OP- references they give | PR #76 |
 | 16 November 2026 | R-Y03 | A reference from another operator | accepted when J, L and the channels match, with a clear error otherwise | PR #68 |
-| 16 November 2026 | G1 | Coefficient count of plain 2D | follow STL: 1,474, since plain 2D has no low-pass term in STL (the deliverable's formula gives 1,476) | Part II, §13.2; LF6 |
+| 16 November 2026 | G1 | Coefficient count of plain 2D | follow STL: 1,474, since plain 2D has no low-pass term in STL (the deliverable's formula gives 1,476) | LF6 |
 | 16 November 2026 | R-E01, R-N19 | Smoothing table, kernel rotations | recorded as OP-59 and OP-58 | maths tab |
 | 16 November 2026 | — | Wavelet operator | the only way to the geometry: one generic `WaveletOperator` provides, level by level, the convolution, the downsampling, the low-pass filter, the shapes of the levels and the rules of borders and masks; `STOperator`, its plan and its loop do not depend on the geometry; the code of each geometry stays in its `Data` hooks and table builders, called by the wavelet operator only; this replaces the public wrapper first planned for T2.10 | Part I, §2.1, §2.3; Part II, §12.4 to §12.6, T2.10, T3.1, T5.1; #83 |
 | 16 November 2026 | — | Invariance under rotations | not tested in 1.0.0: STL's 2D kernels match a rotation by π/2 only to 3e-3 to 9e-3 (OP-58), so the test comes with the joint design of the filters, with the conjugation of the orientations that leave [0, π). The other invariances of Part I, §5.1 are tested in T2.8, where they hold to rounding with STL's definitions: not for the scaling of the cross S1 (OP-16), nor for the constant shift of 2D data with a mask (OP-59) | Part I, §5.1; Part III, §20.10; #86 |
@@ -177,6 +177,10 @@ Every decision from 4 November 2026 on, in order: one row per decision, with its
 | 17 November 2026 | — | Periodic syntheses only in 1.0.0 | 1.0.0 synthesises periodic fields only. STL's non-periodic and masked syntheses are not reproduced: their choices are to be reconsidered (LF47). A target with missing values or `pbc=False` raises a clear error | Part II, §9.3, §12.9, §14; Part III, §16, LF47; #99 |
 | 17 November 2026 | — | The vector of the synthesis loss (Q14, closed) | 1.0.0 reproduces STL: the loss uses the complex form of M-FLAT, which amounts to a complete real vector (real and imaginary parts of every coefficient); `to_vector` stays STL's `to_flatten(flatten_complex=True)`. Whether they become one vector is decided after 1.0.0 | maths tab, M-SYN-LOSS, M-FLAT, OP-37, OP-39; #99 |
 | 17 November 2026 | — | Consistency of the estimators | A new family of tests: periodic, non-periodic and masked estimates of one stationary process (the same field read three ways, paired) agree within their statistical error, with a threshold corrected for the number of comparisons and a positive control; a systematic gap is measured and recorded, not corrected in step 1 (T2.16) | Part I, §5.1; Part II, §15.2, T2.16; #99 |
+| 17 November 2026 | LF31 | Gram form of the second layer | done in step 1, and the entry left the register: one matrix product per level and band orientation, STL's windows reproduced by a division by the number of pixels of each pair's window | Part II, §15.2, T2.12; Part III, §19.14; #95 |
+| 17 November 2026 | LF29 | Small kernels as compiled constants | tried in step 1 and dropped, and the entry left the register: no gain beyond the compilation of the loop on JAX | Part II, §15.2, T2.13; Part III, §19.14; #96 |
+| 17 November 2026 | LF14 | Compact coefficient layout | turned into a task of step 1, T2.15, done first in P3, and the entry left the register | Part II, §15.2, T2.15; #99 |
+| 18 November 2026 | — | Lists and identifiers | Two kinds of lists. Pending lists hold what waits for something: the questions (§23), the register (Part III, §16) and the tasks (Part II, §15.2); an item leaves its list when it is closed, with a row here. Reference lists describe what stays true: the open points of the maths tab and the risks (§21); their rows stay, with a status. The log is one table; the register is one table, with the column "When"; a task has its issue and the pull request that completed it; an open point still to decide names its question. Identifiers that lead nowhere are removed. The identifiers G1 to G18 (open points, until 16 November 2026) and D1 to D5 (points to discuss, until 16 November 2026) are retired; their tables of correspondence (Part II, §13.2; Part IV, §24) and the version notes of the drafts (Appendix C) are in the history of the repository, at commit `dc25ca5` | issue #107; #108, #111 |
 
 ## 23. Points to settle
 
@@ -200,8 +204,8 @@ Everything still to decide, in one table. A point leaves it when it is decided (
 | Q15 | Syntheses: one named concept for `mean_field`; explicit arguments for J − 1, the weights 3.5 and 3.5², the seed | the maintainers | T6.1 | review of 16 November 2026 |
 | Q16 | The default length of the L-BFGS history (STL: 50 pairs, 100 numbers per pixel), after a convergence test at 10 and 20 | the maintainers | T6.1 | review of 16 November 2026 |
 | Q17 | Part III, §20.11: rule 1 amended (the maps that end with a low-pass filter are centred themselves, for stability in single precision), and rule 7 corrected (standardisation: mean and standard deviation) | Erwan | before LF33 | review of 16 November 2026; R-A10 |
-| Q18 | The strided second layer (LF38) and the strict scale order (LF35): validation on syntheses and inference, then option or default | the maintainers | step 2, H1 | review of 16 November 2026 |
-| Q19 | The scope of the Rust engine, after a benchmark of the reorganised Python engine against STL-Dev-MPI | Jean-Marc | step 2, H2 | review of 16 November 2026 |
+| Q18 | The strided second layer (LF38) and the strict scale order (LF35): validation on syntheses and inference, then option or default | the maintainers | step 2, first releases | review of 16 November 2026 |
+| Q19 | The scope of the Rust engine, after a benchmark of the reorganised Python engine against STL-Dev-MPI | Jean-Marc | step 2, scale | review of 16 November 2026 |
 | Q20 | Partitioned execution (LF34) as the single way to scale out, absorbing LF4 and LF19 | Jean-Marc | step 2, before LF4 | review of 16 November 2026 |
 | Q21 | `iso`: return the real parts only of the reduced S3 and S4; the meaning of `iso` in 1D with L = 2 | the maintainers | step 2 (LF32) | review of 16 November 2026; OP-5; OP-40 |
 | Q22 | Group the changes of values of step 2 in one bump of `STATISTICS_REFERENCE` | the maintainers | step 2 | review of 16 November 2026 |
@@ -214,7 +218,3 @@ Everything still to decide, in one table. A point leaves it when it is decided (
 | Q30 | Precision on GPU: on NVIDIA GPUs of the Ampere generation and later, PyTorch computes convolutions in TF32 by default (about 3 significant digits instead of 7 for float32), without warning, while matrix products stay in float32. Disable TF32 during ESTEL's computations, so that float32 keeps its precision, or keep it for speed and check that the parity tolerance holds | the maintainers | the first measurement on GPU (T7.1) | review of 17 November 2026 |
 | Q31 | STL's behaviours in the syntheses, to reproduce or to correct: the caller's statistics modified in place (OP-70); the loss divided by Nb from statistics only (OP-71); the standardisation that differs between maps and statistics (OP-72); when the channel axis of the result is removed (OP-75); the L and the wavelet type of the statistics ignored (OP-76) | the maintainers | T6.1 | maths tab, §5.9 (T6.0) |
 | Q32 | Two points of the 2D code: the spectrum on rectangular images, restricted to square images in 1.0.0 or documented (OP-6); the valid range of L, since the width factor 2.5 is tuned for L = 4 (OP-9) | the maintainers | T4.1 | maths tab, §1.11 |
-
-## 24. Deferred work and points to discuss later
-
-Moved on 16 November 2026: the deferred work W1 to W4 is in Part III, §16.7; the points to discuss D2 to D5 are Q3 to Q6 in §23; D1 is closed (§22, R-A09).

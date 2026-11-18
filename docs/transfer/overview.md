@@ -6,7 +6,7 @@ Nov 6, 2026 · @Erwan Allys
 
 &#91;image: ESTEL — Estel is a Scattering Transform Exquisite Library\]
 
-Draft 0.3 · 12 November 2026 · supersedes draft 0.2 of 6 November 2026 (version notes: Appendices, C). It integrates the decisions taken since then (Part IV, §22), the review round of 12 November 2026 (Part IV, §22), and the note *ESTEL: proposal for integrating the Rust engines of STL-Dev-MPI* (decisions Q10–Q23).
+This is the specification of ESTEL, kept in the repository (`docs/transfer/README.md`). It changes only through pull requests; its history is the history of the repository, and its decisions are in the log (Part IV, §22).
 
 ## Contents
 
@@ -40,8 +40,7 @@ Each part opens in its own tab, with a detailed contents at its top.
   - 21\. Critical review: failure modes
   - 22\. Decision log
   - 23\. Points to settle
-  - 24\. Deferred work and points to discuss later
-- maths.md — Mathematics of step 1 (sections 1 (2D) and 2 (1D) written from the code; sections 3 (tensor products), 4 (HEALPix) and 5 (syntheses) drafts, each verified by the first task of its phase (T3.0, T5.0, T6.0); its sections have their own numbering)
+- maths.md — Mathematics of step 1 (sections 1 (2D) and 2 (1D) checked numerically by the oracle `estel._spec`; sections 3 (tensor products), 4 (HEALPix) and 5 (syntheses) checked against STL's code; its sections have their own numbering)
   - 1\. Planar 2D
   - 2\. 1D
   - 3\. Tensor products
@@ -51,7 +50,6 @@ Each part opens in its own tab, with a detailed contents at its top.
 - Appendices
   - A. Glossary
   - B. References
-  - C. Version notes
 
 ## Preamble
 
