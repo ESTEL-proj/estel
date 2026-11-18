@@ -2,7 +2,7 @@
 
 [Back to the overview](transfer/overview.md)
 
-**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it, and checked numerically by the oracle `estel._spec`, which agrees with ESTEL to the parity tolerance (task T2.6); ESTEL itself agrees with STL's fixtures. Sections 3 (tensor products) and 4 (HEALPix) are drafts written in the same way; each is verified by the first task of its phase (T3.0, T5.0). Section 5 (syntheses) is checked against STL's code for periodic syntheses, and numerically where it says so (task T6.0); its non-periodic and masked parts come after 1.0.0 (Part III, §16, LF47).
+**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it, and checked numerically by the oracle `estel._spec`, which agrees with ESTEL to the parity tolerance (task T2.6); ESTEL itself agrees with STL's fixtures. Sections 3 (tensor products) and 4 (HEALPix) are checked against STL's code, and numerically where they say so (tasks T3.0 and T5.0). Section 5 (syntheses) is checked against STL's code for periodic syntheses, and numerically where it says so (task T6.0); its non-periodic and masked parts come after 1.0.0 (Part III, §16, LF47).
 
 **Role of this file.** This file is the reference version of the mathematics of step 1; it changes only through pull requests that a maintainer requests and merges.
 
@@ -866,77 +866,93 @@ The rule of §1.11 applies. OP-4, OP-8, OP-13 and OP-34 also concern tensor prod
 
 ## 4. HEALPix
 
-**Status:** draft, written from the STL and healpix-analyse code by reading it, not checked numerically; verified by task T5.0.
+**Status:** 17 November 2026 (task T5.0). Every entry is checked against the code of STL `HealpixUpdate` and of healpix-analyse, and numerically, in the parity container, where an entry says "Checked": the data conventions, the wavelet, the convolution on the full sky and on a partial sky, the gauges, the downsampling, the masks and the defaults. The numerical checks run in float64, at `nside` 8 and 16 (64 for the gauges), with `ellipsoid="sphere"` and the cache of healpix-analyse disabled unless said; their references are written in NumPy from the definitions below, with healpy for the pixel centres and the bilinear interpolation. Not checked: the scattering loop of `HealpixUpdate` against that of `master` (T5.1), the angular spectrum (LF24). The model of STL-Dev-MPI's `CLAUDE.md` §3 (commit `d397650`) was read, not run, and agrees with this section: the bilinear interpolation of the 4 nearest pixels, the gauge `"cosmo"`, the decimation by a Gaussian of radius 3 fine pixels with σ = radius / 2 and weights of sum 1, dg(j) = j by default, and the form of S1 to S4; its patch-local engine with hand-written reverse passes is not transferred (Q10).
 
-**Source:** STL-Dev `HealpixUpdate` at `90eb1a9` (`STL_Healpix_Kernel_Torch.py`), and healpix-analyse at `aac5e26` (`convol.py`, `down.py`), which holds the definitions of the convolution and of the downsampling. `TorchGeometry.py` of the same branch reproduces that geometry in vectorised code, for a sphere only; it is the code ESTEL ports (Part II, §9.3). The scattering loop, the statistics, the normalisation, the reductions and the flattening are those of section 1. **[to verify, T5.1]** that the loop of `HealpixUpdate` computes the same statistics as that of `master`.
+**Source:** STL-Dev `HealpixUpdate` at `90eb1a9` (`STL_Healpix_Kernel_Torch.py`), and healpix-analyse at `aac5e26` (`convol.py`, `down.py`, `healpix_interp.py`), which holds the definitions of the convolution and of the downsampling. `TorchGeometry.py` of the same branch reproduces that geometry in vectorised code, for a sphere and the gauges `"phi"` and `"cosmo"` only; it is the code ESTEL ports (Part II, §9.3). The scattering loop, the statistics, the normalisation, the reductions and the flattening are those of section 1: `ST_Operator.py` of `HealpixUpdate` differs from that of `master` in the indexing of the pixel axes (one axis instead of two), in the options of the spectrum and in methods that the loop does not call. **[to verify, T5.1]** that the two loops compute the same statistics.
 
 ### 4.0 Data — M-DATA-HPX
 
-- **Shape.** Arrays are `(Nb, Nc, Npix)`: one pixel axis.
+- **Shape.** Arrays are `(Nb, Nc, Npix)`: one pixel axis. A 1D array is promoted to `(1, 1, Npix)` and a 2D array to `(1, Nc, Npix)`, as in M-DATA-2D.
 - **Ordering.** NESTED, required by the downsampling.
-- **Resolution.** `nside` at full resolution; level d has `nside / 2^d`. In healpix-geo vocabulary, the depth is log₂ `nside`.
-- **Coverage.** `cell_ids`, the NESTED indices of the pixels, or the full sky when they are not given. `pbc` means "full sky": True when the map has 12 `nside`² pixels, False for a partial sky.
-- **Default J:** max(1, ⌊log₂ `nside`⌋ − 1): the coarsest level has `nside` = 4. This is not the planar default.
-- **Missing data.** One mask of shape `(Npix,)`, shared by the batch and the channels, as OP-26; detected from the NaN of a single map.
-- **Source:** `STL_Healpix_Kernel_Torch`, `get_wavelet_op`.
+- **Resolution.** `nside`, a power of 2, at full resolution; level d has `nside / 2^d`. In healpix-geo vocabulary, the depth is log₂ `nside`; healpix-analyse calls it `level`. For a full sky, `nside` is read from Npix = 12 `nside`²; for a partial sky it must be given.
+- **Coverage.** `cell_ids`, the NESTED indices of the pixels, or the full sky when they are not given. `pbc` means "full sky": True when the map has 12 `nside`² pixels, False for a partial sky. A partial sky of 12 n² pixels given without `nside` is taken for a full sky of `nside` = n. **⚠ OP-91**
+- **Order of `cell_ids`.** Ascending. With `cell_ids` in another order, healpix-analyse returns the values of the convolution in a wrong order and reads the input of the downsampling in a wrong order, without an error. **⚠ OP-90**
+- **Default J:** max(1, ⌊log₂ `nside`⌋ − 1): the coarsest level has `nside` = 4 (for `nside` ≥ 4). This is not the planar default.
+- **Missing data.** One mask of shape `(Npix,)`, shared by the batch and the channels, as OP-26; detected from the NaN of the example data, which then must be a single 1D map (a batch raises an error).
+- **Means.** Every pixel has the same weight (HEALPix pixels have equal areas): ⟨·⟩ is the plain mean over the pixels, or over the valid pixels (M-MEAN).
+- **Checked:** J = 1, 1, 2, 3, 4 for `nside` = 2, 4, 8, 16, 32; `pbc` True for a full sky and False for a disc; a map of 47 pixels without `nside` raises, and a disc of 48 = 12 × 2² pixels without `nside` becomes a full sky of `nside` 2; the mask is inferred from the NaN of one 1D map (17 pixels), and a `(2, Npix)` example with NaN raises; for one map of `nside` 8 the statistics have the shapes of section 1 with J = 2, L = 4 (`mean` `(1, 1)`, S1 `(1, 1, 1, 2, 4)`, S4 `(1, 1, 1, 2, 2, 2, 4, 4, 4)`).
+- **Source:** `STL_Healpix_Kernel_Torch` (`__post_init__`, `_infer_N0`, `get_wavelet_op`), `ST_Operator.apply`.
 
 ### 4.1 Convolution — M-CONV-HPX
 
 The convolution brings the data to a fixed stencil, rotated at each pixel.
 
-1. **Stencil.** A K × K grid of points around the North Pole, K = 5, with offsets (u, v) ∈ {−2, …, 2}². The point (u, v) is at colatitude √(u² + v²)·α and azimuth atan2(v, u), with α = √(4π / (12 `nside`²)), the mean pixel size at the current level.
-2. **Rotation.** For pixel k, at colatitude θ\_k and longitude φ\_k, and gauge g = 0 … L−1, the stencil is carried by R = R\_gauge(α\_g) · R\_z(φ\_k) · R\_y(θ\_k), where R\_gauge turns around the pixel's own direction by the angle
+1. **Stencil.** A K × K grid of points around the North Pole, K = 5, with offsets (u, v) ∈ {−2, …, 2}²; in the flattened stencil, v runs along the first axis and u along the second, p = (v + 2) K + (u + 2). The point (u, v) is at colatitude √(u² + v²)·α and azimuth atan2(v, u), with α = √(4π / (12 `nside`²)), the mean pixel size at the current level.
+2. **Rotation.** For pixel k, at colatitude θ\_k and longitude φ\_k, and gauge g = 0 … L−1, the stencil is carried by R = R\_gauge(α\_g) · R\_z(φ\_k) · R\_y(θ\_k). R\_z R\_y carries the pole to the pixel, the u axis of the stencil onto e\_θ (towards the south) and the v axis onto e\_φ (towards the east). R\_gauge turns around the pixel's own direction, counter-clockwise seen from outside the sphere, by the angle
 
 ```latex
 \alpha_g = \alpha_{\text{base}} + s\,\frac{\pi g}{L}
 ```
 
-   With the default gauge `"cosmo"`: α\_base = −φ\_k and s = +1 in the northern hemisphere; α\_base = +φ\_k and s = −1 in the southern one.
-3. **Interpolation.** The value of the field at each rotated point is the bilinear interpolation of its 4 nearest pixels (HEALPix `get_interpol`). On a partial sky the weights of the available pixels are renormalised.
-4. **Sum.** y\[g, k\] = Σ\_p W\[p\] · x\_interp\[g, k, p\], over the K² stencil points p.
+   so that the u axis of gauge g is cos α\_g · e\_θ + sin α\_g · e\_φ. With the default gauge `"cosmo"`: α\_base = −φ\_k and s = +1 in the northern hemisphere (θ\_k ≤ π/2, the equator included); α\_base = +φ\_k and s = −1 in the southern one. With the gauge `"phi"`: α\_base = 0 and s = +1.
+3. **Interpolation.** The value of the field at each rotated point is the bilinear interpolation of its 4 nearest pixels (HEALPix `get_interpol`, on the sphere); the 4 weights sum to 1.
+4. **Sum.** y\[g, k\] = Σ\_p W\[p\] · x\_interp\[g, k, p\], over the K² stencil points p, with W the kernel of M-WAV-HPX. There is no bias.
 
+- **Shapes.** `(Nb, Nc, Npix)` gives `(Nb, Nc, L, Npix)`, complex; every map is convolved on its own. A complex input is not supported (STL raises); the second layer convolves a modulus, which is real.
 - **Orientations are gauges.** The stencil turns, the kernel does not: L is the number of gauges, covering \[0, π).
-- **Singularities.** Every gauge has two singular points; for `"cosmo"` they are the poles, where the orientation is not defined, and the orientation convention flips across the equator. **⚠ OP-47**
-- **Pixel centres** are computed on an ellipsoid, `"WGS84"` by default: the Earth, not a sphere. **⚠ OP-45**
-- **Precision.** healpix-analyse casts the kernel through float32, and stores the interpolation weights of its disk cache in float32. **⚠ OP-46**
-- A complex input is not supported; the second layer convolves a modulus, which is real.
-- **Source:** healpix-analyse `HealPixConv`, `_build_rotation_matrices`, `_local_kernel_grid`, `_get_interp_weights`, `_bind_support_batched`; `WaveletOperatorHealpixKernel_torch.apply`, `_get_conv`.
+- **The gauge `"cosmo"`.** Its u axis of gauge 0 is cos φ · e\_θ − sin φ · e\_φ in the north and cos φ · e\_θ + sin φ · e\_φ in the south. It is regular at both poles: around the North Pole the u axis tends to the Cartesian direction +x, around the South Pole to −x. It is discontinuous across the equator: at longitude φ, the u axes of gauge g on the two sides make the angle 2φ − 2πg/L, so the orientations agree, as directions modulo π, at four longitudes only. The southern frame is the mirror image of the northern one through the equatorial plane, with u reversed: for a map mirrored through the equator, the convolution at the mirrored pixel is the complex conjugate of the convolution of the map (ψ\[−u, v\] is the conjugate of ψ\[u, v\]), so its modulus is the same. The pixels of the equatorial ring follow the northern rule and do not have this symmetry. The gauge `"phi"` is singular at the two poles. **⚠ OP-47**
+- **Partial sky.** A neighbour that is not in `cell_ids` is dropped, and the weights of the remaining neighbours of that stencil point are renormalised to sum to 1. A stencil point with no neighbour in `cell_ids` takes the 4 neighbours of the stencil centre instead: it reads the value of the pixel itself. Nothing is cropped, and nothing marks the pixels whose stencil is truncated. **⚠ OP-50**
+- **Pixel centres** are computed by healpix-geo on an ellipsoid, `"WGS84"` by default: the Earth, not a sphere. The longitudes are unchanged; the latitude of a centre becomes the geodetic latitude whose authalic latitude is that of the sphere, at most 0.128° away (at ±45°). It is then used as a latitude on the unit sphere: the rotation, the stencil and the interpolation are those of the sphere. With `ellipsoid="sphere"` the centres are those of HEALPix. **⚠ OP-45**
+- **Precision.** healpix-analyse casts the kernel through float32, whatever the dtype of the operator: the kernel used differs from that of M-WAV-HPX by 5e-8 of its largest modulus, and its sum is 9e-9 instead of 0. Its disk cache, enabled by default in STL, stores the interpolation weights in float32: the first operator of a geometry computes them in float64, and every later one, in the same process or not, reads them back in float32. **⚠ OP-46**
+- **Checked** (sphere, cache disabled): STL's `apply` equals steps 1 to 4 written in NumPy with the float32 kernel, to 2e-14 of the largest modulus (`nside` 8 and 16, full sky), and to 4e-8 with the float64 kernel; on a disc of 154 pixels (`nside` 16), to 9e-15 with the partial-sky rule above, where 121 pixels have a truncated stencil and 1320 of the 15400 stencil points have no neighbour; on the pixels with a complete stencil the partial sky equals the full sky (4e-16), on the others the relative rms difference is 0.48 for a white noise. The rotation matrices of healpix-analyse equal the formula of step 2 to 1e-15, for `"phi"` and `"cosmo"`. Gauge `"cosmo"` at `nside` 64: around each pole the u axis of gauge 0 is within 0.52° of ±x; across the equator the angle is 2φ − 2πg/L to 1.2° (rings 2 `nside` ± 1), from 1.2° to 180°; mirror relation to 4e-14 off the equatorial ring, not on it. With the default `"WGS84"`: `apply` equals the same formula with the WGS84 centres to 2e-14, and differs from the sphere by a relative rms of 2.0 % (`nside` 8) and 4.2 % (`nside` 16) for a white noise. With the cache enabled, a second operator has the weights of the first cast through float32 (difference 3e-8), and S3 and S4 change by up to 2.5e-7 in relative value.
+- **Source:** healpix-analyse `HealPixConv`, `_build_rotation_matrices`, `_local_kernel_grid`, `_get_interp_weights`, `_bind_support_batched`, `healpix_interp.get_interp_weights`; `WaveletOperatorHealpixKernel_torch.apply`, `_get_conv`.
 
 ### 4.2 Wavelet — M-WAV-HPX
 
-One complex kernel on the stencil offsets (u, v), with u the offset along the second stencil axis:
+One complex kernel on the stencil offsets (u, v) of M-CONV-HPX, with u the offset along the second stencil axis:
 
 ```latex
 \psi[u, v] = \exp\Big(-\frac{u^2 + v^2}{2}\Big)\, \exp\Big(i\,\frac{\pi u}{2}\Big)
 ```
 
-then the mean is subtracted, and the kernel is divided by Σ |ψ|.
+then the mean is subtracted, and the kernel is divided by Σ |ψ|, taken after the subtraction.
 
-- A Gaussian envelope times a plane wave: a Morlet-like kernel, not the bump-steerable wavelet of M-WAV-2D. Its normalisation (the sum of the moduli) is not that of the planar kernels (none). A comment in STL plans to align the two. **⚠ OP-48**
-- The real and imaginary parts are two output channels of one convolution.
+- A Gaussian envelope, of width 1 pixel, times a plane wave along u, of period 4 pixels: a Morlet-like kernel, not the bump-steerable wavelet of M-WAV-2D. Its normalisation (the sum of the moduli) is not that of the planar kernels (none). A comment in STL plans to align the two. **⚠ OP-48**
+- ψ\[−u, v\] is the conjugate of ψ\[u, v\], and ψ\[u, −v\] = ψ\[u, v\].
+- The same kernel serves every level and every gauge. The real and imaginary parts are two output channels of one convolution.
+- STL's two wavelet types, `"HealpixWavelet"` (the default) and `"Morlet"`, give this same kernel.
+- **Checked:** STL's kernel equals the formula to 3e-19; its sum is 5e-17 and the sum of its moduli is 1; the two symmetries hold to 3e-20; both wavelet types give it; the kernel that the convolution uses is its cast through float32 (M-CONV-HPX).
 - **Source:** `WaveletOperatorHealpixKernel_torch._wavelet_kernel`.
 
 ### 4.3 Downsampling — M-DOWN-HPX
 
-One step takes level d to d + 1. The coarse pixels are the NESTED parents of the fine ones. For a coarse pixel of centre n₀, with γ the angular distance from n₀ to the centre of a fine pixel:
+One step takes level d to d + 1. The coarse pixels are the NESTED parents of the fine ones, in ascending order. For a coarse pixel of centre n₀, with γ the angular distance from n₀ to the centre of a fine pixel:
 
 ```latex
 x^{(d+1)}[n_0] = \frac{\sum_{\gamma \le \rho} e^{-\gamma^2 / 2\sigma^2}\, x^{(d)}[n]}{\sum_{\gamma \le \rho} e^{-\gamma^2 / 2\sigma^2}}
 ```
 
-- **Radius:** ρ = 3 fine pixel sizes, a pixel size being √(4π / N\_pix) at the fine level. **Width:** σ = ρ / 2.
-- The weights sum to 1 for each coarse pixel. On a partial sky, only the available fine pixels enter the sums.
+- **Radius:** ρ = 3 fine pixel sizes, a pixel size being √(4π / N\_pix) at the fine level, with N\_pix that of the full sky. **Width:** σ = ρ / 2.
+- The sums run over every fine pixel within ρ of n₀, not only over the 4 children: 26 to 32 fine pixels on the full sky, the 4 children carrying 0.28 to 0.30 of the weight. The weights sum to 1 for each coarse pixel.
+- **Partial sky.** Only the available fine pixels enter the sums, and the weights are renormalised over them; the coarse pixels are the parents of the available fine pixels. A coarse pixel can be computed from a few fine pixels: nothing marks it. **⚠ OP-50**
 - This is the smoothing of HEALPix: a Gaussian of the distance, not the 6-tap kernel of M-SMOOTH-2D. **⚠ OP-49**
-- STL's `_smooth_kernel` (a K × K Gaussian) serves a separate smoothing function, which the scattering loop does not call; it is not transferred.
-- **With a mask:** as M-DOWN-MASK. The invalid pixels are set to 0, each step is multiplied by the reweighting map 1/(1 − f), and a coarse pixel is invalid if f > τ, with τ = 0.33.
+- **Pixel centres:** as in M-CONV-HPX, on `"WGS84"` by default; γ is then the distance on the unit sphere between the points whose latitudes are the WGS84 ones. **⚠ OP-45**
+- Several levels are reached by repeating the step. Complex arrays are downsampled part by part (real and imaginary).
+- healpix-analyse has two fallbacks that a full sky and the partial skies checked here never reach: if every fine pixel within ρ has a null weight, uniform weights over the available ones; if none is available, the value 0, with a warning.
+- STL's `_smooth_kernel` (a K × K Gaussian) serves a separate smoothing function, `apply_smooth`, which the scattering loop does not call; neither does it call the plain average of the 4 children (`smooth=False`) nor the max-pooling of healpix-analyse. They are not transferred.
+- **With a mask:** as M-DOWN-MASK, with this step in place of M-DOWN. The invalid pixels are set to 0, each step is multiplied by the reweighting map 1/(1 − f), with f the invalid 0/1 mask of the level decimated by this step, and a coarse pixel is invalid if f > τ, with τ = 0.33; the invalid pixels of the result are NaN.
+- **Checked** (sphere): the matrix of `HealPixDown` equals the formula written in NumPy to 6e-16 (`nside` 16 to 8 and 8 to 4); STL's `downsample` applies it to each map (4e-15), two levels are the step repeated (7e-16), and a complex array is downsampled part by part (9e-16). On a disc of 154 fine pixels: 44 coarse pixels, the sorted parents, computed from 10 to 32 fine pixels each, equal to the formula restricted to the available pixels (2e-16); 29 of the 44 differ from the full-sky values. With the default `"WGS84"`: the matrix equals the same formula with the WGS84 latitudes (3e-16) and differs from that of the sphere by up to 1.1e-2 per weight. With a mask (`nside` 16, a disc of 94 NaN, two levels): equal to M-DOWN-MASK to 7e-16, NaN at the same pixels; the largest f kept is 0.326.
 - **Source:** healpix-analyse `HealPixDown._build_smooth_matrix`; `WaveletOperatorHealpixKernel_torch._down_one_level`, `_downsample_masked`.
 
 ### 4.4 Masks and borders — M-MASK-HPX
 
-- **Masks of the layers:** as M-MASK. "The wavelet support touches an invalid pixel" becomes: a convolution of the invalid map with a kernel of ones over the stencil, taken over all the L gauges, is positive.
-- **Borders:** none, β = 0, on the full sky and on a partial sky alike. The edge of a partial sky is not cropped. **⚠ OP-50**
+- **Masks of the layers:** as M-MASK, with the decimation of M-DOWN-HPX and with "the wavelet support touches an invalid pixel" read as: a convolution of the invalid 0/1 map with a kernel of ones over the stencil (M-CONV-HPX) is above 10⁻¹² for at least one of the L gauges. The support of a pixel is therefore the set of pixels that the interpolation reads, over the K² stencil points and the L gauges.
+- **Reweighting maps:** 1/(1 − f), with 1 − f not below 10⁻⁸, and 0 on the invalid pixels; one family for the field and one for the first-layer data convolved at scale j, as in M-DOWN-MASK.
+- **Covariances:** as M-MASK: the mask of the deeper layer; at equal depth with different histories, the union.
+- **Borders:** none, β = 0, on the full sky and on a partial sky alike. The edge of a partial sky is not cropped: the pixels whose stencil or whose decimation is truncated (M-CONV-HPX, M-DOWN-HPX) enter every mean. **⚠ OP-50**
 - **A second way to handle NaN** exists in STL, `nan_aware_stats`, which uses `nanmean` without precomputed masks. It is not transferred: ESTEL has one way, masks as weights.
-- **Source:** `_build_masks`, `_support_mask`, `_get_crop_border_size_zero`.
+- **Checked** (`nside` 16, J = 3, a disc of 94 NaN, sphere): the masks of STL equal those of M-MASK rebuilt in NumPy from the stencil and the decimation above, for layer 0 (94, 26 and 9 invalid pixels at levels 0, 1, 2), layer 1 (244, 112, 70), the downsampled layer 1 and layer 2 (from 95 to 460); the test "above 10⁻¹²" selects the same pixels as "a neighbour of positive weight is invalid"; the reweighting maps equal 1/(1 − f) to 1e-15; the masked mean is the sum over the valid pixels divided by their number (5e-18); the border is 0 with a mask and on a partial sky, where the mean runs over all the pixels.
+- **Source:** `_build_masks`, `_support_mask`, `_reweight_from_fraction`, `_find_mask`, `cov`, `_get_crop_border_size_zero`.
 
 ### 4.5 Defaults — M-DEF-HPX
 
@@ -945,25 +961,32 @@ x^{(d+1)}[n_0] = \frac{\sum_{\gamma \le \rho} e^{-\gamma^2 / 2\sigma^2}\, x^{(d)
 | J | max(1, ⌊log₂ `nside`⌋ − 1) |
 | L (number of gauges) | 4 |
 | K (stencil size) | 5 |
+| Wavelet | `"HealpixWavelet"`; envelope of width 1 pixel, period 4 pixels |
 | Gauge | `"cosmo"` |
 | Ellipsoid | `"WGS84"` in STL (OP-45) |
+| Cache of the interpolation weights | enabled in STL, in float32 (OP-46) |
 | τ (NaN threshold) | 0.33 |
 | Border | none |
-| Decimation | radius 3 pixels, σ = radius / 2 |
-| `compute_PS` | the angular spectrum in STL; unavailable for HEALPix in ESTEL 1.0.0 (LF24) |
+| Decimation | radius 3 pixels, σ = radius / 2, weights of sum 1 |
+| `compute_PS` | True in STL: the angular spectrum; unavailable for HEALPix in ESTEL 1.0.0 (LF24) |
+
+- **Checked:** the wavelet operator that STL builds by default has L = 4, K = 5, the gauge `"cosmo"`, the ellipsoid `"WGS84"`, τ = 0.33, the cache enabled, no option passed to the decimation and a border of 0.
 
 ### 4.6 Open points found in the HEALPix code
 
-The rule of §1.11 applies.
+The rule of §1.11 applies. OP-90 to OP-92 come from the check of T5.0. OP-45, OP-46 and OP-50 hold the facts for the points to settle Q7, Q8 and Q10 (Part IV, §23); they are not decided here.
 
 | # | Point | Proposal |
 | --- | --- | --- |
-| OP-45 | The pixel centres are computed on the WGS84 ellipsoid by default; the code ESTEL ports (`TorchGeometry`) supports the sphere only | to decide: ESTEL on the sphere only, and the parity harness runs STL with `ellipsoid="sphere"` |
-| OP-46 | healpix-analyse casts the kernel through float32 and caches its interpolation weights in float32 | to decide, as OP-31: what the harness sets (cache disabled), and whether ESTEL reproduces the float32 kernel |
-| OP-47 | Gauge singularities at the poles; the orientation convention flips across the equator | reproduce; document |
+| OP-45 | The pixel centres are computed on the WGS84 ellipsoid by default: their latitudes are geodetic latitudes (at most 0.128° from those of the sphere), used as latitudes of a sphere by a convolution and a decimation that are otherwise spherical. A convolution changes by a relative rms of 2 % (`nside` 8) to 4 % (`nside` 16) for a white noise. The code ESTEL ports (`TorchGeometry`) supports the sphere only | to decide (Q7): ESTEL on the sphere only, and the parity harness runs STL with `ellipsoid="sphere"` |
+| OP-46 | healpix-analyse casts the kernel through float32 (5e-8 of its largest modulus; its sum becomes 9e-9) and caches its interpolation weights in float32: with the cache, enabled by default, the first operator of a geometry has float64 weights and the later ones float32 weights (S3 and S4 change by up to 2.5e-7). The decimation is in float64 | to decide (Q8), as OP-31: what the harness sets (cache disabled), and whether ESTEL reproduces the float32 kernel |
+| OP-47 | The gauge `"cosmo"` is regular at the poles and discontinuous across the equator, where the orientations of the two sides differ by 2φ − 2πg/L; the southern frame is the mirror image of the northern one, so the moduli are symmetric under a mirror through the equator, except on the equatorial ring. The reading of the draft (singular at the poles) was that of the gauge `"phi"` | reproduce; document |
 | OP-48 | The HEALPix wavelet is not the planar one (Gaussian times plane wave, divided by the sum of moduli), so coefficients are not comparable between geometries | reproduce; LF22 |
-| OP-49 | The decimation is a Gaussian of radius 3 pixels and σ = radius/2 (G12); it is not the planar smoothing kernel | reproduce; Part III, §20.10 |
-| OP-50 | No border is cropped on a partial sky | reproduce; to examine |
+| OP-49 | The decimation is a Gaussian of radius 3 pixels and σ = radius/2 (G12), over 26 to 32 fine pixels of which the 4 children carry 0.28 to 0.30 of the weight; it is not the planar smoothing kernel | reproduce; Part III, §20.10 |
+| OP-50 | No border is cropped on a partial sky. At the edge, the convolution renormalises its interpolation weights over the available pixels and replaces a stencil point without any available pixel by the pixel itself; the decimation renormalises over the available fine pixels. These pixels enter every mean (on a disc of 154 pixels at `nside` 16: 121 pixels with a truncated stencil, a relative rms difference of 0.48 from the full-sky values) | reproduce; to decide (Q10) |
+| OP-90 | `cell_ids` must be in ascending order: otherwise the convolution of healpix-analyse (and of `TorchGeometry`) returns its values permuted once more by the inverse sort order, and the decimation reads its input as if it were sorted; no error is raised (measured: differences of the order of the values) | ESTEL requires ascending `cell_ids`, or sorts them itself; to decide with the API of T5.1 |
+| OP-91 | A partial sky of 12 n² pixels given without `nside` is taken for a full sky of `nside` = n | ESTEL requires `nside` whenever `cell_ids` is given; to confirm |
+| OP-92 | The gather tables of `TorchGeometry` equal those of healpix-analyse as linear operators (to 1e-13, and the outputs to 2e-14), not entry by entry: about 1 % of the index entries differ (10924 of 1228800 at `nside` 16) | T5.1 compares the tables as operators; to confirm |
 
 
 ## 5. Syntheses
