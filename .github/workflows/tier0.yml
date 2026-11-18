@@ -247,7 +247,13 @@ jobs:
         # job stopped at its time limit names the test it was in (task T2.17).
         env:
           PYTEST_ADDOPTS: "-o faulthandler_timeout=240 --durations=25"
-        run: make test TEST_BACKENDS=jax TEST_DTYPE=float64
+        run: |
+          ( while sleep 20; do echo "[memory] $(free -m | awk '/^Mem:/ {printf "used %d MB, available %d MB", $3, $7} /^Swap:/ {printf ", swap used %d MB of %d", $3, $2}')"; done ) &
+          make test TEST_BACKENDS=jax TEST_DTYPE=float64
+
+      - name: Out-of-memory kills, if any
+        if: always() && steps.tier.outputs.tier == 'full'
+        run: sudo dmesg | grep -iE "out of memory|oom-kill|killed process" | tail -20 || true
 
       - name: No tests (no-test scope only)
         if: steps.scope.outputs.tests == 'false'
@@ -327,7 +333,9 @@ jobs:
 
       - name: Tests on JAX, full tier, float32
         if: steps.scope.outputs.tests != 'false' && steps.tier.outputs.tier == 'full'
-        run: make test TEST_BACKENDS=jax TEST_DTYPE=float32
+        run: |
+          ( while sleep 20; do echo "[memory] $(free -m | awk '/^Mem:/ {printf "used %d MB, available %d MB", $3, $7} /^Swap:/ {printf ", swap used %d MB of %d", $3, $2}')"; done ) &
+          make test TEST_BACKENDS=jax TEST_DTYPE=float32
 
       - name: Nothing to do (fast tier or no-test scope)
         if: steps.scope.outputs.tests == 'false' || steps.tier.outputs.tier == 'fast'
