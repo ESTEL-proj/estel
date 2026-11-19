@@ -4,11 +4,11 @@ The families checked, and the list that defines each, by a table row that starts
 
 * the open points ``OP-n``: the tables of ``docs/maths.md``;
 * the register ``LFn`` and ``Wn``: the table of Part III, §16 (``docs/transfer/part3.md``);
-* the questions ``Qn``: the table of Part IV, §23 (``docs/transfer/part4.md``);
 * the risks ``Fn``: the table of Part IV, §21;
 * the tasks ``Tn.m``: the table of Part II, §15.2 (``docs/transfer/part2.md``);
-* the remarks ``R-Xnn`` of the review of 16 November 2026 and the old open points ``Gn``: no
-  list; only the decision log (Part IV, §22).
+* the remarks ``R-Xnn`` of the review of 16 November 2026, the old open points ``Gn`` and the
+  old points to settle ``Qn`` (Part IV, §23 until 19 November 2026): no list; only the decision
+  log (Part IV, §22).
 
 The rule. A cited identifier is accepted if its list has a row for it, or if the column "ID" of
 a row of the decision log names it: that is where a closed, done or retired item lives. So
@@ -57,10 +57,9 @@ class IdList:
 
 OPEN_POINTS = IdList("the open points of docs/maths.md", "docs/maths.md", None)
 REGISTER = IdList("the register (Part III, §16)", "docs/transfer/part3.md", "## 16. ")
-QUESTIONS = IdList("the points to settle (Part IV, §23)", "docs/transfer/part4.md", "## 23. ")
 RISKS = IdList("the risks (Part IV, §21)", "docs/transfer/part4.md", "## 21. ")
 TASKS = IdList("the tasks (Part II, §15.2)", "docs/transfer/part2.md", "### 15.2 ")
-LISTS = (OPEN_POINTS, REGISTER, QUESTIONS, RISKS, TASKS)
+LISTS = (OPEN_POINTS, REGISTER, RISKS, TASKS)
 
 DECISION_LOG = IdList("the decision log (Part IV, §22)", "docs/transfer/part4.md", "## 22. ")
 
@@ -81,11 +80,11 @@ FAMILIES = (
     Family("open point", re.compile(r"\bOP-\d+\b"), OPEN_POINTS),
     Family("later feature", re.compile(r"\bLF\d+\b"), REGISTER),
     Family("deferred work", re.compile(r"(?<![\w-])W[1-9]\b"), REGISTER),
-    Family("question", re.compile(r"(?<![\w-])Q\d+\b"), QUESTIONS),
     Family("risk", re.compile(r"(?<![\w-])F\d+\b"), RISKS),
     Family("task", re.compile(r"(?<![\w.])T\d+\.\d+\b"), TASKS),
     Family("remark of the review of 16 November 2026", re.compile(r"\bR-[A-Z]\d+\b"), None),
     Family("old open point", re.compile(r"(?<![\w-])G\d+\b"), None),
+    Family("old point to settle", re.compile(r"(?<![\w-])Q\d+\b"), None),
 )
 
 

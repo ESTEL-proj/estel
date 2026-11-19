@@ -78,7 +78,7 @@ where μ are the first moments of the reference.
 | white noise, 1024² | up to 2,170 | 2e-4 | 8e-8 | 8e-8 |
 | white noise, 2048², J = 5 | up to 550 | 8e-5 | 4e-8 | 4e-8 |
 
-  (errors relative to the scale of the covariance.) So the rule "correct coefficients, never maps" of Part III, §20.11 needs an amendment (Part IV, §23, Q17):
+  (errors relative to the scale of the covariance.) So the method of Part III, §20.11, rule 1 is chosen with LF33, the most efficient that keeps the precision; for example:
   - band-pass maps with a border or a mask: the mean is small, the coefficients are corrected;
   - maps that end with a low-pass filter: the maps are centred, with a mean computed in float64. They live at the coarsest level, so this is free.
 - **Bias.** With `self`, the estimator is biased by a factor of order 1 − 1/N\_eff, with N\_eff the number of independent samples in w. It is not corrected.
@@ -88,7 +88,7 @@ where μ are the first moments of the reference.
 
 ## 6.3 Gram form — M-GRAM
 
-*In the register as LF31. This entry defines it.*
+*Done in step 1 (Part II, §15.2, T2.12). This entry defines it.*
 
 Fix a level j, which is also the scale of the band, and one band orientation ℓ. Let the rows of the matrix A ∈ ℂ^(P × n) be the arms: the P = (j + 1) L maps ψ\_ℓ ⋆ D\_{j₁→j} U\_{j₁,ℓ₁} for j₁ ≤ j and all ℓ₁, each with its n pixels flattened. Let b ∈ ℂⁿ be the band map W\_{j,ℓ} x, and W the diagonal matrix of the window weights. Then
 
@@ -116,8 +116,8 @@ hold every S4 and every S3 of that band and orientation: S4\[j₁, ℓ₁, j₂,
   - **Layout:** the band orientation is the leading axis of the second-layer maps; the arms of one orientation then form the matrix A without a copy.
   - **Windows:** STL's window for a pair is the intersection of the windows of its two maps: the union of their masks, and the larger of their two borders. With every map set to zero outside its own window, the product A A^H sums each pair over that intersection, and the number of its pixels is the product M M^T of the 0/1 windows M of the maps. So G = (A A^H) / (M M^T), element by element, reproduces STL's per-pair windows exactly, masks and borders included, without the common window of M-WIN; a pair with no valid pixel gives NaN, as in STL (OP-3). With a window common to the level, M M^T is one number and the formula above holds.
   - **Single precision:** one product over all the pixels accumulates in the precision of the data. Relative error of a mean in float32: 2e-8 at 16,000 pixels, 2e-6 at 4 million, against 1e-8 for the pairwise sum used today. Products by blocks of pixels, added in float64, stay at 3e-9 at every size. The Gram form is computed by blocks.
-- **Tensor products:** the present form has one operation per triple of scales, 22,400 for 2D+1D+1D with J = (6, 4, 4), each with a temporary of 4,096 numbers per pixel. The Gram form is a prerequisite there (Part IV, §23, Q11).
-- **[to verify]** by a benchmark on PyTorch and JAX, CPU and GPU.
+- **Tensor products:** the present form has one operation per triple of scales, 22,400 for 2D+1D+1D with J = (6, 4, 4), each with a temporary of 4,096 numbers per pixel. The Gram form is a prerequisite there, used from the start (Part II, §15.2, T3.2).
+- Measured on CPU in step 1 (Part III, §19.14); **[to verify]** on GPU (LF62).
 
 ## 6.4 Low-pass filter in every family — M-LP2
 
@@ -236,7 +236,7 @@ Every statistic is a ratio of two sums over pixels. Split the domain Ω of a lev
 - **Exact.** The sums over parts add up to the sum over the domain; |w| is global and known by the plan. The internal `_global_sum` is the point where the parts are added.
 - **Halo.** To compute a map on Ω\_p, a part needs the field on a halo around it. For a map at level d, the halo at full resolution grows like 2^d times the kernel sizes: about 2^d (3 + β\_d) pixels on each side, from the smoothing kernels down to level d and the wavelet borders there.
 - **Two regimes.** At fine levels the halo is thin compared with a part: the parts are processed independently. At coarse levels the halo reaches the size of a part, but the maps of the whole domain are small: from a level d\* on, the pyramid is gathered and processed as one piece. In the cost model of M-STRICT, level 0 alone is 59 % of the convolutions.
-- **One mechanism, four uses:** a field larger than the memory of one device (streaming over parts), several GPUs, MPI, and HEALPix at high resolution, where the gather tables themselves do not fit (LF48).
+- **One mechanism, four uses:** a field larger than the memory of one device (streaming over parts), several GPUs, MPI, and HEALPix at high resolution, where the gather tables themselves do not fit (Part II, §15.2, T5.1).
 - **Open:** the choice of d\*, the handling of masks across parts, and the gradient, which needs the adjoint of the halo exchange.
 
 ## 6.9 Level-wise gradients — M-GRAD
@@ -248,7 +248,7 @@ A synthesis needs the gradient of a loss of the statistics with respect to the f
 - **Structure.** The statistics of band (j, ℓ) depend on the field only through the maps of level j. With the Gram form, the derivative of the loss with respect to those maps is one matrix product (M-GRAM).
 - **Proposal.** Keep only the pyramids of the field and of the moduli; for each level and band orientation, recompute its second layer, form its contribution to the gradient, and release it. The second-layer maps are never all in memory.
 - **Order of magnitude:** from about 75 to about 25 reals per pixel, a factor of 3, at the price of a second forward computation of the second layer. This counts the maps kept, not the temporary arrays of the present loop, which are larger and which M-GRAM removes first. With M-STRIDE the second-layer maps are four times smaller, and the gains combine.
-- **Not counted here:** the history of L-BFGS, 100 reals per pixel with STL's default of 50 pairs (Part IV, §23, Q16).
+- **Not counted here:** the history of L-BFGS, 100 reals per pixel with STL's default of 50 pairs (Part II, §15.2, T6.1).
 - **Means.** `torch.utils.checkpoint` and `jax.checkpoint` recompute a block during the backward pass; no hand-written adjoint is needed, so the rule "no `custom_vjp` in the Python engine" (Part I, §3.2) holds. Second-order derivatives stay available.
 - **[to verify]** by a benchmark of peak memory and time, against the figures of STL-Dev-MPI (19.8 GB against 2.2 GB at `nside` 128).
 

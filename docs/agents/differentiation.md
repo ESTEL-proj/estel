@@ -23,7 +23,7 @@ All differentiation tests run in float64 on small inputs.
 2. **No in-place operations** in L1 and L2: they break double backward.
 3. **Safe modulus, double `where`:** `m = |z|² > 0; r = sqrt(where(m, |z|², 1)); |z| = where(m, r, 0)`. A single `where` fixes the value but not the gradient (0 × NaN = NaN from the discarded branch). Same care for STL's regularised division `z / sqrt(|z| + 1e-8)`.
 4. **Masks are weights**, never boolean indexing or `nanmean`.
-5. **The reference is an explicit argument:** in `apply(data, ref)`, gradients flow into `ref` unless the caller stops them.
+5. **The reference follows the normalisation:** with `norm="self"` gradients flow through the reference; with `norm="ref"` it is a constant (maths.md OP-18).
 
 ## Engines ([§3.2.4](../transfer/part1.md#324-engines-and-differentiation-order))
 

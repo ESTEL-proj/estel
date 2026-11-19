@@ -48,16 +48,12 @@ PART4_HEAD = """# Part IV
 | --- | --- | --- | --- |
 | 17 November 2026 | LF14 | Compact layout | a task now; the log may name LF2 |
 | 16 November 2026 | R-A07, R-S08 | Names | renamed |
+| 17 November 2026 | Q14 | The vector of the loss | closed |
 """
-PART4_TAIL = """## 23. Points to settle
-| ID | Point to settle |
-| --- | --- |
-| Q1 | Compact layout |
-"""
-PART4 = PART4_HEAD + G1_ROW + PART4_TAIL
+PART4 = PART4_HEAD + G1_ROW
 
 CITES = (
-    "OP-1, LF1, W1, Q1, F1 and T2.12; LF14, closed; R-A07 and R-S08, decided; "
+    "OP-1, LF1, W1, F1 and T2.12; LF14 and Q14, closed; R-A07 and R-S08, decided; "
     "R-N01, R-V10 and R-S09, kept in issues; G1.\n"
 )
 
@@ -93,7 +89,7 @@ def test_good_tree_passes(tmp_path: Path) -> None:
     write(tmp_path, {"docs/draft.md": "Not tracked by git: may name LF2.\n"})
     report = check(tmp_path)
     assert report.errors == []
-    assert (report.in_lists, report.in_log, report.in_issues) == (6, 4, 3)
+    assert (report.in_lists, report.in_log, report.in_issues) == (5, 5, 3)
 
 
 @pytest.mark.parametrize(
@@ -115,9 +111,9 @@ def test_good_tree_passes(tmp_path: Path) -> None:
             id="deferred-work",
         ),
         pytest.param(
-            {"docs/transfer/part1.md": CITES + "Q2\n"},
-            "docs/transfer/part1.md:2 cites Q2, which has no row in the points to settle",
-            id="question",
+            {"docs/transfer/part1.md": CITES + "Q7\n"},
+            "docs/transfer/part1.md:2 cites Q7, an old point to settle with no row",
+            id="old-point-to-settle",
         ),
         pytest.param(
             {"docs/transfer/part1.md": CITES + "F2\n"},
@@ -135,8 +131,8 @@ def test_good_tree_passes(tmp_path: Path) -> None:
             id="row-after-the-list",
         ),
         pytest.param(
-            {"src/estel/backend/AGENTS.md": "# Backend\nQ2\n"},
-            "src/estel/backend/AGENTS.md:2 cites Q2, which has no row in the points to settle",
+            {"src/estel/backend/AGENTS.md": "# Backend\nQ7\n"},
+            "src/estel/backend/AGENTS.md:2 cites Q7, an old point to settle with no row",
             id="nested-markdown",
         ),
         pytest.param(
@@ -145,7 +141,7 @@ def test_good_tree_passes(tmp_path: Path) -> None:
             id="remark",
         ),
         pytest.param(
-            {"docs/transfer/part4.md": PART4_HEAD + PART4_TAIL},
+            {"docs/transfer/part4.md": PART4_HEAD},
             "docs/transfer/part1.md:1 cites G1, an old open point with no row",
             id="old-open-point",
         ),

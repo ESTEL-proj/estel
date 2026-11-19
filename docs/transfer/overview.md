@@ -39,7 +39,6 @@ Each part opens in its own tab, with a detailed contents at its top.
 - Part IV — Review and decisions
   - 21\. Critical review: failure modes
   - 22\. Decision log
-  - 23\. Points to settle
 - maths.md — Mathematics of step 1 (sections 1 (2D) and 2 (1D) checked numerically by the oracle `estel._spec`; sections 3 (tensor products), 4 (HEALPix) and 5 (syntheses) checked against STL's code; its sections have their own numbering)
   - 1\. Planar 2D
   - 2\. 1D
@@ -59,10 +58,11 @@ ESTEL is a Python library for **scattering-transform statistics**. These statist
 
 **What this document is.** This is the **transfer document**. It records what ESTEL takes from STL and from complementary sources, how it takes it, and the rules ESTEL follows from its first commit. The sources are three branches of STL-Dev, the Rust engines of STL-Dev-MPI, the STOC deliverable on tensor products, and the GRID4EARTH review rules. Once the transfer is complete, this document is used to write a second one, the **ESTEL reference document**. That document describes ESTEL on its own terms and no longer refers to STL. It becomes the context that agents and users read, and this transfer document is then archived.
 
-**Two steps.**
+**The steps.**
 
 - **Step 1 — transfer (ESTEL 1.0.0).** Import only what STL already does, and reproduce its results exactly, in a framework where ESTEL and STL can be compared number by number. Nothing new enters the mathematics.
-- **Step 2 — extension (ESTEL 1.x and beyond).** Add new capabilities: a stable JAX backend (experimental from step 1), the Rust engine, with GPU and MPI support, a compact storage of the coefficients, and new mathematics. Each one first lands as an opt-in feature, and becomes a default only through the versioning rules.
+- **Step 2 — extension (ESTEL 1.x and beyond).** Add new capabilities: a stable JAX backend (experimental from step 1), the Rust engine, with GPU and MPI support, a compact storage of the coefficients, and new mathematics. Each one first lands as an opt-in feature, and becomes a default only through the versioning rules. Step 2 has two parts: step 2a corrects and stabilises the mathematics, with a benchmark properly developed; step 2b brings the advanced optimisations and the Rust engine. ESTEL 2.0.0 follows them.
+- **Step 3 — the long term.** The developments left for later.
 
 &#91;embedded content: ESTEL development · from the STL sources to the reference document\]
 
@@ -84,4 +84,4 @@ Step 1 implements PyTorch, and JAX as an experimental backend from P1, and follo
 - protected files that only humans may change;
 - the same context files for every coding agent.
 
-**How to read this document.** Each part has its own tab. Part I sets the rules that apply to ESTEL at every stage. Part II describes step 1: what is transferred from STL, how, and how equality with STL is proven. Part III documents step 2 now, so that step 1 reserves the right interfaces. Part IV gathers the critical review, the decision log and the points to settle. The appendices explain the technical terms for non-specialists and list the references.
+**How to read this document.** Each part has its own tab. Part I sets the rules that apply to ESTEL at every stage. Part II describes step 1: what is transferred from STL, how, and how equality with STL is proven. Part III documents step 2 now, so that step 1 reserves the right interfaces. Part IV gathers the critical review and the decision log. The appendices explain the technical terms for non-specialists and list the references.
