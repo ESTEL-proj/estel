@@ -46,6 +46,7 @@ These rules hold for every version of ESTEL, from the first commit of step 1 onw
 - **The rule that separates the steps:** whatever STL does not compute today belongs to step 2, however small it is.
 - **Step 1 ends with the 1.0.0 freeze:** parity with STL proven (Part II, §14), reference values generated and signed off by humans.
 - **Step 2 is documented before it starts** (Part III), and the interfaces it needs are reserved in 1.0.0 (Part II, §9.4).
+- **Step 2 has two parts, then step 3.** Step 2a corrects and stabilises the mathematics, with a benchmark properly developed; step 2b brings the advanced optimisations and the Rust engine; ESTEL 2.0.0 follows them. Step 3 holds the long-term developments (Part III, §19.13).
 
 ### 1.4 Design for what comes next
 
@@ -182,9 +183,9 @@ These rules apply to L1 and L2 from the first commit of step 1. From phase P1, E
 1. **Functional code only.** Build per-level results in Python lists (§3.1.1), then `concat` or `stack` them. No preallocation filled by index, no `out=`, no `inplace=`. This applies to the code that computes the statistics; the NumPy code that builds the static plan, run once at construction, may write in place (§2.4).
 2. **Static shapes.** Everything shape-related — index sets, crop widths, stencils, bins — lives in the `STPlan`, built in NumPy and passed as a static argument.
 3. **No decisions on array values inside traced code.** No `if x.isnan().any()`, no `.item()`, no `float(x)`, no `print(x)`. NaN detection and estimator selection happen when the `Data` object or the operator is constructed; the masks and reweighting maps they produce are then static data of the plan (§2.3).
-4. **Large constants are arguments, not closures.** Kernels, masks and stencils are passed as arrays to the computation (`filters` in `scattering(data, plan, filters)`), so they are not baked into the compiled program. Whether baking small kernels in as compiled constants would be faster is a step-2 question (LF29).
+4. **Large constants are arguments, not closures.** Kernels, masks and stencils are passed as arrays to the computation (`filters` in `scattering(data, plan, filters)`), so they are not baked into the compiled program. Baking small kernels in as compiled constants was tried in step 1 and brought no gain (Part III, §19.14).
 5. **Explicit randomness.** Every random function takes a key or a seed (`make_key(seed)`).
-6. **Complex convolutions are two real convolutions**, as STL's `_semicomplex_conv` already does. Kernels are stored as real pairs. Whether complex-to-complex convolutions would be faster in tensor products is a step-2 question (LF30).
+6. **Complex convolutions are two real convolutions**, as STL's `_semicomplex_conv` already does. Kernels are stored as real pairs. Whether complex-to-complex convolutions are faster in tensor products is tried in step 1 (Part II, §15.2, T3.2).
 7. **float32 by default, float64 on request.** Every computation must run in float32, the default, as well as in float64: no hard-coded float64 constant, no silent change of dtype; kernels, masks and plan arrays are cast to the operator's dtype when it is built, and the tests run in both. `set_default_dtype("float64")` enables float64 on every backend; on JAX it switches on `jax_enable_x64`, and raises an error if JAX already ran in float32 in that process.
 8. **Short Python loops, for JAX.** JAX unrolls Python loops when it traces the code, so their length drives compile time, which is part of the benchmark with a budget per case. Step 1 starts from the structure of STL's scattering loop, which limits memory and avoids recomputation, especially for tensor products, written in functional style. Before 1.0.0, a reorganisation that makes the computation faster or lighter belongs to step 1 if every value stays within the parity tolerance with STL and the benchmark shows its gain: done early, it guides the developments that follow, and parity with STL checks that it changes nothing (Part II, §15.2, T2.11 to T2.15; Part IV, §22, "Efficiency in step 1"). A reorganisation that changes values remains step 2 work (Part III, §19.13).
 9. **Data and statistics are pytrees.** `Data` and `STStatistics` are registered as pytrees (arrays as leaves, metadata static), so that `jax.vmap` and `jax.jit` accept them.
@@ -216,7 +217,7 @@ x_coarse = geometry.downsample(x, level)           # a new object; x is untouche
 - **The full-grid view is assembled once, at the end.** One out-of-place primitive, `scatter_to_grid(values, index, shape, fill)`, places the stacked values at the static positions of the plan, with NaN everywhere else (Part II, §12.3). Its inverse, `gather_from_grid(grid, index)`, reads the existing coefficients back.
 - **Missing data are weights.** Means are computed as `sum(w * x) / sum(w)` with w equal to 0 or 1, never as `x[mask]` or `nanmean`, so that every shape stays fixed. The denominators `sum(w)` depend only on the static masks, so they are computed once, in the plan.
 
-The cost is negligible. Under `jax.jit`, the compiler reuses memory itself; in PyTorch, stacking costs one copy at the end, small beside the convolutions. In step 2, computing the second-layer means by contraction instead of building the full product first lowers the memory peak further (Part III, §19.3, LF31).
+The cost is negligible. Under `jax.jit`, the compiler reuses memory itself; in PyTorch, stacking costs one copy at the end, small beside the convolutions. Since T2.12, the second-layer means are computed by contraction, in the Gram form, instead of building the full product first, which lowers the memory peak further (Part III, §19.3).
 
 This style is required from step 1, and JAX runs it from P1: it is also what keeps second-order derivatives correct in PyTorch, and what makes results independent of the order of calls.
 
@@ -251,7 +252,7 @@ All differentiation tests run in **float64** on small inputs, one reason the flo
 2. **No in-place operations in PyTorch** inside L1 and L2: they break double backward. The §2.4 check covers this.
 3. **Safe modulus.** |z| has an infinite second derivative at z = 0, and exact zeros do occur (zero-filled masked pixels, padding). The rule is `r = sqrt(where(m, |z|², 1)); |z| = where(m, r, 0)` with `m = |z|² > 0`, the *double-where* pattern, which keeps NaN out of the gradients of the branch not taken. Values are unchanged, so reference values are unaffected. The same care applies to STL's regularised division `z / sqrt(|z| + 1e-8)` used in the cross S1 terms.
 4. **Masks are weights**, never boolean indexing or `nanmean`, for the same reason.
-5. **The reference is an explicit argument.** In `apply(data, ref)`, gradients flow into `ref` unless the caller stops them. Whether the default normalisation should stop them is decided after 1.0.0 (Part III, §20.7).
+5. **The reference follows the normalisation** (maths tab, OP-18): with `norm="self"` the reference is part of the computation and gradients flow through it; with `norm="ref"` it is a constant, through which no gradient flows.
 
 *Technical note on rule 3 — why a single `where` is not enough:* `where(cond, a, b)` evaluates both branches on the whole array and only then selects element by element, and automatic differentiation propagates through both, multiplying the derivative of the discarded branch by 0. A branch that is singular where it is discarded — `sqrt` or `abs` at 0 — therefore still injects 0 × NaN = NaN into the gradient. `where(m, abs(z), 0)` fixes the value but not the gradient; the inner `where` makes the input of `sqrt` safe everywhere, so that every branch has finite derivatives on the whole array.
 
@@ -260,7 +261,7 @@ All differentiation tests run in **float64** on small inputs, one reason the flo
 - **Every engine declares a differentiation order** (`diff_order`). The Python engine has order 2, on PyTorch and on JAX.
 - **Order-1 engines serve synthesis and first-order losses.** The Rust engine, from STL-Dev-MPI, has hand-written VJPs that are not themselves differentiable, so it declares order 1. A request for a JVP, a Hessian-vector product or a double backward then raises an error pointing to `engine="python"`.
 - **Wrapping.** At order 1, an engine is wrapped with `jax.custom_vjp` or a `torch.autograd.Function` marked `once_differentiable`. At order 2, it provides a JVP and a differentiable VJP, so both modes compose.
-- **Roadmap.** Second order is guaranteed for the Python engine, on PyTorch and JAX. For the Rust engine it is written by hand later (LF15, Part III §18.2). Until then, implicit differentiation goes through the Python engine. Whether `engine="auto"` should route second-order requests to the Python engine automatically is a point to discuss (Part IV, §23, Q5).
+- **Roadmap.** Second order is guaranteed for the Python engine, on PyTorch and JAX. For the Rust engine it is written by hand later (LF15, Part III §18.2). Until then, implicit differentiation goes through the Python engine. Whether `engine="auto"` should route second-order requests to the Python engine automatically is decided with the Rust engine (Part III, §16, LF3).
 
 ## 4. Mathematics
 
@@ -325,7 +326,7 @@ In step 1, `maths.md` records the mathematics of STL **as it is**, including cho
 | STL parity | ESTEL against STL on the same inputs, both in float64, for the scattering statistics and the 2D spectra (Part II, §14) | step 1 only; retired after 1.0.0 |
 | Engine parity | Reference values and gradients of an engine against the Python engine, per claimed configuration (Part III, §18) | step 2, every PR touching engines |
 
-**Reference inputs** are seeded synthetic fields, plus small versions of the public data used by STL's certification notebooks and of the advected turbulence case of the STOC deliverable. A hidden subset of inputs is kept outside the public repository and run by the maintainers before each release, so that no change can be tuned to the visible cases.
+**Reference inputs** are seeded synthetic fields, plus small versions of the public data used by STL's certification notebooks and of the advected turbulence case of the STOC deliverable.
 
 **Reference values** are produced by `tools/make_reference.py` from `_spec` in float64, never from ESTEL itself. In step 1 they are also checked against STL, run in float64 (Part II, §14.5).
 
@@ -386,7 +387,7 @@ Nothing leaves the full tier: a test marked `slow` or left out of the fast tier 
 | --- | --- | --- | --- | --- |
 | 0 | every push and PR; nightly | GitHub-hosted CPU | fast tier ≤ 2 min, full tier ≤ 15 min | ruff, type check, §2.4 checks (including public vs internal), manifest, mirrors, maths IDs, the tests on CPU, differentiation, also on JAX, in parallel jobs (§3.1). PRs run the fast tier of §5.4; `main`, the nightly run and PRs labelled `full-ci` run the full tier: all tests in float32 and float64, the whole suite on both backends. In step 2: CPU build of the Rust wheels |
 | 1 | PR, after tier 0 passes. **Set up after 1.0.0** (Part III, §16) | HPC GPU, constrained (§6.2) | ≤ 20 min wall time, 1 GPU | `pytest -m gpu`: reference values on GPU, determinism (two runs bit-identical), GPU syntheses, benchmark smoke test. In step 2: GPU build of the Rust wheels |
-| 2 | `bench` label set by humans; release candidates | dedicated, pinned GPU node, outside CI | hours | full benchmark; results committed by a bot to `bench/results/` with a hardware fingerprint |
+| 2 | `bench` label set by humans; release candidates. **Set up in step 2a** (Part III, §16, LF62) | dedicated, pinned GPU node, outside CI | hours | full benchmark; results committed by a bot to `bench/results/` with a hardware fingerprint |
 
 ### 6.2 Constrained GPU access from CI
 
@@ -407,8 +408,8 @@ Tier 1 is set up after 1.0.0. The scheduler, the container runtime and the netwo
 
 ### 6.3 Benchmarks
 
-- **Cases** (`bench/cases.toml`), public and defined together with the maintainers: one per geometry at a small and a medium size; the 2D+1D cases of the STOC deliverable at reduced sizes; JAX compile time; peak memory; synthesis time per iteration; in step 2, the Rust engine against the Python engine. Few cases, each clear, at a realistic size, run outside CI. The first ones, 2D cases on CPU, run from phase P2 and judge the optimisations of step 1, their statistics and their gradients (Part II, §15.2, T2.11, T2.12); a synthesis case joins them with T6.1; the others come with their phases (T7.1).
-- **Thresholds.** `bench/thresholds.toml` (protected) holds the "significant change" threshold of each metric, chosen by humans. To begin with, a factor 2 in speed or in peak memory; it may be refined later.
+- **In step 1, a light benchmark.** The 2D cases on CPU of `bench/cases.toml` (Part II, §15.2, T2.11), run outside CI, check that ESTEL's time and memory are commensurate with STL's, and judge the optimisations of step 1, their statistics and their gradients (T2.12).
+- **In step 2a, the benchmark properly developed** (Part III, §16, LF62): public cases defined with the maintainers, one per geometry at a small and a medium size, the 2D+1D cases of the STOC deliverable at reduced sizes, JAX compile time, peak memory, synthesis time per iteration, the Rust engine against the Python engine; few cases, each clear, at a realistic size. `bench/thresholds.toml` (protected) then holds the "significant change" threshold of each metric, chosen by humans: to begin with, a factor 2 in speed or in peak memory.
 - **Correctness.** Every benchmark run also asserts the correctness of its results, so that no gain can come from a wrong computation.
 - **Comparisons.** An optimisation is judged by the comparison mode of the benchmark: the branch and `main` measured in the same session, on AC power, in alternating rounds of fresh processes, and the statistics and the gradient of each case compared with `main`'s. It is judged on the median ratio of each measure, against the noise floor of `main` against `main`: about ±2.5 % on the reference laptop, where a single round can be 5 to 20 % off. Each result enters the table of Part III, §19.14.
 
@@ -418,7 +419,7 @@ Tier 1 is set up after 1.0.0. The scheduler, the container runtime and the netwo
 
 | Bump | When | Who decides |
 | --- | --- | --- |
-| **MAJOR** | a breaking interface change: a removed or renamed function or argument, a changed default; a new geometry. Whether a change of statistics values also forces a major is decided case by case with the maintainers (Part IV, §23, Q3) | humans (CODEOWNER approval) |
+| **MAJOR** | a breaking interface change: a removed or renamed function or argument, a changed default; a new geometry. Whether a change of statistics values also forces a major is decided case by case with the maintainers | humans (CODEOWNER approval) |
 | **MINOR** | new features, including opt-in step-2 features and new engine configurations; a significant benchmark gain (§6.3), including making an engine the default for a configuration | automatic; humans set the `bench` label for benchmark-driven minors |
 | **PATCH** | bug fixes that leave reference values unchanged; refactors; docs | automatic |
 

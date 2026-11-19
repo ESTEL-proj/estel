@@ -158,4 +158,5 @@ report what was measured on the task's issue, so that the maintainer resizes the
 
 `tests/bench/` runs the harness on a tiny case (32 × 32, J = 2) in the fast tier, so that it
 cannot rot. The real cases never run in CI, and there is no GitHub workflow for the benchmark.
-`bench/thresholds.toml` (protected) does not exist yet: the thresholds are set in phase P7.
+`bench/thresholds.toml` (protected) does not exist yet: the thresholds are set with the benchmark
+of step 2a (LF62, `docs/transfer/part3.md`).

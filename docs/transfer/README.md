@@ -10,7 +10,7 @@ From draft 0.4 (12 November 2026), this folder and [`docs/maths.md`](../maths.md
 | [`part1.md`](part1.md) | Part I — General rules (§1–§8) |
 | [`part2.md`](part2.md) | Part II — Step 1: transfer from STL (§9–§15) |
 | [`part3.md`](part3.md) | Part III — Step 2: later developments (§16–§20) |
-| [`part4.md`](part4.md) | Part IV — Review and decisions (§21–§23) |
+| [`part4.md`](part4.md) | Part IV — Review and decisions (§21–§22) |
 | [`appendices.md`](appendices.md) | Appendices: glossary, references |
 | [`../maths.md`](../maths.md) | The mathematics of step 1, with the `M-` IDs that `estel._spec` implements |
 | [`../maths_step2.md`](../maths_step2.md) | The mathematics proposed for step 2 |
