@@ -11,7 +11,7 @@ The families checked, and the list that defines each, by a table row that starts
   old points to settle ``Qn`` (Part IV, §23 until 19 November 2026): no list; only the decision
   log (Part IV, §22).
 
-The decision logs: that of the specification (Part IV, §22) and that of step 2
+The decision logs: that of the specification (Part IV, §22) and that of the register
 (``docs/register/decisions.md``), with the same columns.
 
 The rule. A cited identifier is accepted if its list has a row (or a card) for it, or if the
@@ -68,8 +68,8 @@ TASKS = IdList("the tasks (Part II, §15.2)", "docs/transfer/part2.md", "### 15.
 LISTS = (OPEN_POINTS, REGISTER, RISKS, TASKS)
 
 DECISION_LOG = IdList("the decision log (Part IV, §22)", "docs/transfer/part4.md", "## 22. ")
-STEP2_LOG = IdList("the decision log of step 2", "docs/register/decisions.md", None)
-DECISION_LOGS = (DECISION_LOG, STEP2_LOG)
+REGISTER_LOG = IdList("the decision log of the register", "docs/register/decisions.md", None)
+DECISION_LOGS = (DECISION_LOG, REGISTER_LOG)
 LOGS_NAME = "the decision logs (Part IV, §22; docs/register/decisions.md)"
 
 

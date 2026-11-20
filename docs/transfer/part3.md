@@ -18,7 +18,7 @@ Nothing in this part is implemented before 1.0.0. It is documented now for two r
 
 ## 16. Register of later features
 
-The register gathers everything still to implement after step 1. Since 20 November 2026 it lives in the repository, in [`docs/register/`](../register/README.md): one card per entry (`docs/register/<ID>.md`), with its step, its phase, its status and what it still has to decide; a view generated from the cards (`docs/register/README.md`, by `tools/register.py`), which also gives the rules of the register; and the decision log of step 2 ([`docs/register/decisions.md`](../register/decisions.md)). The entries keep their identifiers, LFn and Wn, and their text.
+The register gathers everything still to implement after step 1. Since 20 November 2026 it lives in the repository, in [`docs/register/`](../register/README.md): one card per entry (`docs/register/<ID>.md`), with its step, its phase, its status and what it still has to decide; a view generated from the cards (`docs/register/README.md`, by `tools/register.py`), which also gives the rules of the register; and the decision log of the register ([`docs/register/decisions.md`](../register/decisions.md)). The entries keep their identifiers, LFn and Wn, and their text.
 
 ## 17. JAX backend
 
@@ -317,7 +317,7 @@ None of these changes a value. Each exists to make a later change local. Points 
 
 ### 19.13 Steps 2a, 2b and 3
 
-Step 2 has two parts (Part I, §1.3), and the field `step` of each card of the register (§16) places its entry, by the criterion of the decision log of step 2 (`docs/register/decisions.md`):
+Step 2 has two parts (Part I, §1.3), and the field `step` of each card of the register (§16) places its entry, by the criterion of the decision log of the register (`docs/register/decisions.md`):
 
 1. **Step 2a: the mathematics corrected and stabilised.** The changes of values that make the statistics what they should be: centred covariances (LF33), the low-pass filter in every family (LF6), the canonical set of coefficients (LF20), complete and correct reductions (LF32, LF26), and the other corrections that the open points of the maths tab sent to the register; with them, the benchmark of step 2 (LF62).
 2. **Step 2b: the advanced optimisations.** The joint design of the smoothing kernel and the wavelets, with the Littlewood–Paley condition and exact invariance (LF22, LF25; §20.10), and the Rust engine (LF3).

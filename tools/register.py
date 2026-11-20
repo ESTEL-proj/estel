@@ -1,4 +1,4 @@
-"""The register of step 2: one card per entry in ``docs/register/``, and the view made from them.
+"""The register of later features: one card per entry in ``docs/register/``, and its view.
 
 Each entry of the register of later features (Part III, §16) is a card, ``docs/register/<ID>.md``:
 a front matter in TOML between two lines ``+++``, then the text of the entry in Markdown. This
@@ -13,7 +13,7 @@ A card is valid when its front matter parses and has exactly the fields of ``FIE
 types; its ``id`` is the name of its file; its ``category``, ``step`` and ``status`` take one of
 their values; its ``phase`` is set for step 2a only, to one of ``PHASES``; its title has at most
 ``MAX_TITLE_WORDS`` words; and each of its ``depends`` names another card. ``README.md`` and
-``decisions.md`` (the decision log of step 2) are the only other files of the directory.
+``decisions.md`` (the decision log of the register) are the only other files of the directory.
 
 The view is deterministic: the same cards give the same bytes. Standard library only (``tomllib``),
 and the tool never imports estel.
@@ -192,7 +192,7 @@ def load(root: Path) -> tuple[list[Card], list[str]]:
     """Every card of ``root``'s register, in identifier order, and the problems found."""
     directory = root / REGISTER
     if not directory.is_dir():
-        return [], [f"{REGISTER.as_posix()}/ is missing: it holds the register of step 2."]
+        return [], [f"{REGISTER.as_posix()}/ is missing: it holds the register of later features."]
     cards: list[Card] = []
     errors: list[str] = []
     named: set[str] = set()  # the identifiers of the files named as cards, valid or not
@@ -240,8 +240,8 @@ RULES = (
     "and every feature, optimisation or piece of work deferred during the reviews or by an open "
     "point of the maths tab, so that none is forgotten. Until 20 November 2026 it was the table "
     "of Part III, §16. Each entry is now a card, `docs/register/<ID>.md`, and this view is made "
-    "from the front matter of the cards. The decisions on step 2 are logged in "
-    "[decisions.md](decisions.md).",
+    "from the front matter of the cards. The decisions on the register and on the later steps "
+    "are logged in its decision log, [decisions.md](decisions.md).",
     "## How an entry lives",
     "A remark made while working on the mathematics opens an open point of the maths tab (OP). "
     "An open point is decided and applied at once, closed as not relevant, or sent here as a "
@@ -255,7 +255,7 @@ RULES = (
     'One card per entry, named after its identifier: LFn ("later feature") and Wn (deferred work '
     "that is not a feature); a new entry takes the next free number. An entry that is abandoned, "
     "or that becomes a task of step 1 (Part II, §15.2), loses its card and leaves a row in a "
-    "decision log: that of step 1 (Part IV, §22) or that of step 2 "
+    "decision log: that of the specification (Part IV, §22) or that of the register "
     "([decisions.md](decisions.md)).",
     "## A card",
     f"A front matter in TOML between two lines `{FENCE}`, then the text of the entry: one "
@@ -301,7 +301,8 @@ RULES = (
     "2a.0 → 2a.1 → 2a.2 → 2a.5 is the critical path; 2a.3 and 2a.4 run in parallel from 2a.0; "
     "2a.X runs at any time.",
     "## The queue",
-    "Something found during step 1 that belongs to step 2 becomes a new card with "
+    "Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes a new "
+    "card with "
     '`step = "queue"` and `status = "decision"` (placing it is a human decision), the next free '
     "LF number, and optionally a suggested step in its body. Never change the step, phase, "
     "status or content of an existing card unless your task names "

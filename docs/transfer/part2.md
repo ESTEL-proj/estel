@@ -117,7 +117,7 @@ estel/                             # one repository for Python and Rust (Part IV
 │   ├── maths.md                   # PROTECTED: exact formulas, each with an M- ID
 │   ├── reference.md               # the ESTEL reference document, written with 1.0.0
 │   ├── register/                  # PROTECTED: the register of later features, one card
-│   │                              # per entry, its view and the decision log of step 2
+│   │                              # per entry, its view and its decision log
 │   ├── policy/                    # PROTECTED: VERSIONING.md, PR_POLICY.md, TOLERANCES.md
 │   ├── agents/                    # architecture, jax_rules, differentiation, testing,
 │   │   │                          # review_rules, storage

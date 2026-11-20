@@ -31,11 +31,11 @@ PART2 = """# Part II
 """
 
 CARD = '+++\nid = "{}"\n+++\n'
-STEP2_LOG_HEAD = """# Decision log of step 2
+REGISTER_LOG_HEAD = """# Decision log of the register
 | Date | ID | Point | Decision | Where |
 | --- | --- | --- | --- | --- |
 """
-STEP2_LOG = STEP2_LOG_HEAD + "| 20 November 2026 | LF30 | Tried in step 1 | a task | — |\n"
+REGISTER_LOG = REGISTER_LOG_HEAD + "| 20 November 2026 | LF30 | Tried in step 1 | a task | — |\n"
 
 G1_ROW = "| 4 November 2026 | G1 | Old open points | replaced |\n"
 PART4_HEAD = """# Part IV
@@ -62,7 +62,7 @@ GOOD = {
     "docs/transfer/part2.md": PART2,
     "docs/register/LF1.md": CARD.format("LF1"),
     "docs/register/W1.md": CARD.format("W1"),
-    "docs/register/decisions.md": STEP2_LOG,
+    "docs/register/decisions.md": REGISTER_LOG,
     "docs/transfer/part4.md": PART4,
     "docs/transfer/part1.md": CITES,
     "AGENTS.md": "# AGENTS\nTask T2.12.\n",
@@ -155,9 +155,9 @@ def test_good_tree_passes(tmp_path: Path) -> None:
             id="removed-from-register",
         ),
         pytest.param(
-            {"docs/register/decisions.md": STEP2_LOG_HEAD},
+            {"docs/register/decisions.md": REGISTER_LOG_HEAD},
             "docs/transfer/part1.md:1 cites LF30, which has no card in the register",
-            id="removed-from-step-2-log",
+            id="removed-from-register-log",
         ),
         pytest.param(
             dict.fromkeys(

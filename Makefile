@@ -122,7 +122,7 @@ identifiers:
 workflows:
 	$(RUN) python tools/check_workflows.py
 
-# The register of step 2 (docs/register/): every card valid, and the view README.md up to date.
+# The register of later features (docs/register/): every card valid, and the view README.md up to date.
 # Regenerate the view after changing a card: make register
 register-check:
 	$(RUN) python tools/register.py --check

@@ -353,7 +353,7 @@ Calibration, written in `TOLERANCES.md`: run every backend, device and dtype on 
   - the reference counters: `src/estel/_reference.py`;
   - the STL parity fixtures: `tests/parity/fixtures/**`;
   - the specification: `docs/transfer/**`, `docs/maths.md` and `docs/maths_step2.md`, changed only through pull requests that a maintainer requests and merges;
-  - the register of step 2 and its decision log: `docs/register/**`;
+  - the register of later features and its decision log: `docs/register/**`;
   - the oracle and the mathematics: `src/estel/_spec/**`, `docs/maths.md`, `docs/maths_step2.md`;
   - policy and API: `docs/policy/**`, `api/manifest.json`;
   - context files: `AGENTS.md`, `CLAUDE.md`, their mirrors, `docs/agents/review_rules.md`;
