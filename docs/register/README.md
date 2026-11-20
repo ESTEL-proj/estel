@@ -65,7 +65,7 @@ Something found during step 1 that belongs to step 2 becomes a new card with `st
 
 ## Step 2a
 
-28 entries: 14 need a human, 14 can be treated.
+28 entries: 12 need a human, 16 can be treated.
 
 ### Needs a human
 
@@ -79,11 +79,9 @@ Something found during step 1 that belongs to step 2 becomes a new card with `st
 | [LF28](LF28.md) | Better regularisation of the cross S1 terms | 2a.2 | what replaces ε = 1e-8: no ε, an ε relative to the mean modulus of each channel, or an ε from the reference | Mathematical choice |
 | [LF32](LF32.md) | Orientation reductions made complete and correct | 2a.2 | whether iso returns only the real parts of reduced S3 and S4 (and of the cross S1 and S2); meaning of iso in 1D with L = 2 (OP-40); angular_fourier without iso: iso required, or a transform over [0, 2π) | Mathematical choice |
 | [LF53](LF53.md) | Complex cross-channel terms kept | 2a.2 | cross-spectra: OP-19 closed (real for real data) or a complex oriented spectrum; the real flattening of the cross S1 and S2: the rule of LF20 | Mathematical choice |
-| [LF7](LF7.md) | Positive spectrum estimator for non-periodic data | 2a.3 | — | New feature |
-| [LF49](LF49.md) | Isotropic radial binning on rectangular images | 2a.3 | — | Mathematical choice |
-| [LF52](LF52.md) | Masks downsampled as continuous weights | 2a.3 | — | Mathematical choice |
-| [LF58](LF58.md) | One loss function for both synthesis entries | 2a.4 | one named concept for mean_field; rule for the channel axis of the result (OP-75) | Mathematical choice |
-| [LF59](LF59.md) | Running field of a synthesis standardised | 2a.4 | — | Mathematical choice |
+| [LF49](LF49.md) | Isotropic radial binning on rectangular images | 2a.3 | radial frequency of a mode on rectangular images (OP-6); whether the synthesis pre-filter (OP-54) is included | Mathematical choice |
+| [LF58](LF58.md) | One loss function for both synthesis entries | 2a.4 | one named concept for mean_field; one standardisation for both entries (OP-72); normalisation of the loss (OP-71); rule for the channel axis of the result (OP-75) | Mathematical choice |
+| [LF59](LF59.md) | Running field of a synthesis standardised | 2a.4 | start standardised, or the running field at every evaluation (OP-73); per running field or over the running batch | Mathematical choice |
 | [LF10](LF10.md) | v1.6.0 spectrum estimators in every geometry | 2a.X | — | New feature |
 
 ### Can be treated
@@ -92,6 +90,8 @@ Something found during step 1 that belongs to step 2 becomes a new card with `st
 | --- | --- | --- | --- | --- | --- |
 | [LF57](LF57.md) | A less conservative border crop | 2a.1 | study | — | — |
 | [LF60](LF60.md) | Zero border at a block's low-pass scale | 2a.1 | study | LF6, LF33 | — |
+| [LF7](LF7.md) | Positive spectrum estimator for non-periodic data | 2a.3 | study | — | — |
+| [LF52](LF52.md) | Masks downsampled as continuous weights | 2a.3 | study | — | — |
 | [W2](W2.md) | Synthesis tests | 2a.4 | ready | — | — |
 | [LF36](LF36.md) | Level-wise gradients in the Python engine | 2a.5 | study | LF62 | — |
 | [LF1](LF1.md) | JAX backend | 2a.X | ready | — | — |
