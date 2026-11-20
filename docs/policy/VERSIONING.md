@@ -8,7 +8,7 @@
 
 | Bump | When | Who decides |
 |---|---|---|
-| MAJOR | a breaking interface change (removed or renamed function or argument, changed default); a new geometry. Whether a change of statistics values also forces a major is decided case by case with the maintainers | CODEOWNERS |
+| MAJOR | a breaking interface change (removed or renamed function or argument, changed default, except in step 2, whose changes of defaults ship in 1.x releases until 2.0.0: Part I, §1.3); a new geometry. Whether a change of statistics values also forces a major is decided case by case with the maintainers | CODEOWNERS |
 | MINOR | new features, including opt-in step-2 features and new engine configurations; a significant benchmark gain (to begin with, a factor 2 in speed or peak memory), including making an engine the default for a configuration | automatic; humans set the `bench` label for benchmark-driven minors |
 | PATCH | bug fixes that leave reference values unchanged; refactors; docs | automatic |
 

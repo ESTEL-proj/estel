@@ -61,7 +61,7 @@ ESTEL is a Python library for **scattering-transform statistics**. These statist
 **The steps.**
 
 - **Step 1 — transfer (ESTEL 1.0.0).** Import only what STL already does, and reproduce its results exactly, in a framework where ESTEL and STL can be compared number by number. Nothing new enters the mathematics.
-- **Step 2 — extension (ESTEL 1.x and beyond).** Add new capabilities: a stable JAX backend (experimental from step 1), the Rust engine, with GPU and MPI support, a compact storage of the coefficients, and new mathematics. Each one first lands as an opt-in feature, and becomes a default only through the versioning rules. Step 2 has two parts: step 2a corrects and stabilises the mathematics, with a benchmark properly developed; step 2b brings the advanced optimisations and the Rust engine. ESTEL 2.0.0 follows them.
+- **Step 2 — extension (ESTEL 1.x, then 2.0.0).** Add new capabilities: a stable JAX backend (experimental from step 1), the Rust engine, with GPU and MPI support, a compact storage of the coefficients, and new mathematics. Step 2 has two parts: step 2a corrects and stabilises the mathematics, with a benchmark properly developed; step 2b brings the advanced optimisations and the Rust engine, and ends with ESTEL 2.0.0. Each entry ships, as the new behaviour, in the next 1.x release once it is done, and each release drops the previous defaults at once.
 - **Step 3 — the long term.** The developments left for later.
 
 &#91;embedded content: ESTEL development · from the STL sources to the reference document\]
