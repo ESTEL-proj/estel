@@ -65,7 +65,7 @@ Something found during step 1 that belongs to step 2 becomes a new card with `st
 
 ## Step 2a
 
-28 entries: 15 need a human, 13 can be treated.
+28 entries: 14 need a human, 14 can be treated.
 
 ### Needs a human
 
@@ -74,7 +74,6 @@ Something found during step 1 that belongs to step 2 becomes a new card with `st
 | [LF62](LF62.md) | The benchmark of step 2 | 2a.0 | public datasets of the cases; thresholds; TF32 on NVIDIA GPUs: disabled, or kept if parity holds; default length of the L-BFGS history | Optimisation |
 | [LF6](LF6.md) | Low-pass filters in every geometry and S3/S4 | 2a.1 | S3 and S4: low-pass as last filter only, or also first; half-pixel shift without the final downsampling (M-LP2); how the plan describes the low-pass filter and the centring | New feature |
 | [LF33](LF33.md) | Centred covariances | 2a.1 | centring method in float32: coefficients corrected or maps centred first | Mathematical choice |
-| [LF57](LF57.md) | A less conservative border crop | 2a.1 | — | Mathematical choice |
 | [LF20](LF20.md) | Canonical coefficient set | 2a.2 | STL's set kept (packing only) or the non-redundant set | Mathematical choice |
 | [LF26](LF26.md) | Reductions on tensor products redefined | 2a.2 | — | Mathematical choice |
 | [LF28](LF28.md) | Better regularisation of the cross S1 terms | 2a.2 | — | Mathematical choice |
@@ -91,6 +90,7 @@ Something found during step 1 that belongs to step 2 becomes a new card with `st
 
 | ID | Title | Phase | Status | Depends | Issue |
 | --- | --- | --- | --- | --- | --- |
+| [LF57](LF57.md) | A less conservative border crop | 2a.1 | study | — | — |
 | [LF60](LF60.md) | Zero border at a block's low-pass scale | 2a.1 | study | LF6, LF33 | — |
 | [W2](W2.md) | Synthesis tests | 2a.4 | ready | — | — |
 | [LF36](LF36.md) | Level-wise gradients in the Python engine | 2a.5 | study | LF62 | — |
