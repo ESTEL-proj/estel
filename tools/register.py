@@ -278,7 +278,7 @@ RULES = (
     "- **`phase`**: for step 2a only, one of the phases below; empty otherwise.\n"
     "- **`status`**: one of the statuses below.\n"
     "- **`decide`**: what the entry still has to settle, by the time it is implemented, in "
-    'short phrases; empty when its section "To decide" is "—".\n'
+    'short phrases: its section "To decide", and the questions of its section "Brief".\n'
     '- **`depends`**: the entries it must wait for, named in its column "Step" ("with LF62"); '
     'an entry that completes it later ("completed by LF22") is not one.\n'
     "- **`changes_values`**: whether the reference values change, and the version impact where "

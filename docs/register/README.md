@@ -20,7 +20,7 @@ A front matter in TOML between two lines `+++`, then the text of the entry: one 
 - **`step`**: `queue` (not placed yet), `2a`, `2b` or `3`, placed by the criterion of [decisions.md](decisions.md) (Part III, §19.13).
 - **`phase`**: for step 2a only, one of the phases below; empty otherwise.
 - **`status`**: one of the statuses below.
-- **`decide`**: what the entry still has to settle, by the time it is implemented, in short phrases; empty when its section "To decide" is "—".
+- **`decide`**: what the entry still has to settle, by the time it is implemented, in short phrases: its section "To decide", and the questions of its section "Brief".
 - **`depends`**: the entries it must wait for, named in its column "Step" ("with LF62"); an entry that completes it later ("completed by LF22") is not one.
 - **`changes_values`**: whether the reference values change, and the version impact where it is known.
 - **`issue`**: the number of its GitHub issue; 0 until it has one.
@@ -107,13 +107,14 @@ Something found during step 1 that belongs to step 2 becomes a new card with `st
 
 ## Step 2b
 
-18 entries: 9 need a human, 9 can be treated.
+18 entries: 10 need a human, 8 can be treated.
 
 ### Needs a human
 
 | ID | Title | Phase | To decide | Category |
 | --- | --- | --- | --- | --- |
 | [LF3](LF3.md) | Rust engine (estel-rust), CPU and GPU | — | with engine="auto", routing of second-order requests; scope of the Rust engine after the benchmark (§18.6) | Structure |
+| [LF8](LF8.md) | NaN masks in tensor products | — | per-block valid weights multiplied, or the observed-sample mask with per-block border crops (§20.3) | New feature |
 | [LF22](LF22.md) | Wavelet optimisation | — | — | Mathematical choice |
 | [LF25](LF25.md) | Exact translation invariance | — | — | Mathematical choice |
 | [LF35](LF35.md) | Strict scale order, as an option | — | validation on syntheses and inference; option or default | Mathematical choice |
@@ -128,7 +129,6 @@ Something found during step 1 that belongs to step 2 becomes a new card with `st
 | ID | Title | Phase | Status | Depends | Issue |
 | --- | --- | --- | --- | --- | --- |
 | [LF5](LF5.md) | Rust HEALPix anafast (estel-sht) | — | ready | LF3 | — |
-| [LF8](LF8.md) | NaN masks in tensor products | — | ready | — | — |
 | [LF12](LF12.md) | Synthesis: coarse-to-fine, per-iteration filtering, ensembles | — | ready | — | — |
 | [LF16](LF16.md) | float32 in the Rust engine | — | ready | LF3 | — |
 | [LF18](LF18.md) | Non-periodic boundaries in the Rust engine | — | ready | LF3 | — |
@@ -139,7 +139,7 @@ Something found during step 1 that belongs to step 2 becomes a new card with `st
 
 ## Step 3
 
-14 entries: 7 need a human, 7 can be treated.
+14 entries: 8 need a human, 6 can be treated.
 
 ### Needs a human
 
@@ -150,6 +150,7 @@ Something found during step 1 that belongs to step 2 becomes a new card with `st
 | [LF27](LF27.md) | Relevance of the partial order of tensor-product scales | — | — | Mathematical choice |
 | [LF34](LF34.md) | Partitioned execution | — | whether it is the single way to scale out (absorbing LF4 and LF19) | Optimisation |
 | [LF37](LF37.md) | Pruned plans | — | — | New feature |
+| [LF39](LF39.md) | Fine-band S2 coefficients | — | definition of the narrower isotropic filters | Mathematical choice |
 | [LF40](LF40.md) | Scale cut-off j₃ − j₁ ≤ Δ | — | — | New feature |
 | [LF45](LF45.md) | Sibling operators | — | — | New feature |
 
@@ -160,7 +161,6 @@ Something found during step 1 that belongs to step 2 becomes a new card with `st
 | [LF9](LF9.md) | HEALPix blocks in tensor products | — | ready | — | — |
 | [LF15](LF15.md) | Second order in the Rust engine | — | ready | LF3 | — |
 | [LF17](LF17.md) | Tensor products in the Rust engine | — | ready | LF3 | — |
-| [LF39](LF39.md) | Fine-band S2 coefficients | — | ready | — | — |
 | [LF42](LF42.md) | Masks per channel | — | ready | — | — |
 | [LF43](LF43.md) | An ellipsoid for HEALPix pixel centres | — | ready | — | — |
 | [LF44](LF44.md) | Named blocks of tensor products, labelled exports | — | ready | — | — |
