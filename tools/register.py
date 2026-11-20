@@ -279,7 +279,8 @@ RULES = (
     "- **`status`**: one of the statuses below.\n"
     "- **`decide`**: what the entry still has to settle, by the time it is implemented, in "
     'short phrases; empty when its section "To decide" is "—".\n'
-    '- **`depends`**: the entries its column "Step" named ("with LF62", "completed by LF22").\n'
+    '- **`depends`**: the entries it must wait for, named in its column "Step" ("with LF62"); '
+    'an entry that completes it later ("completed by LF22") is not one.\n'
     "- **`changes_values`**: whether the reference values change, and the version impact where "
     "it is known.\n"
     "- **`issue`**: the number of its GitHub issue; 0 until it has one.",
@@ -301,8 +302,9 @@ RULES = (
     "2a.X runs at any time.",
     "## The queue",
     "Something found during step 1 that belongs to step 2 becomes a new card with "
-    '`step = "queue"`, the next free LF number, and optionally a suggested step in its body. '
-    "Never change the step, phase, status or content of an existing card unless your task names "
+    '`step = "queue"` and `status = "decision"` (placing it is a human decision), the next free '
+    "LF number, and optionally a suggested step in its body. Never change the step, phase, "
+    "status or content of an existing card unless your task names "
     "that card (AGENTS.md, golden rule 16).",
 )
 

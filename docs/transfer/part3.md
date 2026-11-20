@@ -285,7 +285,7 @@ Two more facts, which the count does not show:
 
 ### 19.11 Optimisations, by leverage
 
-The proposals are entries of the register (§16): their effect is in its column "Why", their step in its column "Step". By decreasing leverage:
+The proposals are entries of the register (§16): their effect is in the section "Why" of their card, their step in its field `step`. By decreasing leverage:
 
 - **Change what is computed.** The largest effect, and each is first a scientific question, since it changes values: the strided second layer (LF38), the strict scale order (LF35), pruned plans (LF37), the canonical set (LF20), a scale cut-off (LF40).
 - **Compute the same numbers differently.** The Gram form, done in step 1 (§19.14); complex-to-complex convolutions (Part II, §15.2, T3.2).
@@ -336,7 +336,7 @@ What the optimisations of step 1 brought, measured by the benchmark (Part I, §6
 
 ## 20. New mathematics
 
-Each item below changes what ESTEL computes. Each one is written in `maths.md` and `_spec` first, lands as an opt-in option, and becomes a default through a bump of STATISTICS\_REFERENCE, decided with the maintainers (Part I, §7.1).
+Each item below changes what ESTEL computes. An item of step 2a is written ahead in `docs/maths_step2.md`, moves to `docs/maths.md` and `_spec` when it is implemented, lands behind a private flag, off by default, and becomes a default at the release of step 2a, with one bump of STATISTICS\_REFERENCE (§19.13). An item that changes no reference value ships as a minor version when it is ready. The other items follow their step (§19.13).
 
 ### 20.1 Low-pass filters everywhere, including S3/S4
 

@@ -420,7 +420,7 @@ Tier 1 is set up after 1.0.0. The scheduler, the container runtime and the netwo
 
 | Bump | When | Who decides |
 | --- | --- | --- |
-| **MAJOR** | a breaking interface change: a removed or renamed function or argument, a changed default; a new geometry. Whether a change of statistics values also forces a major is decided case by case with the maintainers | humans (CODEOWNER approval) |
+| **MAJOR** | a breaking interface change: a removed or renamed function or argument, a changed default, except at the release of step 2a, a 1.x release (§1.3); a new geometry. Whether a change of statistics values also forces a major is decided case by case with the maintainers | humans (CODEOWNER approval) |
 | **MINOR** | new features, including opt-in step-2 features and new engine configurations; a significant benchmark gain (§6.3), including making an engine the default for a configuration | automatic; humans set the `bench` label for benchmark-driven minors |
 | **PATCH** | bug fixes that leave reference values unchanged; refactors; docs | automatic |
 

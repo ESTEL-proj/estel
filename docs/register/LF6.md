@@ -6,7 +6,7 @@ step = "2a"
 phase = "2a.1"
 status = "decision"
 decide = ["S3 and S4: low-pass as last filter only, or also first", "half-pixel shift without the final downsampling (M-LP2)", "how the plan describes the low-pass filter and the centring"]
-depends = ["LF22"]
+depends = []
 changes_values = "yes (new default); reference bump; major decided with the maintainers"
 issue = 0
 +++
