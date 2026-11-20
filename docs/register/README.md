@@ -65,7 +65,7 @@ Something found during step 1 that belongs to step 2 becomes a new card with `st
 
 ## Step 2a
 
-28 entries: 12 need a human, 16 can be treated.
+28 entries: 15 need a human, 13 can be treated.
 
 ### Needs a human
 
@@ -82,7 +82,10 @@ Something found during step 1 that belongs to step 2 becomes a new card with `st
 | [LF49](LF49.md) | Isotropic radial binning on rectangular images | 2a.3 | radial frequency of a mode on rectangular images (OP-6); whether the synthesis pre-filter (OP-54) is included | Mathematical choice |
 | [LF58](LF58.md) | One loss function for both synthesis entries | 2a.4 | one named concept for mean_field; one standardisation for both entries (OP-72); normalisation of the loss (OP-71); rule for the channel axis of the result (OP-75) | Mathematical choice |
 | [LF59](LF59.md) | Running field of a synthesis standardised | 2a.4 | start standardised, or the running field at every evaluation (OP-73); per running field or over the running batch | Mathematical choice |
-| [LF10](LF10.md) | v1.6.0 spectrum estimators in every geometry | 2a.X | — | New feature |
+| [LF1](LF1.md) | JAX backend | 2a.X | devices covered by the stable guarantee; JAX tests on every pull request once stable | Structure |
+| [LF10](LF10.md) | v1.6.0 spectrum estimators in every geometry | 2a.X | generalised directly with LF23, or after the spectra of 2D+1D; periodicity per block in tensor products; NaN-aware estimators on tensor products before LF8 | New feature |
+| [LF11](LF11.md) | Plotting, diagnostics, gaussianise, surrogates | 2a.X | scope of the improved plotting and diagnostics; what gaussianise computes; what a surrogate is | New feature |
+| [LF23](LF23.md) | 1D and tensor-product spectra | 2a.X | generalised directly with LF10, or as in 2D+1D first | New feature |
 
 ### Can be treated
 
@@ -94,16 +97,13 @@ Something found during step 1 that belongs to step 2 becomes a new card with `st
 | [LF52](LF52.md) | Masks downsampled as continuous weights | 2a.3 | study | — | — |
 | [W2](W2.md) | Synthesis tests | 2a.4 | ready | — | — |
 | [LF36](LF36.md) | Level-wise gradients in the Python engine | 2a.5 | study | LF62 | — |
-| [LF1](LF1.md) | JAX backend | 2a.X | ready | — | — |
 | [LF2](LF2.md) | HEALPix on JAX | 2a.X | ready | LF1 | — |
-| [LF11](LF11.md) | Plotting, diagnostics, gaussianise, surrogates | 2a.X | ready | — | — |
 | [LF13](LF13.md) | xarray export | 2a.X | ready | — | — |
-| [LF23](LF23.md) | 1D and tensor-product spectra | 2a.X | ready | — | — |
 | [LF46](LF46.md) | First-order gradient for a loss ending the computation | 2a.X | ready | — | — |
 | [LF54](LF54.md) | Masks per batch element, detected on batched data | 2a.X | ready | — | — |
 | [LF55](LF55.md) | 1D data given as a 2D array | 2a.X | ready | — | — |
 | [LF61](LF61.md) | Spectra on odd sizes | 2a.X | ready | — | — |
-| [W3](W3.md) | Cross-backend checks | 2a.X | ready | LF1 | — |
+| [W3](W3.md) | Cross-backend checks | 2a.X | study | LF1 | — |
 
 ## Step 2b
 
