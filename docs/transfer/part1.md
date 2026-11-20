@@ -46,7 +46,7 @@ These rules hold for every version of ESTEL, from the first commit of step 1 onw
 - **The rule that separates the steps:** whatever STL does not compute today belongs to step 2, however small it is.
 - **Step 1 ends with the 1.0.0 freeze:** parity with STL proven (Part II, §14), reference values generated and signed off by humans.
 - **Step 2 is documented before it starts** (Part III), and the interfaces it needs are reserved in 1.0.0 (Part II, §9.4).
-- **Step 2 has two parts, then step 3.** Step 2a corrects and stabilises the mathematics, with a benchmark properly developed; step 2b brings the advanced optimisations and the Rust engine; ESTEL 2.0.0 follows them. Step 3 holds the long-term developments (Part III, §19.13).
+- **Step 2 has two parts, then step 3.** Step 2a corrects and stabilises the mathematics, with a benchmark properly developed, and ends with a 1.x release that changes the defaults; step 2b brings the advanced optimisations and the Rust engine, and ends with ESTEL 2.0.0. Each release drops the previous defaults at once (§7.1). Step 3 holds the long-term developments (Part III, §19.13).
 
 ### 1.4 Design for what comes next
 
@@ -353,6 +353,7 @@ Calibration, written in `TOLERANCES.md`: run every backend, device and dtype on 
   - the reference counters: `src/estel/_reference.py`;
   - the STL parity fixtures: `tests/parity/fixtures/**`;
   - the specification: `docs/transfer/**`, `docs/maths.md` and `docs/maths_step2.md`, changed only through pull requests that a maintainer requests and merges;
+  - the register of step 2 and its decision log: `docs/register/**`;
   - the oracle and the mathematics: `src/estel/_spec/**`, `docs/maths.md`, `docs/maths_step2.md`;
   - policy and API: `docs/policy/**`, `api/manifest.json`;
   - context files: `AGENTS.md`, `CLAUDE.md`, their mirrors, `docs/agents/review_rules.md`;
@@ -436,7 +437,7 @@ How the two steps map onto versions:
 
 - **Before 1.0.0** versions are 0.x and nothing is gated by reference values. Pull requests merge when CI passes, except on protected paths (§5.3). The three CODEOWNERS — Erwan Allys (GitHub `Eralys`), Jean-Marc Delouis (`jmdelouis`) and Pablo Richard (`pablo-richard`) — review step 1 as a whole at its end, before the freeze; the AI review is an advisory aid throughout.
 - **1.0.0** is the end of step 1: parity with STL, references signed off by the three CODEOWNERS.
-- **Step 2 features** land in 1.x as opt-in minors. Making one of them a default changes reference values: it bumps `STATISTICS_REFERENCE`, and whether it is also a major is decided with the maintainers. Such switches are batched rather than spread over many releases.
+- **Step 2a** ends with a 1.x release that changes the defaults and bumps `STATISTICS_REFERENCE` once; **step 2b** ends with 2.0.0. Each release drops the previous defaults at once: no behaviour of STL is kept after the release of step 2a. The corrections of step 2a land behind private flags, off by default, so that `main` stays releasable; the release pull request switches them on, removes the old paths and the flags, regenerates the references and retires the STL parity tests and fixtures, a human decision recorded in that pull request (Part III, §19.13). The entries of step 2 that change no reference value ship as minors when they are ready.
 
 ### 7.2 Computing the required bump
 

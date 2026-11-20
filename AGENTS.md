@@ -18,11 +18,12 @@ ESTEL computes scattering-transform statistics and simple syntheses. Most change
 8. Error messages say what to do next: agents read them.
 9. Before opening a PR, run `make check` (tier 0, locally).
 10. When the specification is ambiguous, ask in an issue. Do not choose.
-11. **Step discipline.** Before 1.0.0, never add a capability STL does not have, except synthesis checkpoints and the experimental JAX backend. After 1.0.0, a new capability enters as an opt-in feature described in the register of later features of `docs/reference.md`.
+11. **Step discipline.** Before 1.0.0, never add a capability STL does not have, except synthesis checkpoints and the experimental JAX backend. After 1.0.0, a new capability enters as an opt-in feature described in the register of later features, `docs/register/`.
 12. **Public or internal.** Only names listed in `api/manifest.json` are public. Anything else lives in a private module (`_name.py`) or starts with an underscore.
 13. **Tests are as short as possible.** The fast tier must stay under 2 minutes of wall time on CI and under 1 minute for a local `make check`. A new test runs in under 1 second, on the smallest data that exercises the behaviour (for example 16 x 16 or 32 x 32 pixels, J = 2 or 3); a test that cannot is marked slow, with the reason in its docstring, and runs in the full tier only. Large configurations, second-order gradients, and a second dtype for tests of logic belong to the full tier. Before adding a test, check that no existing test already covers the behaviour. A pull request that makes the fast tier slower by more than 10 % says why in its description, with the before and after times.
 14. **Branches from `origin/main`.** Sessions never check out `main`: run `git fetch origin`, then create the branch from `origin/main` (`git switch -c <branch> origin/main`). Another session's worktree may hold `main`, and git refuses a branch open in two worktrees.
 15. **Read sections, not files.** Read the sections an issue cites, found by their heading or their ID (`grep -n`), not whole specification files. Part III (step 2) and Part IV (the risks and the decision log) are read only when the issue cites them. An issue's inputs cite sections (for example Part II §12.6, maths M-NORM), never a whole part. When a citation is missing or too broad, ask on the issue rather than read everything.
+16. **The register of step 2.** Each entry of step 2 is a card in `docs/register/` (view: `docs/register/README.md`). Something found during step 1 that belongs to step 2 becomes a new card with `step = "queue"`, the next free LF number, and optionally a suggested step in its body. Never change the step, phase, status or content of an existing card unless your task names that card.
 
 ## Layer map
 
@@ -49,7 +50,7 @@ The static plan (`STPlan`) is built in NumPy when an operator is constructed. Ma
 
 ## Protected paths (CODEOWNER approval)
 
-`tests/reference/**`, `tests/tolerances.toml`, `src/estel/_reference.py`, `tests/parity/fixtures/**`, `docs/transfer/**`, `src/estel/_spec/**`, `docs/maths.md`, `docs/maths_step2.md`, `docs/policy/**`, `api/manifest.json`, `AGENTS.md`, `CLAUDE.md` and their mirrors, `docs/agents/review_rules.md`, `.github/**`, `tools/make_reference.py`, `bench/thresholds.toml`; in step 2, the Rust binding and the capability schema.
+`tests/reference/**`, `tests/tolerances.toml`, `src/estel/_reference.py`, `tests/parity/fixtures/**`, `docs/transfer/**`, `src/estel/_spec/**`, `docs/maths.md`, `docs/maths_step2.md`, `docs/register/**`, `docs/policy/**`, `api/manifest.json`, `AGENTS.md`, `CLAUDE.md` and their mirrors, `docs/agents/review_rules.md`, `.github/**`, `tools/make_reference.py`, `bench/thresholds.toml`; in step 2, the Rust binding and the capability schema.
 
 `docs/transfer/`, `docs/maths.md` and `docs/maths_step2.md` are the specification of ESTEL (`docs/transfer/README.md`). They are protected, and change only when a maintainer asks for it; never edit them on your own initiative. `docs/maths_step2.md` holds proposals for step 2, protected like the rest, but nothing in it is implemented unless a task says so; implement from `docs/maths.md`.
 

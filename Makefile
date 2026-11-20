@@ -15,7 +15,8 @@ unexport PYTHONDONTWRITEBYTECODE
 RUN ?= uv run --locked
 
 .PHONY: check check-full check-tools lint types lint-imports layers manifest mirrors mirrors-fix \
-        maths-ids retired-names identifiers workflows test test-fast test-torch test-jax test-fast-torch test-fast-jax \
+        maths-ids retired-names identifiers workflows register register-check \
+        test test-fast test-torch test-jax test-fast-torch test-fast-jax \
         test-spec version-impact clean-worktrees parity-image parity parity-fixtures container-runtime bench
 
 # Backends the tests run on (Part I, §3.1). CI runs one per job: make test-fast TEST_BACKENDS=torch
@@ -50,16 +51,16 @@ check:
 	elif [ $$elapsed -gt $(CHECK_BUDGET) ]; then \
 		echo "make check: WARNING: $$elapsed s, over its budget of $(CHECK_BUDGET) s (Part I, §5.4). $(CHECK_BUDGET_ADVICE)"; \
 	fi; \
-	echo "make check: fast tier passed in $$elapsed s, budget $(CHECK_BUDGET) s (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, identifiers, workflows, fast-tier tests on $(TEST_BACKENDS))"
+	echo "make check: fast tier passed in $$elapsed s, budget $(CHECK_BUDGET) s (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, identifiers, workflows, register, fast-tier tests on $(TEST_BACKENDS))"
 
 check-full: check-tools test
-	@echo "make check-full: full tier passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, identifiers, workflows, every test in float32 and float64 on $(TEST_BACKENDS))"
+	@echo "make check-full: full tier passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, identifiers, workflows, register, every test in float32 and float64 on $(TEST_BACKENDS))"
 
 # Tier 0 without the test suites. CI runs only this on a change confined to the no-test scope
 # of tools/ci_scope.py (docs/, .github/, changes/, root .gitignore, LICENSE, NOTICE, README.md,
 # every AGENTS.md and CLAUDE.md; task T0.7); run it instead of `make check` for such a change.
-check-tools: lint types lint-imports layers manifest mirrors maths-ids retired-names identifiers workflows
-	@echo "make check-tools: check tools passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, identifiers, workflows)"
+check-tools: lint types lint-imports layers manifest mirrors maths-ids retired-names identifiers workflows register-check
+	@echo "make check-tools: check tools passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, identifiers, workflows, register)"
 
 lint:
 	$(RUN) ruff check .
@@ -120,6 +121,14 @@ identifiers:
 # a top-level permissions block in every workflow.
 workflows:
 	$(RUN) python tools/check_workflows.py
+
+# The register of step 2 (docs/register/): every card valid, and the view README.md up to date.
+# Regenerate the view after changing a card: make register
+register-check:
+	$(RUN) python tools/register.py --check
+
+register:
+	$(RUN) python tools/register.py --write
 
 test: $(addprefix test-,$(TEST_BACKENDS))
 test-fast: $(addprefix test-fast-,$(TEST_BACKENDS))
