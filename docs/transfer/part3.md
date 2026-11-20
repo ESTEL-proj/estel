@@ -2,7 +2,7 @@
 
 [Back to the overview](overview.md)
 
-Nothing in this part is implemented before 1.0.0. It is documented now for two reasons: so that step 1 reserves the right interfaces (Part II, §9.4), and so that each development starts from an agreed design rather than from an agent's improvisation. An item that changes no reference value enters ESTEL as a minor version, when it is ready. The corrections of step 2a land behind private flags, off by default, and the release that ends step 2a, a 1.x release, switches them on together and bumps STATISTICS\_REFERENCE once; step 2b ends with ESTEL 2.0.0. Each of these releases drops the previous defaults at once (§19.13; Part I, §7.1). The phases of step 2a order its items (§16); the order of the others is not fixed.
+Nothing in this part is implemented before 1.0.0. It is documented now for two reasons: so that step 1 reserves the right interfaces (Part II, §9.4), and so that each development starts from an agreed design rather than from an agent's improvisation. Each item lands on `main` as the new behaviour when it is done, and ships in the next 1.x release; step 2b ends with ESTEL 2.0.0. Each release drops the previous defaults at once (§19.13; Part I, §7.1). The phases of step 2a order its items (§16); the order of the others is not fixed.
 
 ## Contents of this part
 
@@ -319,10 +319,10 @@ None of these changes a value. Each exists to make a later change local. Points 
 
 Step 2 has two parts (Part I, §1.3), and the field `step` of each card of the register (§16) places its entry, by the criterion of the decision log of step 2 (`docs/register/decisions.md`):
 
-1. **Step 2a: the mathematics corrected and stabilised.** The changes of values that make the statistics what they should be: centred covariances (LF33), the low-pass filter in every family (LF6), the canonical set of coefficients (LF20), complete and correct reductions (LF32, LF26), and the other corrections that the open points of the maths tab sent to the register; with them, the benchmark of step 2 (LF62). Its changes of values make one change of reference, one bump of `STATISTICS_REFERENCE`, so that users see one change and not five.
+1. **Step 2a: the mathematics corrected and stabilised.** The changes of values that make the statistics what they should be: centred covariances (LF33), the low-pass filter in every family (LF6), the canonical set of coefficients (LF20), complete and correct reductions (LF32, LF26), and the other corrections that the open points of the maths tab sent to the register; with them, the benchmark of step 2 (LF62).
 2. **Step 2b: the advanced optimisations.** The joint design of the smoothing kernel and the wavelets, with the Littlewood–Paley condition and exact invariance (LF22, LF25; §20.10), and the Rust engine (LF3).
 
-Step 2a ends with a 1.x release that changes the defaults and bumps `STATISTICS_REFERENCE` once; step 2b ends with ESTEL 2.0.0 (Part I, §7.1). Each release drops the previous defaults at once: no behaviour of STL is kept after the release of step 2a. So the corrections of step 2a land behind private flags, off by default, and `main` stays releasable; the release pull request of step 2a switches them on, removes the old paths and the flags, regenerates the references, and retires the STL parity tests and fixtures, a human decision recorded in that pull request (AGENTS.md, golden rule 2). The entries that change no reference value ship as minor versions when they are ready. **Step 3** holds the long-term developments.
+Every entry of step 2, in step 2a as in step 2b, lands on `main` as the new behaviour when it is done, and ships in the next release, a 1.x minor; step 2b ends with ESTEL 2.0.0 (Part I, §7.1). Each release drops the previous defaults at once: no behaviour of STL is kept. A pull request that changes values regenerates the references and bumps `STATISTICS_REFERENCE`, with CODEOWNER approval as every change of reference, and removes the STL parity tests it breaks, a decision its approval records (AGENTS.md, golden rules 1 and 2). So users may see the statistics change in several 1.x releases; step 2a is done when its last entry has shipped. **Step 3** holds the long-term developments.
 
 The reorganisations that change no value come first, so that each later change is measured on a faster and smaller engine: the benchmark (T2.11), the Gram form (T2.12) and the compact layout (T2.15, done first in P3) belong to step 1 (Part IV, §22, "Efficiency in step 1").
 
@@ -336,7 +336,7 @@ What the optimisations of step 1 brought, measured by the benchmark (Part I, §6
 
 ## 20. New mathematics
 
-Each item below changes what ESTEL computes. An item of step 2a is written ahead in `docs/maths_step2.md`, moves to `docs/maths.md` and `_spec` when it is implemented, lands behind a private flag, off by default, and becomes a default at the release of step 2a, with one bump of STATISTICS\_REFERENCE (§19.13). An item that changes no reference value ships as a minor version when it is ready. The other items follow their step (§19.13).
+Each item below changes what ESTEL computes. An item of step 2a is written ahead in `docs/maths_step2.md`, and moves to `docs/maths.md` and `_spec` when it is implemented. Each item lands on `main` as the new behaviour when it is done, with a bump of STATISTICS\_REFERENCE, and ships in the next 1.x release (§19.13).
 
 ### 20.1 Low-pass filters everywhere, including S3/S4
 

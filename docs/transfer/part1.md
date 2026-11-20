@@ -46,7 +46,7 @@ These rules hold for every version of ESTEL, from the first commit of step 1 onw
 - **The rule that separates the steps:** whatever STL does not compute today belongs to step 2, however small it is.
 - **Step 1 ends with the 1.0.0 freeze:** parity with STL proven (Part II, §14), reference values generated and signed off by humans.
 - **Step 2 is documented before it starts** (Part III), and the interfaces it needs are reserved in 1.0.0 (Part II, §9.4).
-- **Step 2 has two parts, then step 3.** Step 2a corrects and stabilises the mathematics, with a benchmark properly developed, and ends with a 1.x release that changes the defaults; step 2b brings the advanced optimisations and the Rust engine, and ends with ESTEL 2.0.0. Each release drops the previous defaults at once (§7.1). Step 3 holds the long-term developments (Part III, §19.13).
+- **Step 2 has two parts, then step 3.** Step 2a corrects and stabilises the mathematics, with a benchmark properly developed; step 2b brings the advanced optimisations and the Rust engine, and ends with ESTEL 2.0.0. Each entry ships, as the new behaviour, in the next 1.x release once it is done, and each release drops the previous defaults at once (§7.1). Step 3 holds the long-term developments (Part III, §19.13).
 
 ### 1.4 Design for what comes next
 
@@ -420,7 +420,7 @@ Tier 1 is set up after 1.0.0. The scheduler, the container runtime and the netwo
 
 | Bump | When | Who decides |
 | --- | --- | --- |
-| **MAJOR** | a breaking interface change: a removed or renamed function or argument, a changed default, except at the release of step 2a, a 1.x release (§1.3); a new geometry. Whether a change of statistics values also forces a major is decided case by case with the maintainers | humans (CODEOWNER approval) |
+| **MAJOR** | a breaking interface change: a removed or renamed function or argument, a changed default, except in step 2, whose changes of defaults ship in 1.x releases until 2.0.0 (§1.3); a new geometry. Whether a change of statistics values also forces a major is decided case by case with the maintainers | humans (CODEOWNER approval) |
 | **MINOR** | new features, including opt-in step-2 features and new engine configurations; a significant benchmark gain (§6.3), including making an engine the default for a configuration | automatic; humans set the `bench` label for benchmark-driven minors |
 | **PATCH** | bug fixes that leave reference values unchanged; refactors; docs | automatic |
 
@@ -437,7 +437,7 @@ How the two steps map onto versions:
 
 - **Before 1.0.0** versions are 0.x and nothing is gated by reference values. Pull requests merge when CI passes, except on protected paths (§5.3). The three CODEOWNERS — Erwan Allys (GitHub `Eralys`), Jean-Marc Delouis (`jmdelouis`) and Pablo Richard (`pablo-richard`) — review step 1 as a whole at its end, before the freeze; the AI review is an advisory aid throughout.
 - **1.0.0** is the end of step 1: parity with STL, references signed off by the three CODEOWNERS.
-- **Step 2a** ends with a 1.x release that changes the defaults and bumps `STATISTICS_REFERENCE` once; **step 2b** ends with 2.0.0. Each release drops the previous defaults at once: no behaviour of STL is kept after the release of step 2a. The corrections of step 2a land behind private flags, off by default, so that `main` stays releasable; the release pull request switches them on, removes the old paths and the flags, regenerates the references and retires the STL parity tests and fixtures, a human decision recorded in that pull request (Part III, §19.13). The entries of step 2 that change no reference value ship as minors when they are ready.
+- **Step 2.** Every entry of step 2, in step 2a as in step 2b, lands on `main` as the new behaviour when it is done, and ships in the next release, a 1.x minor; step 2b ends with 2.0.0. Each release drops the previous defaults at once: no behaviour of STL is kept. A pull request that changes values regenerates the references and bumps `STATISTICS_REFERENCE`, with CODEOWNER approval as every change of reference, and removes the STL parity tests it breaks, a decision its approval records (AGENTS.md, golden rules 1 and 2). So users may see the statistics change in several 1.x releases; step 2a is done when its last entry has shipped (Part III, §19.13).
 
 ### 7.2 Computing the required bump
 

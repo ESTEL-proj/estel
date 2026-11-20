@@ -42,8 +42,8 @@ Below, each step is split into "Needs a human" (`decision`) and "Can be treated"
 - **2a.2**: the coefficient set and the reductions.
 - **2a.3**: spectra and masks.
 - **2a.4**: syntheses.
-- **2a.5**: the release.
-- **2a.X**: the additive lane: what changes no reference value, shipped as minors at any time.
+- **2a.5**: the end of step 2a: the benchmark baseline and the optimisation session.
+- **2a.X**: the additive lane: the entries that do not hold up the end of step 2a, at any time.
 
 2a.0 → 2a.1 → 2a.2 → 2a.5 is the critical path; 2a.3 and 2a.4 run in parallel from 2a.0; 2a.X runs at any time.
 
