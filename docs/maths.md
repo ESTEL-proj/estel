@@ -673,7 +673,7 @@ The rule of §1.11 applies. OP-2, OP-8, OP-10, OP-12, OP-24, OP-25 and OP-26 als
 
 ## 3. Tensor products
 
-**Status:** checked against STL's code, entry by entry, and numerically in the parity container where an entry says so (task T3.0, 17 November 2026). Not implemented yet: the oracle and the tests come with T3.2.
+**Status:** checked against STL's code, entry by entry, and numerically in the parity container where an entry says so (task T3.0, 17 November 2026). Not implemented yet: the oracle comes with T3.3, the parity fixtures with T3.4, and the tests of the operator with T3.2.
 
 **Source:** STL-Dev `2D+1D` at `8f51143`: `Tensor_Product_Kernel_Torch.py`, `ST_Operator_Tensor_Product.py`, `ST_Statistics.py`, and what they call in `ST_Operator.py` (`apply`, `_finalize_compute`) and in the block operators (`STL_2D_Kernel_Torch.py`, `STL_1D_Kernel_Torch.py`). Entries of sections 1 and 2 not mentioned here apply block by block.
 
@@ -721,7 +721,7 @@ W_{j,\ell}\, x_c = \psi^{(B-1)}_{\ell_{B-1}} \star_{B-1} \Big( \cdots \big( \psi
 ```
 
 - **Block wavelets.** The kernels of the blocks are those of sections 1 and 2: one kernel of K = 5 taps per axis and per block, the same at every level (M-WAV-2D; M-WAV-1D with L = 2).
-- **One modulus, after all the blocks.** The intermediate results are complex: the second and later block convolutions filter a complex array with a complex kernel, which STL does in one complex convolution. In ESTEL this is four real convolutions (Part I, §3.1, rule 6), or the complex-to-complex convolutions tried with T3.2.
+- **One modulus, after all the blocks.** The intermediate results are complex: the second and later block convolutions filter a complex array with a complex kernel, which STL does in one complex convolution. In ESTEL this is four real convolutions (Part I, §3.1, rule 6), or the complex-to-complex convolutions tried with T3.5.
 - **Orientation axes.** One per block, placed in block order in front of the spatial axes: `(Nb, Nc, L₀, …, L_{B−1}, spatial axes)`.
 - **Why L = 2 in 1D blocks.** The product of analytic wavelets covers one sign combination of the block frequencies. With L\_a = 2 in a 1D block, its conjugate filter gives the other sign, so the products cover every combination that differs for a real field.
 - **How STL reaches it.** STL does not bring the field to level d = j first. It filters along block 0 a field at level d₀ = j₀ in block 0 and at level 0 in the other blocks, downsamples the complex result along block 1 to level d₁ = j₁ (M-DOWN, on the real and the imaginary parts), filters along block 1, and so on: the result of the blocks 0 … a is kept and serves every scale that starts with (j₀, …, j\_a). A downsampling along a block and a filtering along another act on different axes and commute exactly, with circular and with replicate padding: STL's values are those of the formula up to rounding.
