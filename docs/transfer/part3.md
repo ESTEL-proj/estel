@@ -148,7 +148,7 @@ A generated capability matrix, `docs/engines.md`, built from the engine's declar
 
 ## 19. Compact coefficient layout
 
-Implemented in step 1, first in phase P3 (Part II, §15.2, T2.15). Until then the statistics keep STL's full-grid storage behind accessors that do not depend on it (Part II, §12.7), so switching to the compact layout changes no public signature and no value.
+Implemented in step 1, in phase P3 (Part II, §15.2, T2.15). Until then the statistics keep STL's full-grid storage behind accessors that do not depend on it (Part II, §12.7), so switching to the compact layout changes no public signature and no value.
 
 The principle: **compute on structured arrays, store in a flat compact buffer, and never mix the two.** The conversion between them is a static gather whose indices are built once, in NumPy, with the plan.
 
@@ -288,7 +288,7 @@ Two more facts, which the count does not show:
 The proposals are entries of the register (§16): their effect is in the section "Why" of their card, their step in its field `step`. By decreasing leverage:
 
 - **Change what is computed.** The largest effect, and each is first a scientific question, since it changes values: the strided second layer (LF38), the strict scale order (LF35), pruned plans (LF37), the canonical set (LF20), a scale cut-off (LF40).
-- **Compute the same numbers differently.** The Gram form, done in step 1 (§19.14); complex-to-complex convolutions (Part II, §15.2, T3.2).
+- **Compute the same numbers differently.** The Gram form, done in step 1 (§19.14); complex-to-complex convolutions (Part II, §15.2, T3.5).
 - **Memory.** Level-wise gradients (LF36), the HEALPix tables (Part II, §15.2, T5.1), the length of the L-BFGS history (Part II, §15.2, T6.1).
 - **Scale out.** Partitioned execution (LF34), coarse-to-fine synthesis (LF12), the scope of the Rust engine (§18.6; LF3).
 
@@ -313,7 +313,7 @@ None of these changes a value. Each exists to make a later change local. Points 
 6. **Families are a list, not four attributes.** A low-pass index, fine-band coefficients or a new family must not change the interface of `STStatistics`.
 7. **The reference serves another operator** (R-Y03): it depends on J, L and the channel pairs only.
 8. **`estimate_memory`** reports the peak of the loop from the plan, with and without gradients, so that a user knows before running. Its formula is the count of §19.10.
-9. **A benchmark from phase P2** (Part I, §6.3; Part II, §15.2, T2.11) records time and peak memory, with gradients, on 2D cases, on CPU; the cases of the other geometries come with the benchmark of step 2a (LF62). Every proposal is judged against it.
+9. **A benchmark from phase P2** (Part I, §6.3; Part II, §15.2, T2.11) records time and peak memory, with gradients, on 2D cases, on CPU, and on one 2D+1D case, ESTEL only, for the trials of P3 (Part II, §15.2, T3.2, T3.5); the cases of the other geometries, and STL's times on tensor products, come with the benchmark of step 2a (LF62). Every proposal is judged against it.
 
 ### 19.13 Steps 2a, 2b and 3
 
@@ -324,7 +324,7 @@ Step 2 has two parts (Part I, §1.3), and the field `step` of each card of the r
 
 Every entry of step 2, in step 2a as in step 2b, lands on `main` as the new behaviour when it is done, and ships in the next release, a 1.x minor; step 2b ends with ESTEL 2.0.0 (Part I, §7.1). Each release drops the previous defaults at once: no behaviour of STL is kept. A pull request that changes values regenerates the references and bumps `STATISTICS_REFERENCE`, with CODEOWNER approval as every change of reference, and removes the STL parity tests it breaks, a decision its approval records (AGENTS.md, golden rules 1 and 2). So users may see the statistics change in several 1.x releases; step 2a is done when its last entry has shipped. **Step 3** holds the long-term developments.
 
-The reorganisations that change no value come first, so that each later change is measured on a faster and smaller engine: the benchmark (T2.11), the Gram form (T2.12) and the compact layout (T2.15, done first in P3) belong to step 1 (Part IV, §22, "Efficiency in step 1").
+The reorganisations that change no value come first, so that each later change is measured on a faster and smaller engine: the benchmark (T2.11), the Gram form (T2.12) and the compact layout (T2.15, in P3) belong to step 1 (Part IV, §22, "Efficiency in step 1").
 
 ### 19.14 Results of the optimisations of step 1
 
