@@ -2,7 +2,7 @@
 §14.3 "Gradients"; task T3.4, issue #127, decisions of the maintainer, second version; maths.md
 M-SYN-LOSS, M-NORM-TP, M-FLAT).
 
-On case C of maths.md §3 (a 16 × 16 periodic 2D block and an 8-sample open 1D block, STL's
+On case C of maths.md §3 (a 16 x 16 periodic 2D block and an 8-sample open 1D block, STL's
 default J = (2, 1), L = (4, 2), ``lowpass="ST"``), with two maps of two channels, computes the
 loss of maths.md M-SYN-LOSS with STL's own code and its gradient with respect to the field:
 
@@ -13,7 +13,7 @@ loss of maths.md M-SYN-LOSS with STL's own code and its gradient with respect to
 * the running statistics: STL's ``ScatteringMatchModel`` on the running field (``init_map``),
   with the same operator, hence the target's reference (``norm="load_ref"``), without the
   Nyquist pre-filter, and with the same weights and flattening;
-* the loss ``((Φ(u) − Φ(target)).abs() ** 2).sum()``, the ``loss_fn`` of ``optimize_from_maps``,
+* the loss ``((Φ(u) - Φ(target)).abs() ** 2).sum()``, the ``loss_fn`` of ``optimize_from_maps``,
   and its gradient by ``backward``.
 
 The target is used as it is: neither standardised nor pre-filtered (M-SYN-TARGET is not part of
@@ -58,7 +58,7 @@ def input_field(shape: tuple[int, ...], nb: int, nc: int, seed: int) -> NDArray[
     """Seeded Gaussian fields, ``(Nb, Nc, *shape)``, each channel correlated with the previous
     one so that the cross statistics are not small (as in ``scattering_tp``)."""
     rng = np.random.default_rng(seed)
-    noise = rng.standard_normal((nb, nc) + shape)
+    noise = rng.standard_normal((nb, nc, *shape))
     channels = [noise[:, 0]]
     for c in range(1, nc):
         channels.append(0.6 * channels[-1] + 0.8 * noise[:, c])

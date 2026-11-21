@@ -103,7 +103,7 @@ def input_field(shape: tuple[int, ...], nb: int, nc: int, seed: int) -> NDArray[
     """Seeded Gaussian fields, ``(Nb, Nc, *shape)``, each channel correlated with the previous
     one so that the cross statistics are not small."""
     rng = np.random.default_rng(seed)
-    noise = rng.standard_normal((nb, nc) + shape)
+    noise = rng.standard_normal((nb, nc, *shape))
     channels = [noise[:, 0]]
     for c in range(1, nc):
         channels.append(0.6 * channels[-1] + 0.8 * noise[:, c])

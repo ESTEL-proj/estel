@@ -13,8 +13,11 @@ of T2.3 (`plan_2d.py` on `master`, `plan_1d.py` on `2D+1D`), with the NaN coeffi
 where a mean has no valid pixel (`empty_means_2d.py` on `master`, `empty_means_1d.py` on `2D+1D`),
 the vanilla statistics of the scattering loop of T2.4 (`scattering_2d.py` on `master`,
 `scattering_1d.py` on `2D+1D`), and the normalised and reduced statistics of T2.5, with the flat
-vectors of `to_flatten` (`statistics_2d.py` on `master`, `statistics_1d.py` on `2D+1D`), and the
-loss of the first 20 iterations of a periodic synthesis of T6.1 (`synthesis_2d.py` on `master`).
+vectors of `to_flatten` (`statistics_2d.py` on `master`, `statistics_1d.py` on `2D+1D`), the
+loss of the first 20 iterations of a periodic synthesis of T6.1 (`synthesis_2d.py` on `master`),
+and the tensor products of T3.4 (on `2D+1D`): the vanilla statistics (`scattering_tp.py`), the
+normalisations and flat vectors (`statistics_tp.py`) and the gradient of the synthesis loss
+(`gradient_tp.py`).
 
 ## The container
 
@@ -85,7 +88,19 @@ compared with ESTEL on every PR, in float64, without Docker.
 
 - **A case** is a script of [`cases/`](cases) that names its STL environment (`STL_ENV`: `master`,
   `2d1d` or `healpix`), its parameters and seeded inputs (`PARAMETERS`), and returns its results
-  as float64 or complex128 NumPy arrays (`run()`). It imports STL, never `estel`. The example,
+  as float64 or complex128 NumPy arrays (`run()`). It imports STL, never `estel`.
+- **Packed grids.** The full grids of tensor-product statistics are mostly NaN, and S4 alone
+  would take megabytes (issue #127). So `scattering_tp` and `statistics_tp` store S1 to S4 (and
+  the S2 reference) packed, as three arrays:
+  - `<key>`: the finite entries, in the row-major order of STL's full grid;
+  - `<key>_shape`: the shape of the grid (int64);
+  - `<key>_mask`: the finite positions, flattened in row-major order and packed with
+    `np.packbits` (uint8).
+
+  These two suffixes are the only arrays that are not float64 or complex128.
+  `full_grid(arrays, key)` of [`tests/parity/_compare.py`](../../tests/parity/_compare.py)
+  rebuilds the grid, NaN elsewhere. With `lowpass=None`, `scattering_tp` stores no S3 or S4: it
+  asserts that STL's are bit for bit those of `"ST"`. The example,
   [`cases/bump_steerable_kernel_2d.py`](cases/bump_steerable_kernel_2d.py), stores the 2D
   bump-steerable kernels of STL `master`.
 - **`make parity-fixtures`** runs every case in its environment

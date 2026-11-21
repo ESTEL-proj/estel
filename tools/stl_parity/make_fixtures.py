@@ -82,15 +82,15 @@ def check_arrays(case: str, arrays: Any) -> dict[str, NDArray[Any]]:
     if not isinstance(arrays, dict) or not arrays:
         raise TypeError(f"{case}: run() must return a non-empty dict of NumPy arrays.")
     for name, array in arrays.items():
-        if isinstance(array, np.ndarray) and name.endswith(("_shape", "_mask")):
-            if array.dtype in LAYOUT_DTYPES and array.ndim == 1:
-                continue
+        packed = isinstance(array, np.ndarray) and name.endswith(("_shape", "_mask"))
+        if packed and array.dtype in LAYOUT_DTYPES and array.ndim == 1:
+            continue
         if not isinstance(array, np.ndarray) or array.dtype not in FLOAT64_DTYPES:
             kind = array.dtype if isinstance(array, np.ndarray) else type(array).__name__
             raise TypeError(
                 f"{case}: array {name!r} is {kind}; parity runs in float64 (§14.3), so return "
-                "float64 or complex128 NumPy arrays (int64 or uint8 only for the 1D <key>_shape and "
-                "<key>_mask of a packed grid)."
+                "float64 or complex128 NumPy arrays (int64 or uint8 only for the 1D <key>_shape "
+                "and <key>_mask of a packed grid)."
             )
     return arrays
 

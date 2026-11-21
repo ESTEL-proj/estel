@@ -22,10 +22,12 @@ from numpy.typing import NDArray
 from tests.parity._compare import (
     FIXTURE_DTYPES,
     FIXTURES,
+    LAYOUT_DTYPES,
     MANIFEST,
     PARITY_RTOL,
     STL_COMMITS,
     assert_parity,
+    full_grid,
     load_fixture,
     parity_atol,
     read_manifest,
@@ -62,7 +64,8 @@ def test_fixture_matches_its_manifest_entry(name: str, entry: dict[str, Any]) ->
     arrays = load_fixture(Path(name).stem)
     assert sorted(arrays) == sorted(entry["arrays"])
     for key, array in arrays.items():
-        assert str(array.dtype) in FIXTURE_DTYPES, f"{name}:{key} is {array.dtype}"
+        packed = key.endswith(("_shape", "_mask")) and str(array.dtype) in LAYOUT_DTYPES
+        assert packed or str(array.dtype) in FIXTURE_DTYPES, f"{name}:{key} is {array.dtype}"
         assert str(array.dtype) == entry["arrays"][key]["dtype"]
         assert list(array.shape) == entry["arrays"][key]["shape"]
 
@@ -90,6 +93,38 @@ def test_bump_steerable_kernel_1d_fixture() -> None:
         assert kernel.dtype == np.complex128
         assert kernel.shape == (1, n_orientations, 5)
         assert np.isfinite(kernel).all()
+
+
+# ---------------------------------------------------------------- full_grid
+
+
+def _packed(grid: NDArray[Any]) -> dict[str, NDArray[Any]]:
+    """``grid`` packed as the tensor-product cases pack it (``pack_grid`` of scattering_tp)."""
+    finite = np.isfinite(grid)
+    return {
+        "S": grid[finite],
+        "S_shape": np.asarray(grid.shape, dtype=np.int64),
+        "S_mask": np.packbits(finite.ravel()),
+    }
+
+
+def test_full_grid_rebuilds_a_packed_grid() -> None:
+    grid = _reference(np.complex128)
+    grid[0, 1, :] = np.nan
+    grid[2, 3, 4] = np.nan
+    rebuilt = full_grid(_packed(grid), "S")
+    assert rebuilt.dtype == grid.dtype
+    assert np.array_equal(rebuilt, grid, equal_nan=True)
+
+
+def test_full_grid_refuses_a_malformed_grid() -> None:
+    arrays = _packed(_reference())
+    with pytest.raises(ValueError, match="60 finite positions"):
+        full_grid({**arrays, "S": arrays["S"][:-1]}, "S")
+    with pytest.raises(ValueError, match="bytes"):
+        full_grid({**arrays, "S_mask": arrays["S_mask"][:-1]}, "S")
+    with pytest.raises(KeyError, match="packed grid"):
+        full_grid({"S": arrays["S"]}, "S")
 
 
 # ---------------------------------------------------------------- load_fixture

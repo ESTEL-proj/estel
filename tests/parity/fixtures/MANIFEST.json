@@ -340,6 +340,83 @@
     },
     "sha256": "6e8c3d9841ab52539022d37cbaa06a46f9b352a8fb0e03565b7945f2a4b5e9c6"
   },
+  "gradient_tp.npz": {
+    "case": "tools/stl_parity/cases/gradient_tp.py",
+    "stl_branch": "2D+1D",
+    "stl_commit": "8f51143c5f8ebc259328830f246894d7031acae5",
+    "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
+    "parameters": {
+      "case": "C",
+      "blocks": [
+        "2D",
+        "1D"
+      ],
+      "sizes": [
+        [
+          16,
+          16
+        ],
+        [
+          8
+        ]
+      ],
+      "pbc": [
+        true,
+        false
+      ],
+      "J": null,
+      "lowpass": "ST",
+      "Nb": 2,
+      "Nc": 2,
+      "seed": 500,
+      "target_seed": 501,
+      "mean_field": true,
+      "adhoc_weights": {
+        "S3": 3.5,
+        "S4": 12.25
+      }
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          16,
+          16,
+          8
+        ]
+      },
+      "gradient": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          16,
+          16,
+          8
+        ]
+      },
+      "loss": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "target": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          16,
+          16,
+          8
+        ]
+      }
+    },
+    "sha256": "ba148719211199d7ea762c692cbb3064fece7d014da68b8a000f910417e44525"
+  },
   "masks_1d.npz": {
     "case": "tools/stl_parity/cases/masks_1d.py",
     "stl_branch": "2D+1D",
@@ -2771,6 +2848,2036 @@
       }
     },
     "sha256": "cd01a1964c7a4b5bac861ae5802f159be1a7bf0d25f819dedc1b7a993dee121c"
+  },
+  "scattering_tp.npz": {
+    "case": "tools/stl_parity/cases/scattering_tp.py",
+    "stl_branch": "2D+1D",
+    "stl_commit": "8f51143c5f8ebc259328830f246894d7031acae5",
+    "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
+    "parameters": {
+      "cases": {
+        "A": {
+          "blocks": [
+            "2D",
+            "1D"
+          ],
+          "sizes": [
+            [
+              16,
+              16
+            ],
+            [
+              16
+            ]
+          ],
+          "pbc": [
+            true,
+            true
+          ],
+          "J": [
+            2,
+            2
+          ]
+        },
+        "B": {
+          "blocks": [
+            "2D",
+            "1D"
+          ],
+          "sizes": [
+            [
+              16,
+              16
+            ],
+            [
+              16
+            ]
+          ],
+          "pbc": [
+            false,
+            false
+          ],
+          "J": [
+            2,
+            2
+          ]
+        },
+        "C": {
+          "blocks": [
+            "2D",
+            "1D"
+          ],
+          "sizes": [
+            [
+              16,
+              16
+            ],
+            [
+              8
+            ]
+          ],
+          "pbc": [
+            true,
+            false
+          ],
+          "J": null
+        },
+        "D": {
+          "blocks": [
+            "2D",
+            "1D",
+            "1D"
+          ],
+          "sizes": [
+            [
+              16,
+              16
+            ],
+            [
+              8
+            ],
+            [
+              16
+            ]
+          ],
+          "pbc": [
+            false,
+            true,
+            false
+          ],
+          "J": null
+        },
+        "E": {
+          "blocks": [
+            "1D",
+            "2D"
+          ],
+          "sizes": [
+            [
+              16
+            ],
+            [
+              16,
+              16
+            ]
+          ],
+          "pbc": [
+            false,
+            true
+          ],
+          "J": [
+            2,
+            2
+          ]
+        },
+        "F": {
+          "blocks": [
+            "2D",
+            "1D"
+          ],
+          "sizes": [
+            [
+              16,
+              16
+            ],
+            [
+              12
+            ]
+          ],
+          "pbc": [
+            true,
+            true
+          ],
+          "J": [
+            2,
+            3
+          ]
+        },
+        "G": {
+          "blocks": [
+            "2D",
+            "1D"
+          ],
+          "sizes": [
+            [
+              32,
+              16
+            ],
+            [
+              32
+            ]
+          ],
+          "pbc": [
+            false,
+            false
+          ],
+          "J": [
+            3,
+            3
+          ]
+        },
+        "one_d_one_d": {
+          "blocks": [
+            "1D",
+            "1D"
+          ],
+          "sizes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ],
+          "pbc": [
+            true,
+            false
+          ],
+          "J": [
+            2,
+            2
+          ]
+        },
+        "single_2d": {
+          "blocks": [
+            "2D"
+          ],
+          "sizes": [
+            [
+              16,
+              16
+            ]
+          ],
+          "pbc": [
+            true
+          ],
+          "J": [
+            2
+          ]
+        },
+        "single_1d": {
+          "blocks": [
+            "1D"
+          ],
+          "sizes": [
+            [
+              16
+            ]
+          ],
+          "pbc": [
+            false
+          ],
+          "J": [
+            2
+          ]
+        }
+      },
+      "configs": {
+        "A": {
+          "case": "A",
+          "Nb": 2,
+          "Nc": 2,
+          "seed": 300,
+          "lowpass": [
+            "ST",
+            null
+          ]
+        },
+        "B": {
+          "case": "B",
+          "Nb": 1,
+          "Nc": 1,
+          "seed": 301,
+          "lowpass": [
+            "ST",
+            null
+          ]
+        },
+        "C": {
+          "case": "C",
+          "Nb": 1,
+          "Nc": 1,
+          "seed": 302,
+          "lowpass": [
+            "ST",
+            null
+          ]
+        },
+        "D": {
+          "case": "D",
+          "Nb": 1,
+          "Nc": 1,
+          "seed": 303,
+          "lowpass": [
+            "ST",
+            null
+          ]
+        },
+        "E": {
+          "case": "E",
+          "Nb": 1,
+          "Nc": 1,
+          "seed": 304,
+          "lowpass": [
+            "ST",
+            null
+          ]
+        },
+        "F": {
+          "case": "F",
+          "Nb": 1,
+          "Nc": 1,
+          "seed": 305,
+          "lowpass": [
+            "ST",
+            null
+          ]
+        },
+        "G": {
+          "case": "G",
+          "Nb": 1,
+          "Nc": 1,
+          "seed": 306,
+          "lowpass": [
+            "ST",
+            null
+          ]
+        },
+        "one_d_one_d": {
+          "case": "one_d_one_d",
+          "Nb": 1,
+          "Nc": 1,
+          "seed": 307,
+          "lowpass": [
+            "ST",
+            null
+          ]
+        },
+        "single_2d": {
+          "case": "single_2d",
+          "Nb": 1,
+          "Nc": 1,
+          "seed": 308,
+          "lowpass": [
+            "ST",
+            null
+          ]
+        },
+        "single_1d": {
+          "case": "single_1d",
+          "Nb": 1,
+          "Nc": 1,
+          "seed": 309,
+          "lowpass": [
+            "ST",
+            null
+          ]
+        },
+        "A_standardized": {
+          "case": "A",
+          "Nb": 1,
+          "Nc": 1,
+          "seed": 310,
+          "lowpass": [
+            "ST"
+          ],
+          "standardize": true
+        },
+        "A_cross_matrix": {
+          "case": "A",
+          "Nb": 1,
+          "Nc": 3,
+          "seed": 311,
+          "lowpass": [
+            "ST"
+          ],
+          "cross_matrix": [
+            [
+              true,
+              false,
+              true
+            ],
+            [
+              false,
+              false,
+              true
+            ],
+            [
+              false,
+              false,
+              true
+            ]
+          ]
+        }
+      }
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "A_cross_matrix_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          3,
+          16,
+          16,
+          16
+        ]
+      },
+      "A_cross_matrix_st_S1": {
+        "dtype": "complex128",
+        "shape": [
+          180
+        ]
+      },
+      "A_cross_matrix_st_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          81
+        ]
+      },
+      "A_cross_matrix_st_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "A_cross_matrix_st_S2": {
+        "dtype": "complex128",
+        "shape": [
+          180
+        ]
+      },
+      "A_cross_matrix_st_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          81
+        ]
+      },
+      "A_cross_matrix_st_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "A_cross_matrix_st_S3": {
+        "dtype": "complex128",
+        "shape": [
+          3456
+        ]
+      },
+      "A_cross_matrix_st_S3_mask": {
+        "dtype": "uint8",
+        "shape": [
+          1152
+        ]
+      },
+      "A_cross_matrix_st_S3_shape": {
+        "dtype": "int64",
+        "shape": [
+          11
+        ]
+      },
+      "A_cross_matrix_st_S4": {
+        "dtype": "complex128",
+        "shape": [
+          49152
+        ]
+      },
+      "A_cross_matrix_st_S4_mask": {
+        "dtype": "uint8",
+        "shape": [
+          36864
+        ]
+      },
+      "A_cross_matrix_st_S4_shape": {
+        "dtype": "int64",
+        "shape": [
+          15
+        ]
+      },
+      "A_cross_matrix_st_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          3
+        ]
+      },
+      "A_cross_matrix_st_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          3
+        ]
+      },
+      "A_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          16,
+          16,
+          16
+        ]
+      },
+      "A_none_S1": {
+        "dtype": "complex128",
+        "shape": [
+          192
+        ]
+      },
+      "A_none_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          32
+        ]
+      },
+      "A_none_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "A_none_S2": {
+        "dtype": "complex128",
+        "shape": [
+          192
+        ]
+      },
+      "A_none_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          32
+        ]
+      },
+      "A_none_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "A_none_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "A_none_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "A_st_S1": {
+        "dtype": "complex128",
+        "shape": [
+          270
+        ]
+      },
+      "A_st_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          72
+        ]
+      },
+      "A_st_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "A_st_S2": {
+        "dtype": "complex128",
+        "shape": [
+          270
+        ]
+      },
+      "A_st_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          72
+        ]
+      },
+      "A_st_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "A_st_S3": {
+        "dtype": "complex128",
+        "shape": [
+          4608
+        ]
+      },
+      "A_st_S3_mask": {
+        "dtype": "uint8",
+        "shape": [
+          1024
+        ]
+      },
+      "A_st_S3_shape": {
+        "dtype": "int64",
+        "shape": [
+          11
+        ]
+      },
+      "A_st_S4": {
+        "dtype": "complex128",
+        "shape": [
+          65536
+        ]
+      },
+      "A_st_S4_mask": {
+        "dtype": "uint8",
+        "shape": [
+          32768
+        ]
+      },
+      "A_st_S4_shape": {
+        "dtype": "int64",
+        "shape": [
+          15
+        ]
+      },
+      "A_st_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "A_st_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "A_standardized_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          16,
+          16,
+          16
+        ]
+      },
+      "A_standardized_st_S1": {
+        "dtype": "complex128",
+        "shape": [
+          45
+        ]
+      },
+      "A_standardized_st_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          9
+        ]
+      },
+      "A_standardized_st_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "A_standardized_st_S2": {
+        "dtype": "complex128",
+        "shape": [
+          45
+        ]
+      },
+      "A_standardized_st_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          9
+        ]
+      },
+      "A_standardized_st_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "A_standardized_st_S3": {
+        "dtype": "complex128",
+        "shape": [
+          576
+        ]
+      },
+      "A_standardized_st_S3_mask": {
+        "dtype": "uint8",
+        "shape": [
+          128
+        ]
+      },
+      "A_standardized_st_S3_shape": {
+        "dtype": "int64",
+        "shape": [
+          11
+        ]
+      },
+      "A_standardized_st_S4": {
+        "dtype": "complex128",
+        "shape": [
+          8192
+        ]
+      },
+      "A_standardized_st_S4_mask": {
+        "dtype": "uint8",
+        "shape": [
+          4096
+        ]
+      },
+      "A_standardized_st_S4_shape": {
+        "dtype": "int64",
+        "shape": [
+          15
+        ]
+      },
+      "A_standardized_st_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "A_standardized_st_mean_pre_std": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "A_standardized_st_std_pre_std": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "A_standardized_st_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "B_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          16,
+          16,
+          16
+        ]
+      },
+      "B_none_S1": {
+        "dtype": "complex128",
+        "shape": [
+          32
+        ]
+      },
+      "B_none_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          4
+        ]
+      },
+      "B_none_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "B_none_S2": {
+        "dtype": "complex128",
+        "shape": [
+          32
+        ]
+      },
+      "B_none_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          4
+        ]
+      },
+      "B_none_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "B_none_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "B_none_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "B_st_S1": {
+        "dtype": "complex128",
+        "shape": [
+          45
+        ]
+      },
+      "B_st_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          9
+        ]
+      },
+      "B_st_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "B_st_S2": {
+        "dtype": "complex128",
+        "shape": [
+          45
+        ]
+      },
+      "B_st_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          9
+        ]
+      },
+      "B_st_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "B_st_S3": {
+        "dtype": "complex128",
+        "shape": [
+          576
+        ]
+      },
+      "B_st_S3_mask": {
+        "dtype": "uint8",
+        "shape": [
+          128
+        ]
+      },
+      "B_st_S3_shape": {
+        "dtype": "int64",
+        "shape": [
+          11
+        ]
+      },
+      "B_st_S4": {
+        "dtype": "complex128",
+        "shape": [
+          8192
+        ]
+      },
+      "B_st_S4_mask": {
+        "dtype": "uint8",
+        "shape": [
+          4096
+        ]
+      },
+      "B_st_S4_shape": {
+        "dtype": "int64",
+        "shape": [
+          15
+        ]
+      },
+      "B_st_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "B_st_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "C_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          16,
+          16,
+          8
+        ]
+      },
+      "C_none_S1": {
+        "dtype": "complex128",
+        "shape": [
+          16
+        ]
+      },
+      "C_none_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          2
+        ]
+      },
+      "C_none_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "C_none_S2": {
+        "dtype": "complex128",
+        "shape": [
+          16
+        ]
+      },
+      "C_none_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          2
+        ]
+      },
+      "C_none_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "C_none_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "C_none_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "C_st_S1": {
+        "dtype": "complex128",
+        "shape": [
+          27
+        ]
+      },
+      "C_st_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          6
+        ]
+      },
+      "C_st_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "C_st_S2": {
+        "dtype": "complex128",
+        "shape": [
+          27
+        ]
+      },
+      "C_st_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          6
+        ]
+      },
+      "C_st_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "C_st_S3": {
+        "dtype": "complex128",
+        "shape": [
+          192
+        ]
+      },
+      "C_st_S3_mask": {
+        "dtype": "uint8",
+        "shape": [
+          32
+        ]
+      },
+      "C_st_S3_shape": {
+        "dtype": "int64",
+        "shape": [
+          11
+        ]
+      },
+      "C_st_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2048
+        ]
+      },
+      "C_st_S4_mask": {
+        "dtype": "uint8",
+        "shape": [
+          512
+        ]
+      },
+      "C_st_S4_shape": {
+        "dtype": "int64",
+        "shape": [
+          15
+        ]
+      },
+      "C_st_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "C_st_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "D_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          16,
+          16,
+          8,
+          16
+        ]
+      },
+      "D_none_S1": {
+        "dtype": "complex128",
+        "shape": [
+          64
+        ]
+      },
+      "D_none_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          8
+        ]
+      },
+      "D_none_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          9
+        ]
+      },
+      "D_none_S2": {
+        "dtype": "complex128",
+        "shape": [
+          64
+        ]
+      },
+      "D_none_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          8
+        ]
+      },
+      "D_none_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          9
+        ]
+      },
+      "D_none_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "D_none_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "D_st_S1": {
+        "dtype": "complex128",
+        "shape": [
+          135
+        ]
+      },
+      "D_st_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          36
+        ]
+      },
+      "D_st_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          9
+        ]
+      },
+      "D_st_S2": {
+        "dtype": "complex128",
+        "shape": [
+          135
+        ]
+      },
+      "D_st_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          36
+        ]
+      },
+      "D_st_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          9
+        ]
+      },
+      "D_st_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2304
+        ]
+      },
+      "D_st_S3_mask": {
+        "dtype": "uint8",
+        "shape": [
+          512
+        ]
+      },
+      "D_st_S3_shape": {
+        "dtype": "int64",
+        "shape": [
+          15
+        ]
+      },
+      "D_st_S4": {
+        "dtype": "complex128",
+        "shape": [
+          65536
+        ]
+      },
+      "D_st_S4_mask": {
+        "dtype": "uint8",
+        "shape": [
+          32768
+        ]
+      },
+      "D_st_S4_shape": {
+        "dtype": "int64",
+        "shape": [
+          21
+        ]
+      },
+      "D_st_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "D_st_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "E_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          16,
+          16,
+          16
+        ]
+      },
+      "E_none_S1": {
+        "dtype": "complex128",
+        "shape": [
+          32
+        ]
+      },
+      "E_none_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          4
+        ]
+      },
+      "E_none_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "E_none_S2": {
+        "dtype": "complex128",
+        "shape": [
+          32
+        ]
+      },
+      "E_none_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          4
+        ]
+      },
+      "E_none_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "E_none_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "E_none_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "E_st_S1": {
+        "dtype": "complex128",
+        "shape": [
+          45
+        ]
+      },
+      "E_st_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          9
+        ]
+      },
+      "E_st_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "E_st_S2": {
+        "dtype": "complex128",
+        "shape": [
+          45
+        ]
+      },
+      "E_st_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          9
+        ]
+      },
+      "E_st_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "E_st_S3": {
+        "dtype": "complex128",
+        "shape": [
+          576
+        ]
+      },
+      "E_st_S3_mask": {
+        "dtype": "uint8",
+        "shape": [
+          128
+        ]
+      },
+      "E_st_S3_shape": {
+        "dtype": "int64",
+        "shape": [
+          11
+        ]
+      },
+      "E_st_S4": {
+        "dtype": "complex128",
+        "shape": [
+          8192
+        ]
+      },
+      "E_st_S4_mask": {
+        "dtype": "uint8",
+        "shape": [
+          4096
+        ]
+      },
+      "E_st_S4_shape": {
+        "dtype": "int64",
+        "shape": [
+          15
+        ]
+      },
+      "E_st_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "E_st_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "F_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          16,
+          16,
+          12
+        ]
+      },
+      "F_none_S1": {
+        "dtype": "complex128",
+        "shape": [
+          48
+        ]
+      },
+      "F_none_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          6
+        ]
+      },
+      "F_none_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "F_none_S2": {
+        "dtype": "complex128",
+        "shape": [
+          48
+        ]
+      },
+      "F_none_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          6
+        ]
+      },
+      "F_none_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "F_none_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "F_none_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "F_st_S1": {
+        "dtype": "complex128",
+        "shape": [
+          54
+        ]
+      },
+      "F_st_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          9
+        ]
+      },
+      "F_st_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "F_st_S2": {
+        "dtype": "complex128",
+        "shape": [
+          54
+        ]
+      },
+      "F_st_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          9
+        ]
+      },
+      "F_st_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "F_st_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1152
+        ]
+      },
+      "F_st_S3_mask": {
+        "dtype": "uint8",
+        "shape": [
+          288
+        ]
+      },
+      "F_st_S3_shape": {
+        "dtype": "int64",
+        "shape": [
+          11
+        ]
+      },
+      "F_st_S4": {
+        "dtype": "complex128",
+        "shape": [
+          20480
+        ]
+      },
+      "F_st_S4_mask": {
+        "dtype": "uint8",
+        "shape": [
+          13824
+        ]
+      },
+      "F_st_S4_shape": {
+        "dtype": "int64",
+        "shape": [
+          15
+        ]
+      },
+      "F_st_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "F_st_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "G_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          32,
+          16,
+          32
+        ]
+      },
+      "G_none_S1": {
+        "dtype": "complex128",
+        "shape": [
+          72
+        ]
+      },
+      "G_none_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          9
+        ]
+      },
+      "G_none_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "G_none_S2": {
+        "dtype": "complex128",
+        "shape": [
+          72
+        ]
+      },
+      "G_none_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          9
+        ]
+      },
+      "G_none_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "G_none_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "G_none_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "G_st_S1": {
+        "dtype": "complex128",
+        "shape": [
+          91
+        ]
+      },
+      "G_st_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          16
+        ]
+      },
+      "G_st_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "G_st_S2": {
+        "dtype": "complex128",
+        "shape": [
+          91
+        ]
+      },
+      "G_st_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          16
+        ]
+      },
+      "G_st_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "G_st_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2304
+        ]
+      },
+      "G_st_S3_mask": {
+        "dtype": "uint8",
+        "shape": [
+          648
+        ]
+      },
+      "G_st_S3_shape": {
+        "dtype": "int64",
+        "shape": [
+          11
+        ]
+      },
+      "G_st_S4": {
+        "dtype": "complex128",
+        "shape": [
+          51200
+        ]
+      },
+      "G_st_S4_mask": {
+        "dtype": "uint8",
+        "shape": [
+          46656
+        ]
+      },
+      "G_st_S4_shape": {
+        "dtype": "int64",
+        "shape": [
+          15
+        ]
+      },
+      "G_st_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "G_st_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "one_d_one_d_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          16,
+          16
+        ]
+      },
+      "one_d_one_d_none_S1": {
+        "dtype": "complex128",
+        "shape": [
+          16
+        ]
+      },
+      "one_d_one_d_none_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          2
+        ]
+      },
+      "one_d_one_d_none_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "one_d_one_d_none_S2": {
+        "dtype": "complex128",
+        "shape": [
+          16
+        ]
+      },
+      "one_d_one_d_none_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          2
+        ]
+      },
+      "one_d_one_d_none_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "one_d_one_d_none_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "one_d_one_d_none_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "one_d_one_d_st_S1": {
+        "dtype": "complex128",
+        "shape": [
+          25
+        ]
+      },
+      "one_d_one_d_st_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          5
+        ]
+      },
+      "one_d_one_d_st_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "one_d_one_d_st_S2": {
+        "dtype": "complex128",
+        "shape": [
+          25
+        ]
+      },
+      "one_d_one_d_st_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          5
+        ]
+      },
+      "one_d_one_d_st_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "one_d_one_d_st_S3": {
+        "dtype": "complex128",
+        "shape": [
+          144
+        ]
+      },
+      "one_d_one_d_st_S3_mask": {
+        "dtype": "uint8",
+        "shape": [
+          32
+        ]
+      },
+      "one_d_one_d_st_S3_shape": {
+        "dtype": "int64",
+        "shape": [
+          11
+        ]
+      },
+      "one_d_one_d_st_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1024
+        ]
+      },
+      "one_d_one_d_st_S4_mask": {
+        "dtype": "uint8",
+        "shape": [
+          512
+        ]
+      },
+      "one_d_one_d_st_S4_shape": {
+        "dtype": "int64",
+        "shape": [
+          15
+        ]
+      },
+      "one_d_one_d_st_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "one_d_one_d_st_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "single_1d_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          16
+        ]
+      },
+      "single_1d_none_S1": {
+        "dtype": "complex128",
+        "shape": [
+          4
+        ]
+      },
+      "single_1d_none_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          1
+        ]
+      },
+      "single_1d_none_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          5
+        ]
+      },
+      "single_1d_none_S2": {
+        "dtype": "complex128",
+        "shape": [
+          4
+        ]
+      },
+      "single_1d_none_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          1
+        ]
+      },
+      "single_1d_none_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          5
+        ]
+      },
+      "single_1d_none_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "single_1d_none_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "single_1d_st_S1": {
+        "dtype": "complex128",
+        "shape": [
+          5
+        ]
+      },
+      "single_1d_st_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          1
+        ]
+      },
+      "single_1d_st_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          5
+        ]
+      },
+      "single_1d_st_S2": {
+        "dtype": "complex128",
+        "shape": [
+          5
+        ]
+      },
+      "single_1d_st_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          1
+        ]
+      },
+      "single_1d_st_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          5
+        ]
+      },
+      "single_1d_st_S3": {
+        "dtype": "complex128",
+        "shape": [
+          12
+        ]
+      },
+      "single_1d_st_S3_mask": {
+        "dtype": "uint8",
+        "shape": [
+          2
+        ]
+      },
+      "single_1d_st_S3_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "single_1d_st_S4": {
+        "dtype": "complex128",
+        "shape": [
+          32
+        ]
+      },
+      "single_1d_st_S4_mask": {
+        "dtype": "uint8",
+        "shape": [
+          8
+        ]
+      },
+      "single_1d_st_S4_shape": {
+        "dtype": "int64",
+        "shape": [
+          9
+        ]
+      },
+      "single_1d_st_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "single_1d_st_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "single_2d_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          16,
+          16
+        ]
+      },
+      "single_2d_none_S1": {
+        "dtype": "complex128",
+        "shape": [
+          8
+        ]
+      },
+      "single_2d_none_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          1
+        ]
+      },
+      "single_2d_none_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          5
+        ]
+      },
+      "single_2d_none_S2": {
+        "dtype": "complex128",
+        "shape": [
+          8
+        ]
+      },
+      "single_2d_none_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          1
+        ]
+      },
+      "single_2d_none_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          5
+        ]
+      },
+      "single_2d_none_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "single_2d_none_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "single_2d_st_S1": {
+        "dtype": "complex128",
+        "shape": [
+          9
+        ]
+      },
+      "single_2d_st_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          2
+        ]
+      },
+      "single_2d_st_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          5
+        ]
+      },
+      "single_2d_st_S2": {
+        "dtype": "complex128",
+        "shape": [
+          9
+        ]
+      },
+      "single_2d_st_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          2
+        ]
+      },
+      "single_2d_st_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          5
+        ]
+      },
+      "single_2d_st_S3": {
+        "dtype": "complex128",
+        "shape": [
+          48
+        ]
+      },
+      "single_2d_st_S3_mask": {
+        "dtype": "uint8",
+        "shape": [
+          8
+        ]
+      },
+      "single_2d_st_S3_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "single_2d_st_S4": {
+        "dtype": "complex128",
+        "shape": [
+          256
+        ]
+      },
+      "single_2d_st_S4_mask": {
+        "dtype": "uint8",
+        "shape": [
+          64
+        ]
+      },
+      "single_2d_st_S4_shape": {
+        "dtype": "int64",
+        "shape": [
+          9
+        ]
+      },
+      "single_2d_st_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "single_2d_st_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      }
+    },
+    "sha256": "f99cc2f1090e2d1c7c75f88aa0616c02b4bc247899018e186cf2a1199f7c98ab"
   },
   "statistics_1d.npz": {
     "case": "tools/stl_parity/cases/statistics_1d.py",
@@ -5770,6 +7877,382 @@
       }
     },
     "sha256": "06e747371cbc9139d5bdd92edfbab9aaaf2eb943348f78872987d150653c29bd"
+  },
+  "statistics_tp.npz": {
+    "case": "tools/stl_parity/cases/statistics_tp.py",
+    "stl_branch": "2D+1D",
+    "stl_commit": "8f51143c5f8ebc259328830f246894d7031acae5",
+    "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
+    "parameters": {
+      "case": "C",
+      "blocks": [
+        "2D",
+        "1D"
+      ],
+      "sizes": [
+        [
+          16,
+          16
+        ],
+        [
+          8
+        ]
+      ],
+      "pbc": [
+        true,
+        false
+      ],
+      "J": null,
+      "lowpass": "ST",
+      "Nb": 2,
+      "Nc": 2,
+      "seed": 400,
+      "ref_seed": 401
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          16,
+          16,
+          8
+        ]
+      },
+      "load_S1": {
+        "dtype": "complex128",
+        "shape": [
+          162
+        ]
+      },
+      "load_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          48
+        ]
+      },
+      "load_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "load_S2": {
+        "dtype": "complex128",
+        "shape": [
+          162
+        ]
+      },
+      "load_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          48
+        ]
+      },
+      "load_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "load_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1536
+        ]
+      },
+      "load_S3_mask": {
+        "dtype": "uint8",
+        "shape": [
+          256
+        ]
+      },
+      "load_S3_shape": {
+        "dtype": "int64",
+        "shape": [
+          11
+        ]
+      },
+      "load_S4": {
+        "dtype": "complex128",
+        "shape": [
+          16384
+        ]
+      },
+      "load_S4_mask": {
+        "dtype": "uint8",
+        "shape": [
+          4096
+        ]
+      },
+      "load_S4_shape": {
+        "dtype": "int64",
+        "shape": [
+          15
+        ]
+      },
+      "load_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "load_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "ref_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          16,
+          16,
+          8
+        ]
+      },
+      "store_S1": {
+        "dtype": "complex128",
+        "shape": [
+          162
+        ]
+      },
+      "store_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          48
+        ]
+      },
+      "store_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "store_S2": {
+        "dtype": "complex128",
+        "shape": [
+          162
+        ]
+      },
+      "store_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          48
+        ]
+      },
+      "store_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "store_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1536
+        ]
+      },
+      "store_S3_mask": {
+        "dtype": "uint8",
+        "shape": [
+          256
+        ]
+      },
+      "store_S3_shape": {
+        "dtype": "int64",
+        "shape": [
+          11
+        ]
+      },
+      "store_S4": {
+        "dtype": "complex128",
+        "shape": [
+          16384
+        ]
+      },
+      "store_S4_mask": {
+        "dtype": "uint8",
+        "shape": [
+          4096
+        ]
+      },
+      "store_S4_shape": {
+        "dtype": "int64",
+        "shape": [
+          15
+        ]
+      },
+      "store_batch_mean_S1": {
+        "dtype": "complex128",
+        "shape": [
+          162
+        ]
+      },
+      "store_batch_mean_S1_mask": {
+        "dtype": "uint8",
+        "shape": [
+          48
+        ]
+      },
+      "store_batch_mean_S1_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "store_batch_mean_S2": {
+        "dtype": "complex128",
+        "shape": [
+          162
+        ]
+      },
+      "store_batch_mean_S2_mask": {
+        "dtype": "uint8",
+        "shape": [
+          48
+        ]
+      },
+      "store_batch_mean_S2_shape": {
+        "dtype": "int64",
+        "shape": [
+          7
+        ]
+      },
+      "store_batch_mean_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1536
+        ]
+      },
+      "store_batch_mean_S3_mask": {
+        "dtype": "uint8",
+        "shape": [
+          256
+        ]
+      },
+      "store_batch_mean_S3_shape": {
+        "dtype": "int64",
+        "shape": [
+          11
+        ]
+      },
+      "store_batch_mean_S4": {
+        "dtype": "complex128",
+        "shape": [
+          16384
+        ]
+      },
+      "store_batch_mean_S4_mask": {
+        "dtype": "uint8",
+        "shape": [
+          4096
+        ]
+      },
+      "store_batch_mean_S4_shape": {
+        "dtype": "int64",
+        "shape": [
+          15
+        ]
+      },
+      "store_batch_mean_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "store_batch_mean_s2_ref": {
+        "dtype": "complex128",
+        "shape": [
+          54
+        ]
+      },
+      "store_batch_mean_s2_ref_mask": {
+        "dtype": "uint8",
+        "shape": [
+          12
+        ]
+      },
+      "store_batch_mean_s2_ref_shape": {
+        "dtype": "int64",
+        "shape": [
+          6
+        ]
+      },
+      "store_batch_mean_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "store_batch_mean_var_ref": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "store_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "store_s2_ref": {
+        "dtype": "complex128",
+        "shape": [
+          108
+        ]
+      },
+      "store_s2_ref_mask": {
+        "dtype": "uint8",
+        "shape": [
+          24
+        ]
+      },
+      "store_s2_ref_shape": {
+        "dtype": "int64",
+        "shape": [
+          6
+        ]
+      },
+      "store_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "store_var_ref": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "vector_complex": {
+        "dtype": "complex128",
+        "shape": [
+          18252
+        ]
+      },
+      "vector_real": {
+        "dtype": "float64",
+        "shape": [
+          36172
+        ]
+      }
+    },
+    "sha256": "c8744af278892db4082d0e9cd1dc0d69e1f1a85a0073978481c5820ca082e910"
   },
   "synthesis_2d.npz": {
     "case": "tools/stl_parity/cases/synthesis_2d.py",
