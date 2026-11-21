@@ -128,7 +128,9 @@ def _expected(geometry: dict[str, Any], family: str, nb: int, matrix: Any) -> ND
 
 def _count(geometry: dict[str, Any], family: str) -> int:
     """§3.9: the coefficients STL computes per map and channel pair."""
-    j, n_orient, lowpass = geometry["J"], geometry["L"], geometry["lowpass"]
+    j: list[int] = geometry["J"]
+    n_orient: list[int] = geometry["L"]
+    lowpass: list[bool] = geometry["lowpass"]
     product = math.prod(n_orient)
     if family in ("S1", "S2", "s2_ref"):
         blocks = zip(j, n_orient, lowpass, strict=True)
