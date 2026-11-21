@@ -60,8 +60,8 @@
 ### 1.0 Notation — M-NOT
 
 - **Field.** x\[b, c, n\], with batch index b = 0 … N\_b−1, channel c = 0 … N\_c−1, and pixel n = (n₁, n₂) with 0 ≤ nᵢ < Nᵢ. Axis 1 is the first array axis (rows), axis 2 the second (columns).
-- **Resolution level.** j ≥ 0; level j has Nᵢ / 2ʲ pixels per axis. x⁽ʲ⁾ is x downsampled j times (§1.3).
-- **Scales and orientations.** J scales, j = 0 … J−1; L orientations, ℓ = 0 … L−1.
+- **Resolution level.** d ≥ 0; level d has Nᵢ / 2ᵈ pixels per axis. x⁽ᵈ⁾ is x downsampled d times (§1.3).
+- **Scales and orientations.** J scales, j = 0 … J−1; L orientations, ℓ = 0 … L−1. Scale j is computed at level d = j (§1.2).
 - **Valid-pixel mean** of an array a with invalid mask m (True = invalid), computed after the border crop of §1.5:
 
 ```latex
@@ -73,11 +73,11 @@
 **Filters and scales.**
 
 - s: the smoothing kernel, the filter of one downsampling step (M-SMOOTH-2D, M-SMOOTH-1D).
-- S\_j: the cumulated smoothing of j downsampling steps, Ŝ\_j(ω) = ŝ(ω) ŝ(2ω) ⋯ ŝ(2^(j−1) ω), up to the sampling of each step.
-- ψ\_ℓ: a wavelet kernel, applied at a given level. ψ\_(j,ℓ): the effective wavelet seen from full resolution, ψ̂\_(j,ℓ)(ω) = ψ̂\_ℓ(2^j ω) Ŝ\_j(ω).
-- φ\_J: the low-pass filter, the effective filter of scale J. In STL and in 1.0.0, φ̂\_J = Ŝ\_J. A dedicated low-pass kernel φ may replace this realisation (LF6); there is none in 1.0.0.
+- S\_d: the cumulated smoothing of d downsampling steps, Ŝ\_d(ω) = ŝ(ω) ŝ(2ω) ⋯ ŝ(2^(d−1) ω), up to the sampling of each step.
+- ψ\_ℓ: a wavelet kernel, applied at a given level. ψ\_(j,ℓ): the effective wavelet seen from full resolution, ψ̂\_(j,ℓ)(ω) = ψ̂\_ℓ(2^d ω) Ŝ\_d(ω), with d = j the level of scale j.
+- φ\_J: the low-pass filter, the effective filter of scale J. In STL and in 1.0.0, φ̂\_J = Ŝ\_d with d = J. A dedicated low-pass kernel φ may replace this realisation (LF6); there is none in 1.0.0.
 - Λ: the Littlewood–Paley sum, Λ(ω) = |φ̂\_J(ω)|² + ½ Σ\_(j,ℓ) (|ψ̂\_(j,ℓ)(ω)|² + |ψ̂\_(j,ℓ)(−ω)|²). Both signs of ω are counted because the wavelets are analytic. Λ = 1 everywhere would mean that the coefficients keep all the energy of the data.
-- Per-level energy partition: P(ω) = |ŝ(ω)|² + ½ Σ\_ℓ (|ψ̂\_ℓ(ω)|² + |ψ̂\_ℓ(−ω)|²). If P = 1 at every level, then Λ = 1 follows by cascade, with φ̂\_J = Ŝ\_J. A dedicated φ only acts on the last octave: it cannot make up for a partition that differs from 1 at the intermediate levels.
+- Per-level energy partition: P(ω) = |ŝ(ω)|² + ½ Σ\_ℓ (|ψ̂\_ℓ(ω)|² + |ψ̂\_ℓ(−ω)|²). If P = 1 at every level, then Λ = 1 follows by cascade, with φ̂\_J = Ŝ\_d and d = J. A dedicated φ only acts on the last octave: it cannot make up for a partition that differs from 1 at the intermediate levels.
 
 **Moments and covariances.**
 
@@ -87,20 +87,20 @@
 - The scattering covariances are covariances by definition: S2 = Cov(W\_{j,ℓ} x, W\_{j,ℓ} x), S3 = Cov(ψ\_{ℓ₃} ⋆ |W\_{j₂,ℓ₂} x|, W\_{j₃,ℓ₃} x) and S4 = Cov(ψ\_{ℓ₃} ⋆ |W\_{j₁,ℓ₁} x|, ψ\_{ℓ₃} ⋆ |W\_{j₂,ℓ₂} x|), with ψ at scale j3. S1 = M1(|W\_{j,ℓ} x|) is a first moment. STL, and ESTEL 1.0.0, compute the raw moments M2 instead (OP-36); the two are equal when M1 of one argument is zero.
 - Zero-mean property: a band-pass kernel sums to zero, so a field filtered by it has M1 = 0 exactly when w is the whole periodic domain, without mask. This does not hold with a cropped border or a mask. It does not hold either when the last filter is the low-pass filter φ\_J: M1(φ\_J ⋆ |W\_{j,ℓ} x|) is S1(j), and M1(φ\_J ⋆ x) is the mean of the data.
 
-**Notation to harmonise (W5, issue #71).** The review of 16 November 2026 found the 17 problems below in the notation of this file, each with a recommendation. Nothing is decided or applied yet. The full text of the remarks, and a single table of symbols proposed in their place (R-N18), are in issue #71. This table goes once the notation is decided and applied.
+**Notation to harmonise (W5, issue #71).** The review of 16 November 2026 found the 17 problems below in the notation of this file, each with a recommendation. Only R-N10 is decided and applied (T2.18); the others are the card W5. The full text of the remarks, and a single table of symbols proposed in their place (R-N18), are in issue #71. This table goes once the notation is decided and applied.
 
 | Remark | What collides | Recommendation |
 | --- | --- | --- |
 | R-N01 | φ is an angle and the low-pass filter | keep φ for the low-pass filter; write the angle ϑ |
 | R-N02 | c has four meanings: the channel index, the width factor (2.5), the constant c\_L and the bin centre c\_b | keep c for the channel; κ for the width factor, a\_L for the constant; rename the bin centre with the spectra |
-| R-N03 | S is the statistics and the cumulated smoothing (S\_j, Ŝ\_j) | write the cumulated smoothing s⁽ʲ⁾, as x⁽ʲ⁾ |
+| R-N03 | S is the statistics and the cumulated smoothing (S\_d, Ŝ\_d) | write the cumulated smoothing s⁽ᵈ⁾, as x⁽ᵈ⁾ |
 | R-N04 | w is a kernel and a window; W and W\_b exist too | keep w for the window; write a generic kernel g |
 | R-N05 | two notations for one mean, ⟨a⟩\_m and ⟨A⟩\_w; m has three meanings | one notation, ⟨·⟩\_w; keep m for the mask; write a kernel offset t |
 | R-N06 | σ has three meanings: the normalisation, the standard deviation of the data and the width of a bin | keep σ for the standard deviation; write √(S2ʳᵉᶠ) in M-NORM |
 | R-N07 | b is the batch index and the spectral bin | keep b for the batch; rename the bin index with the spectra |
 | R-N08 | N is the size of the data and the design grid (256) | write the design grid M |
 | R-N09 | ω is an integer mode and an angular frequency | ω is always an angular frequency; write the integer mode ν |
-| R-N10 | j is a scale and a resolution level | j is a scale, d a level, everywhere |
+| R-N10 | j is a scale and a resolution level | j is a scale, d a level, everywhere; applied (T2.18) |
 | R-N11 | three notations for the conjugate | z̄ in displayed formulas, `conj(·)` in text; never \* |
 | R-N12 | "layer" is the layers of the architecture and the number of wavelet convolutions | keep "layer" for the architecture; write "scattering order 0, 1, 2"; not "depth" |
 | R-N13 | W, U and D are used before they are defined; S3 and S4 are defined twice | define them once, in the notation section; one definition per statistic |
@@ -112,7 +112,7 @@
 ### 1.1 Data — M-DATA-2D
 
 - **Shape.** Arrays are `(Nb, Nc, N1, N2)`; a 2D array is promoted to `(1, 1, N1, N2)`, a 3D one to `(1, Nc, N1, N2)`. Data must be real.
-- **Size.** N₁ and N₂ must be divisible by 2^(J−1). The constraint comes from the downsampling of the scattering loop, which goes down to level J−1 and raises an error at any step with an odd size; nothing pads or resizes the input beforehand. The spectrum operator itself accepts any size (but see OP-20). The default J can violate the constraint for sizes that are not powers of two: for N = 200, J = 5 requires divisibility by 16. **⚠ OP-8**
+- **Size.** N₁ and N₂ must be divisible by 2^(J−1). The constraint comes from the downsampling of the scattering loop, which goes down to level d = J−1 and raises an error at any step with an odd size; nothing pads or resizes the input beforehand. The spectrum operator itself accepts any size (but see OP-20). The default J can violate the constraint for sizes that are not powers of two: for N = 200, J = 5 requires divisibility by 16. **⚠ OP-8**
 - **Periodicity.** `pbc` is a boolean per field. The data class allows `pbc=None`, but every convolution requires a boolean, so the scattering transform fails on `pbc=None`, while the spectrum operator treats `None` as periodic. **⚠ OP-4**
 - **Missing data.** A single boolean mask `mask_full_res` of shape `(N1, N2)` (True = missing), shared by every batch element and every channel. If none is given, it is detected from the NaN of the example data, which then must be a single 2D map. **⚠ OP-26**
 - **Source:** `Base_DataClass`, `STL_2D_Kernel_Torch`, `ST_Operator.apply`, `get_wavelet_op`.
@@ -171,7 +171,7 @@ B(r) = \exp\Big(-\frac{c\,r^2}{1 - c\,r^2}\Big) \ \text{if } r < c^{-1/2}, \qqua
 4. no renormalisation after the crop. **⚠ OP-10**
 5. in STL, steps 1 to 4 run at torch's default dtype, float32 unless changed (`torch.fft.fftfreq` is called without a dtype), and the kernel is cast to complex128 afterwards. ESTEL builds the kernel in float64; the parity harness runs STL with float64 as torch's default dtype (Part II, §14.2). **⚠ OP-31**
 
-Only the finest scale (j = 0) is built. Coarser scales are obtained by applying the same kernel to downsampled data (§1.3), so the effective filter at scale j is the cascade "smooth and downsample j times, then ψ\_ℓ".
+Only the finest scale (j = 0) is built. Coarser scales are obtained by applying the same kernel to downsampled data (§1.3), so the effective filter at scale j is the cascade "smooth and downsample d = j times, then ψ\_ℓ".
 
 - **Morlet.** `WType="Morlet"` is also available in STL's kernel class (built the same way from a Gaussian bank). **⚠ OP-24**
 - **Rotations and energies.** The kernels of orientations ℓ and ℓ + L/2 are not rotations of each other by 90 degrees: on STL's own kernels (L = 4) they differ by 4.8e-3 (ℓ = 0) and 1.9e-3 (ℓ = 1), relative to the largest coefficient. The design grid has the frequency −N/2 and not +N/2, and the bump reaches the edge of the grid; setting that unpaired frequency to zero makes the rotation exact. The energies Σ |ψ\_ℓ|² also differ by 3.2 % between the orientations along the axes and the others. **⚠ OP-58**
@@ -197,10 +197,10 @@ The smoothing kernel is the anti-aliasing filter applied before each downsamplin
 
 #### M-DOWN — Downsampling without mask
 
-One step, from level j to j+1, where x̃⁽ʲ⁾ is x⁽ʲ⁾ padded by **2 pixels before and 3 after** on each axis (circular or replicate, as in M-CONV-2D), keeping one pixel in two on each axis (stride 2), with s the smoothing kernel (M-SMOOTH-2D):
+One step, from level d to d+1, where x̃⁽ᵈ⁾ is x⁽ᵈ⁾ padded by **2 pixels before and 3 after** on each axis (circular or replicate, as in M-CONV-2D), keeping one pixel in two on each axis (stride 2), with s the smoothing kernel (M-SMOOTH-2D):
 
 ```latex
-x^{(j+1)}[n] = \sum_{m_1, m_2 = 0}^{5} s[m]\ \tilde x^{(j)}[2n + m]
+x^{(d+1)}[n] = \sum_{m_1, m_2 = 0}^{5} s[m]\ \tilde x^{(d)}[2n + m]
 ```
 
 Several levels are reached by repeating the step.
@@ -214,10 +214,10 @@ Several levels are reached by repeating the step.
 With a mask, each step is "normalised": invalid input pixels are set to 0, the result is computed as in M-DOWN, then multiplied by a reweighting map:
 
 ```latex
-x^{(j+1)} = \big(\text{M-DOWN of } x^{(j)} \cdot \mathbb 1_{\text{valid}}\big) \cdot \frac{1}{1 - f^{(j+1)}}
+x^{(d+1)} = \big(\text{M-DOWN of } x^{(d)} \cdot \mathbb 1_{\text{valid}}\big) \cdot \frac{1}{1 - f^{(d+1)}}
 ```
 
-where f⁽ʲ⁺¹⁾ is the fraction of invalid input contributing to each output pixel: the invalid mask of x⁽ʲ⁾, after its own thresholding, as 0/1, downsampled with the same smoothing kernel; it is not the fraction f⁽ʲ⁾ downsampled again.
+where f⁽ᵈ⁺¹⁾ is the fraction of invalid input contributing to each output pixel: the invalid mask of x⁽ᵈ⁾, after its own thresholding, as 0/1, downsampled with the same smoothing kernel; it is not the fraction f⁽ᵈ⁾ downsampled again.
 
 - **Threshold.** An output pixel is declared invalid if f > τ, with τ = 0.33 (`downsample_nan_weight_threshold`). **⚠ OP-12**
 - **Invalid output pixels** are filled with `replace_nan_value`, NaN by default; the code notes that this breaks back-propagation. ESTEL uses weights instead of NaN values; statistics only read valid pixels, so the values are unchanged. **⚠ OP-27**
@@ -228,9 +228,9 @@ where f⁽ʲ⁺¹⁾ is the fraction of invalid input contributing to each outpu
 
 Let E be the K × K support of the wavelets (all ones), shared by all orientations.
 
-- **Layer 0:** the full-resolution mask m⁽⁰⁾; at level j > 0, the invalid pixels after thresholded downsampling (M-DOWN-MASK).
-- **Layer 1** (data convolved once, at scale j, level j): an output pixel is invalid if the wavelet support E touches an invalid input pixel, that is m₁⁽ʲ⁾ = (E ⋆ m⁽ʲ⁾) > 0.
-- **Layer 2** (first convolved at j₂, modulus, downsampled to j₃, convolved again at j₃): m₂ = (E ⋆ m) > 0, where m is the layer-1 mask at j₃ if j₂ = j₃, or the downsampled-and-thresholded layer-1 mask of j₂ otherwise.
+- **Layer 0:** the full-resolution mask m⁽⁰⁾; at level d > 0, the invalid pixels after thresholded downsampling (M-DOWN-MASK).
+- **Layer 1** (data convolved once, at scale j, level d = j): an output pixel is invalid if the wavelet support E touches an invalid input pixel, that is m₁⁽ᵈ⁾ = (E ⋆ m⁽ᵈ⁾) > 0.
+- **Layer 2** (first convolved at scale j₂, at level d = j₂; modulus; downsampled to level d = j₃; convolved again at scale j₃): m₂ = (E ⋆ m) > 0, where m is the layer-1 mask at level d = j₃ if j₂ = j₃, or the layer-1 mask of scale j₂, downsampled and thresholded to level d = j₃, otherwise.
 - **Covariances** use the union of the masks of their two arguments, or the larger one when one contains the other. **⚠ OP-35**
 - **Source:** `_build_reweighting_maps_and_scattering_layer_masks`, `_find_mask`, `cov`.
 
@@ -281,10 +281,10 @@ With `standardize=True` (off by default), the field is centred and scaled before
 
 #### M-W1 — First layer
 
-At each scale j, on the field downsampled to level j:
+At each scale j, on the field downsampled to level d = j:
 
 ```latex
-W_{j,\ell}\, x_c = \psi_\ell \star x_c^{(j)}, \qquad U_{j,\ell}\, x_c = \lvert W_{j,\ell}\, x_c \rvert
+W_{j,\ell}\, x_c = \psi_\ell \star x_c^{(d)}, \qquad U_{j,\ell}\, x_c = \lvert W_{j,\ell}\, x_c \rvert
 ```
 
 ### 1.7 Scattering statistics — vanilla ScatCov
@@ -311,7 +311,7 @@ For c₁ = c₂ this formula reduces to the auto term, up to ε; this defines wh
 
 #### M-S3
 
-For j₂ ≤ j₃ (**including** j₂ = j₃), with D\_{j₂→j₃} the downsampling from level j₂ to level j₃ (M-DOWN or M-DOWN-MASK):
+For j₂ ≤ j₃ (**including** j₂ = j₃), with D\_{j₂→j₃} the downsampling from the level of scale j₂ to the level of scale j₃ (M-DOWN or M-DOWN-MASK):
 
 ```latex
 S_3[c_1,c_2,j_2,j_3,\ell_2,\ell_3] = \Big\langle \big(\psi_{\ell_3} \star D_{j_2\to j_3} U_{j_2,\ell_2} x_{c_1}\big)\ \overline{W_{j_3,\ell_3}\, x_{c_2}} \Big\rangle
@@ -694,7 +694,7 @@ In the seven cases, S1, S2, S3 and S4 have their NaN at the same entries as the 
 
 - **Blocks.** A tensor-product field has B blocks, a = 0 … B−1. Block a is a planar geometry of section 1 (2D) or 2 (1D), with its own sizes N⁽ᵃ⁾, periodicity `pbc[a]`, number of scales J\_a and number of orientations L\_a. L = L₀ ⋯ L\_{B−1} is the number of product orientations.
 - **Multi-indices.** A scale is j = (j₀, …, j\_{B−1}), an orientation ℓ = (ℓ₀, …, ℓ\_{B−1}), a level d = (d₀, …, d\_{B−1}). x⁽ᵈ⁾ is the field downsampled d\_a times along block a, by M-DOWN along the axes of that block (M-SMOOTH-2D or M-SMOOTH-1D); the downsamplings of different blocks act on different axes and commute.
-- **Level of a scale.** The level of scale j is j itself: j\_a downsamplings along block a for a wavelet, and J\_a for the low-pass filter of block a (M-LP).
+- **Level of a scale.** The level of scale j is d = j: j\_a downsamplings along block a for a wavelet, and J\_a for the low-pass filter of block a (M-LP).
 - **Partial order.** j ≤ j′ means j\_a ≤ j′\_a for every block a. It is a partial order: two scales may be incomparable (M-IDX-TP).
 - **Block convolution.** ⋆\_a is the filtering of M-CONV-2D or of §2.1 along the axes of block a only, with the padding of that block (circular if `pbc[a]`, replicate otherwise).
 
@@ -713,17 +713,17 @@ In the seven cases, S1, S2, S3 and S4 have their NaN at the same entries as the 
 
 ### 3.2 First layer — M-W1-TP
 
-The wavelet of scale j and orientation ℓ is the product of the block wavelets. It is applied block after block, in block order, on the field brought to level j:
+The wavelet of scale j and orientation ℓ is the product of the block wavelets. It is applied block after block, in block order, on the field brought to level d = j:
 
 ```latex
-W_{j,\ell}\, x_c = \psi^{(B-1)}_{\ell_{B-1}} \star_{B-1} \Big( \cdots \big( \psi^{(0)}_{\ell_0} \star_0 x_c^{(j)} \big) \cdots \Big), \qquad U_{j,\ell}\, x_c = \lvert W_{j,\ell}\, x_c \rvert
+W_{j,\ell}\, x_c = \psi^{(B-1)}_{\ell_{B-1}} \star_{B-1} \Big( \cdots \big( \psi^{(0)}_{\ell_0} \star_0 x_c^{(d)} \big) \cdots \Big), \qquad U_{j,\ell}\, x_c = \lvert W_{j,\ell}\, x_c \rvert
 ```
 
 - **Block wavelets.** The kernels of the blocks are those of sections 1 and 2: one kernel of K = 5 taps per axis and per block, the same at every level (M-WAV-2D; M-WAV-1D with L = 2).
 - **One modulus, after all the blocks.** The intermediate results are complex: the second and later block convolutions filter a complex array with a complex kernel, which STL does in one complex convolution. In ESTEL this is four real convolutions (Part I, §3.1, rule 6), or the complex-to-complex convolutions tried with T3.2.
 - **Orientation axes.** One per block, placed in block order in front of the spatial axes: `(Nb, Nc, L₀, …, L_{B−1}, spatial axes)`.
 - **Why L = 2 in 1D blocks.** The product of analytic wavelets covers one sign combination of the block frequencies. With L\_a = 2 in a 1D block, its conjugate filter gives the other sign, so the products cover every combination that differs for a real field.
-- **How STL reaches it.** STL does not bring the field to level j first. It filters along block 0 a field at level j₀ in block 0 and at level 0 in the other blocks, downsamples the complex result along block 1 to level j₁ (M-DOWN, on the real and the imaginary parts), filters along block 1, and so on: the result of the blocks 0 … a is kept and serves every scale that starts with (j₀, …, j\_a). A downsampling along a block and a filtering along another act on different axes and commute exactly, with circular and with replicate padding: STL's values are those of the formula up to rounding.
+- **How STL reaches it.** STL does not bring the field to level d = j first. It filters along block 0 a field at level d₀ = j₀ in block 0 and at level 0 in the other blocks, downsamples the complex result along block 1 to level d₁ = j₁ (M-DOWN, on the real and the imaginary parts), filters along block 1, and so on: the result of the blocks 0 … a is kept and serves every scale that starts with (j₀, …, j\_a). A downsampling along a block and a filtering along another act on different axes and commute exactly, with circular and with replicate padding: STL's values are those of the formula up to rounding.
 - **Order of the blocks.** Convolutions along different axes commute exactly in theory; in floating point their order changes the rounding. STL's order is block 0 first. ESTEL's dispatch along axes is compared with STL's values at the parity tolerance in T3.2.
 - **Checked:** the kernels of the blocks of a `[2D, 1D]` operator are bit for bit those of the 2D operator and of the 1D operator with L = 2, whose second kernel is the conjugate of the first. The comparison of the seven cases, in which the reference follows the formula and STL its own order, bounds the effect of the order of the operations by 1.2e-15. With the blocks exchanged (`[2D, 1D]` on a field, `[1D, 2D]` on the same field with its axes permuted; periodic and not), S1 to S4 agree to 1.0e-15 and are not bit for bit equal.
 - **Source:** `Wavelet_Operator_TensorProd_Kernel_Torch.apply`, `downsample`; `ST_Operator_TensorProd._compute_ST_loop` (`l_data_multi_res`, `data_l1`).
@@ -733,10 +733,10 @@ W_{j,\ell}\, x_c = \psi^{(B-1)}_{\ell_{B-1}} \star_{B-1} \Big( \cdots \big( \psi
 With `lowpass="ST"` (STL's default), each block may contribute a low-pass filter φ⁽ᵃ⁾\_J besides its wavelets.
 
 - **Index.** The low-pass filter of block a is the scale j\_a = J\_a, after its wavelets j\_a = 0 … J\_a − 1. It has one orientation, stored at index 0; the other orientation entries are NaN.
-- **Realisation.** The cascade of the smoothing kernels: the field at level J\_a along block a, with no further computation. In a scale that mixes it with wavelets of earlier blocks, it is the complex result of these blocks that is downsampled to level J\_a (M-W1-TP).
+- **Realisation.** The cascade of the smoothing kernels: the field at level d\_a = J\_a along block a, with no further computation. In a scale that mixes it with wavelets of earlier blocks, it is the complex result of these blocks that is downsampled to level d\_a = J\_a (M-W1-TP).
 - **Existence.** Block a has a low-pass filter only if each of its sizes is divisible by 2^(J\_a), one more downsampling than its wavelets need. Otherwise STL warns (`UserWarning`) and gives the block no low-pass filter; there is then no scale with the low-pass filter in every block. **⚠ OP-34**
 - **Mixed scales.** A scale with the low-pass filter in some blocks and a wavelet in at least one other is a zero-mean filter on a periodic domain, because of its wavelet factor. S1 and S2 are computed as for the wavelets, without centring.
-- **The scale with the low-pass filter in every block** is the only filter without zero mean. With X the field at level (J₀, …, J\_{B−1}):
+- **The scale with the low-pass filter in every block** is the only filter without zero mean. With X the field at level d = (J₀, …, J\_{B−1}):
 
 ```latex
 S_1 = \big\langle \lvert X - \langle X \rangle \rvert \big\rangle, \qquad S_2 = \big\langle \lvert X - \langle X \rangle \rvert^2 \big\rangle
@@ -784,11 +784,11 @@ S_3[c_1,c_2,j_2,j_3,\ell_2,\ell_3] = \Big\langle \big( W_{j_3,\ell_3}\, D_{j_2\t
 S_4[c_1,c_2,j_1,j_2,j_3,\ell_1,\ell_2,\ell_3] = \Big\langle \big( W_{j_3,\ell_3}\, D_{j_1\to j_3} U_{j_1,\ell_1} x_{c_1} \big)\ \overline{\big( W_{j_3,\ell_3}\, D_{j_2\to j_3} U_{j_2,\ell_2} x_{c_2} \big)} \Big\rangle
 ```
 
-Here W\_{j₃,ℓ₃} applied to a field already at level j₃ means the block convolutions of M-W1-TP without further downsampling.
+Here W\_{j₃,ℓ₃} applied to a field already at level d = j₃ means the block convolutions of M-W1-TP without further downsampling.
 
 - **`mean` and `var`.** M-MOM over the spatial axes of all the blocks together, without border; the standardisation M-STD likewise.
 - **S1 and S2.** M-S1 and M-S2 on U\_{j,ℓ}, for every scale of 𝒥; the low-pass scales follow M-LP.
-- **How STL reaches the second layer.** As for the first layer (M-W1-TP), STL interleaves the downsamplings and the block convolutions: the modulus U\_{j₂} is brought to level j₃ along block 0 and filtered along block 0, the complex result is downsampled along block 1 and filtered along block 1, and so on, and the result of the blocks 0 … a serves every j₃ that starts with the same indices. The values are those of the formulas up to rounding.
+- **How STL reaches the second layer.** As for the first layer (M-W1-TP), STL interleaves the downsamplings and the block convolutions: the modulus U\_{j₂} is brought along block 0 to the level of scale j₃ in that block and filtered along block 0, the complex result is downsampled along block 1 and filtered along block 1, and so on, and the result of the blocks 0 … a serves every j₃ that starts with the same indices. The values are those of the formulas up to rounding.
 - **Shapes** of the full-grid tensors, with one scale axis and one orientation axis per block:
 
 | Family | Shape |
