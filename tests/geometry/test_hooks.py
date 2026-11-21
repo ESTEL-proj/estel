@@ -135,7 +135,7 @@ def test_masked_downsample_zeroes_invalid_inputs_and_reweights(
     mask = rng.random((n,) * ndim) < 0.15
     data = GEOMETRIES[ndim](np.zeros((n,) * ndim), mask=mask, pbc=pbc)
     s = smoothing_kernel(ndim)
-    maps = build_mask_maps(mask, 2, s, 5, data._nan_threshold, pbc)
+    maps = build_mask_maps(mask, (0, 1), s, 5, data._nan_threshold, pbc)
     field = _field((2, 1) + (n,) * ndim)
     x = np.where(mask, np.nan, field)
     weights = DownsampleWeights(

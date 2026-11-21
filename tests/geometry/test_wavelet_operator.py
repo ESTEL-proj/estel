@@ -97,7 +97,7 @@ def test_downsample_is_the_hook_step_with_the_maps_of_its_level(
     maps = None
     if data.mask is not None:
         maps = build_mask_maps(
-            data.mask, 3, smoothing_kernel(ndim), 5, type(data)._nan_threshold, pbc=False
+            data.mask, (0, 1, 2), smoothing_kernel(ndim), 5, type(data)._nan_threshold, pbc=False
         )
 
     def weights(invalid: NDArray[np.bool_] | None, reweight: Any) -> DownsampleWeights:

@@ -77,6 +77,8 @@ def test_index_sets_follow_stls_loops(J: int) -> None:  # noqa: N803
 @pytest.mark.parametrize("ndim", sorted(GEOMETRIES))
 def test_levels_and_their_shapes(ndim: int) -> None:
     plan = _plan(_data(ndim, 32, pbc=False), 4, L=1)
+    # In 1.0.0, scale j is computed at level d = j (maths.md M-NOT).
+    assert plan.scale_levels == plan.wavelets.scale_levels == plan.scales == (0, 1, 2, 3)
     assert plan.levels == (0, 1, 2, 3)
     assert plan.wavelets.level_shapes == tuple((32 // 2**d,) * ndim for d in range(4))
     assert (plan.J, plan.L, plan.kernel_size, plan.ndim) == (4, 1, 5, ndim)
@@ -189,7 +191,9 @@ def _expected_invalid(
 ) -> dict[Any, NDArray[np.bool_]]:
     """The invalid pixels of each mean, from maths.md M-MASK written out with the maps of
     ``build_mask_maps``: the union of the operands' masks."""
-    maps = build_mask_maps(mask, J, smoothing_kernel(ndim), 5, GEOMETRIES[ndim]._nan_threshold, pbc)
+    maps = build_mask_maps(
+        mask, tuple(range(J)), smoothing_kernel(ndim), 5, GEOMETRIES[ndim]._nan_threshold, pbc
+    )
     expected: dict[Any, NDArray[np.bool_]] = {"moments": maps.full_res}
     for j3 in range(J):
         expected[("S1", j3)] = maps.layer1[j3]

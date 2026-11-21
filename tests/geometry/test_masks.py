@@ -69,7 +69,7 @@ def test_propagate_mask_conv_in_2d_is_a_box() -> None:
 
 @pytest.mark.parametrize("pbc", [False, True])
 def test_no_missing_value_gives_valid_maps_and_unit_weights(pbc: bool) -> None:
-    maps = build_mask_maps(np.zeros((16, 16), dtype=bool), 3, H_2D, 5, 0.33, pbc)
+    maps = build_mask_maps(np.zeros((16, 16), dtype=bool), (0, 1, 2), H_2D, 5, 0.33, pbc)
     for invalid in [*maps.smooth_invalid.values(), *maps.wav_invalid.values()]:
         assert not invalid.any()
     for invalid in [*maps.layer1.values(), *maps.layer2.values()]:
@@ -79,7 +79,7 @@ def test_no_missing_value_gives_valid_maps_and_unit_weights(pbc: bool) -> None:
 
 
 def test_maps_have_the_shape_of_their_level() -> None:
-    maps = build_mask_maps(np.arange(32) == 3, 4, H_1D, 5, 0.5, pbc=False)
+    maps = build_mask_maps(np.arange(32) == 3, (0, 1, 2, 3), H_1D, 5, 0.5, pbc=False)
     assert maps.full_res.shape == (32,)
     assert {d: m.shape for d, m in maps.smooth_invalid.items()} == {1: (16,), 2: (8,), 3: (4,)}
     assert {k: m.shape[0] for k, m in maps.wav_invalid.items()} == {
@@ -96,10 +96,10 @@ def test_threshold_reweighting_and_invalid_pixels() -> None:
     half-missing pair is valid with weight 2 (f ≤ τ), a fully missing pair invalid with weight
     0; at τ = 0.33 the half-missing pair is invalid too."""
     mask = np.array([False, False, True, False, True, True, False, False])
-    maps = build_mask_maps(mask, 2, H_AVG_1D, 1, 0.5, pbc=True)
+    maps = build_mask_maps(mask, (0, 1), H_AVG_1D, 1, 0.5, pbc=True)
     np.testing.assert_array_equal(maps.smooth_invalid[1], [False, False, True, False])
     np.testing.assert_allclose(maps.smooth_reweight[1], [1.0, 2.0, 0.0, 1.0])
-    strict = build_mask_maps(mask, 2, H_AVG_1D, 1, 0.33, pbc=True)
+    strict = build_mask_maps(mask, (0, 1), H_AVG_1D, 1, 0.33, pbc=True)
     np.testing.assert_array_equal(strict.smooth_invalid[1], [False, True, True, False])
     np.testing.assert_allclose(strict.smooth_reweight[1], [1.0, 0.0, 0.0, 1.0])
 
@@ -108,7 +108,7 @@ def test_layer_masks_chain_the_levels() -> None:
     """With K = 1 the footprint is one pixel: layer 1 at level j is the layer-0 mask of level
     j, and layer 2 at (j3, j2 < j3) is layer 1 of j2 brought down to j3."""
     mask = np.array([True, True, False, False, False, False, True, False])
-    maps = build_mask_maps(mask, 3, H_AVG_1D, 1, 0.5, pbc=True)
+    maps = build_mask_maps(mask, (0, 1, 2), H_AVG_1D, 1, 0.5, pbc=True)
     np.testing.assert_array_equal(maps.layer1[0], mask)
     np.testing.assert_array_equal(maps.layer1[1], maps.smooth_invalid[1])
     np.testing.assert_array_equal(maps.layer2[(1, 1)], maps.layer1[1])
@@ -121,6 +121,6 @@ def test_layer_masks_chain_the_levels() -> None:
 
 def test_build_mask_maps_rejects_a_kernel_not_summing_to_one() -> None:
     with pytest.raises(ValueError, match="sums to"):
-        build_mask_maps(np.zeros(8, dtype=bool), 2, 2 * H_1D, 5, 0.5, pbc=True)
+        build_mask_maps(np.zeros(8, dtype=bool), (0, 1), 2 * H_1D, 5, 0.5, pbc=True)
     with pytest.raises(ValueError, match="at least one level"):
-        build_mask_maps(np.zeros(8, dtype=bool), 0, H_1D, 5, 0.5, pbc=True)
+        build_mask_maps(np.zeros(8, dtype=bool), (), H_1D, 5, 0.5, pbc=True)
