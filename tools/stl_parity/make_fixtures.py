@@ -19,7 +19,9 @@ float64.
 
 A case is a module of `cases/` that defines `STL_ENV` (`master`, `2d1d` or `healpix`, the
 environments of the image), `PARAMETERS` (a JSON-serialisable dict) and `run()`, which returns a
-dict of float64 or complex128 NumPy arrays.
+dict of float64 or complex128 NumPy arrays; int64 and uint8 arrays are accepted for the
+shapes and the packed masks of finite positions of the grids a case stores packed (`<key>_shape`,
+`<key>_mask`; tools/stl_parity/README.md).
 
 This file is not part of ESTEL. It imports STL, never `estel`.
 """
@@ -47,6 +49,9 @@ MANIFEST = "MANIFEST.json"
 # The STL-Dev branch of each environment of the image (Dockerfile; Part II, §9.1).
 BRANCHES = {"master": "master", "2d1d": "2D+1D", "healpix": "HealpixUpdate"}
 FLOAT64_DTYPES = (np.dtype(np.float64), np.dtype(np.complex128))
+# The packed grids of the tensor-product cases (scattering_tp, statistics_tp; issue #127): the
+# shape of a full grid (int64) and its mask of finite positions, packed with np.packbits (uint8).
+LAYOUT_DTYPES = (np.dtype(np.int64), np.dtype(np.uint8))
 # A fixed timestamp for every member of the archive, so that the bytes depend on the arrays only.
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 
@@ -72,15 +77,20 @@ def load_case(path: Path) -> ModuleType:
 
 
 def check_arrays(case: str, arrays: Any) -> dict[str, NDArray[Any]]:
-    """Return the arrays of a case, or raise if they are not float64 or complex128 arrays."""
+    """Return the arrays of a case, or raise if they are not float64 or complex128 arrays, or
+    the int64 shape and uint8 packed mask of a packed grid."""
     if not isinstance(arrays, dict) or not arrays:
         raise TypeError(f"{case}: run() must return a non-empty dict of NumPy arrays.")
     for name, array in arrays.items():
+        if isinstance(array, np.ndarray) and name.endswith(("_shape", "_mask")):
+            if array.dtype in LAYOUT_DTYPES and array.ndim == 1:
+                continue
         if not isinstance(array, np.ndarray) or array.dtype not in FLOAT64_DTYPES:
             kind = array.dtype if isinstance(array, np.ndarray) else type(array).__name__
             raise TypeError(
                 f"{case}: array {name!r} is {kind}; parity runs in float64 (§14.3), so return "
-                "float64 or complex128 NumPy arrays."
+                "float64 or complex128 NumPy arrays (int64 or uint8 only for the 1D <key>_shape and "
+                "<key>_mask of a packed grid)."
             )
     return arrays
 
