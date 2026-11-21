@@ -105,8 +105,9 @@ def test_threshold_reweighting_and_invalid_pixels() -> None:
 
 
 def test_layer_masks_chain_the_levels() -> None:
-    """With K = 1 the footprint is one pixel: layer 1 at level j is the layer-0 mask of level
-    j, and layer 2 at (j3, j2 < j3) is layer 1 of j2 brought down to j3."""
+    """With K = 1 the footprint is one pixel: layer 1 of scale j, at its level d = j, is the
+    layer-0 mask of level d, and layer 2 of the scales (j3, j2 < j3) is layer 1 of j2 brought
+    down to the level of j3."""
     mask = np.array([True, True, False, False, False, False, True, False])
     maps = build_mask_maps(mask, (0, 1, 2), H_AVG_1D, 1, 0.5, pbc=True)
     np.testing.assert_array_equal(maps.layer1[0], mask)

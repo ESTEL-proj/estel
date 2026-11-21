@@ -303,7 +303,7 @@ def build_plan(
     matrix = _cross_matrix(cross_matrix, data.n_channels)
     _check_options(norm, ref_batch_mean, standardize)
     levels = wavelets.levels
-    level_of = wavelets.scale_levels
+    scale_levels = wavelets.scale_levels
     scales = tuple(range(wavelets.J))
     s3_pairs = tuple((j2, j3) for j3 in scales for j2 in range(j3 + 1))
     s4_triples = tuple(
@@ -314,16 +314,16 @@ def build_plan(
     # scales), the level of the mean (that of the scale of the last convolution).
     means: dict[Any, tuple[str, tuple[History, ...], int]] = {
         "moments": ("mean and var", ((),), 0),
-        **{("S1", j): (f"S1 and S2 (j={j})", ((j,),), level_of[j]) for j in scales},
+        **{("S1", j): (f"S1 and S2 (j={j})", ((j,),), scale_levels[j]) for j in scales},
         **{
-            ("S3", j2, j3): (f"S3 (j2={j2}, j3={j3})", ((j2, j3), (j3,)), level_of[j3])
+            ("S3", j2, j3): (f"S3 (j2={j2}, j3={j3})", ((j2, j3), (j3,)), scale_levels[j3])
             for j2, j3 in s3_pairs
         },
         **{
             ("S4", j1, j2, j3): (
                 f"S4 (j1={j1}, j2={j2}, j3={j3})",
                 tuple(dict.fromkeys(((j1, j3), (j2, j3)))),
-                level_of[j3],
+                scale_levels[j3],
             )
             for j1, j2, j3 in s4_triples
         },
@@ -353,7 +353,7 @@ def build_plan(
         ref_batch_mean=bool(ref_batch_mean),
         standardize=bool(standardize),
         wavelets=wavelets,
-        scale_levels=level_of,
+        scale_levels=scale_levels,
         levels=levels,
         scales=scales,
         s3_pairs=s3_pairs,

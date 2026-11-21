@@ -91,7 +91,9 @@ _K = TypeVar("_K", bound=Hashable)
 def border_width(history: History, level: int, kernel_size: int, pbc: bool) -> int:
     """The border β of maths.md M-BORDER ("fully flexible"), in pixels at ``level``, of data
     convolved at the scales ``history`` (STL ``_get_crop_border_size_fully_flexible``). As in
-    M-BORDER, ``j``, ``j2`` and ``j3`` below are scales and ``d`` is ``level``.
+    M-BORDER, ``j``, ``j2`` and ``j3`` below are scales and ``d`` is ``level``: the exponents
+    are differences of levels written with scales, exact while scale j is computed at level
+    d = j (maths.md OP-62).
 
     * no convolution, or ``pbc``: 0;
     * one convolution at ``j``: ⌈2^(j-d) · ⌊K/2⌋⌉;
@@ -711,7 +713,9 @@ def _invalid(
     if level != scale_levels[j3]:
         raise ValueError(
             f"second-layer data convolved at the scales {history} are read at the level of "
-            f"scale {j3}, {scale_levels[j3]}, not at level {level}."
+            f"scale {j3}, {scale_levels[j3]}, not at level {level}: pass level="
+            f"{scale_levels[j3]}, the level of the scale of the second convolution "
+            f"(scale_levels[{j3}] of the plan; maths.md M-MASK)."
         )
     return masks.layer2[(j3, j2)]
 
