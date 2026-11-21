@@ -8,7 +8,14 @@
 * **Tests.** Tests cite IDs with ``@pytest.mark.maths("M-S1", ...)`` (or a module-level
   ``pytestmark``); each cited ID is defined.
 * **Coverage** (the other direction): every defined ID has at least one ``_spec`` function and
-  at least one test, except those listed below as not yet implemented.
+  at least one test, except those of the sections without an oracle by decision, which need a
+  test and no ``_spec`` function, and those listed below as not yet implemented.
+
+**Without an oracle by decision.** ``SECTIONS_WITHOUT_ORACLE`` lists the sections of
+``docs/maths.md`` that have no oracle, each with the decision that says so: section 5, the
+syntheses (Part IV, §22, row of 21 November 2026, "No oracle for the syntheses"; task T6.1).
+Each of their IDs needs at least one test; a ``_spec`` function that cites one is an error, and
+so is an entry whose section defines no ID.
 
 **Not yet implemented.** The oracle covers sections 1 (planar 2D) and 2 (1D) of
 ``docs/maths.md`` (task T2.6, issue #18). ``NOT_YET_IMPLEMENTED_SECTIONS`` and
@@ -35,7 +42,11 @@ TESTS = Path("tests")
 NOT_YET_IMPLEMENTED_SECTIONS = {
     "3": "T3.2",  # tensor products
     "4": "T5.1",  # HEALPix
-    "5": "T6.1",  # syntheses
+}
+# Sections without an oracle by decision, with the decision: their IDs need a test and no
+# _spec function.
+SECTIONS_WITHOUT_ORACLE = {
+    "5": 'Part IV, §22, row of 21 November 2026, "No oracle for the syntheses"',  # syntheses
 }
 NOT_YET_IMPLEMENTED_IDS = {
     "M-PS-2D": "T4.1",  # the 2D power spectrum
@@ -116,6 +127,22 @@ def not_yet_implemented(
             )
         pending[mid] = task
     return pending, errors
+
+
+def without_oracle(sections: dict[str, str]) -> tuple[dict[str, str], list[str]]:
+    """``{id: decision}`` for the IDs of the sections without an oracle by decision, and the
+    errors of the list itself: an entry whose section defines no ID."""
+    found: dict[str, str] = {}
+    errors = []
+    for section, decision in SECTIONS_WITHOUT_ORACLE.items():
+        members = sorted(mid for mid, where in sections.items() if where == section)
+        if not members:
+            errors.append(
+                f"SECTIONS_WITHOUT_ORACLE lists section {section} ({decision}), but no ID of "
+                f"{MATHS} is defined there. Remove the entry from tools/check_maths_ids.py."
+            )
+        found.update(dict.fromkeys(members, decision))
+    return found, errors
 
 
 def spec_ids(spec_dir: Path, root: Path) -> tuple[dict[str, set[str]], list[str]]:
@@ -206,9 +233,19 @@ def check(root: Path) -> list[str]:
         for where in sorted(tests[mid]):
             errors.append(f"{where} marks {mid}, which {MATHS} does not define. Use a defined ID.")
 
-    pending, list_errors = not_yet_implemented(id_sections(text), spec.keys() & tests.keys())
+    sections = id_sections(text)
+    pending, list_errors = not_yet_implemented(sections, spec.keys() & tests.keys())
     errors += list_errors
-    for mid in sorted(defined - spec.keys() - pending.keys()):
+    no_oracle, no_oracle_errors = without_oracle(sections)
+    errors += no_oracle_errors
+    for mid in sorted(spec.keys() & no_oracle.keys()):
+        for where in sorted(spec[mid]):
+            errors.append(
+                f"{where} cites {mid}, whose section has no oracle by decision "
+                f"({no_oracle[mid]}). Remove the function, or ask the maintainers to change "
+                "the decision."
+            )
+    for mid in sorted(defined - spec.keys() - pending.keys() - no_oracle.keys()):
         errors.append(
             f"{mid} has no oracle function. Add one to {SPEC}/ whose docstring cites {mid}."
         )
@@ -227,11 +264,15 @@ def main(argv: list[str] | None = None) -> int:
     if not errors:
         text = (args.root / MATHS).read_text()
         defined, _ = defined_ids(text)
-        pending, _ = not_yet_implemented(id_sections(text), set())
+        sections = id_sections(text)
+        pending, _ = not_yet_implemented(sections, set())
+        no_oracle, _ = without_oracle(sections)
         waiting = len(defined.keys() & pending.keys())
+        tested = len(defined.keys() & no_oracle.keys())
         print(
-            f"check_maths_ids: OK, {len(defined)} IDs: {len(defined) - waiting} with an oracle "
-            f"function and a test, {waiting} listed as not yet implemented."
+            f"check_maths_ids: OK, {len(defined)} IDs: {len(defined) - waiting - tested} with an "
+            f"oracle function and a test, {tested} with a test and no oracle by decision, "
+            f"{waiting} listed as not yet implemented."
         )
     return 1 if errors else 0
 

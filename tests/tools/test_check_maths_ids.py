@@ -46,18 +46,25 @@ GOOD = {
 }
 
 
-# Sections 3 to 5 and M-PS-2D are listed in the tool as not yet implemented (issue #18).
+# Sections 3 and 4 and M-PS-2D are listed in the tool as not yet implemented (issue #18);
+# section 5 has no oracle by decision (Part IV, §22, "No oracle for the syntheses"): its IDs
+# need a test and no _spec function.
 PENDING = """### 1.9 Power spectrum — M-PS-2D
 ## 3. Tensor products
 ### 3.1 Data — M-DATA-TP
 """
 PENDING_SECTIONS = """## 4. HEALPix
 ### 4.0 Data — M-DATA-HPX
-## 5. Syntheses
+"""
+NO_ORACLE = """## 5. Syntheses
 ### 5.1 Target — M-SYN-TARGET
 """
 MARKED = 'import pytest\npytestmark = pytest.mark.maths("{}")\n'
-COMPLETE = {**GOOD, "docs/maths.md": MATHS + PENDING + PENDING_SECTIONS}
+COMPLETE = {
+    **GOOD,
+    "docs/maths.md": MATHS + PENDING + PENDING_SECTIONS + NO_ORACLE,
+    "tests/synthesis/test_target.py": MARKED.format("M-SYN-TARGET"),
+}
 
 
 def check(root: Path) -> tuple[int, str]:
@@ -136,16 +143,43 @@ def test_unlisted_id_of_a_covered_section_is_not_accepted(tmp_path: Path) -> Non
     assert "M-DATA-TP" not in err
 
 
+def test_id_without_oracle_by_decision_still_needs_a_test(tmp_path: Path) -> None:
+    """Section 5 needs no oracle, but each of its IDs needs a test."""
+    write(tmp_path, {**COMPLETE, "tests/synthesis/test_target.py": "import pytest\n"})
+    code, err = check(tmp_path)
+    assert code == 1
+    assert "M-SYN-TARGET has no test" in err
+    assert "M-SYN-TARGET has no oracle function" not in err
+
+
+def test_oracle_function_of_a_section_without_oracle_fails(tmp_path: Path) -> None:
+    spec = 'def spec_target(x):\n    """Implements M-SYN-TARGET."""\n'
+    write(tmp_path, {**COMPLETE, "src/estel/_spec/syn.py": spec})
+    code, err = check(tmp_path)
+    assert code == 1
+    assert "cites M-SYN-TARGET, whose section has no oracle by decision" in err
+
+
 @pytest.mark.parametrize(
     ("change", "message"),
     [
         pytest.param(
-            {"docs/maths.md": MATHS + PENDING},
+            {"docs/maths.md": MATHS + PENDING + NO_ORACLE},
             "lists section 4 (T5.1), but no ID",
             id="section-without-id",
         ),
         pytest.param(
-            {"docs/maths.md": MATHS + PENDING_SECTIONS + "## 3. Tensor products\n#### M-TP\n"},
+            {"docs/maths.md": MATHS + PENDING + PENDING_SECTIONS},
+            "SECTIONS_WITHOUT_ORACLE lists section 5",
+            id="section-without-oracle-without-id",
+        ),
+        pytest.param(
+            {
+                "docs/maths.md": MATHS
+                + PENDING_SECTIONS
+                + NO_ORACLE
+                + "## 3. Tensor products\n#### M-TP\n"
+            },
             "lists M-PS-2D (T4.1), which docs/maths.md does not define",
             id="listed-id-not-defined",
         ),

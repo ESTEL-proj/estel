@@ -30,6 +30,7 @@ from ..backend import _registry
 from ..backend._protocol import Backend, LbfgsState
 from ..data._base import Data, geometry_class
 from ..scattering._operator import STOperator
+from ..statistics._arrays import device_of
 from ..statistics._statistics import _NO_REDUCTION, STStatistics
 from ..wavelets._operator import default_scales
 from . import _checkpoints
@@ -432,7 +433,7 @@ def _optimize(
     if resume_from is not None:
         checkpoint = _checkpoints.load(resume_from)
         _check_same_run(checkpoint.meta, settings, resume_from)
-        x = backend.asarray(checkpoint.field, settings["dtype"], default_device())
+        x = backend.asarray(checkpoint.field, settings["dtype"], device_of(running.array))
         state: LbfgsState | None = checkpoint.state
         losses.append(np.asarray(checkpoint.losses))
         done, evals = int(checkpoint.meta["n_iter"]), int(checkpoint.meta["n_evals"])
@@ -480,8 +481,10 @@ def _optimize(
 
 def _start(backend: Backend, init: Any, seed: int, running: Data, dtype: Any) -> Any:
     """The start before the pre-filter (M-SYN-INIT): a Gaussian noise drawn with ``seed``, or
-    ``init`` broadcast to the running shape."""
+    ``init`` broadcast to the running shape, on the device of the running data, where the
+    operators compute."""
     shape = running.shape
+    device = device_of(running.array)
     if isinstance(init, str):
         if init != "gaussian":
             raise ValueError(
@@ -490,7 +493,11 @@ def _start(backend: Backend, init: Any, seed: int, running: Data, dtype: Any) ->
             )
         if not isinstance(seed, int) or isinstance(seed, bool):
             raise TypeError(f"seed={seed!r}: pass an int in [0, 2**63).")
-        return gaussian_start(backend, seed, shape, dtype)
+        noise = gaussian_start(backend, seed, shape, dtype)
+        if device is not None and device_of(noise) != device:
+            # random_normal draws on the backend's own default device.
+            noise = backend.asarray(backend.to_numpy(noise), dtype, device)
+        return noise
     name = _registry.backend_of(init)
     values = np.asarray(init if name is None else _registry.backend_named(name).to_numpy(init))
     if values.dtype.kind not in "biuf":
@@ -507,7 +514,7 @@ def _start(backend: Backend, init: Any, seed: int, running: Data, dtype: Any) ->
             "init has NaN or infinite values; syntheses with missing values come later "
             "(LF47). Pass finite values."
         )
-    return backend.asarray(values, dtype, default_device())
+    return backend.asarray(values, dtype, device)
 
 
 # ---------------------------------------------------------------------- checks and helpers
@@ -691,7 +698,7 @@ def _result(
     manifest = {
         **{k: v for k, v in settings.items() if k != "target_sha256"},
         **start,
-        "device": str(default_device()),
+        "device": str(device_of(field)),
         "resumed_from": None if resume_from is None else str(Path(resume_from)),
         "estel": importlib.metadata.version("estel"),
         "statistics_reference": STATISTICS_REFERENCE,
