@@ -1,13 +1,14 @@
-"""The static layout of the full-grid statistics: named axes and the positions where a
-coefficient exists (Part II, §12.7; maths.md M-CHAN, M-MEAN, M-FLAT; task T2.5).
+"""The full-grid view of the statistics: named axes and the positions where a coefficient
+exists (Part II, §12.7; Part III, §19.5; maths.md M-CHAN, M-MEAN, M-FLAT; tasks T2.5, T2.15).
 
-In 1.0.0 the statistics are STL's full-grid tensors, NaN where no coefficient exists: the
-structural NaN (j1 ≤ j2 ≤ j3, the channel pairs not computed, M-CHAN), the means with no valid
-pixel (OP-3), the cross statistics of a channel without auto statistics after normalisation
-(OP-30), and the harmonics of ``scale_cosine`` built from missing scales (M-RED-SCALE). Every
-one of them is known when the operator is built, from the plan alone. :class:`FamilyGrid`
-records them as a static boolean array, ``present``, so that ``to_vector`` and the reductions
-never look for NaN in the values (Part I, §3.1, rule 3), and so that gradients never meet them.
+The statistics are stored in the compact layout (``_layout.py``); their full-grid views are
+STL's full-grid tensors, NaN where no coefficient exists: the structural NaN (j1 ≤ j2 ≤ j3,
+the channel pairs not computed, M-CHAN), the means with no valid pixel (OP-3), the cross
+statistics of a channel without auto statistics after normalisation (OP-30), and the harmonics
+of ``scale_cosine`` built from missing scales (M-RED-SCALE). Every one of them is known when
+the operator is built, from the plan alone. :class:`FamilyGrid` records them as a static
+boolean array, ``present``, which is where the layout has an entry: nothing absent is stored,
+so no NaN reaches a reduction or a gradient (Part I, §3.1, rule 3).
 
 The axes have names, used by ``STStatistics.select`` (Part II, §12.7):
 

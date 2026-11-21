@@ -32,7 +32,7 @@ x_coarse = geometry.downsample(x, level)           # new object; x untouched
 ```
 
 - Every step returns a value; data objects are never modified (`with_array`).
-- The full-grid view is assembled once, at the end, with `scatter_to_grid`; `gather_from_grid` reads it back.
+- The values of the loop go to the compact buffer once, at the end, by a static gather built with the plan ([storage.md](storage.md)); full-grid views are built on demand with `scatter_to_grid`, outside the computation.
 - **Missing data are weights:** means are `sum(w * x) / sum(w)` with `w` in {0, 1}, never `x[mask]` or `nanmean`; the denominators come from the plan.
 
 See also [differentiation.md](differentiation.md): the same rules keep second-order derivatives correct in PyTorch.

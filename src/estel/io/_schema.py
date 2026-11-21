@@ -31,10 +31,12 @@ from numpy.typing import NDArray
 
 from .._reference import STATISTICS_REFERENCE, SYNTHESIS_REFERENCE
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 """The version of the schema written by this version of ESTEL. Version 2 renamed the values of
 ``norm`` (``"none"``, ``"self"``, ``"ref"``), ``ref_batch_mean`` and the reductions
-(``angular_fourier``, ``scale_cosine``); files of version 1 are not read."""
+(``angular_fourier``, ``scale_cosine``); version 3 stores the statistics in the compact layout
+(Part III, §19; task T2.15): the buffer, its layout, and the compact scales of the
+normalisation reference. Files of earlier versions are not read."""
 
 META = "__meta__"
 """The name of the member holding the JSON document."""

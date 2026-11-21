@@ -23,7 +23,7 @@ import pytest
 from numpy.typing import NDArray
 
 import estel
-from estel import Data1D
+from estel import Data1D, Data2D
 from estel.backend._protocol import Backend
 from tests.differentiation._cases import (
     CASES,
@@ -60,6 +60,48 @@ def test_jvp_and_hvp_match_finite_differences(case: Case, backend: Backend) -> N
     order), on every configuration (Part I, §5.4)."""
     data, function = scattering_function(backend, case)
     function = backend.jit(function)  # on JAX, four times faster than op by op
+    x = data.array
+    v = direction_like(backend, x, seed=1)
+    _, tangent = backend.jvp(function, (x,), (v,))
+    np.testing.assert_allclose(
+        backend.to_numpy(tangent),
+        _central_difference(backend, function, x, v),
+        rtol=RTOL,
+        atol=ATOL,
+    )
+    weights = direction_like(backend, function(x), seed=2)
+
+    def scalar(array: Any) -> Any:
+        return backend.xp.sum(weights * function(array))
+
+    def gradient(array: Any) -> Any:
+        return backend.value_and_grad(scalar)(array)[1]
+
+    np.testing.assert_allclose(
+        backend.to_numpy(backend.hvp(scalar, x, v)),
+        _central_difference(backend, gradient, x, v),
+        rtol=RTOL,
+        atol=ATOL,
+    )
+
+
+@pytest.mark.slow
+def test_jvp_and_hvp_through_reduce_and_to_vector(backend: Backend) -> None:
+    """The reductions, the selection and ``to_vector`` are static linear maps on the compact
+    buffer (Part III, §19.6; task T2.15): their JVP and the Hessian-vector product of a linear
+    combination of their result, through the whole loop and the normalisation, against central
+    differences.
+
+    Slow: a Hessian-vector product through the whole loop (second order), as the test above."""
+    case = Case("2d-open-cross-self", Data2D, (1, 2, 8, 8), pbc=False, options={"L": 2})
+    data = data_of(case)
+    operator = operator_of(case, data, norm="self")
+
+    def function(array: Any) -> Any:
+        stats = estel.functional.scattering(data.with_array(array), operator.plan, operator.filters)
+        reduced = stats.reduce(iso=True, angular_fourier=True, scale_cosine=True)
+        return backend.xp.concat([reduced.to_vector(), stats.select(c1=1).to_vector()])
+
     x = data.array
     v = direction_like(backend, x, seed=1)
     _, tangent = backend.jvp(function, (x,), (v,))

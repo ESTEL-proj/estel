@@ -580,7 +580,7 @@ def test_jit_returns_statistics() -> None:
     scale = float(np.abs(expected).max())
     np.testing.assert_allclose(_numpy(stats.to_vector()), expected, rtol=1e-5, atol=1e-6 * scale)
     leaves, treedef = jax.tree_util.tree_flatten(stats)
-    assert len(leaves) == 6 + 2  # six families and the two arrays of the reference
+    assert len(leaves) == 1 + 2  # the compact buffer and the two arrays of the reference
     again = jax.tree_util.tree_unflatten(treedef, leaves)
     assert again._grids == stats._grids
 
@@ -592,7 +592,7 @@ def test_torch_pytree_flattens_statistics() -> None:
     data = Data1D(_field((1, 1, 32)), pbc=True)
     stats = _operator(data, 2, standardize=True).apply(data)
     leaves, spec = _pytree.tree_flatten(stats)
-    assert len(leaves) == 6 + 2 + 2  # families, reference, standardisation
+    assert len(leaves) == 1 + 2 + 2  # the compact buffer, reference, standardisation
     again = _pytree.tree_unflatten(leaves, spec)
     assert isinstance(again, STStatistics)
     np.testing.assert_array_equal(_numpy(again.to_vector()), _numpy(stats.to_vector()))

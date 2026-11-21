@@ -54,7 +54,7 @@ Step 1 rebuilds what STL computes inside the architecture of Part I, and proves,
 | Wavelets | 2D bump-steerable 5×5; 1D analytic wavelet with its conjugate (L = 2) in tensor products; HEALPix gauge-oriented kernels; smoothing kernel (the anti-aliasing filter of the downsampling) | wavelet optimisation (LF22) |
 | Low-pass | φ and box term in tensor products, S1/S2 only | low-pass in every geometry and in S3/S4 (LF6) |
 | Statistics | vanilla ScatCov: mean, var, S1–S4; normalisation; iso, angular\_fourier, scale\_cosine; selection | canonical coefficient set (LF20); reductions on tensor products redefined (LF26) |
-| Storage | STL-shaped full-grid tensors, behind accessors that do not depend on storage | compact layout (LF14) |
+| Storage | the compact layout (Part III, §19; T2.15): one real buffer holding every coefficient STL computes and only those, real entries as one float, STL's conjugate duplicates kept; STL-shaped full-grid views built on demand, behind accessors that do not depend on storage | packing of the conjugate duplicates, with the canonical set (LF20) |
 | Spectra | 2D only, as in `master` v1.6.0: four estimators with automatic selection. `compute_PS` is True by default for 2D data; for other geometries it is unavailable in 1.0.0 and raises a clear error | 1D and tensor-product spectra (LF23); HEALPix spectra (LF24); v1.6.0 estimators in every geometry (LF10); positive non-periodic estimator (LF7) |
 | Synthesis | periodic fields only: from maps or stats, `mean_field`, `running_shape`, `nbatch`, Gaussian start; the built-in L-BFGS of PyTorch; checkpoints (new, §12.9). One comparison with STL (T6.1); synthesis tests and parity come after 1.0.0 | non-periodic and masked syntheses (LF47); Rust L-BFGS (LF3); coarse-to-fine, per-iteration filtering, ensembles (LF12) |
 | Backends and engines | PyTorch; JAX experimental (every primitive, tested on every PR, not covered by the 1.0.0 guarantees); float32 default, float64 path; Python engine only | JAX stable, with its synthesis optimiser (LF1); Rust engine (LF3); MPI (LF4) |
@@ -141,7 +141,7 @@ estel/                             # one repository for Python and Rust (Part IV
 │   │                              # _healpix_geometry.py (ported from TorchGeometry)
 │   ├── scattering/                # _plan.py, operator.py, operator_tensor_prod.py
 │   ├── statistics/                # _statistics.py, _grid.py, _reductions.py, _normalization.py,
-│   │                              # _layout.py (step 2, LF14)
+│   │                              # _layout.py (the compact layout, T2.15)
 │   ├── spectra/                   # operator.py, _estimators.py (2D), _bins.py
 │   ├── synthesis/                 # api.py, _loss.py, _init.py, _checkpoints.py
 │   ├── functional/                # pure functions: scattering(), cross_spectrum(), loss()
@@ -296,7 +296,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `.reduce(*, iso=False, angular_fourier=False, angular_harmonics=None, scale_cosine=False, scale_harmonics=None, dj=None)` | F | Applies the selected reductions in the order of M-NORM (`iso`, then `angular_fourier`, then `scale_cosine`) in one call, and returns a new `STStatistics`. `angular_harmonics` (STL's `harmonics_angle`, 1 to L), `scale_harmonics` (STL's `harmonics_scale`) and `dj` (1 to J) default to all; `angular_fourier` is allowed without `iso`, and `scale_cosine` needs `iso`, as in STL; reduced statistics are not reduced again | `to_iso`, `to_angular_ft`, `to_scale_ft` |
 | `.save(path)`, `STStatistics.load(path)` | F | Through `estel.io`, which owns the versioned schema (`estel/io/_schema.py`): one npz archive with the arrays and a JSON document holding the schema version, the reference counters, the plan's parameters, the layout and the reductions applied. There is no `statistics/io.py` | new |
 | `.to_xarray()` | F | *(step 2, LF13)* Export for inspection | new |
-| `Layout`, `Segment` | I/N | *(step 2, LF14)* The compact layout (Part III, §19) | new |
+| `Layout`, `Segment` | I/N | The compact layout (Part III, §19.4; T2.15), in `_layout.py`: the buffer's segments, one per family and level, with their named index tables; static and hashable. Normalisation, reductions and selection are static linear maps on the buffer (Part III, §19.6) | new |
 
 ### 12.8 Spectra
 

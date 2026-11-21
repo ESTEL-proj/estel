@@ -2,20 +2,20 @@
 
 Summary of [Part I, §2.3 — Object model](../transfer/part1.md#23-object-model) and [Part III, §19 — Compact coefficient layout](../transfer/part3.md#19-compact-coefficient-layout). The transfer document is authoritative.
 
-## In 1.0.0 (step 1)
+## Data
 
-- **Data.** A `Data` object holds one array plus immutable geometry metadata (pbc, cell ids, block structure); it is a pytree whose only leaf is the array. Operations return new objects (`with_array`); nothing is modified in place, and there is no `conv_history`.
+- A `Data` object holds one array plus immutable geometry metadata (pbc, cell ids, block structure); it is a pytree whose only leaf is the array. Operations return new objects (`with_array`); nothing is modified in place, and there is no `conv_history`.
 - **Masks** of missing data and their reweighting maps are computed once, at construction, and stored in the static plan; they reach the computation as constant weight arrays.
-- **Statistics** keep STL's full-grid storage (NaN where no coefficient exists), but only **behind accessors that do not depend on it** (Part II, §12.7). Code outside `STStatistics` must use the accessors, never index the full grid directly, so that the compact layout can replace it without changing a signature or a value (LF14).
-- **No full-grid tensor inside the computation** (review rule X5): the loop computes per-level values, stacks them, and assembles the full-grid view once, at the end, with `scatter_to_grid`.
 
-## After 1.0.0: the compact layout (Part III, §19)
+## Statistics: the compact layout (Part III, §19; task T2.15)
 
 Principle: **compute on structured arrays, store in a flat compact buffer, never mix the two.** The conversion is a static gather whose indices are built in NumPy with the plan.
 
-- **Why.** STL's full grid is mostly NaN: only `j1 ≤ j2 ≤ j3` is filled, the order is componentwise in tensor products, low-pass entries have one orientation, and real families are stored complex. Savings range from 3.9× (2D) to 26× (2D+1D+1D).
-- **Two representations.** Compute: per level `(B, n_slots, *spatial)`, inside `scattering()` only, no NaN (masks are weights). Storage: one real buffer `(B, n_floats)` in `STStatistics`, complex entries as (re, im) pairs, absent entries not stored.
-- **`Layout` and `Segment`**: frozen, hashable descriptions (family, level, named index table, complex flags, offset) usable as JAX static arguments.
-- **Full-grid views** (`stats.full_grid("S4")`) are for humans, plots and comparison with 1.0.x; they are never called inside `scattering()`.
-- **Reductions** (normalisation, `iso`, `angular_fourier`, `scale_cosine`) become static linear maps applied per segment.
-- **Open points:** the canonical set (keep STL's duplicates or not, LF20) and where the conversion is implemented (R1). The Gram form (T2.12) and the compact layout (T2.15) are tasks of step 1, judged by the benchmark (T2.11).
+- **Two representations.** Compute: per level, structured arrays, inside `scattering()` only, no NaN (masks are weights). Storage: one real buffer `(B, n_floats)` in `STStatistics`, its only array leaf with those of the reference and the standardisation.
+- **What is stored.** Every coefficient STL computes, and only those: no structural NaN, no mean without a valid pixel (M-MEAN, OP-3). Real entries take one float (mean, var, the auto S1 and S2, the diagonal of S4); complex entries take two, (re, im). STL's conjugate duplicates are kept, without packing (Part III, §19.8, option a); the canonical set is LF20.
+- **`Layout` and `Segment`** (`src/estel/statistics/_layout.py`, internal): frozen, hashable descriptions, usable as JAX static arguments. One segment per family and level, with its named index table (the position of each entry on the family's full grid), its complex flags and its offset. Within the buffer the families follow the order mean, var, S1 … S4, then the levels, then the order of the full grid.
+- **The conversion** from the loop's sums to the buffer is written once, in shared Python on generic primitives (Part III, §19.9): `scattering._plan.loop_sums` gives the order of the loop's sums, `_layout.loop_gather` the static gather, which the loop applies once, at its end.
+- **Normalisation, reductions and selection** (`iso`, `angular_fourier`, `scale_cosine`, `select`) are static linear maps on the buffer (Part III, §19.6): each is built in NumPy from the layout, as a copy, a gather or a sparse real matrix in padded CSR form, applied with `take` or `gather_weighted`, and returns a new layout. They are differentiable to second order and backend-neutral.
+- **Full-grid views** (`stats.full_grid("S4")`) keep STL's shapes and dtypes, NaN where no coefficient exists, the imaginary part 0 for the real entries. They are built on demand with `scatter_to_grid`, for humans, plots and comparisons with STL, and are never called inside `scattering()` (review rule X5; a test asserts it). Code outside `STStatistics` uses the accessors (`full_grid`, `select`, `to_vector`, `reduce`), never the buffer directly.
+- **Files.** `estel.io` writes the buffer and the layout (schema version 3); files of version 2 are refused.
+- **Later.** The segments of tensor products, with their multi-index levels, come with their loop (T3.2); packing the conjugate duplicates comes with the canonical set (LF20).
