@@ -57,15 +57,32 @@ PadMode = Literal["circular", "replicate", "zeros"]
 Primals: TypeAlias = tuple[Array, ...]
 
 
+LbfgsState: TypeAlias = dict[str, Any]
+"""The state of an L-BFGS run, as :meth:`Backend.lbfgs` returns it: a flat ``dict`` whose
+values are NumPy arrays (``numpy.ndarray``, 0-d included) and Python scalars (``int``,
+``float``, ``str``, ``bool``), so that a caller can save it as it is (synthesis checkpoints,
+Part II, §12.9) and pass it back after loading. Its keys and their meaning belong to the
+backend; the key ``"backend"`` names it."""
+
+
 class LbfgsResult(NamedTuple):
     """What :meth:`Backend.lbfgs` returns."""
 
     x: Array
     """The last iterate, with the shape and dtype of ``x0``."""
-    state: Any
-    """Opaque optimizer state; passing it back to ``lbfgs`` continues the same run."""
+    state: LbfgsState
+    """The optimizer state (:data:`LbfgsState`); passing it back to ``lbfgs`` continues the
+    same run."""
     losses: Array
     """The loss after each iteration, shape ``(n_iter,)``, dtype of ``x0``."""
+    n_evals: int
+    """The evaluations of the loss counted against ``max_eval`` in this call: those of the
+    line searches, and, in a new run, the evaluation at ``x0`` (maths.md M-SYN-LBFGS,
+    OP-74). It can exceed ``max_eval`` by the evaluations of the last iteration."""
+    converged: bool
+    """Whether the run stopped on a tolerance (``tolerance_grad``, ``tolerance_change``, or
+    a direction that is not a descent), rather than on ``max_iter`` or ``max_eval``; a call
+    that resumes a converged run returns at once."""
 
 
 class Backend(Protocol):
@@ -527,13 +544,15 @@ class Backend(Protocol):
         fun: Callable[[Array], Array],
         x0: Array,
         *,
-        max_iter: int,
-        history_size: int,
-        tolerance_grad: float,
-        tolerance_change: float,
-        state: Any = None,
+        lr: float = 1.0,
+        max_iter: int = 100,
+        max_eval: int | None = None,
+        history_size: int = 50,
+        tolerance_grad: float = 1e-12,
+        tolerance_change: float = 1e-15,
+        state: LbfgsState | None = None,
     ) -> LbfgsResult:
-        """Minimise ``fun`` with the backend's built-in L-BFGS.
+        """Minimise ``fun`` with the backend's built-in L-BFGS (maths.md M-SYN-LBFGS).
 
         ``torch.optim.LBFGS(line_search_fn="strong_wolfe")`` in PyTorch; ``optax.lbfgs`` in
         step 2 (LF1), until which the experimental JAX backend raises ``NotImplementedError``;
@@ -544,20 +563,28 @@ class Backend(Protocol):
         Dtypes:
             ``x0`` and the loss are real floating, of one dtype.
         Values:
-            At most ``max_iter`` iterations, with a strong Wolfe line search, keeping
-            ``history_size`` correction pairs, stopping early when the largest gradient
-            component falls below ``tolerance_grad`` or the change of loss or step below
-            ``tolerance_change``. The settings have no default here: their values are those
-            of STL's ``optimize_lbfgs``, fixed by the synthesis section of the maths tab
-            (task T6.0), and ``run_lbfgs`` passes them. ``state`` from a previous result
-            resumes that run with its history (synthesis checkpoints, Part II, §12.9);
-            ``None`` starts a new one. Trajectories differ between backends.
+            The settings and their defaults are those of STL's ``optimize_lbfgs`` (maths.md
+            M-SYN-LBFGS; decision of the maintainer on issue #28): step size ``lr`` 1.0, at
+            most ``max_iter`` iterations (100), a strong Wolfe line search, ``history_size``
+            correction pairs (50), and an early stop when the largest gradient component falls
+            to ``tolerance_grad`` (1e-12) or the change of loss or step below
+            ``tolerance_change`` (1e-15). ``max_eval`` caps the evaluations of the loss of the
+            call; ``None`` is PyTorch's default, ⌊5 x ``max_iter`` / 4⌋, which STL keeps
+            (OP-74). As in PyTorch, the cap is checked between iterations only, so a run can
+            exceed it by the evaluations of its last iteration (STL does the same). ``state``
+            from a previous result resumes that run with its history: the iterates of a run
+            made of several calls, each passing on the state of the
+            last, with ``max_iter`` and ``max_eval`` split between them, are those of a single
+            call (synthesis checkpoints, Part II, §12.9). In a resumed call the evaluation at
+            the starting point re-reads the end of the previous call and is not counted; a
+            call that resumes a run stopped by a tolerance returns at once, with no iteration.
+            ``None`` starts a new run. Trajectories differ between backends.
         Gradients:
             ``fun`` is differentiated by the backend; the result itself is not
             differentiable.
         Edge cases:
-            ``x0`` is not modified. ``max_iter < 1`` or ``history_size < 1`` raise
-            ``ValueError``; a ``state`` from another backend raises ``TypeError``.
+            ``x0`` is not modified. ``max_iter < 1``, ``history_size < 1`` or ``max_eval < 1``
+            raise ``ValueError``; a ``state`` from another backend raises ``TypeError``.
         """
         ...
 

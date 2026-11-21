@@ -21,7 +21,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F  # noqa: N812
 
-from .._protocol import DType, LbfgsResult, PadMode, Primals
+from .._protocol import DType, LbfgsResult, LbfgsState, PadMode, Primals
 from . import _optim
 
 _DTYPES: dict[str, torch.dtype] = {
@@ -486,17 +486,21 @@ class TorchBackend:
         fun: Callable[[Any], Any],
         x0: Any,
         *,
-        max_iter: int,
-        history_size: int,
-        tolerance_grad: float,
-        tolerance_change: float,
-        state: Any = None,
+        lr: float = 1.0,
+        max_iter: int = 100,
+        max_eval: int | None = None,
+        history_size: int = 50,
+        tolerance_grad: float = 1e-12,
+        tolerance_change: float = 1e-15,
+        state: LbfgsState | None = None,
     ) -> LbfgsResult:
         x0 = _real(x0, "x0")
         return _optim.lbfgs(
             _real_scalar(fun),
             x0,
+            lr=lr,
             max_iter=max_iter,
+            max_eval=max_eval,
             history_size=history_size,
             tolerance_grad=tolerance_grad,
             tolerance_change=tolerance_change,

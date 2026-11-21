@@ -980,12 +980,38 @@ class TestLbfgs:
             "tolerance_change": 1e-30,
         }
         x0 = backend.asarray(np.zeros(5), dtype)
-        whole = backend.lbfgs(fun, x0, max_iter=8, **settings)
-        first = backend.lbfgs(fun, x0, max_iter=4, **settings)
-        second = backend.lbfgs(fun, first.x, max_iter=4, state=first.state, **settings)
+        # One run of 8 iterations and 10 evaluations, then the same split in two calls, the
+        # second resuming from the state of the first, with what is left of the budget.
+        whole = backend.lbfgs(fun, x0, max_iter=8, max_eval=10, **settings)
+        first = backend.lbfgs(fun, x0, max_iter=4, max_eval=10, **settings)
+        left = 10 - first.n_evals
+        second = backend.lbfgs(
+            fun, first.x, max_iter=4, max_eval=left, state=first.state, **settings
+        )
+        assert first.n_evals + second.n_evals == whole.n_evals
         assert_close(backend, second.x, backend.to_numpy(whole.x).astype(np.float64), dtype)
         resumed = np.concatenate([backend.to_numpy(first.losses), backend.to_numpy(second.losses)])
         assert_close(backend, whole.losses, resumed.astype(np.float64), dtype)
+
+    def test_converged_run_resumes_without_iterating(self, backend: Backend, dtype: DType) -> None:
+        """A run stopped by a tolerance is converged; a call that resumes it returns at once,
+        without iterating or evaluating, where a single call would have stopped. A run stopped
+        by max_iter is not converged."""
+        if _lbfgs_not_provided(backend, dtype):
+            return
+        fun = _least_squares(backend, dtype)
+        x0 = backend.asarray(np.zeros(5), dtype)
+        settings: dict[str, Any] = {"history_size": 10, "tolerance_grad": 1e-5}
+        done = backend.lbfgs(fun, x0, max_iter=50, tolerance_change=1e-7, **settings)
+        assert done.converged
+        assert 1 <= backend.to_numpy(done.losses).shape[0] < 50
+        again = backend.lbfgs(fun, done.x, max_iter=50, state=done.state, **settings)
+        assert again.converged
+        assert backend.to_numpy(again.losses).shape == (0,)
+        assert again.n_evals == 0
+        np.testing.assert_array_equal(backend.to_numpy(again.x), backend.to_numpy(done.x))
+        cut = backend.lbfgs(fun, x0, max_iter=2, tolerance_change=1e-7, **settings)
+        assert not cut.converged
 
     def test_stops_at_a_stationary_point(self, backend: Backend, dtype: DType) -> None:
         if _lbfgs_not_provided(backend, dtype):
@@ -1011,6 +1037,8 @@ class TestLbfgs:
             backend.lbfgs(fun, x0, max_iter=0, history_size=5, **common)
         with pytest.raises(ValueError, match="at least 1"):
             backend.lbfgs(fun, x0, max_iter=5, history_size=0, **common)
+        with pytest.raises(ValueError, match="at least 1"):
+            backend.lbfgs(fun, x0, max_iter=5, max_eval=0, history_size=5, **common)
         with pytest.raises(TypeError, match="state"):
             backend.lbfgs(fun, x0, max_iter=5, history_size=5, state={"n_iter": 3}, **common)
         with pytest.raises(TypeError):

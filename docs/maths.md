@@ -2,7 +2,7 @@
 
 [Back to the overview](transfer/overview.md)
 
-**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it, and checked numerically by the oracle `estel._spec`, which agrees with ESTEL to the parity tolerance (task T2.6); ESTEL itself agrees with STL's fixtures. Sections 3 (tensor products) and 4 (HEALPix) are checked against STL's code, and numerically where they say so (tasks T3.0 and T5.0). Section 5 (syntheses) is checked against STL's code for periodic syntheses, and numerically where it says so (task T6.0); its non-periodic and masked parts come after 1.0.0 (Part III, §16, LF47).
+**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it, and checked numerically by the oracle `estel._spec`, which agrees with ESTEL to the parity tolerance (task T2.6); ESTEL itself agrees with STL's fixtures. Sections 3 (tensor products) and 4 (HEALPix) are checked against STL's code, and numerically where they say so (tasks T3.0 and T5.0). Section 5 (syntheses) is checked against STL's code for periodic syntheses, and numerically where it says so (task T6.0); its non-periodic and masked parts come after 1.0.0 (Part III, §16, LF47). It has no oracle: the syntheses are validated against STL's trajectory and by their own tests (task T6.1; Part IV, §22).
 
 **Role of this file.** This file is the reference version of the mathematics of step 1; it changes only through pull requests that a maintainer requests and merges.
 
