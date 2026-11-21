@@ -1,0 +1,1 @@
+Specification, decisions of 21 November 2026: tasks T8.3, T8.4 and T8.5 (notation, vocabulary, structure) leave step 1 for the queue of the register, as W5, W6 and W7; the segments of the compact layout split between T2.15 and T3.2; the Python classes of HealpixUpdate never transferred (T5.1).
