@@ -55,6 +55,19 @@
     "estel.Data2D.ndim": {
       "kind": "constant"
     },
+    "estel.DataTensorProd": {
+      "kind": "class",
+      "signature": "(self, array: Any, blocks: Sequence[type[Data]], pbc: Sequence[bool], *, mask: Any=None) -> None"
+    },
+    "estel.DataTensorProd.blocks": {
+      "kind": "property"
+    },
+    "estel.DataTensorProd.ndim": {
+      "kind": "property"
+    },
+    "estel.DataTensorProd.pbc": {
+      "kind": "property"
+    },
     "estel.STATISTICS_REFERENCE": {
       "kind": "constant"
     },

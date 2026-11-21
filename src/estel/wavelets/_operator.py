@@ -28,7 +28,9 @@ The code proper to each geometry stays in the hooks of its ``Data`` subclass and
 functions that build its tables. Only this module calls the hooks of filtering and
 downsampling, ``_conv(x, tables, level)``, ``_downsample(x, weights, level)`` and
 ``_crop_weights(level, border)``, and only this module reads the banks of ``estel.wavelets``
-and the mask builders of ``estel.data``: CI checks it (Part I, §2.4). The low-pass filter is
+and the mask builders of ``estel.data``: CI checks it (Part I, §2.4). A tensor product composes
+the plans and arrays of its blocks in ``_tensor_prod.py``, whose operator calls the hooks of
+``DataTensorProd`` block by block. The low-pass filter is
 described here and applied with its first user, the tensor products (task T3.2).
 
 **Scales and levels** (maths.md M-NOT; Part III, §19.12, point 5): a scale ``j`` indexes a
@@ -55,6 +57,7 @@ from ..backend import _registry
 from ..backend._protocol import DType
 from ..data._base import Data, DownsampleWeights, _StaticMask
 from ..data._masks import BoolMap, FloatMap, MaskMaps, build_mask_maps
+from ..data._tensor_prod import DataTensorProd
 from ._banks import KERNEL_SIZE as KERNEL_SIZE  # the default K, for the plan (re-exported)
 from ._banks import (
     _check_n_orientations,
@@ -339,42 +342,76 @@ def build_wavelet_plan(
             f"the wavelets are built for a Data object, such as estel.Data2D, got "
             f"{type(data).__name__}."
         )
+    if isinstance(data, DataTensorProd):
+        raise TypeError(
+            "STOperator takes 1D and 2D data, not a DataTensorProd: the scattering operator of "
+            "a tensor product, STOperatorTensorProd, comes with task T3.2. Its wavelets have "
+            "one J and one L per block (maths.md M-W1-TP): internally, "
+            "TensorProdWaveletOperator(data, J, L) of estel.wavelets._tensor_prod."
+        )
+    _check_wavelet(wavelet)
+    n_scales = _check_scales(default_scales(data) if J is None else J, data)
+    n_orientations = _check_n_orientations(default_orientations(data) if L is None else L)
+    return _wavelet_plan(
+        type(data),
+        data.shape[2:],
+        data.pbc,
+        data.mask,
+        n_scales,
+        n_orientations,
+        wavelet,
+        _check_size(kernel_size),
+    )
+
+
+def _check_wavelet(wavelet: object) -> None:
     if wavelet not in WAVELETS:
         raise ValueError(
             f"wavelet={wavelet!r}: ESTEL 1.0.0 has the bump-steerable wavelets only; pass "
             f'"bump_steerable" (maths.md M-WAV-2D, M-WAV-1D).'
         )
-    n_scales = _check_scales(default_scales(data) if J is None else J, data)
-    n_orientations = _check_n_orientations(default_orientations(data) if L is None else L)
-    size = _check_size(kernel_size)
-    spatial = data.shape[2:]
-    pbc = data.pbc
+
+
+def _wavelet_plan(
+    geometry: type[Data],
+    spatial: tuple[int, ...],
+    pbc: bool,
+    mask: NDArray[np.bool_] | None,
+    n_scales: int,
+    n_orientations: int,
+    wavelet: str,
+    size: int,
+) -> WaveletPlan:
+    """The :class:`WaveletPlan` of a planar ``geometry`` with the static metadata given, and J,
+    L and K already validated: of data (:func:`build_wavelet_plan`), or of one block of a
+    tensor product (``estel.wavelets._tensor_prod``)."""
+    ndim = geometry.ndim
     # The level of each scale: in 1.0.0, scale j at level d = j (maths.md M-NOT).
     scale_levels = tuple(range(n_scales))
     levels = tuple(range(max(scale_levels) + 1))
     masks = (
         None
-        if data.mask is None
+        if mask is None
         else build_mask_maps(
-            data.mask,
+            mask,
             scale_levels,
-            s=smoothing_kernel(data.ndim),
+            s=smoothing_kernel(ndim),
             kernel_size=size,
-            threshold=data._nan_threshold,
+            threshold=geometry._nan_threshold,
             pbc=pbc,
         )
     )
-    static_mask = None if data.mask is None else _StaticMask(data.mask)
+    static_mask = None if mask is None else _StaticMask(mask)
     return WaveletPlan(
-        geometry=type(data),
+        geometry=geometry,
         J=n_scales,
         L=n_orientations,
         kernel_size=size,
-        ndim=data.ndim,
+        ndim=ndim,
         spatial_shape=spatial,
         pbc=pbc,
-        mask=None if data.mask is None else _read_only(data.mask),
-        nan_threshold=data._nan_threshold,
+        mask=None if mask is None else _read_only(mask),
+        nan_threshold=geometry._nan_threshold,
         scale_levels=scale_levels,
         levels=levels,
         level_shapes=tuple(tuple(n // 2**d for n in spatial) for d in levels),
@@ -382,13 +419,13 @@ def build_wavelet_plan(
         lowpass_level=n_scales,
         masks=masks,
         _key=(
-            type(data),
+            geometry,
             n_scales,
             n_orientations,
             size,
             spatial,
             pbc,
-            data._nan_threshold,
+            geometry._nan_threshold,
             static_mask,
             wavelet,
             scale_levels,
