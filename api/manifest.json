@@ -127,6 +127,31 @@
     "estel.SYNTHESIS_REFERENCE": {
       "kind": "constant"
     },
+    "estel.SynthesisResult": {
+      "kind": "class",
+      "signature": "(self) -> None"
+    },
+    "estel.SynthesisResult.checkpoints": {
+      "kind": "property"
+    },
+    "estel.SynthesisResult.converged": {
+      "kind": "property"
+    },
+    "estel.SynthesisResult.field": {
+      "kind": "property"
+    },
+    "estel.SynthesisResult.losses": {
+      "kind": "property"
+    },
+    "estel.SynthesisResult.manifest": {
+      "kind": "property"
+    },
+    "estel.SynthesisResult.n_evals": {
+      "kind": "property"
+    },
+    "estel.SynthesisResult.n_iter": {
+      "kind": "property"
+    },
     "estel.functional.scattering": {
       "kind": "function",
       "signature": "(data: Data, plan: STPlan, filters: STFilters, ref: STStatistics | None=None) -> STStatistics"
@@ -146,6 +171,14 @@
     "estel.set_default_dtype": {
       "kind": "function",
       "signature": "(dtype: Literal['float32', 'float64']) -> None"
+    },
+    "estel.synthesize_from_maps": {
+      "kind": "function",
+      "signature": "(target: Any, *, n_batch: int=1, running_shape: tuple[int, int] | None=None, init: Any='gaussian', mean_field: bool=True, compute_PS: bool | None=None, max_iter: int=100, history_size: int=50, lr: float=1.0, seed: int=0, st_kwargs: Mapping[str, Any] | None=None, checkpoint_every: int | None=None, checkpoint_dir: str | os.PathLike[str] | None=None, resume_from: str | os.PathLike[str] | None=None) -> SynthesisResult"
+    },
+    "estel.synthesize_from_stats": {
+      "kind": "function",
+      "signature": "(stats: STStatistics, *, n_batch: int, running_shape: tuple[int, int] | None=None, init: Any=None, mean_field: bool=True, max_iter: int=100, history_size: int=50, lr: float=1.0, seed: int=0, checkpoint_every: int | None=None, checkpoint_dir: str | os.PathLike[str] | None=None, resume_from: str | os.PathLike[str] | None=None) -> SynthesisResult"
     }
   }
 }

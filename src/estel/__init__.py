@@ -10,6 +10,7 @@ from .scattering._filters import STFilters
 from .scattering._operator import STOperator
 from .scattering._plan import STPlan
 from .statistics._statistics import STStatistics
+from .synthesis._api import SynthesisResult, synthesize_from_maps, synthesize_from_stats
 
 __all__ = [
     "STATISTICS_REFERENCE",
@@ -22,9 +23,12 @@ __all__ = [
     "STOperator",
     "STPlan",
     "STStatistics",
+    "SynthesisResult",
     "functional",
     "get_backend",
     "set_backend",
     "set_default_device",
     "set_default_dtype",
+    "synthesize_from_maps",
+    "synthesize_from_stats",
 ]

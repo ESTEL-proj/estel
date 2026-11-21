@@ -13,7 +13,8 @@ of T2.3 (`plan_2d.py` on `master`, `plan_1d.py` on `2D+1D`), with the NaN coeffi
 where a mean has no valid pixel (`empty_means_2d.py` on `master`, `empty_means_1d.py` on `2D+1D`),
 the vanilla statistics of the scattering loop of T2.4 (`scattering_2d.py` on `master`,
 `scattering_1d.py` on `2D+1D`), and the normalised and reduced statistics of T2.5, with the flat
-vectors of `to_flatten` (`statistics_2d.py` on `master`, `statistics_1d.py` on `2D+1D`).
+vectors of `to_flatten` (`statistics_2d.py` on `master`, `statistics_1d.py` on `2D+1D`), and the
+loss of the first 20 iterations of a periodic synthesis of T6.1 (`synthesis_2d.py` on `master`).
 
 ## The container
 

@@ -33,7 +33,7 @@ import jax.numpy as jnp
 import numpy as np
 from jax import lax
 
-from .._protocol import DType, LbfgsResult, PadMode, Primals
+from .._protocol import DType, LbfgsResult, LbfgsState, PadMode, Primals
 
 _DTYPES: dict[str, Any] = {
     "float32": jnp.float32,
@@ -569,11 +569,13 @@ class JaxBackend:
         fun: Callable[[Any], Any],
         x0: Any,
         *,
-        max_iter: int,
-        history_size: int,
-        tolerance_grad: float,
-        tolerance_change: float,
-        state: Any = None,
+        lr: float = 1.0,
+        max_iter: int = 100,
+        max_eval: int | None = None,
+        history_size: int = 50,
+        tolerance_grad: float = 1e-12,
+        tolerance_change: float = 1e-15,
+        state: LbfgsState | None = None,
     ) -> LbfgsResult:
         raise NotImplementedError(LBFGS_NOT_PROVIDED)
 
