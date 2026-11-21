@@ -81,8 +81,9 @@ def check_against_stl(
     ``mean`` takes the standard deviation of the data as its scale. Raises ``BenchError``
     otherwise. The gradient of the loss is compared too, and the largest difference is returned,
     relative to the largest gradient of STL: §14.3 sets no tolerance for it in float32, so it is
-    recorded, not enforced. Where STL's gradient is not finite (a mean without a valid pixel
-    makes it NaN), nothing is compared, and the number of such pixels is returned.
+    recorded, not enforced. STL's operator is built with ``replace_nan_value=None``, so its
+    gradient is finite with missing data too (maths.md OP-60); should it still have non-finite
+    values, nothing is compared there, and the number of such pixels is returned.
     """
     scale = float(np.sqrt(np.max(expected["var"])))
     for name in (*FAMILIES, "vector"):
