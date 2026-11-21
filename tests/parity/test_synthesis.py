@@ -6,14 +6,17 @@ The fixture ``synthesis_2d`` (STL `master`; ``tools/stl_parity/cases/synthesis_2
 after each of its 20 iterations, run with STL's settings (M-SYN-LBFGS) and without the power
 spectrum. ESTEL synthesises from the same target and the same start, with the same settings, in
 float64, and must make as many iterations and evaluations of the loss, with the loss after each
-iteration within a relative tolerance of STL's.
+iteration within a relative tolerance of STL's, and end on the field STL ends on.
 
-**Tolerance.** |ESTEL - STL| ≤ ``RTOL`` x |STL| at every iteration, with ``RTOL`` = 1e-10, the
-float64 parity tolerance of Part II, §14.3, without an absolute term: the losses are positive
-and fall by three orders of magnitude, so an absolute term scaled on the first would hide the
-last. Measured on T6.1 (PR description): the relative gap is at most 1.0e-15 over these 20
-iterations, from 0 at the first; on 60 iterations of the same case it grows to 6e-14. The
-margin is five orders of magnitude, for the rounding of other machines and BLAS.
+**Tolerance.** |ESTEL - STL| ≤ rtol x |STL| at every iteration, with rtol the float64 parity
+tolerance of Part II, §14.3 (``PARITY_RTOL["float64"]``, 1e-10), without an absolute term: the
+losses are positive and fall by three orders of magnitude, so an absolute term scaled on the
+first would hide the last. Measured on T6.1 (PR description): the relative gap is at most
+1.0e-15 over these 20 iterations, from 0 at the first; on 60 iterations of the same case it
+grows to 6e-14. The margin is five orders of magnitude, for the rounding of other machines and
+BLAS. The final field, de-standardised, is compared with ``assert_parity``: the same rtol, and
+the absolute term of §14.3 for its values near zero; measured, its largest difference is 1.2e-14
+for values up to 6.4, 9e-5 of what the tolerance allows.
 
 Slow: 20 iterations of L-BFGS on 64 x 64 pixels with J = 4, about 25 evaluations of the loss and
 its gradient, take about a second; the comparison runs in the full tier (decision 2).
@@ -29,9 +32,9 @@ import pytest
 import estel
 from estel import _config
 from estel.backend._protocol import Backend
-from tests.parity._compare import load_fixture, read_manifest
+from tests.parity._compare import PARITY_RTOL, assert_parity, load_fixture, read_manifest
 
-RTOL = 1e-10
+RTOL = PARITY_RTOL["float64"]
 """Relative tolerance on the loss at each iteration: the float64 parity rtol of Part II, §14.3."""
 
 pytestmark = [
@@ -58,7 +61,7 @@ def test_synthesis_follows_stl(backend: Backend, monkeypatch: pytest.MonkeyPatch
         "max_iter": p["max_iter"],
         "history_size": p["history_size"],
         "lr": p["lr"],
-        "st_kwargs": {"J": p["J"], "L": p["L"]},
+        "st_kwargs": {"J": p["J"]},  # L is the default, 4, as in STL (M-SYN-OPS)
     }
     if "lbfgs" in getattr(backend, "not_provided", frozenset()):
         with pytest.raises(NotImplementedError, match="torch backend"):
@@ -79,3 +82,5 @@ def test_synthesis_follows_stl(backend: Backend, monkeypatch: pytest.MonkeyPatch
         f"{gap[worst]:.3g}; gaps per iteration {np.array2string(gap, precision=2)}. Do not "
         "regenerate the fixture or loosen the tolerance: report it on issue #28."
     )
+    assert result.manifest["L"] == p["L"]
+    assert_parity(backend.to_numpy(result.field), fixture["field"], "float64")

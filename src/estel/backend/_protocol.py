@@ -78,7 +78,11 @@ class LbfgsResult(NamedTuple):
     n_evals: int
     """The evaluations of the loss counted against ``max_eval`` in this call: those of the
     line searches, and, in a new run, the evaluation at ``x0`` (maths.md M-SYN-LBFGS,
-    OP-74)."""
+    OP-74). It can exceed ``max_eval`` by the evaluations of the last iteration."""
+    converged: bool
+    """Whether the run stopped on a tolerance (``tolerance_grad``, ``tolerance_change``, or
+    a direction that is not a descent), rather than on ``max_iter`` or ``max_eval``; a call
+    that resumes a converged run returns at once."""
 
 
 class Backend(Protocol):
@@ -566,8 +570,10 @@ class Backend(Protocol):
             to ``tolerance_grad`` (1e-12) or the change of loss or step below
             ``tolerance_change`` (1e-15). ``max_eval`` caps the evaluations of the loss of the
             call; ``None`` is PyTorch's default, ⌊5 x ``max_iter`` / 4⌋, which STL keeps
-            (OP-74). ``state`` from a previous result resumes that run with its history:
-            the iterates of a run made of several calls, each passing on the state of the
+            (OP-74). As in PyTorch, the cap is checked between iterations only, so a run can
+            exceed it by the evaluations of its last iteration (STL does the same). ``state``
+            from a previous result resumes that run with its history: the iterates of a run
+            made of several calls, each passing on the state of the
             last, with ``max_iter`` and ``max_eval`` split between them, are those of a single
             call (synthesis checkpoints, Part II, §12.9). In a resumed call the evaluation at
             the starting point re-reads the end of the previous call and is not counted; a

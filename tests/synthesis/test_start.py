@@ -6,8 +6,8 @@ these tests check the start against the definitions of M-SYN-INIT and M-SYN-NYQ 
 start is ``(n_batch, Nc, N1, N2)``, or ``running_shape``; a Gaussian white noise of unit variance
 drawn from an explicit key, or the initial field given, as it is; then the pre-filter, which
 sets to 0 every mode outside the disc k₁² + k₂² ≤ (min(N₁, N₂)/2)² and keeps the others. The
-running field is never standardised. The statistical thresholds are five standard deviations of
-the estimator, computed from the number of pixels or of modes kept.
+statistical thresholds are five standard deviations of the estimator, computed from the number
+of pixels or of modes kept.
 
 On the JAX backend, which has no L-BFGS before step 2 (LF1), the start is still drawn and
 filtered: these tests run there too, except the public shapes, which need a synthesis.

@@ -75,7 +75,9 @@ def lbfgs(
     if state is not None and state.get("converged"):
         # The run stopped on one of its tolerances: a single step would have stopped there.
         empty = torch.zeros((0,), dtype=x0.dtype, device=x0.device)
-        return LbfgsResult(x=x.detach().clone(), state=dict(state), losses=empty, n_evals=0)
+        return LbfgsResult(
+            x=x.detach().clone(), state=dict(state), losses=empty, n_evals=0, converged=True
+        )
     optimizer = torch.optim.LBFGS(
         [x],
         lr=lr,
@@ -156,6 +158,7 @@ def lbfgs(
         state={**_history_to_numpy(history), "converged": converged},
         losses=loss_array.to(x0.dtype),
         n_evals=used,
+        converged=converged,
     )
 
 

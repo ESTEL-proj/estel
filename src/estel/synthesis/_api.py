@@ -24,7 +24,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from .._config import default_device, default_dtype
+from .._config import default_dtype
 from .._reference import STATISTICS_REFERENCE, SYNTHESIS_REFERENCE
 from ..backend import _registry
 from ..backend._protocol import Backend, LbfgsState
@@ -40,8 +40,9 @@ from ._loss import WEIGHTS, Objective, flatten
 # The settings of STL's optimize_lbfgs that the synthesis functions do not take (M-SYN-LBFGS).
 TOLERANCE_GRAD = 1e-12
 TOLERANCE_CHANGE = 1e-15
-# The options of the operators a synthesis passes on from st_kwargs; it sets the others.
-ST_KWARGS = ("J", "L", "cross_matrix")
+# The options of the operators a synthesis takes from st_kwargs: J only, as STL's user level
+# (maths.md M-SYN-OPS); L and the rest are the defaults, and the synthesis sets the others.
+ST_KWARGS = ("J",)
 # The settings a resumed run must share with the run that wrote its checkpoint.
 _SAME_RUN = (
     "entry",
@@ -114,7 +115,9 @@ class SynthesisResult:
     @property
     def n_evals(self) -> int:
         """The evaluations of the loss counted by L-BFGS in the run: those of its line
-        searches and the first, at the start (OP-74); at most ⌊5 x ``max_iter`` / 4⌋."""
+        searches and the first, at the start (OP-74). The cap ⌊5 x ``max_iter`` / 4⌋ is
+        checked between iterations only, as in PyTorch and STL, so a run can exceed it by the
+        evaluations of its last iteration."""
         return self._n_evals
 
     @property
@@ -201,8 +204,9 @@ def synthesize_from_maps(
         The seed of the Gaussian start (Part I, §3.1, rule 5). ESTEL has no global seed; STL's
         default seed is 26, and its draws differ from ESTEL's (OP-55).
     st_kwargs:
-        Options of the scattering operators: ``J`` (by default the smaller of the default J of
-        the target and of the synthesised fields, M-SYN-OPS), ``L`` and ``cross_matrix``.
+        Options of the scattering operators: ``J`` only, as in STL, by default the smaller of
+        the default J of the target and of the synthesised fields; L and the channel pairs are
+        the defaults (M-SYN-OPS). Any other key raises an error.
     checkpoint_every, checkpoint_dir:
         Write a checkpoint to ``checkpoint_dir`` every ``checkpoint_every`` iterations, and at
         the end of the run: ``checkpoint_000010.npz`` after 10 iterations (maths.md §5.8).
@@ -240,17 +244,15 @@ def synthesize_from_maps(
     standardized = standardize(backend, filtered, mean_field)
     target_data = data.with_array(standardized.x)
     running = _running_data(data, (n_batch, data.n_channels, *shape), backend)
-    J = options.pop("J", None)  # noqa: N806 (maths.md notation)
+    J = options.get("J")  # noqa: N806 (maths.md notation)
     if J is None:
         J = min(default_scales(target_data), default_scales(running))  # noqa: N806
-    target_op = STOperator(
-        target_data, J, norm="self", ref_batch_mean=mean_field, compute_PS=False, **options
-    )
+    target_op = STOperator(target_data, J, norm="self", ref_batch_mean=mean_field, compute_PS=False)
     target_stats = target_op.apply(target_data)
     target_vector = backend.stop_gradient(flatten(target_stats, mean_field, False))
     reference = target_stats._reference
     assert reference is not None  # norm="self"
-    running_op = STOperator(running, J, norm="ref", compute_PS=False, **options)
+    running_op = STOperator(running, J, norm="ref", compute_PS=False)
     objective = Objective(
         template=running,
         plan=running_op.plan,
@@ -351,13 +353,19 @@ def synthesize_from_stats(
             f"be the Nb of the statistics ({n_target}) (M-SYN-LOSS). Pass n_batch={n_target}, "
             "or mean_field=True."
         )
+    if stats._reference.n_batch not in (1, n_batch):
+        raise ValueError(
+            f"these statistics were normalised by a reference of each of their {n_target} maps "
+            f"(ref_batch_mean=False), which cannot normalise n_batch={n_batch} fields (M-NORM). "
+            f"Pass n_batch={n_target}, or compute the statistics with ref_batch_mean=True."
+        )
     shape = _running_shape(running_shape, None, plan.spatial_shape)
     dtype = default_dtype()
     template = plan.geometry._from_parts(
         backend.xp.zeros(
             (n_batch, plan.n_channels, *shape),
             dtype=_xp_dtype(backend, dtype),
-            device=default_device(),
+            device=device_of(stats.full_grid("mean")),
         ),
         None,
         True,
@@ -460,7 +468,7 @@ def _optimize(
         x, state = result.x, result.state
         losses.append(np.asarray(backend.to_numpy(result.losses)))
         done, evals = done + n, evals + result.n_evals
-        converged = n < chunk and evals < budget
+        converged = result.converged
         over = converged or done >= max_iter or evals >= budget
         if every is not None and directory is not None and n and (done % every == 0 or over):
             path = _checkpoints.path_for(directory, done)
@@ -584,9 +592,10 @@ def _st_options(st_kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
     unknown = sorted(set(options) - set(ST_KWARGS))
     if unknown:
         raise ValueError(
-            f"st_kwargs: {unknown} are not options a synthesis passes on; it takes "
-            f"{list(ST_KWARGS)} and sets the normalisation, the standardisation and the "
-            "spectrum itself (maths.md M-SYN-OPS)."
+            f"st_kwargs: {unknown} are not accepted; a synthesis takes {list(ST_KWARGS)} only, "
+            "as STL's: L and the channel pairs are the defaults, and the synthesis sets the "
+            "normalisation, the standardisation and the spectrum itself (maths.md M-SYN-OPS). "
+            "Pass st_kwargs={'J': ...}, or nothing."
         )
     return options
 
