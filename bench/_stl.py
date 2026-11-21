@@ -74,6 +74,10 @@ class Run:
             norm="vanilla",
             compute_PS=False,
             downsample_nan_weight_threshold=NAN_THRESHOLD,
+            # As STL's syntheses pass it: the coarse pixels declared invalid keep their value
+            # instead of NaN, so the gradient stays finite; the statistics do not change, since
+            # the masked means never read these pixels (maths.md OP-60, OP-27).
+            replace_nan_value=None,
             **options,
         )
         target_data = self._data_cls(array=torch.from_numpy(inputs.target_field), pbc=case.pbc)

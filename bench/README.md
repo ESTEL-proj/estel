@@ -69,8 +69,13 @@ writes no result: no gain can come from a wrong computation.
 
 The gradient of the loss is compared with STL's too. §14.3 sets no float32 tolerance for it, so
 the largest difference, relative to STL's largest gradient, is recorded with each run
-(`gradient_relative_error`) and not enforced. Where STL's gradient is not finite, nothing is
-compared and the pixels are counted (`stl_gradient_not_finite`).
+(`gradient_relative_error`) and not enforced. STL's operator is built with
+`replace_nan_value=None`, as STL's syntheses build it: with its default, NaN, the coarse pixels
+declared invalid hold NaN values, and its gradient on `planar-masked` is NaN at every valid pixel
+although its statistics are finite (`docs/maths.md`, OP-60). With `None` its statistics are the
+same bit for bit and its gradient is finite, so the gradient of every case is compared. Should
+STL's gradient still have non-finite values, nothing is compared there and the pixels are counted
+(`stl_gradient_not_finite`, 0 in every case today).
 
 STL's results stay in `bench/results/.work/` (ignored by git), so that a later native run is
 checked without the container. They are used only for inputs with the same digest.
