@@ -13,8 +13,12 @@ What it holds, for STL's loop structure (maths.md §1.6 to 1.7; STL ``ST_Operato
 * **Index sets**, in the order of STL's loops: the scales ``j`` of S1 and S2, the pairs
   ``(j2, j3)``, ``j2 ≤ j3``, of S3 (for j3, then j2), and the triples ``(j1, j2, j3)``,
   ``j1 ≤ j2 ≤ j3``, of S4 (for j3, then j2, then j1).
-* **Levels**: 0 … J-1. Scale ``j`` is computed at level ``j`` (STL's ``j_to_dg``), and every
-  mean is taken at the level of the last convolution of its operands.
+* **Scales and levels** (maths.md M-NOT; Part III, §19.12, point 5): a scale ``j`` indexes a
+  wavelet, a level ``d`` a resolution. The plan holds the level at which each scale is
+  computed, ``scale_levels`` (from the wavelet plan), and the levels the loop goes through,
+  ``levels``; in 1.0.0 scale ``j`` is computed at level d = j (STL's ``j_to_dg``), so the
+  levels are 0 … J-1. Every mean is taken at the level of the scale of the last convolution
+  of its operands, read from ``scale_levels``.
 * **The static part of the wavelet operator** (``wavelets``, a ``WaveletPlan``; Part I, §2.3):
   the shape of each level, how the low-pass filter is realised and at which level, the masks
   and reweighting maps of the data and of each downsampling step (M-DOWN-MASK, M-MASK), and
@@ -25,13 +29,13 @@ What it holds, for STL's loop structure (maths.md §1.6 to 1.7; STL ``ST_Operato
   valid pixel, whose coefficients are NaN (OP-3).
 
 * **The windows of the second layer** (``second_layer``, one :class:`SecondLayerWindows` per
-  level; maths_step2.md M-GRAM): the scales whose second-layer maps the level computes, and
-  the window of each of these maps and of the band map, the weights of a mean of that map
-  alone. The loop sets each map to zero outside its own window, takes one Gram product, and
-  divides each mean by its denominator, which is the number of pixels of the two windows'
-  intersection: the weights of S3 and S4 above are the products of two windows, and STL's
-  windows are reproduced exactly. Weights are stored once per distinct level, border and
-  mask: the means that have the same three share one array.
+  scale j3 of the second convolution; maths_step2.md M-GRAM): the scales j2 whose second-layer
+  maps ψ_{j3} ⋆ U_{j2} are computed, and the window of each of these maps and of the band
+  map, the weights of a mean of that map alone. The loop sets each map to zero outside its own
+  window, takes one Gram product, and divides each mean by its denominator, which is the number
+  of pixels of the two windows' intersection: the weights of S3 and S4 above are the products
+  of two windows, and STL's windows are reproduced exactly. Weights are stored once per
+  distinct level, border and mask: the means that have the same three share one array.
 
 * **Windows have a kind** (``MeanWeights.kind``; maths_step2.md M-WIN; Part III, §19.12,
   point 1; task T2.13): ``full``, every pixel of the level (periodic data without missing
@@ -48,9 +52,10 @@ the scales of the convolutions applied, which in ESTEL is plan data rather than 
 (Part I, §2.3):
 
 * ``mean`` and ``var``: the field, history ``()``, at level 0 (STL ``mean``, ``cov``);
-* S1 and S2 at ``j``: ``(j,)``, at level ``j`` (``mean``, ``square_mean``, ``cov``);
-* S3 at ``(j2, j3)``: ``(j2, j3)`` and ``(j3,)``, at level ``j3``;
-* S4 at ``(j1, j2, j3)``: ``(j1, j3)`` and ``(j2, j3)``, at level ``j3``.
+* S1 and S2 at ``j``: ``(j,)``, at the level of scale ``j`` (``mean``, ``square_mean``,
+  ``cov``);
+* S3 at ``(j2, j3)``: ``(j2, j3)`` and ``(j3,)``, at the level of scale ``j3``;
+* S4 at ``(j1, j2, j3)``: ``(j1, j3)`` and ``(j2, j3)``, at the level of scale ``j3``.
 
 The plan lists these means, and the wavelet operator gives their weights
 (``WaveletOperator.mean_weights``). The border of a mean is the larger of its operands' borders
@@ -146,8 +151,8 @@ def channel_pairs(matrix: NDArray[np.bool_]) -> ChannelPairs:
 
 @dataclass(frozen=True, eq=False)
 class SecondLayerWindows:
-    """The second-layer maps of one level j3 and their windows, for the Gram form (maths_step2.md
-    M-GRAM; Part III, §19.3).
+    """The second-layer maps of one scale j3 of the second convolution and their windows, for the
+    Gram form (maths_step2.md M-GRAM; Part III, §19.3); they are computed at the level of j3.
 
     The window of a map is the weights of a mean of that map alone: the crop of its own border
     (M-BORDER) times its own valid pixels (M-MASK). The window of a pair of maps is the
@@ -159,15 +164,15 @@ class SecondLayerWindows:
     """The scales j2 ≤ j3 whose maps ψ_{j3} ⋆ U_{j2} enter a mean with a valid pixel, in
     increasing order: the rows of the Gram matrix, with the channels and the orientations."""
     windows: tuple[NDArray[np.float64], ...]
-    """The distinct windows of the level, each 1 on the pixels of the window and 0 elsewhere,
-    read-only, of the spatial shape of the level; empty when every window is the whole grid
+    """The distinct windows of these maps, each 1 on the pixels of the window and 0 elsewhere,
+    read-only, of the spatial shape of the level of j3; empty when every window is the whole grid
     (periodic data without missing values), and nothing is set to zero."""
     arm_windows: tuple[int, ...]
     """For each scale of :attr:`arms`, the position of its window in :attr:`windows`; empty
     when :attr:`windows` is."""
     band_window: int | None
     """The position in :attr:`windows` of the window of the band map W_{j3} x, the other
-    operand of S3; ``None`` when :attr:`windows` is empty or the level has no S3."""
+    operand of S3; ``None`` when :attr:`windows` is empty or j3 has no S3."""
 
 
 @dataclass(frozen=True, eq=False)
@@ -209,10 +214,15 @@ class _PlanFields:
     """The static part of the wavelet operator (Part I, §2.3): the levels and their shapes, the
     low-pass filter and how it is realised, the masks and reweighting maps, and the rules of
     borders and masks."""
+    scale_levels: tuple[int, ...]
+    """For each scale ``j`` of :attr:`scales`, the resolution level at which it is computed
+    (``wavelets.scale_levels``): level d = j in 1.0.0. The loop and the wavelet operator read
+    it here; nothing derives a level from a scale otherwise."""
     levels: tuple[int, ...]
-    """The resolution levels of the loop, in execution order: 0 … J-1."""
+    """The resolution levels of the loop, in execution order: 0 … the largest of
+    :attr:`scale_levels` (0 … J-1 in 1.0.0)."""
     scales: tuple[int, ...]
-    """The index set of S1 and S2: the scales 0 … J-1, scale ``j`` at level ``j``."""
+    """The index set of S1 and S2: the scales 0 … J-1."""
     s3_pairs: tuple[tuple[int, int], ...]
     """The index set of S3: ``(j2, j3)``, j2 ≤ j3, in STL's loop order (M-S3)."""
     s4_triples: tuple[tuple[int, int, int], ...]
@@ -221,15 +231,15 @@ class _PlanFields:
     """The weights of ``mean`` and ``var``, at level 0 (M-MOM)."""
     first_layer: Mapping[int, MeanWeights]
     """For each scale ``j`` of :attr:`scales` not in :attr:`empty_scales`: the weights of S1
-    and S2 at ``j`` (M-S1, M-S2), at level ``j``."""
+    and S2 at ``j`` (M-S1, M-S2), at the level of scale ``j``."""
     s3: Mapping[tuple[int, int], MeanWeights]
     """For each pair of :attr:`s3_pairs` not in :attr:`empty_s3_pairs`: the weights of S3, at
-    level ``j3`` (M-S3)."""
+    the level of scale ``j3`` (M-S3)."""
     s4: Mapping[tuple[int, int, int], MeanWeights]
     """For each triple of :attr:`s4_triples` not in :attr:`empty_s4_triples`: the weights of
-    S4, at level ``j3`` (M-S4)."""
+    S4, at the level of scale ``j3`` (M-S4)."""
     second_layer: Mapping[int, SecondLayerWindows]
-    """For each level j3 with an S3 or an S4 mean: its second-layer maps and their windows
+    """For each scale j3 with an S3 or an S4 mean: its second-layer maps and their windows
     (M-GRAM)."""
     empty_scales: tuple[int, ...]
     """The scales whose S1 and S2 have no valid pixel: NaN coefficients, not computed (M-MEAN,
@@ -293,24 +303,27 @@ def build_plan(
     matrix = _cross_matrix(cross_matrix, data.n_channels)
     _check_options(norm, ref_batch_mean, standardize)
     levels = wavelets.levels
-    scales = levels
-    s3_pairs = tuple((j2, j3) for j3 in levels for j2 in range(j3 + 1))
+    scale_levels = wavelets.scale_levels
+    scales = tuple(range(wavelets.J))
+    s3_pairs = tuple((j2, j3) for j3 in scales for j2 in range(j3 + 1))
     s4_triples = tuple(
-        (j1, j2, j3) for j3 in levels for j2 in range(j3 + 1) for j1 in range(j2 + 1)
+        (j1, j2, j3) for j3 in scales for j2 in range(j3 + 1) for j1 in range(j2 + 1)
     )
 
-    # The means of STL's loop: a label for error messages, the operands' histories, the level.
+    # The means of STL's loop: a label for error messages, the operands' histories (their
+    # scales), the level of the mean (that of the scale of the last convolution).
     means: dict[Any, tuple[str, tuple[History, ...], int]] = {
         "moments": ("mean and var", ((),), 0),
-        **{("S1", j): (f"S1 and S2 (j={j})", ((j,),), j) for j in scales},
+        **{("S1", j): (f"S1 and S2 (j={j})", ((j,),), scale_levels[j]) for j in scales},
         **{
-            ("S3", j2, j3): (f"S3 (j2={j2}, j3={j3})", ((j2, j3), (j3,)), j3) for j2, j3 in s3_pairs
+            ("S3", j2, j3): (f"S3 (j2={j2}, j3={j3})", ((j2, j3), (j3,)), scale_levels[j3])
+            for j2, j3 in s3_pairs
         },
         **{
             ("S4", j1, j2, j3): (
                 f"S4 (j1={j1}, j2={j2}, j3={j3})",
                 tuple(dict.fromkeys(((j1, j3), (j2, j3)))),
-                j3,
+                scale_levels[j3],
             )
             for j1, j2, j3 in s4_triples
         },
@@ -340,6 +353,7 @@ def build_plan(
         ref_batch_mean=bool(ref_batch_mean),
         standardize=bool(standardize),
         wavelets=wavelets,
+        scale_levels=scale_levels,
         levels=levels,
         scales=scales,
         s3_pairs=s3_pairs,
@@ -350,7 +364,7 @@ def build_plan(
         ),
         s3=MappingProxyType(s3),
         s4=MappingProxyType(s4),
-        second_layer=MappingProxyType(_second_layer(levels, weights, s3, s4)),
+        second_layer=MappingProxyType(_second_layer(scales, weights, s3, s4)),
         empty_scales=tuple(j for j in scales if ("S1", j) not in weights),
         empty_s3_pairs=tuple(p for p in s3_pairs if ("S3", *p) not in weights),
         empty_s4_triples=tuple(t for t in s4_triples if ("S4", *t) not in weights),
@@ -369,15 +383,15 @@ def build_plan(
 
 
 def _second_layer(
-    levels: tuple[int, ...],
+    scales: tuple[int, ...],
     weights: Mapping[Any, MeanWeights],
     s3: Mapping[tuple[int, int], MeanWeights],
     s4: Mapping[tuple[int, int, int], MeanWeights],
 ) -> dict[int, SecondLayerWindows]:
-    """The second-layer maps of each level that has an S3 or an S4 mean, and their windows
+    """The second-layer maps of each scale j3 that has an S3 or an S4 mean, and their windows
     (:class:`SecondLayerWindows`)."""
-    found = {j3: _second_layer_windows(j3, weights, s3, s4) for j3 in levels}
-    return {j3: level for j3, level in found.items() if level is not None}
+    found = {j3: _second_layer_windows(j3, weights, s3, s4) for j3 in scales}
+    return {j3: maps for j3, maps in found.items() if maps is not None}
 
 
 def _second_layer_windows(
@@ -386,8 +400,8 @@ def _second_layer_windows(
     s3: Mapping[tuple[int, int], MeanWeights],
     s4: Mapping[tuple[int, int, int], MeanWeights],
 ) -> SecondLayerWindows | None:
-    """The second-layer maps of level ``j3`` and their windows, or ``None`` when the level has
-    no S3 and no S4 mean.
+    """The second-layer maps of scale ``j3`` and their windows, or ``None`` when ``j3`` has no
+    S3 and no S4 mean.
 
     The window of the map ψ_{j3} ⋆ U_{j2} is the weights of S4 at (j2, j2, j3), a mean of that
     map alone, and the window of the band map W_{j3} x those of S1 at j3: a map that enters a
@@ -407,7 +421,7 @@ def _second_layer_windows(
         return SecondLayerWindows(arms=arms, windows=(), arm_windows=(), band_window=None)
     # The weights of one level, border and mask are one object (``mean_weights``).
     distinct = list({id(w.weights): w.weights for w in used}.values())
-    position = {id(window): d for d, window in enumerate(distinct)}
+    position = {id(window): i for i, window in enumerate(distinct)}
     return SecondLayerWindows(
         arms=arms,
         windows=tuple(distinct),

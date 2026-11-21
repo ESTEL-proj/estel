@@ -30,34 +30,35 @@ FloatMap = NDArray[np.float64]
 
 @dataclass(frozen=True, eq=False)
 class MaskMaps:
-    """The static maps of one mask, for ``n_levels`` resolution levels and one padding mode.
+    """The static maps of one mask, for the levels of the scales given and one padding mode.
 
-    Levels are named as in maths.md: ``d`` is a resolution level (the field downsampled ``d``
+    Named as in maths.md M-NOT: ``d`` is a resolution level (the field downsampled ``d``
     times), ``j`` the scale of a first convolution, ``j2 ≤ j3`` the scales of the two
-    convolutions of the second layer. Invalid pixels are True.
+    convolutions of the second layer. The convolution at scale ``j`` happens at the level of
+    that scale, ``scale_levels[j]`` (d = j in 1.0.0). Invalid pixels are True.
     """
 
     pbc: bool
     full_res: BoolMap
     """m⁽⁰⁾, the full-resolution mask."""
     smooth_invalid: Mapping[int, BoolMap]
-    """For ``d`` in 1 … n_levels-1: the invalid pixels of the field downsampled to level
-    ``d`` (layer 0 of M-MASK)."""
+    """For ``d`` in 1 … max(scale_levels): the invalid pixels of the field downsampled to
+    level ``d`` (layer 0 of M-MASK)."""
     smooth_reweight: Mapping[int, FloatMap]
-    """For ``d`` in 1 … n_levels-1: the reweighting 1 / (1 - f) of the last step down to
-    level ``d`` of the field (M-DOWN-MASK), 0 at invalid pixels."""
+    """For ``d`` in 1 … max(scale_levels): the reweighting 1 / (1 - f) of the last step down
+    to level ``d`` of the field (M-DOWN-MASK), 0 at invalid pixels."""
     wav_invalid: Mapping[tuple[int, int], BoolMap]
-    """For ``(d, j)``, ``j < d``: the invalid pixels of first-layer data convolved at scale
-    ``j``, then downsampled to level ``d``."""
+    """For ``(d, j)``, ``d`` above the level of scale ``j``: the invalid pixels of first-layer
+    data convolved at scale ``j``, then downsampled to level ``d``."""
     wav_reweight: Mapping[tuple[int, int], FloatMap]
-    """For ``(d, j)``, ``j < d``: the reweighting of the last step down to level ``d`` of
-    first-layer data convolved at scale ``j``, 0 at invalid pixels."""
+    """For ``(d, j)``, ``d`` above the level of scale ``j``: the reweighting of the last step
+    down to level ``d`` of first-layer data convolved at scale ``j``, 0 at invalid pixels."""
     layer1: Mapping[int, BoolMap]
-    """For ``j`` in 0 … n_levels-1: the invalid pixels of data convolved once at scale ``j``,
-    at level ``j`` (layer 1 of M-MASK)."""
+    """For each scale ``j``: the invalid pixels of data convolved once at scale ``j``, at the
+    level of that scale (layer 1 of M-MASK)."""
     layer2: Mapping[tuple[int, int], BoolMap]
-    """For ``(j3, j2)``, ``j2 ≤ j3``: the invalid pixels of data convolved at ``j2``,
-    downsampled to ``j3`` and convolved again at ``j3`` (layer 2 of M-MASK)."""
+    """For ``(j3, j2)``, ``j2 ≤ j3``: the invalid pixels of data convolved at scale ``j2``,
+    brought to the level of scale ``j3`` and convolved again at ``j3`` (layer 2 of M-MASK)."""
 
 
 def _pad(a: FloatMap, widths: Sequence[tuple[int, int]], pbc: bool) -> FloatMap:
@@ -122,28 +123,36 @@ def _threshold(fraction: FloatMap, threshold: float) -> tuple[BoolMap, FloatMap]
 
 def build_mask_maps(
     mask: BoolMap,
-    n_levels: int,
+    scale_levels: Sequence[int],
     s: FloatMap,
     kernel_size: int,
     threshold: float,
     pbc: bool,
 ) -> MaskMaps:
-    """The static maps of ``mask`` for levels 0 … ``n_levels``-1 (M-DOWN-MASK, M-MASK).
+    """The static maps of ``mask`` for the scales of ``scale_levels`` (M-DOWN-MASK, M-MASK).
 
     ``mask`` is the full-resolution mask (True = missing), with one axis per spatial axis;
-    ``n_levels`` is J; ``s`` the smoothing kernel of the geometry, summing to 1;
+    ``scale_levels`` gives, for each scale ``j``, the level at which it is computed, the
+    ``scale_levels`` of the wavelet plan (``(0, 1, …, J-1)`` in 1.0.0), and the maps cover the
+    levels 0 … ``max(scale_levels)``; ``s`` the smoothing kernel of the geometry, summing to 1;
     ``kernel_size`` the wavelet support K; ``threshold`` the τ of the geometry
     (``Data2D._nan_threshold``, ``Data1D._nan_threshold``); ``pbc`` the padding mode.
     """
     m0 = np.asarray(mask, dtype=bool)
     s = np.asarray(s, dtype=np.float64)
-    if n_levels < 1:
-        raise ValueError(f"n_levels={n_levels}: there is at least one level (J ≥ 1).")
+    scale_levels = tuple(int(d) for d in scale_levels)
+    if not scale_levels:
+        raise ValueError(
+            "scale_levels=(): there is at least one scale, so at least one level (J ≥ 1). Pass "
+            "the scale_levels of the wavelet plan, the level of each scale: (0, 1, …, J-1) for "
+            "J scales in 1.0.0."
+        )
     if not np.isclose(s.sum(), 1.0):
         raise ValueError(
             f"the smoothing kernel sums to {s.sum()}, not 1: pass the smoothing kernel of the "
             "geometry, smoothing_kernel(ndim) (maths.md M-SMOOTH-2D, M-SMOOTH-1D)."
         )
+    n_levels = max(scale_levels) + 1
     footprint = (kernel_size,) * m0.ndim
 
     # Layer 0: the field downsampled from level 0, the invalid pixels of level d - 1 feeding
@@ -153,22 +162,28 @@ def build_mask_maps(
         parent = smooth[-1][0].astype(np.float64)
         smooth.append(_threshold(downsample_step(parent, s, pbc), threshold))
 
-    # Layer 1: data convolved at scale j, at level j.
-    layer1 = {j: propagate_mask_conv(smooth[j][0], footprint, pbc) for j in range(n_levels)}
+    # Layer 1: data convolved at scale j, at the level of scale j.
+    layer1 = {
+        j: propagate_mask_conv(smooth[d][0], footprint, pbc) for j, d in enumerate(scale_levels)
+    }
 
-    # First-layer data convolved at j, downsampled step by step to every level d > j.
+    # First-layer data convolved at j, downsampled step by step to every coarser level.
     wav: dict[tuple[int, int], tuple[BoolMap, FloatMap]] = {}
-    for j in range(n_levels - 1):
+    for j, level in enumerate(scale_levels):
         chain = [layer1[j]]
-        for _ in range(j + 1, n_levels):
+        for d in range(level + 1, n_levels):
             step = _threshold(downsample_step(chain[-1].astype(np.float64), s, pbc), threshold)
             chain.append(step[0])
-            wav = {**wav, (j + len(chain) - 1, j): step}
+            wav = {**wav, (d, j): step}
 
-    # Layer 2: data convolved at j2, brought to level j3, convolved again at j3.
+    # Layer 2: data convolved at j2, brought to the level of j3, convolved again at j3.
     layer2 = {
-        (j3, j2): propagate_mask_conv(wav[(j3, j2)][0] if j2 < j3 else layer1[j3], footprint, pbc)
-        for j3 in range(n_levels)
+        (j3, j2): propagate_mask_conv(
+            wav[(scale_levels[j3], j2)][0] if scale_levels[j2] < scale_levels[j3] else layer1[j2],
+            footprint,
+            pbc,
+        )
+        for j3 in range(len(scale_levels))
         for j2 in range(j3 + 1)
     }
 

@@ -7,14 +7,18 @@ builds, once and for both padding modes, the static maps of maths.md M-DOWN-MASK
 
 * ``smooth``: for each level ``d`` in 1 … J-1, the reweighting map 1 / (1 - f) of the field
   downsampled from level 0, NaN where the fraction f of invalid input exceeds the threshold;
-* ``wav``: for each level ``d`` and each scale ``j < d``, the same map for first-layer data
-  convolved at scale ``j`` and downsampled to level ``d``;
-* ``layer1``: for each level ``j``, the invalid pixels of data convolved once at scale ``j``;
-* ``layer2``: for each level ``j3`` and each ``j2 ≤ j3``, the invalid pixels of data convolved
-  at ``j2``, downsampled to ``j3`` and convolved again.
+* ``wav``: for each level ``d`` and each scale ``j`` computed at a level finer than ``d``, the same
+  map for first-layer data convolved at scale ``j`` and downsampled to level ``d``;
+* ``layer1``: for each scale ``j``, the invalid pixels of data convolved once at scale ``j``, at
+  the level of that scale;
+* ``layer2``: for each scale ``j3`` and each scale ``j2 ≤ j3``, the invalid pixels of data
+  convolved at ``j2``, downsampled to the level of ``j3`` and convolved again at ``j3``.
+
+Scales and levels are named as in maths.md §1.0 (M-NOT): ``d`` is a resolution level, ``j`` the
+scale at which a map is convolved; in 1.0.0, as in STL, scale ``j`` is computed at level d = j.
 
 This case stores them as STL holds them, for ``pbc=False`` (padding mode ``replicate``) and
-``pbc=True`` (``circular``), with array names ``<mode>_<family>_<levels>``: ``smooth_<d>``,
+``pbc=True`` (``circular``), with array names ``<mode>_<family>_<indices>``: ``smooth_<d>``,
 ``wav_<d>_<j>``, ``layer1_<j>``, ``layer2_<j3>_<j2>``. The boolean masks are stored as float64
 0/1, the reweighting maps as float64 with their NaN. It also stores the input mask
 (``mask_full_res``) and the smoothing kernel STL uses (``smooth_kernel``, maths.md M-SMOOTH-2D).

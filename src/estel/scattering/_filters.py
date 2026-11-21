@@ -48,8 +48,9 @@ class _FilterFields(NamedTuple):
     first_layer: Mapping[int, Any]
     """The weights of S1 and S2, per scale of ``plan.first_layer``, or ``None`` likewise."""
     second_layer: Mapping[int, Any]
-    """The windows of the second-layer maps and of the band map, per level of
-    ``plan.second_layer``: the distinct windows of the level stacked, ``(D, *spatial)``, or
+    """The windows of the second-layer maps and of the band map, per scale j3 of
+    ``plan.second_layer``: the distinct windows of these maps stacked, ``(D, *spatial)`` at
+    the level of j3, or
     ``None`` when every window is the whole grid (maths_step2.md M-GRAM). S3 and S4 need no
     other weights: each mean is a Gram product of windowed maps, divided by the denominator
     of the plan."""
@@ -145,8 +146,8 @@ def build_filters(plan: STPlan, backend_name: str, dtype: FloatDType, device: An
         moments=weights(plan.moments),
         first_layer={j: weights(w) for j, w in plan.first_layer.items()},
         second_layer={
-            j3: real(np.stack(level.windows)) if level.windows else None
-            for j3, level in plan.second_layer.items()
+            j3: real(np.stack(maps.windows)) if maps.windows else None
+            for j3, maps in plan.second_layer.items()
         },
         s1_index=index(first_layer_keys(plan), 3),
         s3_index=index(s3_keys(plan), 4),

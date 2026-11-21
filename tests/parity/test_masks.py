@@ -33,7 +33,7 @@ def _maps(case: str, pbc: bool) -> tuple[MaskMaps, dict[str, NDArray[Any]], dict
     parameters = read_manifest()[f"{case}.npz"]["parameters"]
     maps = build_mask_maps(
         fixture["mask_full_res"] > 0,
-        n_levels=parameters["J"],
+        scale_levels=tuple(range(parameters["J"])),
         s=smoothing_kernel(CASES[case].ndim),
         kernel_size=parameters["K"],
         threshold=CASES[case]._nan_threshold,
@@ -66,8 +66,8 @@ def test_mask_from_nan_equals_stl(case: str) -> None:
 @pytest.mark.parametrize("case", sorted(CASES))
 def test_layer_masks_equal_stl(case: str, mode: str) -> None:
     maps, fixture, parameters = _maps(case, MODES[mode])
-    n_levels = parameters["J"]
-    for j in range(n_levels):
+    n_scales = parameters["J"]
+    for j in range(n_scales):
         np.testing.assert_array_equal(
             maps.layer1[j], fixture[f"{mode}_layer1_{j}"] > 0, err_msg=f"layer1 j={j}"
         )
@@ -83,15 +83,22 @@ def test_layer_masks_equal_stl(case: str, mode: str) -> None:
 @pytest.mark.parametrize("case", sorted(CASES))
 def test_reweighting_maps_equal_stl(case: str, mode: str) -> None:
     maps, fixture, parameters = _maps(case, MODES[mode])
-    n_levels = parameters["J"]
-    assert sorted(maps.smooth_reweight) == list(range(1, n_levels))
-    assert sorted(maps.wav_reweight) == sorted((d, j) for d in range(1, n_levels) for j in range(d))
-    for d in range(1, n_levels):
+    # Scale j is computed at level d = j (maths.md M-NOT): levels 0 … J-1.
+    scale_levels = tuple(range(parameters["J"]))
+    coarser = range(1, max(scale_levels) + 1)  # the levels d reached by a downsampling step
+
+    def finer_scales(d: int) -> list[int]:
+        """The scales j computed at a level before d, whose maps are downsampled to d."""
+        return [j for j, level in enumerate(scale_levels) if level < d]
+
+    assert sorted(maps.smooth_reweight) == list(coarser)
+    assert sorted(maps.wav_reweight) == sorted((d, j) for d in coarser for j in finer_scales(d))
+    for d in coarser:
         assert_parity(
             _with_nan(maps.smooth_invalid[d], maps.smooth_reweight[d]),
             fixture[f"{mode}_smooth_{d}"],
         )
-        for j in range(d):
+        for j in finer_scales(d):
             assert_parity(
                 _with_nan(maps.wav_invalid[(d, j)], maps.wav_reweight[(d, j)]),
                 fixture[f"{mode}_wav_{d}_{j}"],

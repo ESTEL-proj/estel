@@ -4,23 +4,25 @@
 Internal: ESTEL computes scattering statistics, and STL's ``data.get_wavelet_op()`` has no
 public counterpart (Part IV, §22, "Wavelet operator, internal"). ``STOperator``, its plan and
 its loop go through this module for everything that depends on the wavelets and on the
-geometry: level by level, the convolution by the wavelets, the downsampling, the shape of each
-level, the border rule (maths.md M-BORDER), the mask rules (M-MASK, M-DOWN-MASK), and the
-defaults of J and L (M-DEF, M-DEF-1D). They see levels, maps and weights only.
+geometry: level by level, the convolution by the wavelets, the downsampling, the level of each
+scale and the shape of each level, the border rule (maths.md M-BORDER), the mask rules (M-MASK,
+M-DOWN-MASK), and the defaults of J and L (M-DEF, M-DEF-1D). They see scales, levels, maps and
+weights only.
 
 Like ``STOperator``, the wavelet operator is a static part plus arrays, applied by pure
 functions:
 
 * :class:`WaveletPlan`, the static part, held by the ``STPlan``: built once, in NumPy float64,
-  never traced (tag N of Part II, §12); immutable and hashable. It holds the levels and their
-  shapes, how the low-pass filter is realised, the masks and reweighting maps of the data
-  (``estel.data._masks``), and the rules of borders and masks.
+  never traced (tag N of Part II, §12); immutable and hashable. It holds the level at which
+  each scale is computed, the levels and their shapes, how the low-pass filter is realised, the
+  masks and reweighting maps of the data (``estel.data._masks``), and the rules of borders and
+  masks.
 * :class:`WaveletFilters`, the arrays, held by the ``STFilters``: the wavelet bank, the
   smoothing kernel and the maps of each downsampling step, on the operator's backend and dtype.
 * :class:`WaveletOperator`, which binds the two to data, read for their geometry and backend
   only: :meth:`WaveletOperator.apply` and :meth:`WaveletOperator.downsample` are the pure
-  functions the loop calls, on maps and levels, and :meth:`WaveletOperator.mean_weights` gives
-  the plan the weights of its means.
+  functions the loop calls, on maps, scales and levels, and
+  :meth:`WaveletOperator.mean_weights` gives the plan the weights of its means.
 
 The code proper to each geometry stays in the hooks of its ``Data`` subclass and in the NumPy
 functions that build its tables. Only this module calls the hooks of filtering and
@@ -28,6 +30,12 @@ downsampling, ``_conv(x, tables, level)``, ``_downsample(x, weights, level)`` an
 ``_crop_weights(level, border)``, and only this module reads the banks of ``estel.wavelets``
 and the mask builders of ``estel.data``: CI checks it (Part I, §2.4). The low-pass filter is
 described here and applied with its first user, the tensor products (task T3.2).
+
+**Scales and levels** (maths.md M-NOT; Part III, §19.12, point 5): a scale ``j`` indexes a
+wavelet, a level ``d`` a resolution, the data downsampled ``d`` times. The plan holds the level
+at which each scale is computed, :attr:`WaveletPlan.scale_levels`, and everything else reads
+it there: in 1.0.0 scale ``j`` is computed at level d = j (STL's ``j_to_dg``), and
+:func:`build_wavelet_plan` is the one place that says so.
 """
 
 from __future__ import annotations
@@ -57,8 +65,9 @@ from ._banks import (
 )
 
 History = tuple[int, ...]
-"""The scales of the convolutions applied to an operand, in order: ``()`` for the field,
-``(j,)`` for first-layer data, ``(j2, j3)`` for second-layer data (STL's ``conv_history``)."""
+"""The scales (not levels) of the convolutions applied to an operand, in order: ``()`` for the
+field, ``(j,)`` for first-layer data, ``(j2, j3)`` for second-layer data (STL's
+``conv_history``)."""
 
 LowpassRealization = Literal["smoothing_cascade"]
 
@@ -81,7 +90,10 @@ _K = TypeVar("_K", bound=Hashable)
 
 def border_width(history: History, level: int, kernel_size: int, pbc: bool) -> int:
     """The border β of maths.md M-BORDER ("fully flexible"), in pixels at ``level``, of data
-    convolved at the scales ``history`` (STL ``_get_crop_border_size_fully_flexible``).
+    convolved at the scales ``history`` (STL ``_get_crop_border_size_fully_flexible``). As in
+    M-BORDER, ``j``, ``j2`` and ``j3`` below are scales and ``d`` is ``level``: the exponents
+    are differences of levels written with scales, exact while scale j is computed at level
+    d = j (maths.md OP-62).
 
     * no convolution, or ``pbc``: 0;
     * one convolution at ``j``: ⌈2^(j-d) · ⌊K/2⌋⌉;
@@ -201,9 +213,14 @@ class WaveletPlan:
     """The missing values of the data (True = missing), read-only, or ``None``."""
     nan_threshold: float
     """τ of the geometry (M-DOWN-MASK, OP-12)."""
+    scale_levels: tuple[int, ...]
+    """For each scale ``j`` of 0 … J-1, the resolution level at which it is computed: the
+    level of the data its wavelet convolves, and of the maps that convolution gives. In 1.0.0,
+    level d = j (STL's ``j_to_dg``); the low-pass filter without final downsampling (LF6) or
+    voices (LF41) change this field only."""
     levels: tuple[int, ...]
-    """The resolution levels of the wavelets: 0 … J-1, scale ``j`` at level ``j`` (STL's
-    ``j_to_dg``)."""
+    """The resolution levels the loop goes through, in order: 0 … the largest of
+    :attr:`scale_levels` (0 … J-1 in 1.0.0)."""
     level_shapes: tuple[tuple[int, ...], ...]
     """The spatial shape at each level of :attr:`levels`."""
     lowpass_realization: LowpassRealization
@@ -239,17 +256,19 @@ class WaveletPlan:
     def invalid(self, history: History, level: int) -> BoolMap | None:
         """The invalid pixels at ``level`` of data convolved at the scales ``history``
         (M-MASK; STL ``_find_mask``), or ``None`` when no value is missing."""
-        return None if self.masks is None else _invalid(self.masks, history, level)
+        if self.masks is None:
+            return None
+        return _invalid(self.masks, self.scale_levels, history, level)
 
     def check_downsample(self, level: object, history: object = ()) -> None:
         """Raise unless a downsampling step from ``level`` exists for a map with the
         ``history`` given: ``()`` for the field, ``(j,)`` for first-layer data convolved at
-        scale ``j ≤ level``. Second-layer data, a history of two scales, are never
-        downsampled."""
-        if not _is_index(level) or not 0 <= level < self.J - 1:  # type: ignore[operator]
+        scale ``j``, computed at ``level`` or before. Second-layer data, a history of two
+        scales, are never downsampled."""
+        if not _is_index(level) or level not in self.levels[:-1]:
             raise ValueError(
-                f"downsample(level={level!r}): the loop downsamples from the levels 0 … "
-                f"{self.J - 2} (J = {self.J})."
+                f"downsample(level={level!r}): the loop downsamples from the levels "
+                f"{self.levels[0]} … {self.levels[-1] - 1} (J = {self.J})."
             )
         if not isinstance(history, tuple) or not all(_is_index(j) for j in history):
             raise TypeError(
@@ -260,15 +279,17 @@ class WaveletPlan:
         if len(history) >= 2:
             raise ValueError(
                 f"downsample(level={level}, history={history!r}): second-layer data, convolved "
-                "twice, are never downsampled: their means are taken at the level of the second "
-                "convolution (maths.md M-S3, M-S4). Pass () for the field, or (j,) for "
+                "twice, are never downsampled: their means are taken at the level of the scale of "
+                "the second convolution (maths.md M-S3, M-S4). Pass () for the field, or (j,) for "
                 "first-layer data convolved at scale j."
             )
-        if history and not 0 <= history[0] <= level:
+        before = tuple(j for j, d in enumerate(self.scale_levels) if d <= level)
+        if history and history[0] not in before:
             raise ValueError(
                 f"downsample(level={level}, history={history!r}): first-layer data convolved "
-                f"at scale j are downsampled from level j on, so pass () (the field) or (j,) "
-                f"with a scale j between 0 and {level}."
+                f"at scale j are downsampled from the level of scale j on, so pass () (the "
+                f"field) or (j,) with a scale j computed at level {level} or before: one of "
+                f"{before}."
             )
 
     def downsample_maps(self, level: int, history: History = ()) -> tuple[BoolMap, FloatMap] | None:
@@ -276,11 +297,11 @@ class WaveletPlan:
         (maths.md M-DOWN-MASK; STL ``downsample``), or ``None`` when no value is missing.
 
         ``history`` holds the scales of the convolutions applied to the map being downsampled:
-        ``()`` for the field, ``(j,)`` for first-layer data convolved at scale ``j ≤ level``
-        (the two families of maps of M-DOWN-MASK). Returns the valid input pixels, of the spatial
-        shape at ``level``, and the reweighting 1 / (1 - f) of the output, of the shape at
-        ``level + 1``, 0 at invalid outputs: the ``valid`` and ``reweight`` of
-        ``DownsampleWeights``, before they are cast.
+        ``()`` for the field, ``(j,)`` for first-layer data convolved at scale ``j``, computed
+        at ``level`` or before (the two families of maps of M-DOWN-MASK). Returns the valid
+        input pixels, of the spatial shape at ``level``, and the reweighting 1 / (1 - f) of the
+        output, of the shape at ``level + 1``, 0 at invalid outputs: the ``valid`` and
+        ``reweight`` of ``DownsampleWeights``, before they are cast.
         """
         self.check_downsample(level, history)
         if self.masks is None:
@@ -291,7 +312,8 @@ class WaveletPlan:
             reweight = masks.smooth_reweight[level + 1]
         else:
             (j,) = history
-            invalid = masks.layer1[j] if level == j else masks.wav_invalid[(level, j)]
+            convolved_here = level == self.scale_levels[j]
+            invalid = masks.layer1[j] if convolved_here else masks.wav_invalid[(level, j)]
             reweight = masks.wav_reweight[(level + 1, j)]
         return ~invalid, reweight
 
@@ -327,13 +349,15 @@ def build_wavelet_plan(
     size = _check_size(kernel_size)
     spatial = data.shape[2:]
     pbc = data.pbc
-    levels = tuple(range(n_scales))
+    # The level of each scale: in 1.0.0, scale j at level d = j (maths.md M-NOT).
+    scale_levels = tuple(range(n_scales))
+    levels = tuple(range(max(scale_levels) + 1))
     masks = (
         None
         if data.mask is None
         else build_mask_maps(
             data.mask,
-            n_levels=n_scales,
+            scale_levels,
             s=smoothing_kernel(data.ndim),
             kernel_size=size,
             threshold=data._nan_threshold,
@@ -351,6 +375,7 @@ def build_wavelet_plan(
         pbc=pbc,
         mask=None if data.mask is None else _read_only(data.mask),
         nan_threshold=data._nan_threshold,
+        scale_levels=scale_levels,
         levels=levels,
         level_shapes=tuple(tuple(n // 2**d for n in spatial) for d in levels),
         lowpass_realization="smoothing_cascade",
@@ -366,6 +391,7 @@ def build_wavelet_plan(
             data._nan_threshold,
             static_mask,
             wavelet,
+            scale_levels,
         ),
     )
 
@@ -383,11 +409,12 @@ class WaveletFilters(NamedTuple):
     smoothing: Any
     """The real smoothing kernel of the downsampling (M-SMOOTH-2D, M-SMOOTH-1D)."""
     field_down: Mapping[int, tuple[Any, Any]]
-    """Per level d < J-1, the ``(valid, reweight)`` maps of the field from d to d+1, or no
-    entry without missing values (``WaveletPlan.downsample_maps(d)``)."""
+    """Per level d but the last, the ``(valid, reweight)`` maps of the field from d to d+1, or
+    no entry without missing values (``WaveletPlan.downsample_maps(d)``)."""
     modulus_down: Mapping[tuple[int, int], tuple[Any, Any]]
-    """Per ``(d, j)``, j ≤ d < J-1, the maps of first-layer data convolved at j from d to d+1,
-    or no entry without missing values (``WaveletPlan.downsample_maps(d, (j,))``)."""
+    """Per ``(d, j)``, d a level but the last and j a scale computed at d or before, the maps
+    of first-layer data convolved at j from d to d+1, or no entry without missing values
+    (``WaveletPlan.downsample_maps(d, (j,))``)."""
 
 
 def build_wavelet_filters(
@@ -405,9 +432,14 @@ def build_wavelet_filters(
         reweight = backend.asarray(np.asarray(found[1], dtype=np.float64), dtype, device)
         return valid, reweight
 
-    down_levels = range(plan.J - 1)
+    down_levels = plan.levels[:-1]
     field_down = {d: maps(d) for d in down_levels}
-    modulus_down = {(d, j): maps(d, (j,)) for d in down_levels for j in range(d + 1)}
+    modulus_down = {
+        (d, j): maps(d, (j,))
+        for d in down_levels
+        for j, level in enumerate(plan.scale_levels)
+        if level <= d
+    }
     return WaveletFilters(
         kernels=backend.asarray(plan.bank(), COMPLEX[dtype], device),
         smoothing=backend.asarray(smoothing_kernel(plan.ndim), dtype, device),
@@ -494,7 +526,8 @@ class WaveletOperator:
         self, means: Mapping[_K, tuple[Sequence[History], int]]
     ) -> dict[_K, MeanWeights | None]:
         """The weights of the means ``means``: for each key, the histories of the operands of
-        a (co)variance and the level it is taken at (M-MEAN, M-BORDER, M-MASK).
+        a (co)variance (the scales of their convolutions) and the level it is taken at
+        (M-MEAN, M-BORDER, M-MASK).
 
         The border of a mean is the larger of its operands' borders (M-BORDER, "fully
         flexible"); the geometry turns it into crop weights (``Data._crop_weights``), reducing
@@ -520,7 +553,9 @@ class WaveletOperator:
         invalid = {
             key: None
             if masks is None
-            else np.logical_or.reduce([_invalid(masks, h, level) for h in histories])
+            else np.logical_or.reduce(
+                [_invalid(masks, plan.scale_levels, h, level) for h in histories]
+            )
             for key, (histories, level) in means.items()
         }
         # Level, border and invalid pixels: the means that share them share their weights.
@@ -560,15 +595,16 @@ class WaveletOperator:
     # ------------------------------------------------------------------ pure functions
 
     def apply(self, x: Any, j: int) -> Any:
-        """ψ_j ⋆ x, on a map at level ``j`` (maths.md M-W1): complex, L orientations.
+        """ψ_j ⋆ x, the convolution at scale ``j``, on a map at the level of that scale, read
+        from the plan (``scale_levels``; maths.md M-W1): complex, L orientations.
 
         ``x`` is an array of the data's backend, ``(Nb, Nc, *O, *spatial)`` with the spatial
-        shape of level ``j`` and any axes ``O`` in between (the orientations of a first
+        shape of the level of scale ``j`` and any axes ``O`` in between (the orientations of a first
         convolution), real or complex; the result is ``(Nb, L, Nc, *O, *spatial)``: the
         orientation of this convolution right after the batch axis, for the first and the
         second layer alike, so that the second-layer maps of one band orientation form a
         matrix without a copy (Part III, §19.12, point 2; maths_step2.md M-GRAM). Calls the
-        hook ``_conv`` with the tables of the level. Pure: nothing is
+        hook ``_conv`` with the tables and the level of the scale. Pure: nothing is
         modified, nothing depends on array values.
         """
         plan, filters = self._plan, self._arrays("apply")
@@ -576,10 +612,11 @@ class WaveletOperator:
             raise ValueError(
                 f"apply(j={j!r}): the wavelets have the scales 0 … {plan.J - 1} (J = {plan.J})."
             )
-        lead, spatial = self._split(x, j, "apply")
+        level = plan.scale_levels[j]
+        lead, spatial = self._split(x, level, "apply")
         xp = _registry.backend_named(self._data.backend).xp
         flat = xp.reshape(x, (lead[0], -1, *spatial))
-        out = self._data._conv(flat, filters.kernels, j)
+        out = self._data._conv(flat, filters.kernels, level)
         return xp.reshape(out, (lead[0], plan.L, *lead[1:], *spatial))
 
     def downsample(self, x: Any, level: int, history: History = ()) -> Any:
@@ -589,7 +626,8 @@ class WaveletOperator:
         ``x`` is ``(Nb, Nc, *O, *spatial)`` at ``level``; the result has the spatial shape of
         ``level + 1``. ``history`` holds the scales of the convolutions applied to ``x``, and
         says which maps apply when values are missing: ``()`` for the field, ``(j,)`` for
-        first-layer data convolved at scale ``j ≤ level`` (M-DOWN-MASK, M-MASK). Second-layer
+        first-layer data convolved at scale ``j``, computed at ``level`` or before
+        (M-DOWN-MASK, M-MASK). Second-layer
         data are never downsampled. Calls the hook ``_downsample`` with the weights of the
         step. Pure.
         """
@@ -661,18 +699,23 @@ def _is_index(value: object) -> bool:
     return isinstance(value, Integral) and not isinstance(value, bool)
 
 
-def _invalid(masks: MaskMaps, history: History, level: int) -> BoolMap:
-    """The invalid pixels at ``level`` of data convolved at the scales ``history`` (M-MASK;
-    STL ``_find_mask``)."""
+def _invalid(
+    masks: MaskMaps, scale_levels: tuple[int, ...], history: History, level: int
+) -> BoolMap:
+    """The invalid pixels at ``level`` of data convolved at the scales ``history``, each scale
+    ``j`` at its level ``scale_levels[j]`` (M-MASK; STL ``_find_mask``)."""
     if not history:
         return masks.full_res if level == 0 else masks.smooth_invalid[level]
     if len(history) == 1:
         (j,) = history
-        return masks.layer1[j] if level == j else masks.wav_invalid[(level, j)]
+        return masks.layer1[j] if level == scale_levels[j] else masks.wav_invalid[(level, j)]
     j2, j3 = history
-    if level != j3:
+    if level != scale_levels[j3]:
         raise ValueError(
-            f"second-layer data convolved at {history} are read at level {j3}, not {level}."
+            f"second-layer data convolved at the scales {history} are read at the level of "
+            f"scale {j3}, {scale_levels[j3]}, not at level {level}: pass level="
+            f"{scale_levels[j3]}, the level of the scale of the second convolution "
+            f"(scale_levels[{j3}] of the plan; maths.md M-MASK)."
         )
     return masks.layer2[(j3, j2)]
 
