@@ -87,7 +87,7 @@
 - The scattering covariances are covariances by definition: S2 = Cov(W\_{j,ℓ} x, W\_{j,ℓ} x), S3 = Cov(ψ\_{ℓ₃} ⋆ |W\_{j₂,ℓ₂} x|, W\_{j₃,ℓ₃} x) and S4 = Cov(ψ\_{ℓ₃} ⋆ |W\_{j₁,ℓ₁} x|, ψ\_{ℓ₃} ⋆ |W\_{j₂,ℓ₂} x|), with ψ at scale j3. S1 = M1(|W\_{j,ℓ} x|) is a first moment. STL, and ESTEL 1.0.0, compute the raw moments M2 instead (OP-36); the two are equal when M1 of one argument is zero.
 - Zero-mean property: a band-pass kernel sums to zero, so a field filtered by it has M1 = 0 exactly when w is the whole periodic domain, without mask. This does not hold with a cropped border or a mask. It does not hold either when the last filter is the low-pass filter φ\_J: M1(φ\_J ⋆ |W\_{j,ℓ} x|) is S1(j), and M1(φ\_J ⋆ x) is the mean of the data.
 
-**Notation to harmonise (T8.3, issue #71).** The review of 16 November 2026 found the 17 problems below in the notation of this file, each with a recommendation. Nothing is decided or applied yet. The full text of the remarks, and a single table of symbols proposed in their place (R-N18), are in issue #71. This table goes once the notation is decided and applied.
+**Notation to harmonise (W5, issue #71).** The review of 16 November 2026 found the 17 problems below in the notation of this file, each with a recommendation. Nothing is decided or applied yet. The full text of the remarks, and a single table of symbols proposed in their place (R-N18), are in issue #71. This table goes once the notation is decided and applied.
 
 | Remark | What collides | Recommendation |
 | --- | --- | --- |
