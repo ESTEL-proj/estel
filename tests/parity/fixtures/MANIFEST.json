@@ -5770,5 +5770,70 @@
       }
     },
     "sha256": "06e747371cbc9139d5bdd92edfbab9aaaf2eb943348f78872987d150653c29bd"
+  },
+  "synthesis_2d.npz": {
+    "case": "tools/stl_parity/cases/synthesis_2d.py",
+    "stl_branch": "master",
+    "stl_commit": "8eaf7691d55f3c3441cde9b95f1f80eb17aa8014",
+    "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
+    "parameters": {
+      "N": 64,
+      "J": 4,
+      "L": 4,
+      "target_seed": 61,
+      "spectral_index": 3.0,
+      "lognormal_scale": 0.8,
+      "seed": 26,
+      "max_iter": 20,
+      "history_size": 50,
+      "lr": 1.0,
+      "mean_field": true,
+      "compute_PS": false
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "counts": {
+        "dtype": "float64",
+        "shape": [
+          2
+        ]
+      },
+      "evaluations": {
+        "dtype": "float64",
+        "shape": [
+          25
+        ]
+      },
+      "field": {
+        "dtype": "float64",
+        "shape": [
+          64,
+          64
+        ]
+      },
+      "losses": {
+        "dtype": "float64",
+        "shape": [
+          20
+        ]
+      },
+      "start": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          64,
+          64
+        ]
+      },
+      "target": {
+        "dtype": "float64",
+        "shape": [
+          64,
+          64
+        ]
+      }
+    },
+    "sha256": "099d17b51f41e08c3e400c5d8167996b7e01b938b4a8371bc80799a164bd47c0"
   }
 }

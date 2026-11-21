@@ -980,9 +980,15 @@ class TestLbfgs:
             "tolerance_change": 1e-30,
         }
         x0 = backend.asarray(np.zeros(5), dtype)
-        whole = backend.lbfgs(fun, x0, max_iter=8, **settings)
-        first = backend.lbfgs(fun, x0, max_iter=4, **settings)
-        second = backend.lbfgs(fun, first.x, max_iter=4, state=first.state, **settings)
+        # One run of 8 iterations and 10 evaluations, then the same split in two calls, the
+        # second resuming from the state of the first, with what is left of the budget.
+        whole = backend.lbfgs(fun, x0, max_iter=8, max_eval=10, **settings)
+        first = backend.lbfgs(fun, x0, max_iter=4, max_eval=10, **settings)
+        left = 10 - first.n_evals
+        second = backend.lbfgs(
+            fun, first.x, max_iter=4, max_eval=left, state=first.state, **settings
+        )
+        assert first.n_evals + second.n_evals == whole.n_evals
         assert_close(backend, second.x, backend.to_numpy(whole.x).astype(np.float64), dtype)
         resumed = np.concatenate([backend.to_numpy(first.losses), backend.to_numpy(second.losses)])
         assert_close(backend, whole.losses, resumed.astype(np.float64), dtype)
@@ -1011,6 +1017,8 @@ class TestLbfgs:
             backend.lbfgs(fun, x0, max_iter=0, history_size=5, **common)
         with pytest.raises(ValueError, match="at least 1"):
             backend.lbfgs(fun, x0, max_iter=5, history_size=0, **common)
+        with pytest.raises(ValueError, match="at least 1"):
+            backend.lbfgs(fun, x0, max_iter=5, max_eval=0, history_size=5, **common)
         with pytest.raises(TypeError, match="state"):
             backend.lbfgs(fun, x0, max_iter=5, history_size=5, state={"n_iter": 3}, **common)
         with pytest.raises(TypeError):

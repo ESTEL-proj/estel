@@ -32,7 +32,7 @@ from ..backend._protocol import Backend
 from ..data._base import geometry_class
 from ..io import _schema
 from ..scattering._plan import STPlan, build_plan
-from ._arrays import constant
+from ._arrays import constant, dtype_name
 from ._grid import REAL_PART_ONLY, FamilyGrid
 from ._normalization import _NormReference
 from ._reductions import ORIENTATION_AXES, SCALE_AXES
@@ -230,6 +230,52 @@ class STStatistics:
             return vector
         keep = _mask_positions(mask_st, int(vector.shape[0]))
         return xp.take(vector, constant(backend, keep, vector, "int32"), axis=0)
+
+    def _to_complex_vector(
+        self,
+        *,
+        keep_batch_dim: bool = False,
+        mean_along_batch: bool = False,
+        weights: dict[str, float] | None = None,
+    ) -> Any:
+        """The complex form of M-FLAT (STL's ``to_flatten(flatten_complex=False)``), the vector
+        of the synthesis loss (M-SYN-LOSS; Part IV, §22, "The vector of the synthesis loss").
+
+        Internal: :meth:`to_vector` stays the real form. Families in the order mean, var, S1 to
+        S4; within each, the coefficients in the order of the full grid, without the positions
+        where no coefficient exists; mean and var cast to complex, every complex coefficient
+        kept whole. ``mean_along_batch`` first averages every family over the batch (one
+        row); ``keep_batch_dim`` returns ``(Nb, n)`` (``(1, n)`` with ``mean_along_batch``)
+        instead of one flat vector, in which each family holds every batch element in turn.
+        ``weights`` multiplies
+        the families it names (STL's ``reweight``: ``{"S3": 3.5, "S4": 12.25}``) before the
+        flattening.
+        """
+        backend = self._backend_object()
+        xp = backend.xp
+        reference = self._values[self._grids[-1].name]
+        cdtype = (
+            xp.complex128 if dtype_name(reference) in ("float64", "complex128") else xp.complex64
+        )
+        weights = {} if weights is None else weights
+        unknown = sorted(set(weights) - {g.name for g in self._grids})
+        if unknown:
+            raise ValueError(
+                f"weights names {unknown}, which these statistics do not hold; name families "
+                f"among {[g.name for g in self._grids]}."
+            )
+        parts: list[Any] = []
+        for grid in self._grids:
+            x = xp.astype(self._values[grid.name], cdtype)
+            if grid.name in weights:
+                x = x * weights[grid.name]
+            if mean_along_batch:
+                x = xp.mean(x, axis=0, keepdims=True)
+            flat = xp.reshape(x, (int(x.shape[0]), -1))
+            positions = constant(backend, np.flatnonzero(grid.present.ravel()), flat, "int32")
+            kept = xp.take(flat, positions, axis=1)
+            parts.append(kept if keep_batch_dim else xp.reshape(kept, (-1,)))
+        return xp.concat(parts, axis=1 if keep_batch_dim else 0)
 
     # ------------------------------------------------------------------ reductions
 

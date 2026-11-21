@@ -63,6 +63,33 @@ def test_lbfgs_is_one_torch_step(max_iter: int, seed: int, dtype: DType) -> None
     assert result.losses.shape == (optimizer.state[x]["n_iter"],)
 
 
+def test_lbfgs_state_is_numpy_and_resumes_bit_for_bit(tmp_path: Any) -> None:
+    """The state is NumPy arrays and Python scalars (``LbfgsState``): saved with ``numpy.savez``
+    and loaded back, it resumes the run with the same iterates, bit for bit (synthesis
+    checkpoints, Part II, §12.9; maths.md M-SYN-LBFGS)."""
+    generator = torch.Generator().manual_seed(4)
+    a = torch.randn(12, 6, generator=generator, dtype=torch.float64)
+
+    def fun(x: torch.Tensor) -> torch.Tensor:
+        return (torch.sin(a @ x - 1) ** 2).sum() + 0.1 * (x**4).sum()
+
+    backend = TorchBackend()
+    x0 = torch.zeros(6, dtype=torch.float64)
+    whole = backend.lbfgs(fun, x0, max_iter=9, max_eval=11, history_size=3)
+    first = backend.lbfgs(fun, x0, max_iter=5, max_eval=11, history_size=3)
+    arrays = {k: v for k, v in first.state.items() if isinstance(v, np.ndarray)}
+    scalars = {k: v for k, v in first.state.items() if not isinstance(v, np.ndarray)}
+    assert all(isinstance(v, int | float | str | bool) for v in scalars.values())
+    np.savez(tmp_path / "state.npz", **arrays)  # type: ignore[arg-type]  # numpy stubs
+    with np.load(tmp_path / "state.npz") as stored:
+        state = {**scalars, **{k: stored[k] for k in stored.files}}
+    second = backend.lbfgs(
+        fun, first.x, max_iter=4, max_eval=11 - first.n_evals, history_size=3, state=state
+    )
+    assert torch.equal(second.x, whole.x)
+    assert torch.equal(torch.cat([first.losses, second.losses]), whole.losses)
+
+
 @pytest.mark.serial
 def test_deterministic_sets_the_torch_flag() -> None:
     before = torch.are_deterministic_algorithms_enabled()
