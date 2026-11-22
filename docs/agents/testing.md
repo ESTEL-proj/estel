@@ -26,6 +26,8 @@ Tests are as short as possible (golden rule 13; review rule C11). Two tiers, `py
 - **fast** (`make check`, under 60 s; CI on a PR, under 120 s per job): the tests not marked `slow` or `serial`; on PyTorch in float64, plus float32 for the tests marked `dtype`; on JAX only the tests marked `jax_smoke`, in float64. `tests/tools/` runs only when the change touches `tools/`, `tests/tools/` or `pyproject.toml` (compared with `ESTEL_TEST_BASE`, `origin/main` by default; `ESTEL_TOOLS_CHANGED=1` forces it). Each backend runs in one process and `make check` runs the check tools and both backends side by side: a worker's start-up (about 6 s for PyTorch) costs more than the tests it would share.
 - **full** (`make check-full`, a bare `pytest`; CI on `main`, nightly, and on a PR labelled `full-ci`): everything, both backends, both dtypes.
 
+Orientations: in 2D, including the 2D blocks of tensor products, tests, benchmark cases and parity cases use L ≤ 4 (golden rule 13). `tools/check_orientations.py`, part of `make check`, fails on a larger L in `tests/`, `bench/` or `tools/stl_parity/cases/` unless its line carries `# allow-large-L: #<issue>`, the issue where a human approved it. A local run with L > 4 that an agent judges essential to check a feature stays outside the repository and is reported to the human.
+
 Markers:
 
 - `slow`: over 1 s even on the smallest data that exercises the behaviour (large configurations, second-order gradients through the loop, fresh processes). The docstring of the test, its class or its module says why in a sentence starting with `Slow:`; collection fails without it.

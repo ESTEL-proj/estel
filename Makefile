@@ -15,7 +15,7 @@ unexport PYTHONDONTWRITEBYTECODE
 RUN ?= uv run --locked
 
 .PHONY: check check-full check-tools lint types lint-imports layers manifest mirrors mirrors-fix \
-        maths-ids retired-names identifiers workflows register register-check \
+        maths-ids retired-names identifiers orientations workflows register register-check \
         test test-fast test-torch test-jax test-fast-torch test-fast-jax \
         test-spec version-impact clean-worktrees parity-image parity parity-fixtures container-runtime bench
 
@@ -51,16 +51,16 @@ check:
 	elif [ $$elapsed -gt $(CHECK_BUDGET) ]; then \
 		echo "make check: WARNING: $$elapsed s, over its budget of $(CHECK_BUDGET) s (Part I, §5.4). $(CHECK_BUDGET_ADVICE)"; \
 	fi; \
-	echo "make check: fast tier passed in $$elapsed s, budget $(CHECK_BUDGET) s (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, identifiers, workflows, register, fast-tier tests on $(TEST_BACKENDS))"
+	echo "make check: fast tier passed in $$elapsed s, budget $(CHECK_BUDGET) s (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, identifiers, orientations, workflows, register, fast-tier tests on $(TEST_BACKENDS))"
 
 check-full: check-tools test
-	@echo "make check-full: full tier passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, identifiers, workflows, register, every test in float32 and float64 on $(TEST_BACKENDS))"
+	@echo "make check-full: full tier passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, identifiers, orientations, workflows, register, every test in float32 and float64 on $(TEST_BACKENDS))"
 
 # Tier 0 without the test suites. CI runs only this on a change confined to the no-test scope
 # of tools/ci_scope.py (docs/, .github/, changes/, root .gitignore, LICENSE, NOTICE, README.md,
 # every AGENTS.md and CLAUDE.md; task T0.7); run it instead of `make check` for such a change.
-check-tools: lint types lint-imports layers manifest mirrors maths-ids retired-names identifiers workflows register-check
-	@echo "make check-tools: check tools passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, identifiers, workflows, register)"
+check-tools: lint types lint-imports layers manifest mirrors maths-ids retired-names identifiers orientations workflows register-check
+	@echo "make check-tools: check tools passed (lint, types, import contracts, AST layer rules, manifest, mirrors, maths IDs, retired names, identifiers, orientations, workflows, register)"
 
 lint:
 	$(RUN) ruff check .
@@ -116,6 +116,12 @@ retired-names:
 # R-…, Gn) has a row in its list or in the decision log, Part IV, §22 (issue #107).
 identifiers:
 	$(RUN) python tools/check_identifiers.py
+
+# In 2D, tests, benchmark cases and parity cases use L ≤ 4 (golden rule 13; issue #133): no
+# integer L above 4 in tests/, bench/ or tools/stl_parity/cases/ unless its line carries
+# `# allow-large-L: #<issue>`.
+orientations:
+	$(RUN) python tools/check_orientations.py
 
 # Review rule E5: actions pinned to a commit SHA, checkouts without persisted credentials,
 # a top-level permissions block in every workflow.

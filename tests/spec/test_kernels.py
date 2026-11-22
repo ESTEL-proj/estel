@@ -18,7 +18,7 @@ from tests.parity._compare import assert_parity
 
 
 @pytest.mark.maths("M-WAV-2D")
-@pytest.mark.parametrize("L", [1, 3, 4, 6])
+@pytest.mark.parametrize("L", [1, 3, 4, 6])  # allow-large-L: #133
 def test_wavelets_2d_equal_the_oracle(L: int) -> None:  # noqa: N803 (maths.md notation)
     assert_parity(_banks.bump_steerable_2d(L), spec.spec_wavelets_2d(L))
 
