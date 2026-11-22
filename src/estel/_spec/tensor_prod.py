@@ -170,7 +170,8 @@ def spec_data_tp(
     for name, given in (("J", J), ("L", L)):
         if given is None:
             given = [None] * len(blocks)
-        if isinstance(given, int | str) or len(given) != len(blocks):
+        # A Python or NumPy integer, or a string, is not a list (OP-83).
+        if isinstance(given, str) or np.ndim(given) != 1 or len(given) != len(blocks):
             raise ValueError(
                 f"{name}={given!r}: pass a list with one entry per block ({len(blocks)}), an "
                 "entry None for the default of the block (M-DATA-TP, OP-83)."
@@ -586,7 +587,6 @@ def spec_tensor_prod(
         raise ValueError('norm="ref" needs a reference (M-NORM).')
 
     x, n_scales, n_orient, periodic = spec_data_tp(array, blocks, pbc, J, L)  # 1
-    blocks = _check_blocks(blocks)
     flags = spec_lowpass_tp(blocks, x.shape[2:], n_scales, lowpass)
     out: Statistics = {"J": n_scales, "L": n_orient, "lowpass": flags}
     # Every pixel of every block, as one axis, for the means of M-MOM and M-STD.
