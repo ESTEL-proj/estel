@@ -8,8 +8,10 @@ on the compact buffer it is a static linear map (Part III, §19.6): a complex ma
 group of consecutive axes of a family (the orientations, or the scales), built here in NumPy
 from the layout, turned by ``_layout.make_map`` into a sparse real matrix on the floats of the
 buffer, and applied with ``gather_weighted``; it is differentiable on every backend. Each
-function takes a layout and returns the :class:`_layout.FloatMap` to the reduced layout;
-nothing is modified.
+function takes a layout and returns the :class:`_layout.FloatMap` to the reduced layout
+(``angular_fourier``: one map per orientation axis, applied in order); nothing is modified.
+Every map reads at most L (``iso``, ``angular_fourier``) or J (``scale_cosine``) entries per
+output entry.
 
 Where no coefficient exists the result is NaN in STL, and not stored here; the layout says
 which, statically: ``iso`` and ``angular_fourier`` keep the positions of their inputs, since a
@@ -166,32 +168,44 @@ def _dft(n_orientations: int, harmonics: int) -> NDArray[np.complex128]:
 
 
 @functools.lru_cache(maxsize=64)
-def angular_fourier(layout: Layout, harmonics: int, after_iso: bool) -> FloatMap:
+def angular_fourier(layout: Layout, harmonics: int, after_iso: bool) -> tuple[FloatMap, ...]:
     """The angular Fourier transform (M-RED-ANG; STL ``to_angular_ft``): an orthonormal DFT over
     the orientation axes of S3 and S4 (``norm="ortho"``), keeping the first ``harmonics``
     harmonics along each. After ``iso`` it acts on the orientation differences. Each axis name
-    gets the prefix ``h``."""
-    specs: list[Copy | Linear] = []
+    gets the prefix ``h``.
+
+    The DFT is separable, so it is applied one orientation axis at a time (Part III, §19.6):
+    one map per axis, to apply in order, each reading L entries per output entry. A single map
+    over all the axes would be their Kronecker product, whose size grows as L to the power of
+    twice the number of axes."""
+    axes: dict[str, tuple[str, ...]] = {}
     for grid in layout.grids:
-        if grid.name not in ("S3", "S4"):
-            specs.append(Copy(grid.name))
-            continue
-        names = ISO_AXES[grid.name] if after_iso else ORIENTATION_AXES[grid.name]
-        first = _orientation_positions(grid, names)
-        k = len(names)
-        L = grid.shape[first]  # noqa: N806
-        dft = _dft(L, harmonics)
-        matrix: NDArray[Any] = dft
-        for _ in range(k - 1):
-            matrix = np.kron(matrix, dft)
-        keep: tuple[Any, ...] = (Ellipsis, *(slice(0, harmonics),) * k)
-        out_grid = grid.replace(
-            axes=grid.axes[:first] + tuple(f"h{n}" for n in names),
-            coords=grid.coords[:first] + (tuple(range(harmonics)),) * k,
-            present=np.array(grid.present[keep]),
-        )
-        specs.append(_on_axes(layout.entries(grid.name), out_grid, first, k, matrix))
-    return make_map(layout, specs)
+        if grid.name in ("S3", "S4"):
+            names = ISO_AXES[grid.name] if after_iso else ORIENTATION_AXES[grid.name]
+            _orientation_positions(grid, names)
+            axes = {**axes, grid.name: names}
+    steps = max((len(n) for n in axes.values()), default=0)
+    maps: list[FloatMap] = []
+    for step in range(steps):
+        specs: list[Copy | Linear] = []
+        for grid in layout.grids:
+            if grid.name not in axes or step >= len(axes[grid.name]):
+                specs.append(Copy(grid.name))
+                continue
+            name = axes[grid.name][step]
+            at = grid.axis(name)
+            keep: tuple[Any, ...] = (*(slice(None),) * at, slice(0, harmonics))
+            out_grid = grid.replace(
+                axes=(*grid.axes[:at], f"h{name}", *grid.axes[at + 1 :]),
+                coords=(*grid.coords[:at], tuple(range(harmonics)), *grid.coords[at + 1 :]),
+                present=np.array(grid.present[keep]),
+            )
+            dft = _dft(grid.shape[at], harmonics)
+            specs.append(_on_axes(layout.entries(grid.name), out_grid, at, 1, dft))
+        transform = make_map(layout, specs)
+        maps.append(transform)
+        layout = transform.layout
+    return tuple(maps)
 
 
 # ---------------------------------------------------------------------- scale_cosine

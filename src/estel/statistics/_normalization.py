@@ -123,10 +123,10 @@ def _reference_tables(
     (``_layout.base_layout``)."""
     present = np.frombuffer(data, dtype=bool).reshape(shape)
     var = layout.entries("var")
-    var_floats = var.first[var.lookup[np.arange(int(shape[0]))]]
+    var_floats = var.first[var.find(np.arange(int(shape[0]), dtype=np.int64))]
     s2 = layout.entries("S2")
     c, j, ll = np.nonzero(np.broadcast_to(present[:, :, None], (*shape, n_orientations)))
-    where = s2.lookup[np.ravel_multi_index((c, c, j, ll), s2.grid.shape)]
+    where = s2.find(np.ravel_multi_index((c, c, j, ll), s2.grid.shape))
     if (where < 0).any() or s2.is_complex[where].any():
         raise ValueError("the reference reads a real auto S2 at every sigma it holds.")
     return var_floats, s2.first[where]

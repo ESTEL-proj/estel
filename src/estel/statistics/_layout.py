@@ -141,12 +141,16 @@ class FamilyEntries(NamedTuple):
     """The first float of the family."""
     stop: int
     """One past its last float."""
-    lookup: NDArray[np.int64]
-    """Over the flattened full grid (C order): the entry at each position, -1 where none."""
+    by_position: EntryIndex
+    """The entries by their flat position in the full grid, to find them (:meth:`find`)."""
 
     @property
     def n_entries(self) -> int:
         return int(self.first.shape[0])
+
+    def find(self, flat: NDArray[np.int64]) -> NDArray[np.int64]:
+        """The entry at each flat position (C order) of the full grid, -1 where none."""
+        return self.by_position.find(flat)
 
     def values(self) -> FamilyValues:
         return FamilyValues(self.grid, self.positions, self.is_complex, self.levels, self.level_ids)
@@ -162,12 +166,44 @@ def flat_positions(positions: NDArray[np.int64], shape: tuple[int, ...]) -> NDAr
     return flat
 
 
-def _lookup(flat: NDArray[np.int64], size: int) -> NDArray[np.int64]:
-    """Over ``range(size)``: the position in ``flat`` of each value, -1 where none (the values
-    are distinct). Built without writing into an array."""
-    ids = np.bincount(flat, weights=np.arange(flat.shape[0]) + 1.0, minlength=size)
-    found: NDArray[np.int64] = np.rint(ids).astype(np.int64) - 1
-    return found
+class EntryIndex(NamedTuple):
+    """Distinct flat positions, sorted, to find them with ``searchsorted``: tables the size of
+    the entries, never of the full grid (whose flattened size can be in the billions for the
+    tensor products)."""
+
+    keys: NDArray[np.int64]
+    """The flat positions, sorted."""
+    ids: NDArray[np.int64]
+    """``ids[i]``: the position of ``keys[i]`` among the flat positions indexed."""
+
+    def find(self, flat: NDArray[np.int64]) -> NDArray[np.int64]:
+        """The position among the indexed values of each value of ``flat``, -1 where none."""
+        query = np.asarray(flat, dtype=np.int64)
+        if self.keys.shape[0] == 0:
+            return np.full(query.shape, -1, dtype=np.int64)
+        at = np.minimum(np.searchsorted(self.keys, query), self.keys.shape[0] - 1)
+        found: NDArray[np.int64] = np.where(self.keys[at] == query, self.ids[at], -1)
+        return found.astype(np.int64)
+
+
+def entry_index(flat: NDArray[np.int64]) -> EntryIndex:
+    """The :class:`EntryIndex` of ``flat``, whose values are distinct."""
+    order = np.argsort(flat, kind="stable").astype(np.int64)
+    return EntryIndex(np.asarray(flat, dtype=np.int64)[order], order)
+
+
+def mask_of(flat: NDArray[np.int64], shape: tuple[int, ...]) -> NDArray[np.bool_]:
+    """The boolean array of ``shape``, True at the flat positions ``flat`` (C order). Built
+    from runs, with temporaries the size of ``flat``: the only array of the full grid's size
+    is the result, one byte per position."""
+    size = int(np.prod(shape))
+    keys = np.unique(np.asarray(flat, dtype=np.int64))
+    before = np.diff(np.concatenate(([-1], keys))) - 1  # positions False before each key
+    tail = size - (int(keys[-1]) + 1 if keys.shape[0] else 0)
+    counts = np.concatenate((np.stack([before, np.ones_like(before)], axis=1).ravel(), [tail]))
+    values = np.concatenate((np.tile(np.array([False, True]), keys.shape[0]), [False]))
+    mask: NDArray[np.bool_] = np.repeat(values, counts).reshape(shape)
+    return mask
 
 
 @dataclass(frozen=True, eq=False)
@@ -197,13 +233,10 @@ class Layout:
         if offset != self.n_floats:
             raise ValueError(f"the segments hold {offset} floats, not {self.n_floats}.")
         for grid in self.grids:
-            entries = self.entries(grid.name)
-            present = np.bincount(
-                flat_positions(entries.positions, grid.shape), minlength=int(np.prod(grid.shape))
-            )
-            if present.max(initial=0) > 1 or not np.array_equal(
-                present.reshape(grid.shape) > 0, grid.present
-            ):
+            positions = self.entries(grid.name).positions
+            distinct = np.unique(flat_positions(positions, grid.shape)).shape[0]
+            inside = not grid.axes or bool(np.all(grid.present[tuple(positions.T)]))
+            if not (distinct == positions.shape[0] == np.count_nonzero(grid.present) and inside):
                 raise ValueError(f"{grid.name}: the segments do not match the full-grid view.")
 
     @cached_property
@@ -271,7 +304,7 @@ class Layout:
                     level_ids=level_ids,
                     start=int(start),
                     stop=int(start + sizes.sum()),
-                    lookup=_lookup(flat_positions(positions, grid.shape), int(np.prod(grid.shape))),
+                    by_position=entry_index(flat_positions(positions, grid.shape)),
                 ),
             }
         return found
@@ -295,7 +328,6 @@ def build_layout(families: Sequence[FamilyValues]) -> tuple[Layout, tuple[NDArra
     for family in families:
         grid = family.grid
         shape = tuple(len(c) for c in grid.coords)
-        size = int(np.prod(shape))
         flat = flat_positions(family.positions, shape)
         if np.unique(flat).shape[0] != flat.shape[0]:
             raise ValueError(f"{grid.name}: two entries at one position of the full grid.")
@@ -319,8 +351,7 @@ def build_layout(families: Sequence[FamilyValues]) -> tuple[Layout, tuple[NDArra
                 )
             )
             offset += n_floats
-        present = np.bincount(flat, minlength=size).reshape(shape) > 0
-        grids.append(grid.replace(present=present))
+        grids.append(grid.replace(present=mask_of(flat, shape)))
         orders.append(order)
     return Layout(grids=tuple(grids), segments=tuple(segments), n_floats=offset), tuple(orders)
 
@@ -403,7 +434,6 @@ def loop_gather(plan: STPlan) -> tuple[NDArray[np.int64], int]:
     for name in layout.names:
         entries = layout.entries(name)
         grid = entries.grid
-        size = int(np.prod(grid.shape))
         found = raw[name]
         flat = np.concatenate([f for f, _, _ in found]) if found else np.zeros(0, np.int64)
         first = np.concatenate([r for _, r, _ in found]) if found else np.zeros(0, np.int64)
@@ -412,7 +442,7 @@ def loop_gather(plan: STPlan) -> tuple[NDArray[np.int64], int]:
             if found
             else np.zeros(0, bool)
         )
-        where = _lookup(flat, size)[flat_positions(entries.positions, grid.shape)]
+        where = entry_index(flat).find(flat_positions(entries.positions, grid.shape))
         if (where < 0).any() or (entries.is_complex & ~complex_[where]).any():
             raise ValueError(
                 f"{name}: the loop does not compute every coefficient of the layout; "
@@ -534,9 +564,8 @@ def _linear_values(
     """The output entries of ``spec`` (complex flags, levels) and its contributions, with the
     output entries numbered in the order of ``np.argwhere(spec.grid.present)``."""
     grid = spec.grid
-    size = int(np.prod(grid.shape))
     positions = np.argwhere(grid.present).astype(np.int64)
-    out_id = _lookup(flat_positions(positions, grid.shape), size)[spec.out]
+    out_id = entry_index(flat_positions(positions, grid.shape)).find(spec.out)
     keep = (out_id >= 0) & (spec.weights != 0)
     out_id, sources, weights = out_id[keep], spec.sources[keep], spec.weights[keep]
     n = positions.shape[0]
@@ -551,7 +580,7 @@ def _linear_values(
         their = source.level_ids[sources[order]]
         low = np.minimum.reduceat(their, heads)
         high = np.maximum.reduceat(their, heads)
-        same = _lookup(sorted_out[heads], n)
+        same = entry_index(sorted_out[heads]).find(np.arange(n, dtype=np.int64))
         has = same >= 0
         chosen = np.where(low == high, low, len(levels) - 1)
         level_ids = np.where(has, chosen[np.maximum(same, 0)], level_ids)
@@ -571,7 +600,8 @@ def _sparse(
 ) -> _Part:
     """The padded CSR matrix on floats of a complex linear map on entries: with w = a + ib, a
     real part receives a·re - b·im, an imaginary part b·re + a·im, the parts a real entry does
-    not have left out."""
+    not have left out. The padding of a row reads the row's own first column with weight 0, so
+    that a non-finite value elsewhere in the buffer cannot reach it."""
     where = np.argsort(order)  # output entry (argwhere order) -> its position in the buffer
     row = target.first[where[out_id]] - target.start
     col = source.first[sources]
@@ -592,16 +622,17 @@ def _sparse(
     width = max(int(counts.max(initial=0)), 1)
     ranked = np.argsort(rows, kind="stable")
     rows, cols, values = rows[ranked], cols[ranked], values[ranked]
-    slot = np.arange(rows.shape[0]) - np.repeat(np.cumsum(counts) - counts, counts)
+    heads = np.cumsum(counts) - counts
+    slot = np.arange(rows.shape[0]) - np.repeat(heads, counts)
     flat = rows * width + slot
-    index = np.rint(np.bincount(flat, weights=cols.astype(float), minlength=n_rows * width))
+    placed = np.rint(np.bincount(flat, weights=cols.astype(float), minlength=n_rows * width))
     weight = np.bincount(flat, weights=values, minlength=n_rows * width)
-    return _Part(
-        0,
-        0,
-        index.astype(np.int64).reshape(n_rows, width),
-        weight.astype(np.float64).reshape(n_rows, width),
-    )
+    # A row without entries (none in practice) reads the first column of the part.
+    fallback = int(cols[0]) if cols.shape[0] else 0
+    own = np.where(counts > 0, np.append(cols, fallback)[heads], fallback)
+    used = np.arange(width)[None, :] < counts[:, None]
+    index = np.where(used, placed.astype(np.int64).reshape(n_rows, width), own[:, None])
+    return _Part(0, 0, index.astype(np.int64), weight.astype(np.float64).reshape(n_rows, width))
 
 
 def apply(backend: Backend, buffer: Any, transform: FloatMap) -> Any:
@@ -727,9 +758,7 @@ def from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> La
         shape = tuple(len(c) for c in coords)
         found = [s.index.astype(np.int64) for s in segments if s.family == family["name"]]
         positions = np.concatenate(found) if found else np.zeros((0, len(shape)), np.int64)
-        present = (
-            np.bincount(flat_positions(positions, shape), minlength=int(np.prod(shape))) > 0
-        ).reshape(shape)
+        present = mask_of(flat_positions(positions, shape), shape)
         grids.append(
             FamilyGrid(
                 name=family["name"],

@@ -557,7 +557,7 @@ def test_statistics_are_immutable_and_not_built_directly() -> None:
     data = Data1D(_field((1, 1, 32)), pbc=True)
     stats = _operator(data, 2).apply(data)
     with pytest.raises(AttributeError, match="immutable"):
-        stats._values = {}
+        stats._buffer = None
     with pytest.raises(TypeError, match="computed, not built"):
         STStatistics()
     assert "STStatistics(mean(1, 1)" in repr(stats)

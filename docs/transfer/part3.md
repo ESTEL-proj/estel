@@ -148,7 +148,7 @@ A generated capability matrix, `docs/engines.md`, built from the engine's declar
 
 ## 19. Compact coefficient layout
 
-Implemented in step 1, in phase P3 (Part II, §15.2, T2.15). Until then the statistics keep STL's full-grid storage behind accessors that do not depend on it (Part II, §12.7), so switching to the compact layout changes no public signature and no value.
+Implemented in step 1, in phase P3 (Part II, §15.2, T2.15). The statistics are stored in it behind accessors that do not depend on the storage (Part II, §12.7): STL's full-grid storage, used until then, is now a view built on demand (§19.5), and the switch changed no public signature and no value.
 
 The principle: **compute on structured arrays, store in a flat compact buffer, and never mix the two.** The conversion between them is a static gather whose indices are built once, in NumPy, with the plan.
 

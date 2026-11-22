@@ -2,9 +2,9 @@
 §1.8; Part III, §19; tasks T2.5, T2.15).
 
 An ``STStatistics`` holds the statistics in the compact layout (Part III, §19.2, §19.4;
-``compact.py``): one real buffer ``(Nb, n_floats)``, every coefficient STL computes and only
+``_layout.py``): one real buffer ``(Nb, n_floats)``, every coefficient STL computes and only
 those, real entries as one float and complex entries as (re, im), with its static
-:class:`compact.Layout` (for each family its named axes, its coordinates, and the position of
+:class:`_layout.Layout` (for each family its named axes, its coordinates, and the position of
 every entry). The normalisation reference (``_normalization._NormReference``) and, with
 ``standardize``, the mean and standard deviation removed from the data are kept with it. It is
 immutable: every method returns a new object.
@@ -362,9 +362,8 @@ class STStatistics:
         if iso:
             buffer, layout = _mapped(backend, buffer, reduce_iso(layout, L))
         if angular_fourier:
-            buffer, layout = _mapped(
-                backend, buffer, reduce_angular_fourier(layout, n_angular, iso)
-            )
+            for per_axis in reduce_angular_fourier(layout, n_angular, iso):
+                buffer, layout = _mapped(backend, buffer, per_axis)
         if scale_cosine:
             buffer, layout = _mapped(
                 backend, buffer, reduce_scale_cosine(layout, J, n_scale, width)
@@ -645,33 +644,45 @@ def _positions(axis: str, value: Any, size: int) -> int | NDArray[np.int64]:
 
 def _select_family(entries: compact.FamilyEntries, index: dict[str, Any]) -> Gather:
     """The selection of one family as a static gather (Part III, §19.6): which entry of the
-    family each entry of the result is, with the new axes and coordinates."""
+    family each entry of the result is, with the new axes and coordinates. Computed on the
+    entries, with tables their size, never the size of the full grid."""
     grid = entries.grid
     chosen = {axis: _positions(axis, index[axis], grid.shape[grid.axis(axis)]) for axis in index}
-    source = entries.lookup.reshape(grid.shape)  # the entry at each position, -1 where none
+    positions = entries.positions
+    sources = np.arange(entries.n_entries, dtype=np.int64)
     coords = list(grid.coords)
     for axis, where in chosen.items():
+        column = grid.axis(axis)
         if isinstance(where, int):
+            kept = positions[:, column] == where
+            positions, sources = positions[kept], sources[kept]
             continue
-        position = grid.axis(axis)
-        source = np.take(source, where, axis=position)
+        # Each entry at position p along the axis goes to every k with where[k] == p.
+        order = np.argsort(where, kind="stable")
+        ordered = where[order]
+        low = np.searchsorted(ordered, positions[:, column], side="left")
+        counts = np.searchsorted(ordered, positions[:, column], side="right") - low
+        taken = np.repeat(np.arange(positions.shape[0]), counts)
+        within = np.arange(taken.shape[0]) - np.repeat(np.cumsum(counts) - counts, counts)
+        new_column = order[np.repeat(low, counts) + within].astype(np.int64)
+        positions = np.concatenate(
+            [positions[taken, :column], new_column[:, None], positions[taken, column + 1 :]],
+            axis=1,
+        )
+        sources = sources[taken]
         coords = [
-            *coords[:position],
-            tuple(grid.coords[position][int(i)] for i in where),
-            *coords[position + 1 :],
+            *coords[:column],
+            tuple(grid.coords[column][int(i)] for i in where),
+            *coords[column + 1 :],
         ]
-    drops = sorted(
-        ((grid.axis(a), w) for a, w in chosen.items() if isinstance(w, int)), reverse=True
-    )
-    axes = list(grid.axes)
-    for position, where in drops:
-        source = np.take(source, where, axis=position)
-        coords = [*coords[:position], *coords[position + 1 :]]
-        axes = [*axes[:position], *axes[position + 1 :]]
-    present = np.asarray(source) >= 0
-    positions = np.argwhere(present).astype(np.int64)
-    sources = np.asarray(source)[present].astype(np.int64)
-    new_grid = grid.replace(axes=tuple(axes), coords=tuple(coords), present=present)
+    dropped = {grid.axis(a) for a, w in chosen.items() if isinstance(w, int)}
+    keep = [i for i in range(len(grid.axes)) if i not in dropped]
+    positions = positions[:, keep].astype(np.int64)
+    axes = tuple(grid.axes[i] for i in keep)
+    coords_kept = tuple(coords[i] for i in keep)
+    shape = tuple(len(c) for c in coords_kept)
+    present = compact.mask_of(compact.flat_positions(positions, shape), shape)
+    new_grid = grid.replace(axes=axes, coords=coords_kept, present=present)
     values = FamilyValues(
         new_grid, positions, entries.is_complex[sources], entries.levels, entries.level_ids[sources]
     )
