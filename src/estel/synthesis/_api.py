@@ -536,10 +536,14 @@ def _refuse_tensor_product(value: object, function: str, name: str) -> None:
     tuple, which the checks of planar data would let through. Read from the geometry the class
     declares, as L2 knows the mother class only (Part I, §2.4)."""
     if isinstance(value, Data) and value._geometry == "tensor_prod":
+        advice = (
+            "Pass estel.Data2D maps, or a single 2D field as an array."
+            if function == "synthesize_from_maps"
+            else "Pass the statistics of estel.Data2D maps, computed with estel.STOperator."
+        )
         raise NotImplementedError(
             f"{function}: the {name} is a DataTensorProd; syntheses on tensor products are not "
-            "part of ESTEL 1.0.0, which synthesises 2D planar data (maths.md section 5). Pass "
-            "estel.Data2D maps, or a single 2D field as an array."
+            f"part of ESTEL 1.0.0, which synthesises 2D planar data (maths.md section 5). {advice}"
         )
 
 

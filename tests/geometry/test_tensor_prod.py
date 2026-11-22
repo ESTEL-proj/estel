@@ -213,7 +213,7 @@ def test_the_kernels_of_the_blocks_are_those_of_the_planar_operators(
     backend: Backend, dtype: DType, block: int, geometry: type[Data], n_orientations: int
 ) -> None:
     """The kernels of a ``[2D, 1D]`` operator are bit for bit those of the 2D operator and of
-    the 1D operator with L = 2, whose second kernel is the conjugate of the first (M-W1-TP)."""
+    the 1D operator with L = 2 (M-W1-TP)."""
     product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[True, True])
     operator = _operator(product, dtype)
     assert operator.filters is not None
@@ -225,32 +225,52 @@ def test_the_kernels_of_the_blocks_are_those_of_the_planar_operators(
         backend.to_numpy(operator.filters[block].kernels),
         backend.to_numpy(backend.asarray(plain, COMPLEX[dtype])),
     )
-    if geometry is Data1D:
-        np.testing.assert_array_equal(plain[1], np.conj(plain[0]))
 
 
 @pytest.mark.maths("M-W1-TP")
+def test_the_second_kernel_of_a_1d_block_is_the_conjugate_of_the_first() -> None:
+    """With L = 2 in a 1D block, the second kernel is the conjugate of the first (M-W1-TP)."""
+    product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[True, True])
+    bank = TensorProdWaveletOperator(product).plan.blocks[1].bank()
+    np.testing.assert_array_equal(bank[1], np.conj(bank[0]))
+
+
+@pytest.mark.maths("M-W1-TP")
+@pytest.mark.parametrize(
+    ("blocks", "spatial", "orientations"),
+    [
+        pytest.param((Data2D, Data1D), (16, 16, 8), (4, 2), id="2D-1D"),
+        pytest.param((Data1D, Data2D), (8, 16, 16), (2, 4), id="1D-2D"),
+    ],
+)
 def test_the_orientation_axes_follow_the_channels_in_block_order(
-    backend: Backend, dtype: DType
+    backend: Backend,
+    dtype: DType,
+    blocks: tuple[type[Data], ...],
+    spatial: tuple[int, ...],
+    orientations: tuple[int, int],
 ) -> None:
-    """The product of the block convolutions of a ``[2D, 1D]`` field, block 0 first, is
-    ``(Nb, Nc, L₀, L₁, *spatial)`` (M-W1-TP): entry ``[:, c, l₀, l₁]`` is the convolution by
-    ψ⁽¹⁾_{l₁} along block 1 of the convolution by ψ⁽⁰⁾_{l₀} along block 0 of channel c, built
-    here from the hooks of the data."""
-    values = backend.asarray(_field((2, 3, 16, 16, 8)), dtype)
-    product = DataTensorProd(values, [Data2D, Data1D], pbc=[True, False])
+    """The product of the block convolutions, block 0 first, is ``(Nb, Nc, L₀, L₁, *spatial)``
+    (M-W1-TP): entry ``[:, c, l₀, l₁]`` is the convolution by ψ⁽¹⁾_{l₁} along block 1 of the
+    convolution by ψ⁽⁰⁾_{l₀} along block 0 of channel c, built here from the hooks of the
+    data."""
+    n_batch, n_channels = 2, 3
+    (l_0, l_1), n_spatial = orientations, len(spatial)
+    values = backend.asarray(_field((n_batch, n_channels, *spatial)), dtype)
+    product = DataTensorProd(values, blocks, pbc=[True, False])
     operator = _operator(product, dtype)
     assert operator.filters is not None
     first = operator.apply(product.array, 0, block=0, level=(0, 0))
     both = operator.apply(first, 0, block=1, level=(0, 0))
-    assert tuple(both.shape) == (2, 3, 4, 2, 16, 16, 8)
+    assert tuple(both.shape) == (n_batch, n_channels, l_0, l_1, *spatial)
     xp = backend.xp
     banks = [f.kernels for f in operator.filters]
     by_block_0 = product._conv(product.array, banks[0], 0, block=0)  # (Nb, L₀, Nc, ...)
-    flat = xp.reshape(by_block_0, (2, 4 * 3, 16, 16, 8))
+    flat = xp.reshape(by_block_0, (n_batch, l_0 * n_channels, *spatial))
     by_block_1 = product._conv(flat, banks[1], 0, block=1)  # (Nb, L₁, L₀·Nc, ...)
     expected = xp.permute_dims(
-        xp.reshape(by_block_1, (2, 2, 4, 3, 16, 16, 8)), (0, 3, 2, 1, 4, 5, 6)
+        xp.reshape(by_block_1, (n_batch, l_1, l_0, n_channels, *spatial)),
+        (0, 3, 2, 1, *range(4, 4 + n_spatial)),
     )
     _assert_close(backend, both, expected, dtype)
 

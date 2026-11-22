@@ -136,18 +136,25 @@ def default_scales(data: Data) -> int:
     return default_scales_of(data.shape[2:])
 
 
-def default_scales_of(spatial: tuple[int, ...], name: str = "J", what: str = "the data") -> int:
+def default_scales_of(
+    spatial: tuple[int, ...],
+    name: str = "J",
+    what: str = "the data",
+    *,
+    tensor_prod: bool = False,
+) -> int:
     """J = ⌊log₂ min N⌋ - 2 on a grid of full-resolution shape ``spatial``, at least 1: the
     default of planar data (maths.md M-DEF, M-DEF-1D) and of each block of a tensor product
     (M-DATA-TP, M-DEF-TP), one rule. ``name`` (J, or J_a for block a) and ``what`` name the
-    number of scales and the grid in the message."""
+    number of scales and the grid in the message; ``tensor_prod`` makes it cite M-DEF-TP
+    instead of M-DEF."""
     smallest = min(spatial)
     n = math.floor(math.log2(smallest)) - 2
     if n < 1:
         raise ValueError(
             f"the default {name} = ⌊log2 {smallest}⌋ - 2 = {n} is below 1: {what} is too small "
-            f"for the default (maths.md M-DEF, M-DEF-TP). Pass {name} explicitly, or use larger "
-            "data."
+            f"for the default (maths.md {_rules(tensor_prod)[0]}). Pass {name} explicitly, or "
+            "use larger data."
         )
     return n
 
@@ -777,20 +784,24 @@ def _check_scales(
     name: str = "J",
     label: str = "J",
     what: str = "the data",
+    *,
+    tensor_prod: bool = False,
 ) -> int:
     """J as an int, :func:`default_scales_of` if ``value`` is None: at least 1, and every size
     of the grid of full-resolution shape ``spatial`` divisible by 2^(J-1). One rule for planar
     data (maths.md M-DATA-2D, M-DATA-1D, OP-8) and for each block of a tensor product
     (M-DATA-TP, OP-8, OP-83). ``name`` is J, or J_a for block a; ``label`` the argument as the
-    caller wrote it, J or J[a]; ``what`` the grid."""
+    caller wrote it, J or J[a]; ``what`` the grid; ``tensor_prod`` makes the messages cite the
+    rules of tensor products (M-DEF-TP, M-DATA-TP) instead of those of planar data."""
+    default_rule, size_rule = _rules(tensor_prod)
     if value is None:
-        n = default_scales_of(spatial, name, what)
+        n = default_scales_of(spatial, name, what, tensor_prod=tensor_prod)
         source = f"the default {name} = {n}"
     else:
         if isinstance(value, bool) or not isinstance(value, Integral):
             raise TypeError(
                 f"{label}={value!r}: the number of scales of {what} is an integer ≥ 1, such as "
-                f"{label}=2, or None for its default (maths.md M-DEF, M-DEF-TP)."
+                f"{label}=2, or None for its default (maths.md {default_rule})."
             )
         n = int(value)
         if n < 1:
@@ -801,7 +812,13 @@ def _check_scales(
         raise ValueError(
             f"{source} needs every size of {what} divisible by 2^({name}-1) = {2 ** (n - 1)}, "
             f"since it is downsampled {name}-1 times, but its shape is {tuple(spatial)} "
-            f"(maths.md M-DATA-2D, M-DATA-TP, OP-8). Use {name} ≤ {largest}, or crop or pad "
-            "the data first."
+            f"(maths.md {size_rule}, OP-8). Use {name} ≤ {largest}, or crop or pad the data "
+            "first."
         )
     return n
+
+
+def _rules(tensor_prod: bool) -> tuple[str, str]:
+    """The maths IDs of the default J and of the sizes, for planar data or for a block of a
+    tensor product, cited by the messages of :func:`_check_scales`."""
+    return ("M-DEF-TP", "M-DATA-TP") if tensor_prod else ("M-DEF", "M-DATA-2D")

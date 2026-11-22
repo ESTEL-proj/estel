@@ -160,7 +160,7 @@ def build_tensor_prod_plan(
         zip(specs, shapes, scales, orientations, strict=True)
     ):
         what = f"block {a} ({spec.geometry.__name__} of shape {shape})"
-        n_scales = _check_scales(j_value, shape, f"J_{a}", f"J[{a}]", what)
+        n_scales = _check_scales(j_value, shape, f"J_{a}", f"J[{a}]", what, tensor_prod=True)
         n_orientations = _check_block_orientations(l_value, spec.geometry, what, a)
         plans.append(
             _wavelet_plan(
