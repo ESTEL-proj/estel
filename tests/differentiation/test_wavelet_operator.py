@@ -93,7 +93,7 @@ def _tensor_prod_layers(backend: Backend) -> tuple[Any, Callable[[Any], Any]]:
     the block convolutions at level (0, 0), the modulus, a downsampling along each block, then
     the block convolutions at level (1, 1); not periodic in block 0, periodic in block 1."""
     field = np.random.default_rng(0).standard_normal((1, 2, 8, 8, 8)) + 0.2
-    data = DataTensorProd(field, [Data2D, Data1D], [False, True])
+    data = DataTensorProd(field, [Data2D, Data1D], pbc=[False, True])
     operator = TensorProdWaveletOperator(data, [2, 2])
     xp = backend.xp
 

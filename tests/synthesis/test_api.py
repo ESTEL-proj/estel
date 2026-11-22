@@ -249,6 +249,16 @@ def test_maps_errors_say_what_to_do(backend: Backend, case: str) -> None:
         estel.synthesize_from_maps(target(), max_iter=1, **{**SMALL, **options})
 
 
+@pytest.mark.parametrize("function", ["synthesize_from_maps", "synthesize_from_stats"])
+def test_tensor_products_are_refused_first(function: str) -> None:
+    """Syntheses on tensor products are not part of ESTEL 1.0.0: refused before any other
+    check, on every backend, including a non-periodic product of one 2D block, whose ``ndim``
+    is 2 and whose ``pbc``, ``(False,)``, is a non-empty tuple."""
+    target = estel.DataTensorProd(_maps(), [Data2D], pbc=[False])
+    with pytest.raises(NotImplementedError, match=r"DataTensorProd; syntheses on tensor products"):
+        getattr(estel, function)(target, n_batch=1, max_iter=1)
+
+
 def test_checkpoint_of_another_run_is_refused(backend: Backend, tmp_path: Path) -> None:
     if _unavailable(backend):
         return

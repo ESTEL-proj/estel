@@ -20,15 +20,15 @@ block in block order, block 0 first, as STL does; the scattering loop that compo
 low-pass filter (M-LP) and the box term come with task T3.2. Tensor products have no missing
 values in 1.0.0 (LF8), so the blocks have no masks.
 
-**Defaults** (M-DEF-TP): J_a = ⌊log₂ min N⁽ᵃ⁾⌋ - 2 and L_a = 4 for a 2D block, 2 for a 1D
-block. **Arguments** (OP-83, OP-8): J and L are lists with one entry per block, an entry
-``None`` giving the default of the block; they are validated when the operator is built, with
-the sizes of each block divisible by 2^(J_a - 1), and the caller's lists are never modified.
+**Defaults** (M-DEF-TP): J_a = ⌊log₂ min N⁽ᵃ⁾⌋ - 2, the rule of planar data, shared with
+``_operator.py``, and L_a = 4 for a 2D block, 2 for a 1D block. **Arguments** (OP-83,
+OP-8): J and L are lists with one entry per block, an entry ``None`` giving the default of the
+block; they are validated when the operator is built, with the sizes of each block divisible
+by 2^(J_a - 1), and the caller's lists are never modified.
 """
 
 from __future__ import annotations
 
-import math
 import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -48,6 +48,7 @@ from ._banks import KERNEL_SIZE, _check_size
 from ._operator import (
     WaveletFilters,
     WaveletPlan,
+    _check_scales,
     _check_wavelet,
     _is_index,
     _wavelet_plan,
@@ -60,12 +61,6 @@ Level = tuple[int, ...]
 
 
 # ---------------------------------------------------------------------- defaults
-
-
-def default_block_scales(shape: tuple[int, ...]) -> int:
-    """J_a = ⌊log₂ min N⁽ᵃ⁾⌋ - 2 for a block of full-resolution ``shape`` (maths.md M-DATA-TP,
-    M-DEF-TP); it may be below 1, which :func:`build_tensor_prod_plan` refuses."""
-    return math.floor(math.log2(min(shape))) - 2
 
 
 def default_block_orientations(geometry: type[Data]) -> int:
@@ -154,9 +149,10 @@ def build_tensor_prod_plan(
     _check_wavelet(wavelet)
     specs = data._block_specs
     shapes = tuple(tuple(data.shape[a] for a in spec.axes) for spec in specs)
-    scales = _per_block(J, "J", ", ".join("2" for _ in specs))
+    n_blocks = len(specs)
+    scales = _per_block(J, "J", n_blocks, ", ".join("2" for _ in specs))
     orientations = _per_block(
-        L, "L", ", ".join(str(default_block_orientations(s.geometry)) for s in specs)
+        L, "L", n_blocks, ", ".join(str(default_block_orientations(s.geometry)) for s in specs)
     )
     size = _check_size(kernel_size)
     plans = []
@@ -164,7 +160,7 @@ def build_tensor_prod_plan(
         zip(specs, shapes, scales, orientations, strict=True)
     ):
         what = f"block {a} ({spec.geometry.__name__} of shape {shape})"
-        n_scales = _check_block_scales(j_value, shape, what, a)
+        n_scales = _check_scales(j_value, shape, f"J_{a}", f"J[{a}]", what)
         n_orientations = _check_block_orientations(l_value, spec.geometry, what, a)
         plans.append(
             _wavelet_plan(
@@ -175,11 +171,10 @@ def build_tensor_prod_plan(
     return TensorProdWaveletPlan(blocks=tuple(plans), axes=axes, _key=(tuple(plans), axes))
 
 
-def _per_block(value: object, name: str, example: str) -> tuple[object, ...]:
-    """``J`` or ``L`` as a tuple of one entry per block, ``None`` for a default; a copy, so
-    that the caller's list is never modified (OP-83). ``example`` is a valid list, for the
-    messages."""
-    n_blocks = len(example.split(", "))
+def _per_block(value: object, name: str, n_blocks: int, example: str) -> tuple[object, ...]:
+    """``J`` or ``L`` as a tuple of ``n_blocks`` entries, one per block, ``None`` for a
+    default; a copy, so that the caller's list is never modified (OP-83). ``example`` is a
+    valid list, for the messages."""
     if value is None:
         return (None,) * n_blocks
     if isinstance(value, str) or not isinstance(value, Sequence):
@@ -195,38 +190,6 @@ def _per_block(value: object, name: str, example: str) -> tuple[object, ...]:
             "(maths.md M-DATA-TP, OP-83)."
         )
     return tuple(value)
-
-
-def _check_block_scales(value: object, shape: tuple[int, ...], what: str, a: int) -> int:
-    """J_a as an int ≥ 1, the default of the block if ``value`` is None, with every size of the
-    block divisible by 2^(J_a - 1) (maths.md M-DATA-TP, M-DEF-TP, OP-8, OP-83)."""
-    if value is None:
-        n = default_block_scales(shape)
-        if n < 1:
-            raise ValueError(
-                f"{what}: the default J_{a} = ⌊log2 {min(shape)}⌋ - 2 = {n} is below 1, so "
-                f"the block is too small for the default (maths.md M-DEF-TP, OP-83). Pass "
-                f"J_{a} explicitly in the list J, or use a larger block."
-            )
-        source = f"the default J_{a} = {n}"
-    else:
-        if isinstance(value, bool) or not isinstance(value, Integral):
-            raise TypeError(
-                f"J[{a}]={value!r}: the number of scales of {what} is an integer ≥ 1, or None "
-                "for its default (maths.md M-DATA-TP)."
-            )
-        n = int(value)
-        if n < 1:
-            raise ValueError(f"J[{a}]={n}: the number of scales of {what} is at least 1.")
-        source = f"J_{a} = {n}"
-    if any(size % 2 ** (n - 1) for size in shape):
-        largest = min((size & -size).bit_length() for size in shape)
-        raise ValueError(
-            f"{what}: {source} needs every size of the block divisible by 2^(J_{a}-1) = "
-            f"{2 ** (n - 1)}, since the block is downsampled J_{a}-1 times (maths.md M-DATA-TP, "
-            f"OP-8). Use J_{a} ≤ {largest}, or crop or pad the block first."
-        )
-    return n
 
 
 def _check_block_orientations(value: object, geometry: type[Data], what: str, a: int) -> int:
@@ -385,9 +348,12 @@ class TensorProdWaveletOperator:
         a is the level of scale j in that block (d_a = j_a in 1.0.0) and whose other entries
         are any levels of their blocks, real or complex, with any axes ``O`` in between (the
         orientations of earlier blocks or of a first layer). The result is
-        ``(Nb, L_a, Nc, *O, *spatial)``: the orientation of this convolution right after the
-        batch axis, as for planar data. Calls the hook ``_conv`` of the block, with the bank
-        of the block. Pure: nothing is modified, nothing depends on array values.
+        ``(Nb, Nc, *O, L_a, *spatial)``: the orientation of this convolution after those of
+        the earlier blocks, so that the blocks applied in block order give the layout of
+        M-W1-TP, ``(Nb, Nc, L₀, …, L_{B-1}, *spatial)``. Calls the hook ``_conv`` of the
+        block, with the bank of the block; the hook places the orientation right after the
+        batch axis, as for planar data, and this method moves it in front of the spatial axes.
+        Pure: nothing is modified, nothing depends on array values.
         """
         plan, filters = self._plan, self._arrays("apply")
         a = self._block(block, "apply")
@@ -409,7 +375,10 @@ class TensorProdWaveletOperator:
         xp = _registry.backend_named(self._data.backend).xp
         flat = xp.reshape(x, (lead[0], -1, *spatial))
         out = self._data._conv(flat, filters[a].kernels, level[a], block=a)
-        return xp.reshape(out, (lead[0], block_plan.L, *lead[1:], *spatial))
+        # (Nb, L_a, Nc·O, *spatial) -> (Nb, Nc·O, L_a, *spatial) -> (Nb, Nc, *O, L_a, *spatial)
+        n_spatial = len(spatial)
+        out = xp.permute_dims(out, (0, 2, 1, *range(3, 3 + n_spatial)))
+        return xp.reshape(out, (*lead, block_plan.L, *spatial))
 
     def downsample(self, x: Any, level: Level, *, block: int) -> Any:
         """One downsampling step of ``x`` along block a = ``block``, from the multi-index

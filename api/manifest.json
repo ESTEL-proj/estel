@@ -57,7 +57,7 @@
     },
     "estel.DataTensorProd": {
       "kind": "class",
-      "signature": "(self, array: Any, blocks: Sequence[type[Data]], pbc: Sequence[bool], *, mask: Any=None) -> None"
+      "signature": "(self, array: Any, blocks: Sequence[type[Data]], mask: Any=None, *, pbc: Sequence[bool]) -> None"
     },
     "estel.DataTensorProd.blocks": {
       "kind": "property"

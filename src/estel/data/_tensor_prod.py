@@ -60,12 +60,13 @@ class DataTensorProd(Data):
         The geometries of the blocks, in axis order: a list of ``estel.Data2D`` and
         ``estel.Data1D``, in any order, for example ``[Data2D, Data1D]`` for space and time.
         A single block is accepted (maths.md OP-82).
-    pbc:
-        One boolean per block, written explicitly: ``True`` (periodic) or ``False``
-        (maths.md OP-4).
     mask:
         Not supported: missing values in tensor products come after 1.0.0 (LF8). Given, it
-        raises.
+        raises. Its place is that of ``Data2D(array, mask=None, *, pbc)``, so that LF8 can
+        fill it without changing the signature.
+    pbc:
+        Keyword only, as for ``Data2D``: one boolean per block, written explicitly, ``True``
+        (periodic) or ``False`` (maths.md OP-4).
     """
 
     _geometry: ClassVar[str] = "tensor_prod"
@@ -75,7 +76,12 @@ class DataTensorProd(Data):
     _blocks: tuple[BlockSpec, ...]
 
     def __init__(
-        self, array: Any, blocks: Sequence[type[Data]], pbc: Sequence[bool], *, mask: Any = None
+        self,
+        array: Any,
+        blocks: Sequence[type[Data]],
+        mask: Any = None,
+        *,
+        pbc: Sequence[bool],
     ) -> None:
         cls = type(self)
         geometries = _check_blocks(blocks)

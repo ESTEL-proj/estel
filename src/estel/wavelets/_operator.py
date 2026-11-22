@@ -133,12 +133,21 @@ def wavelet_bank(ndim: int, n_orientations: int, size: int = KERNEL_SIZE) -> NDA
 
 def default_scales(data: Data) -> int:
     """J = ⌊log₂ min N⌋ - 2 (maths.md M-DEF, M-DEF-1D), at least 1."""
-    smallest = min(data.shape[2:])
+    return default_scales_of(data.shape[2:])
+
+
+def default_scales_of(spatial: tuple[int, ...], name: str = "J", what: str = "the data") -> int:
+    """J = ⌊log₂ min N⌋ - 2 on a grid of full-resolution shape ``spatial``, at least 1: the
+    default of planar data (maths.md M-DEF, M-DEF-1D) and of each block of a tensor product
+    (M-DATA-TP, M-DEF-TP), one rule. ``name`` (J, or J_a for block a) and ``what`` name the
+    number of scales and the grid in the message."""
+    smallest = min(spatial)
     n = math.floor(math.log2(smallest)) - 2
     if n < 1:
         raise ValueError(
-            f"the default J = ⌊log2 {smallest}⌋ - 2 = {n} is below 1: the data are too small "
-            "for the default (maths.md M-DEF). Pass J explicitly, or use larger data."
+            f"the default {name} = ⌊log2 {smallest}⌋ - 2 = {n} is below 1: {what} is too small "
+            f"for the default (maths.md M-DEF, M-DEF-TP). Pass {name} explicitly, or use larger "
+            "data."
         )
     return n
 
@@ -345,12 +354,11 @@ def build_wavelet_plan(
     if isinstance(data, DataTensorProd):
         raise TypeError(
             "STOperator takes 1D and 2D data, not a DataTensorProd: the scattering operator of "
-            "a tensor product, STOperatorTensorProd, comes with task T3.2. Its wavelets have "
-            "one J and one L per block (maths.md M-W1-TP): internally, "
-            "TensorProdWaveletOperator(data, J, L) of estel.wavelets._tensor_prod."
+            "a tensor product, STOperatorTensorProd, comes with task T3.2. Until then, compute "
+            "the statistics of planar data, estel.Data2D or estel.Data1D."
         )
     _check_wavelet(wavelet)
-    n_scales = _check_scales(default_scales(data) if J is None else J, data)
+    n_scales = _check_scales(J, data.shape[2:])
     n_orientations = _check_n_orientations(default_orientations(data) if L is None else L)
     return _wavelet_plan(
         type(data),
@@ -763,20 +771,37 @@ def _read_only(array: Any) -> NDArray[Any]:
     return copy
 
 
-def _check_scales(value: object, data: Data) -> int:
-    """J as an int: at least 1, and the sizes divisible by 2^(J-1) (maths.md M-DATA-2D,
-    M-DATA-1D, OP-8)."""
-    if isinstance(value, bool) or not isinstance(value, Integral):
-        raise TypeError(f"J={value!r}: the number of scales is an integer ≥ 1, such as J=4.")
-    n = int(value)
-    if n < 1:
-        raise ValueError(f"J={n}: the number of scales is at least 1.")
-    spatial = data.shape[2:]
+def _check_scales(
+    value: object,
+    spatial: tuple[int, ...],
+    name: str = "J",
+    label: str = "J",
+    what: str = "the data",
+) -> int:
+    """J as an int, :func:`default_scales_of` if ``value`` is None: at least 1, and every size
+    of the grid of full-resolution shape ``spatial`` divisible by 2^(J-1). One rule for planar
+    data (maths.md M-DATA-2D, M-DATA-1D, OP-8) and for each block of a tensor product
+    (M-DATA-TP, OP-8, OP-83). ``name`` is J, or J_a for block a; ``label`` the argument as the
+    caller wrote it, J or J[a]; ``what`` the grid."""
+    if value is None:
+        n = default_scales_of(spatial, name, what)
+        source = f"the default {name} = {n}"
+    else:
+        if isinstance(value, bool) or not isinstance(value, Integral):
+            raise TypeError(
+                f"{label}={value!r}: the number of scales of {what} is an integer ≥ 1, such as "
+                f"{label}=2, or None for its default (maths.md M-DEF, M-DEF-TP)."
+            )
+        n = int(value)
+        if n < 1:
+            raise ValueError(f"{label}={n}: the number of scales of {what} is at least 1.")
+        source = f"{label}={n}"
     if any(size % 2 ** (n - 1) for size in spatial):
         largest = min((size & -size).bit_length() for size in spatial)
         raise ValueError(
-            f"J={n} needs every spatial size divisible by 2^(J-1) = {2 ** (n - 1)}, since the "
-            f"loop downsamples J-1 times, but the spatial shape is {spatial} (maths.md "
-            f"M-DATA-2D, OP-8). Use J ≤ {largest}, or crop or pad the data first."
+            f"{source} needs every size of {what} divisible by 2^({name}-1) = {2 ** (n - 1)}, "
+            f"since it is downsampled {name}-1 times, but its shape is {tuple(spatial)} "
+            f"(maths.md M-DATA-2D, M-DATA-TP, OP-8). Use {name} ≤ {largest}, or crop or pad "
+            "the data first."
         )
     return n

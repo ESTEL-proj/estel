@@ -23,13 +23,12 @@ from estel._config import FloatDType, default_device
 from estel.backend._protocol import Backend, DType
 from estel.data._base import DownsampleWeights
 from estel.wavelets._banks import smoothing_kernel
-from estel.wavelets._operator import WaveletOperator, wavelet_bank
+from estel.wavelets._operator import WaveletOperator, default_scales_of, wavelet_bank
 from estel.wavelets._tensor_prod import (
     TensorProdWaveletOperator,
     TensorProdWaveletPlan,
     build_tensor_prod_filters,
     build_tensor_prod_plan,
-    default_block_scales,
 )
 from tests._backends import backend_name
 
@@ -87,7 +86,7 @@ def test_one_block_hooks_equal_the_plain_geometry(
     bit for bit (OP-82)."""
     values = backend.asarray(_field((2, 3, *(16,) * geometry.ndim)), dtype)
     plain = geometry(values, pbc=pbc)
-    product = DataTensorProd(values, [geometry], [pbc])
+    product = DataTensorProd(values, [geometry], pbc=[pbc])
     x = plain.array
     bank, weights = _bank(backend, geometry, dtype), _smoothing(backend, geometry, dtype)
     np.testing.assert_array_equal(
@@ -133,105 +132,141 @@ def _back(
 
 CASES = [
     pytest.param((Data2D, Data1D), (True, False), id="2D-1D"),
+    pytest.param((Data2D, Data1D), (False, True), id="2D-1D-np-p"),
     pytest.param((Data1D, Data2D), (False, True), id="1D-2D"),
 ]
+"""The block geometries and their ``pbc``: each geometry in each position, and each geometry
+periodic and not, a non-periodic 2D block and a periodic 1D block included."""
+
+
+def _product(
+    backend: Backend, dtype: DType, blocks: tuple[type[Data], ...], pbc: tuple[bool, ...]
+) -> DataTensorProd:
+    spatial = tuple(n for g in blocks for n in SIZES[g])
+    return DataTensorProd(backend.asarray(_field((2, 2, *spatial)), dtype), blocks, pbc=pbc)
 
 
 @pytest.mark.dtype
 @pytest.mark.maths("M-NOT-TP", "M-W1-TP")
+@pytest.mark.parametrize("block", [0, 1])
 @pytest.mark.parametrize(("blocks", "pbc"), CASES)
 def test_block_hooks_equal_the_plain_geometry_with_its_axes_moved(
-    backend: Backend, dtype: DType, blocks: tuple[type[Data], ...], pbc: tuple[bool, ...]
+    backend: Backend,
+    dtype: DType,
+    blocks: tuple[type[Data], ...],
+    pbc: tuple[bool, ...],
+    block: int,
 ) -> None:
-    """Along each block, ``_conv`` and ``_downsample`` give the plain geometry of the block
+    """Along a block, ``_conv`` and ``_downsample`` give the plain geometry of the block
     applied with the block's axes moved last and the other axes read as channels, to
     rounding: the dispatch along the block's axes moves nothing and changes nothing else."""
-    spatial = tuple(n for g in blocks for n in SIZES[g])
-    product = DataTensorProd(backend.asarray(_field((2, 2, *spatial)), dtype), blocks, pbc)
-    x = product.array
-    shape = product.shape
-    for a, spec in enumerate(product._block_specs):
-        moved = _moved(backend, x, spec.axes)
-        plain = spec.geometry._from_parts(moved, None, spec.pbc, product.backend)
-        bank, weights = (
-            _bank(backend, spec.geometry, dtype),
-            _smoothing(backend, spec.geometry, dtype),
-        )
-        conv = product._conv(x, bank, 0, block=a)
-        _assert_close(
-            backend,
-            conv,
-            _back(backend, plain._conv(moved, bank, 0), shape, spec.axes, True),
-            dtype,
-        )
-        down = product._downsample(x, weights, 0, block=a)
-        _assert_close(
-            backend,
-            down,
-            _back(backend, plain._downsample(moved, weights, 0), shape, spec.axes, False),
-            dtype,
-        )
+    product = _product(backend, dtype, blocks, pbc)
+    x, shape = product.array, product.shape
+    spec = product._block_specs[block]
+    moved = _moved(backend, x, spec.axes)
+    plain = spec.geometry._from_parts(moved, None, spec.pbc, product.backend)
+    bank = _bank(backend, spec.geometry, dtype)
+    weights = _smoothing(backend, spec.geometry, dtype)
+    _assert_close(
+        backend,
+        product._conv(x, bank, 0, block=block),
+        _back(backend, plain._conv(moved, bank, 0), shape, spec.axes, True),
+        dtype,
+    )
+    _assert_close(
+        backend,
+        product._downsample(x, weights, 0, block=block),
+        _back(backend, plain._downsample(moved, weights, 0), shape, spec.axes, False),
+        dtype,
+    )
 
 
 @pytest.mark.maths("M-W1-TP")
+@pytest.mark.parametrize(("filtered", "downsampled"), [(0, 1), (1, 0)])
 @pytest.mark.parametrize(("blocks", "pbc"), CASES)
 def test_filtering_and_downsampling_along_different_blocks_commute(
-    backend: Backend, dtype: DType, blocks: tuple[type[Data], ...], pbc: tuple[bool, ...]
+    backend: Backend,
+    dtype: DType,
+    blocks: tuple[type[Data], ...],
+    pbc: tuple[bool, ...],
+    filtered: int,
+    downsampled: int,
 ) -> None:
     """Filtering along one block and downsampling along another act on different axes and
     commute, to rounding, with circular and replicate padding (M-W1-TP)."""
-    spatial = tuple(n for g in blocks for n in SIZES[g])
-    product = DataTensorProd(backend.asarray(_field((2, 2, *spatial)), dtype), blocks, pbc)
+    product = _product(backend, dtype, blocks, pbc)
     operator = _operator(product, dtype, [2, 2])
     x = product.array
-    for a, b in ((0, 1), (1, 0)):
-        to_b = tuple(int(i == b) for i in range(2))
-        filtered_first = operator.downsample(
-            operator.apply(x, 0, block=a, level=(0, 0)), (0, 0), block=b
-        )
-        downsampled_first = operator.apply(
-            operator.downsample(x, (0, 0), block=b), 0, block=a, level=to_b
-        )
-        _assert_close(backend, filtered_first, downsampled_first, dtype)
+    level = tuple(int(i == downsampled) for i in range(2))
+    filtered_first = operator.downsample(
+        operator.apply(x, 0, block=filtered, level=(0, 0)), (0, 0), block=downsampled
+    )
+    downsampled_first = operator.apply(
+        operator.downsample(x, (0, 0), block=downsampled), 0, block=filtered, level=level
+    )
+    _assert_close(backend, filtered_first, downsampled_first, dtype)
 
 
 @pytest.mark.maths("M-W1-TP")
-def test_the_operator_applies_the_blocks_in_order(backend: Backend, dtype: DType) -> None:
-    """The product of the block convolutions of a ``[2D, 1D]`` field: the orientation axes in
-    front, the last block's first, ``(Nb, L₁, L₀, Nc, *spatial)``; the kernels are those of
-    the 2D operator and of the 1D operator with L = 2 (M-W1-TP)."""
-    values = backend.asarray(_field((1, 2, 16, 16, 8)), dtype)
-    product = DataTensorProd(values, [Data2D, Data1D], [True, True])
+@pytest.mark.parametrize(("block", "geometry", "n_orientations"), [(0, Data2D, 4), (1, Data1D, 2)])
+def test_the_kernels_of_the_blocks_are_those_of_the_planar_operators(
+    backend: Backend, dtype: DType, block: int, geometry: type[Data], n_orientations: int
+) -> None:
+    """The kernels of a ``[2D, 1D]`` operator are bit for bit those of the 2D operator and of
+    the 1D operator with L = 2, whose second kernel is the conjugate of the first (M-W1-TP)."""
+    product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[True, True])
     operator = _operator(product, dtype)
     assert operator.filters is not None
-    plain = (
-        WaveletOperator(Data2D(np.zeros((16, 16)), pbc=True)).plan.bank(),
-        WaveletOperator(Data1D(np.zeros(8), pbc=True), L=2).plan.bank(),
+    plain = WaveletOperator(
+        geometry(np.zeros(SIZES[geometry]), pbc=True), L=n_orientations
+    ).plan.bank()
+    np.testing.assert_array_equal(operator.plan.blocks[block].bank(), plain)
+    np.testing.assert_array_equal(
+        backend.to_numpy(operator.filters[block].kernels),
+        backend.to_numpy(backend.asarray(plain, COMPLEX[dtype])),
     )
-    for block, filters, bank in zip(operator.plan.blocks, operator.filters, plain, strict=True):
-        np.testing.assert_array_equal(block.bank(), bank)
-        np.testing.assert_array_equal(
-            backend.to_numpy(filters.kernels),
-            backend.to_numpy(backend.asarray(bank, COMPLEX[dtype])),
-        )
-    np.testing.assert_array_equal(plain[1][1], np.conj(plain[1][0]))
+    if geometry is Data1D:
+        np.testing.assert_array_equal(plain[1], np.conj(plain[0]))
+
+
+@pytest.mark.maths("M-W1-TP")
+def test_the_orientation_axes_follow_the_channels_in_block_order(
+    backend: Backend, dtype: DType
+) -> None:
+    """The product of the block convolutions of a ``[2D, 1D]`` field, block 0 first, is
+    ``(Nb, Nc, L₀, L₁, *spatial)`` (M-W1-TP): entry ``[:, c, l₀, l₁]`` is the convolution by
+    ψ⁽¹⁾_{l₁} along block 1 of the convolution by ψ⁽⁰⁾_{l₀} along block 0 of channel c, built
+    here from the hooks of the data."""
+    values = backend.asarray(_field((2, 3, 16, 16, 8)), dtype)
+    product = DataTensorProd(values, [Data2D, Data1D], pbc=[True, False])
+    operator = _operator(product, dtype)
+    assert operator.filters is not None
     first = operator.apply(product.array, 0, block=0, level=(0, 0))
     both = operator.apply(first, 0, block=1, level=(0, 0))
-    assert tuple(both.shape) == (1, 2, 4, 2, 16, 16, 8)
+    assert tuple(both.shape) == (2, 3, 4, 2, 16, 16, 8)
+    xp = backend.xp
+    banks = [f.kernels for f in operator.filters]
+    by_block_0 = product._conv(product.array, banks[0], 0, block=0)  # (Nb, L₀, Nc, ...)
+    flat = xp.reshape(by_block_0, (2, 4 * 3, 16, 16, 8))
+    by_block_1 = product._conv(flat, banks[1], 0, block=1)  # (Nb, L₁, L₀·Nc, ...)
+    expected = xp.permute_dims(
+        xp.reshape(by_block_1, (2, 2, 4, 3, 16, 16, 8)), (0, 3, 2, 1, 4, 5, 6)
+    )
+    _assert_close(backend, both, expected, dtype)
 
 
 @pytest.mark.maths("M-BORDER-TP")
 def test_the_crop_is_the_outer_product_of_the_crops_of_the_blocks() -> None:
     """Block by block, the border of each block along its axes; a border too large for a block
     is reduced, with one warning for the operator (OP-13)."""
-    product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], [False, False])
+    product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[False, False])
     operator = TensorProdWaveletOperator(product, [2, 1])
     crop = operator.crop_weights((1, 0), (1, 2))
     plain_2d = Data2D(np.zeros((16, 16)), pbc=False)._crop_weights(1, 1)
     plain_1d = Data1D(np.zeros(8), pbc=False)._crop_weights(0, 2)
     np.testing.assert_array_equal(crop, np.multiply.outer(plain_2d, plain_1d))
     small = TensorProdWaveletOperator(
-        DataTensorProd(np.zeros((8, 8)), [Data1D, Data1D], [False, False]), [1, 1]
+        DataTensorProd(np.zeros((8, 8)), [Data1D, Data1D], pbc=[False, False]), [1, 1]
     )
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
@@ -251,18 +286,32 @@ def test_the_crop_is_the_outer_product_of_the_crops_of_the_blocks() -> None:
     [((16, 16, 16), (1, 1, 16, 16, 16)), ((3, 16, 16, 16), (1, 3, 16, 16, 16))],
 )
 def test_shapes_are_promoted(shape: tuple[int, ...], promoted: tuple[int, ...]) -> None:
-    product = DataTensorProd(np.zeros(shape), [Data2D, Data1D], [True, False])
+    product = DataTensorProd(np.zeros(shape), [Data2D, Data1D], pbc=[True, False])
     assert product.shape == promoted
     assert product.ndim == 3
     assert product.blocks == (Data2D, Data1D)
     assert product.pbc == (True, False)
 
 
-def test_functional_updates_and_slicing_keep_the_blocks(backend: Backend, dtype: DType) -> None:
-    product = DataTensorProd(_field((2, 2, 8, 16, 16)), [Data1D, Data2D], [False, True])
-    for other in (product.with_array(2 * product.array), product.copy(), product[1, 0]):
-        assert isinstance(other, DataTensorProd)
-        assert other._block_specs == product._block_specs
+@pytest.mark.parametrize(
+    "update",
+    [
+        pytest.param(lambda d: d.with_array(2 * d.array), id="with_array"),
+        pytest.param(lambda d: d.copy(), id="copy"),
+        pytest.param(lambda d: d[1, 0], id="slicing"),
+    ],
+)
+def test_functional_updates_and_slicing_keep_the_blocks(
+    update: Callable[[DataTensorProd], Data],
+) -> None:
+    product = DataTensorProd(_field((2, 2, 8, 16, 16)), [Data1D, Data2D], pbc=[False, True])
+    other = update(product)
+    assert isinstance(other, DataTensorProd)
+    assert other._block_specs == product._block_specs
+
+
+def test_the_pytree_holds_the_array_only() -> None:
+    product = DataTensorProd(_field((2, 2, 8, 16, 16)), [Data1D, Data2D], pbc=[False, True])
     children, aux = product._tree_flatten()
     rebuilt = DataTensorProd._tree_unflatten(aux, children)
     assert isinstance(rebuilt, DataTensorProd)
@@ -276,12 +325,13 @@ def test_functional_updates_and_slicing_keep_the_blocks(backend: Backend, dtype:
     [((8,), 1), ((12,), 1), ((16,), 2), ((31,), 2), ((32,), 3), ((64,), 4), ((32, 8), 1)],
 )
 def test_default_scales_of_a_block(shape: tuple[int, ...], expected: int) -> None:
-    assert default_block_scales(shape) == expected
+    """The rule of planar data, block by block (M-DEF-TP), one implementation."""
+    assert default_scales_of(shape) == expected
 
 
 @pytest.mark.maths("M-DATA-TP", "M-DEF-TP")
 def test_defaults_of_a_32x32x8_field() -> None:
-    product = DataTensorProd(np.zeros((32, 32, 8)), [Data2D, Data1D], [True, True])
+    product = DataTensorProd(np.zeros((32, 32, 8)), [Data2D, Data1D], pbc=[True, True])
     operator = TensorProdWaveletOperator(product)
     assert operator.plan.J == (3, 1)
     assert operator.plan.L == (4, 2)
@@ -312,13 +362,13 @@ def test_blocks_and_pbc_are_checked(
     blocks: Any, pbc: Any, error: type[Exception], match: str
 ) -> None:
     with pytest.raises(error, match=match):
-        DataTensorProd(_valid_array(), blocks, pbc)
+        DataTensorProd(_valid_array(), blocks, pbc=pbc)
 
 
 @pytest.mark.maths("M-DATA-TP")
 def test_the_shape_is_checked() -> None:
     with pytest.raises(ValueError, match=r"accepted shapes are \(N0_1, N0_2, N1\)"):
-        DataTensorProd(np.zeros((16, 16)), [Data2D, Data1D], [True, True])
+        DataTensorProd(np.zeros((16, 16)), [Data2D, Data1D], pbc=[True, True])
 
 
 @pytest.mark.maths("M-DATA-TP")
@@ -327,10 +377,10 @@ def test_missing_values_raise_and_name_lf8() -> None:
     values = _valid_array()
     values[0, 0, 0] = np.nan
     with pytest.raises(NotImplementedError, match=r"1 NaN.*LF8.*Replace the NaN"):
-        DataTensorProd(values, [Data2D, Data1D], [True, True])
+        DataTensorProd(values, [Data2D, Data1D], pbc=[True, True])
     with pytest.raises(NotImplementedError, match=r"LF8.*Pass mask=None"):
         DataTensorProd(
-            _valid_array(), [Data2D, Data1D], [True, True], mask=np.zeros((16, 16, 8), bool)
+            _valid_array(), [Data2D, Data1D], np.zeros((16, 16, 8), bool), pbc=[True, True]
         )
 
 
@@ -356,7 +406,7 @@ def test_the_arguments_of_the_operator_are_checked(
 ) -> None:
     """Clear errors at construction (OP-83), and the sizes of each block divisible by
     2^(J_a - 1) (OP-8)."""
-    product = DataTensorProd(np.zeros((16, 16, 12)), [Data2D, Data1D], [True, True])
+    product = DataTensorProd(np.zeros((16, 16, 12)), [Data2D, Data1D], pbc=[True, True])
     with pytest.raises(error, match=match):
         TensorProdWaveletOperator(product, J, L)
 
@@ -365,17 +415,17 @@ def test_the_arguments_of_the_operator_are_checked(
 def test_defaults_that_do_not_hold_raise() -> None:
     """A block too small for its default J, and a default J the sizes cannot take (OP-83,
     OP-8): construction fails with a message that says what to pass."""
-    small = DataTensorProd(np.zeros((16, 16, 4)), [Data2D, Data1D], [True, True])
+    small = DataTensorProd(np.zeros((16, 16, 4)), [Data2D, Data1D], pbc=[True, True])
     with pytest.raises(ValueError, match=r"default J_1 = ⌊log2 4⌋ - 2 = 0.*Pass J_1 explicitly"):
         TensorProdWaveletOperator(small)
-    odd = DataTensorProd(np.zeros((16, 16, 31)), [Data2D, Data1D], [True, True])
+    odd = DataTensorProd(np.zeros((16, 16, 31)), [Data2D, Data1D], pbc=[True, True])
     with pytest.raises(ValueError, match=r"the default J_1 = 2 needs every size.*Use J_1 ≤ 1"):
         TensorProdWaveletOperator(odd)
     assert TensorProdWaveletOperator(odd, [None, 1]).plan.J == (2, 1)
 
 
 def test_the_callers_lists_are_left_unchanged() -> None:
-    product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], [True, True])
+    product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[True, True])
     scales: list[int | None] = [None, 1]
     orientations: list[int | None] = [None, None]
     operator = TensorProdWaveletOperator(product, scales, orientations)
@@ -387,7 +437,7 @@ def test_the_callers_lists_are_left_unchanged() -> None:
 
 def test_hooks_need_a_block(backend: Backend, dtype: DType) -> None:
     product = DataTensorProd(
-        backend.asarray(_field((16, 16, 8)), dtype), [Data2D, Data1D], [True, True]
+        backend.asarray(_field((16, 16, 8)), dtype), [Data2D, Data1D], pbc=[True, True]
     )
     bank = _bank(backend, Data2D, dtype)
     with pytest.raises(TypeError, match=r"one block at a time: pass block=a"):
@@ -397,7 +447,7 @@ def test_hooks_need_a_block(backend: Backend, dtype: DType) -> None:
 
 
 def test_scattering_operators_of_planar_data_refuse_a_tensor_product() -> None:
-    product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], [True, True])
+    product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[True, True])
     with pytest.raises(TypeError, match=r"STOperatorTensorProd, comes with task T3.2"):
         STOperator(product)
 
@@ -427,7 +477,7 @@ def test_jit_takes_a_tensor_product(backend: Backend, dtype: DType) -> None:
 
     Slow: a compilation of the block convolutions; the full tier, as decided on issue #22."""
     values = backend.asarray(_field((2, 2, 16, 16, 8)), dtype)
-    product = DataTensorProd(values, [Data2D, Data1D], [False, True])
+    product = DataTensorProd(values, [Data2D, Data1D], pbc=[False, True])
     operator = _operator(product, dtype)
     function = _block_convolution(operator.plan, operator.filters)
     out = backend.jit(function)(product)
@@ -448,7 +498,7 @@ def test_vmap_maps_a_function_of_a_tensor_product(backend: Backend, dtype: DType
     import jax
 
     values = backend.asarray(_field((1, 2, 16, 16, 8)), dtype)
-    product = DataTensorProd(values, [Data2D, Data1D], [False, True])
+    product = DataTensorProd(values, [Data2D, Data1D], pbc=[False, True])
     operator = _operator(product, dtype)
     function = _block_convolution(operator.plan, operator.filters)
     stacked = jax.tree_util.tree_map(lambda a: backend.xp.stack([a, 2 * a]), product)
