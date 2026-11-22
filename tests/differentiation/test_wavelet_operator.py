@@ -1,5 +1,6 @@
 """The derivatives of the functions of the internal ``WaveletOperator``, to second order
-(task T2.10; Part I, §2.3, §3.2.2), as ``test_scattering.py`` does for the whole loop (T2.7).
+(task T2.10; Part I, §2.3, §3.2.2), as ``test_scattering.py`` does for the whole loop (T2.7),
+and those of the wavelet operator of a tensor product (task T3.1).
 
 The function is two layers of the pyramid, the wavelet operator alone with the modulus in
 between: ψ ⋆ D(|ψ ⋆ x|) and D(x), with ``apply`` at levels 0 and 1 and ``downsample`` of the
@@ -17,10 +18,11 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data, Data1D, Data2D
+from estel import Data, Data1D, Data2D, DataTensorProd
 from estel.backend._protocol import Backend
 from estel.data._moments import modulus
 from estel.wavelets._operator import WaveletOperator
+from estel.wavelets._tensor_prod import TensorProdWaveletOperator
 from tests.differentiation._cases import direction_like
 
 STEP = 1e-6
@@ -63,6 +65,64 @@ def test_jvp_and_hvp_of_apply_and_downsample_match_finite_differences(
 
     Slow: in 2D only; the 1D case, 8 pixels, is the one of the fast tier (Part I, §5.4)."""
     x, function = _two_layers(backend, cls)
+    v = direction_like(backend, x, seed=1)
+    _, tangent = backend.jvp(function, (x,), (v,))
+    np.testing.assert_allclose(
+        backend.to_numpy(tangent),
+        _central_difference(backend, function, x, v),
+        rtol=RTOL,
+        atol=ATOL,
+    )
+    weights = direction_like(backend, function(x), seed=2)
+
+    def scalar(array: Any) -> Any:
+        return backend.xp.sum(weights * function(array))
+
+    def gradient(array: Any) -> Any:
+        return backend.value_and_grad(scalar)(array)[1]
+
+    hessian_vector = backend.to_numpy(backend.hvp(scalar, x, v))
+    assert np.abs(hessian_vector).max() > 1e-3  # the modulus: a second order that is not zero
+    np.testing.assert_allclose(
+        hessian_vector, _central_difference(backend, gradient, x, v), rtol=RTOL, atol=ATOL
+    )
+
+
+def _tensor_prod_layers(backend: Backend) -> tuple[Any, Callable[[Any], Any]]:
+    """Two layers of the pyramid of a ``[2D, 1D]`` field, block by block (maths.md M-W1-TP):
+    the block convolutions at level (0, 0), the modulus, a downsampling along each block, then
+    the block convolutions at level (1, 1); not periodic in block 0, periodic in block 1."""
+    field = np.random.default_rng(0).standard_normal((1, 2, 8, 8, 8)) + 0.2
+    data = DataTensorProd(field, [Data2D, Data1D], pbc=[False, True])
+    operator = TensorProdWaveletOperator(data, [2, 2])
+    xp = backend.xp
+
+    def product(x: Any, j: int, level: tuple[int, int]) -> Any:
+        first = operator.apply(x, j, block=0, level=level)
+        return operator.apply(first, j, block=1, level=level)
+
+    def function(x: Any) -> Any:
+        u = modulus(product(x, 0, (0, 0)))
+        u = operator.downsample(operator.downsample(u, (0, 0), block=0), (1, 0), block=1)
+        v = backend.complex_to_real_pairs(product(u, 1, (1, 1)))
+        down = operator.downsample(x, (0, 0), block=1)
+        return xp.concat([xp.reshape(v, (-1,)), xp.reshape(down, (-1,))])
+
+    return data.array, function
+
+
+@pytest.mark.slow
+@pytest.mark.maths("M-W1-TP", "M-NOT-TP")
+def test_jvp_and_hvp_of_the_tensor_product_operator_match_finite_differences(
+    backend: Backend,
+) -> None:
+    """The hooks of ``DataTensorProd``, through its wavelet operator, differentiated to second
+    order: ``Backend.jvp`` and ``Backend.hvp`` against central differences, as for the planar
+    operator (task T3.1).
+
+    Slow: second-order derivatives belong to the full tier (AGENTS.md, golden rule 13; the
+    decisions of the maintainer on issue #22)."""
+    x, function = _tensor_prod_layers(backend)
     v = direction_like(backend, x, seed=1)
     _, tangent = backend.jvp(function, (x,), (v,))
     np.testing.assert_allclose(

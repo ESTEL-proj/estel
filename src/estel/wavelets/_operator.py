@@ -28,7 +28,9 @@ The code proper to each geometry stays in the hooks of its ``Data`` subclass and
 functions that build its tables. Only this module calls the hooks of filtering and
 downsampling, ``_conv(x, tables, level)``, ``_downsample(x, weights, level)`` and
 ``_crop_weights(level, border)``, and only this module reads the banks of ``estel.wavelets``
-and the mask builders of ``estel.data``: CI checks it (Part I, §2.4). The low-pass filter is
+and the mask builders of ``estel.data``: CI checks it (Part I, §2.4). A tensor product composes
+the plans and arrays of its blocks in ``_tensor_prod.py``, whose operator calls the hooks of
+``DataTensorProd`` block by block. The low-pass filter is
 described here and applied with its first user, the tensor products (task T3.2).
 
 **Scales and levels** (maths.md M-NOT; Part III, §19.12, point 5): a scale ``j`` indexes a
@@ -55,6 +57,7 @@ from ..backend import _registry
 from ..backend._protocol import DType
 from ..data._base import Data, DownsampleWeights, _StaticMask
 from ..data._masks import BoolMap, FloatMap, MaskMaps, build_mask_maps
+from ..data._tensor_prod import DataTensorProd
 from ._banks import KERNEL_SIZE as KERNEL_SIZE  # the default K, for the plan (re-exported)
 from ._banks import (
     _check_n_orientations,
@@ -130,12 +133,28 @@ def wavelet_bank(ndim: int, n_orientations: int, size: int = KERNEL_SIZE) -> NDA
 
 def default_scales(data: Data) -> int:
     """J = ⌊log₂ min N⌋ - 2 (maths.md M-DEF, M-DEF-1D), at least 1."""
-    smallest = min(data.shape[2:])
+    return default_scales_of(data.shape[2:])
+
+
+def default_scales_of(
+    spatial: tuple[int, ...],
+    name: str = "J",
+    what: str = "the data",
+    *,
+    tensor_prod: bool = False,
+) -> int:
+    """J = ⌊log₂ min N⌋ - 2 on a grid of full-resolution shape ``spatial``, at least 1: the
+    default of planar data (maths.md M-DEF, M-DEF-1D) and of each block of a tensor product
+    (M-DATA-TP, M-DEF-TP), one rule. ``name`` (J, or J_a for block a) and ``what`` name the
+    number of scales and the grid in the message; ``tensor_prod`` makes it cite M-DEF-TP
+    instead of M-DEF."""
+    smallest = min(spatial)
     n = math.floor(math.log2(smallest)) - 2
     if n < 1:
         raise ValueError(
-            f"the default J = ⌊log2 {smallest}⌋ - 2 = {n} is below 1: the data are too small "
-            "for the default (maths.md M-DEF). Pass J explicitly, or use larger data."
+            f"the default {name} = ⌊log2 {smallest}⌋ - 2 = {n} is below 1: {what} is too small "
+            f"for the default (maths.md {_rules(tensor_prod)[0]}). Pass {name} explicitly, or "
+            "use larger data."
         )
     return n
 
@@ -339,42 +358,75 @@ def build_wavelet_plan(
             f"the wavelets are built for a Data object, such as estel.Data2D, got "
             f"{type(data).__name__}."
         )
+    if isinstance(data, DataTensorProd):
+        raise TypeError(
+            "STOperator takes 1D and 2D data, not a DataTensorProd: the scattering operator of "
+            "a tensor product, STOperatorTensorProd, comes with task T3.2. Until then, compute "
+            "the statistics of planar data, estel.Data2D or estel.Data1D."
+        )
+    _check_wavelet(wavelet)
+    n_scales = _check_scales(J, data.shape[2:])
+    n_orientations = _check_n_orientations(default_orientations(data) if L is None else L)
+    return _wavelet_plan(
+        type(data),
+        data.shape[2:],
+        data.pbc,
+        data.mask,
+        n_scales,
+        n_orientations,
+        wavelet,
+        _check_size(kernel_size),
+    )
+
+
+def _check_wavelet(wavelet: object) -> None:
     if wavelet not in WAVELETS:
         raise ValueError(
             f"wavelet={wavelet!r}: ESTEL 1.0.0 has the bump-steerable wavelets only; pass "
             f'"bump_steerable" (maths.md M-WAV-2D, M-WAV-1D).'
         )
-    n_scales = _check_scales(default_scales(data) if J is None else J, data)
-    n_orientations = _check_n_orientations(default_orientations(data) if L is None else L)
-    size = _check_size(kernel_size)
-    spatial = data.shape[2:]
-    pbc = data.pbc
+
+
+def _wavelet_plan(
+    geometry: type[Data],
+    spatial: tuple[int, ...],
+    pbc: bool,
+    mask: NDArray[np.bool_] | None,
+    n_scales: int,
+    n_orientations: int,
+    wavelet: str,
+    size: int,
+) -> WaveletPlan:
+    """The :class:`WaveletPlan` of a planar ``geometry`` with the static metadata given, and J,
+    L and K already validated: of data (:func:`build_wavelet_plan`), or of one block of a
+    tensor product (``estel.wavelets._tensor_prod``)."""
+    ndim = geometry.ndim
     # The level of each scale: in 1.0.0, scale j at level d = j (maths.md M-NOT).
     scale_levels = tuple(range(n_scales))
     levels = tuple(range(max(scale_levels) + 1))
     masks = (
         None
-        if data.mask is None
+        if mask is None
         else build_mask_maps(
-            data.mask,
+            mask,
             scale_levels,
-            s=smoothing_kernel(data.ndim),
+            s=smoothing_kernel(ndim),
             kernel_size=size,
-            threshold=data._nan_threshold,
+            threshold=geometry._nan_threshold,
             pbc=pbc,
         )
     )
-    static_mask = None if data.mask is None else _StaticMask(data.mask)
+    static_mask = None if mask is None else _StaticMask(mask)
     return WaveletPlan(
-        geometry=type(data),
+        geometry=geometry,
         J=n_scales,
         L=n_orientations,
         kernel_size=size,
-        ndim=data.ndim,
+        ndim=ndim,
         spatial_shape=spatial,
         pbc=pbc,
-        mask=None if data.mask is None else _read_only(data.mask),
-        nan_threshold=data._nan_threshold,
+        mask=None if mask is None else _read_only(mask),
+        nan_threshold=geometry._nan_threshold,
         scale_levels=scale_levels,
         levels=levels,
         level_shapes=tuple(tuple(n // 2**d for n in spatial) for d in levels),
@@ -382,13 +434,13 @@ def build_wavelet_plan(
         lowpass_level=n_scales,
         masks=masks,
         _key=(
-            type(data),
+            geometry,
             n_scales,
             n_orientations,
             size,
             spatial,
             pbc,
-            data._nan_threshold,
+            geometry._nan_threshold,
             static_mask,
             wavelet,
             scale_levels,
@@ -726,20 +778,47 @@ def _read_only(array: Any) -> NDArray[Any]:
     return copy
 
 
-def _check_scales(value: object, data: Data) -> int:
-    """J as an int: at least 1, and the sizes divisible by 2^(J-1) (maths.md M-DATA-2D,
-    M-DATA-1D, OP-8)."""
-    if isinstance(value, bool) or not isinstance(value, Integral):
-        raise TypeError(f"J={value!r}: the number of scales is an integer ≥ 1, such as J=4.")
-    n = int(value)
-    if n < 1:
-        raise ValueError(f"J={n}: the number of scales is at least 1.")
-    spatial = data.shape[2:]
+def _check_scales(
+    value: object,
+    spatial: tuple[int, ...],
+    name: str = "J",
+    label: str = "J",
+    what: str = "the data",
+    *,
+    tensor_prod: bool = False,
+) -> int:
+    """J as an int, :func:`default_scales_of` if ``value`` is None: at least 1, and every size
+    of the grid of full-resolution shape ``spatial`` divisible by 2^(J-1). One rule for planar
+    data (maths.md M-DATA-2D, M-DATA-1D, OP-8) and for each block of a tensor product
+    (M-DATA-TP, OP-8, OP-83). ``name`` is J, or J_a for block a; ``label`` the argument as the
+    caller wrote it, J or J[a]; ``what`` the grid; ``tensor_prod`` makes the messages cite the
+    rules of tensor products (M-DEF-TP, M-DATA-TP) instead of those of planar data."""
+    default_rule, size_rule = _rules(tensor_prod)
+    if value is None:
+        n = default_scales_of(spatial, name, what, tensor_prod=tensor_prod)
+        source = f"the default {name} = {n}"
+    else:
+        if isinstance(value, bool) or not isinstance(value, Integral):
+            raise TypeError(
+                f"{label}={value!r}: the number of scales of {what} is an integer ≥ 1, such as "
+                f"{label}=2, or None for its default (maths.md {default_rule})."
+            )
+        n = int(value)
+        if n < 1:
+            raise ValueError(f"{label}={n}: the number of scales of {what} is at least 1.")
+        source = f"{label}={n}"
     if any(size % 2 ** (n - 1) for size in spatial):
         largest = min((size & -size).bit_length() for size in spatial)
         raise ValueError(
-            f"J={n} needs every spatial size divisible by 2^(J-1) = {2 ** (n - 1)}, since the "
-            f"loop downsamples J-1 times, but the spatial shape is {spatial} (maths.md "
-            f"M-DATA-2D, OP-8). Use J ≤ {largest}, or crop or pad the data first."
+            f"{source} needs every size of {what} divisible by 2^({name}-1) = {2 ** (n - 1)}, "
+            f"since it is downsampled {name}-1 times, but its shape is {tuple(spatial)} "
+            f"(maths.md {size_rule}, OP-8). Use {name} ≤ {largest}, or crop or pad the data "
+            "first."
         )
     return n
+
+
+def _rules(tensor_prod: bool) -> tuple[str, str]:
+    """The maths IDs of the default J and of the sizes, for planar data or for a block of a
+    tensor product, cited by the messages of :func:`_check_scales`."""
+    return ("M-DEF-TP", "M-DATA-TP") if tensor_prod else ("M-DEF", "M-DATA-2D")

@@ -222,6 +222,7 @@ def synthesize_from_maps(
         The fields, de-standardised with the target's mean and standard deviation, the losses,
         the counts, the checkpoints written and the manifest of the run (M-SYN-OUT).
     """
+    _refuse_tensor_product(target, "synthesize_from_maps", "target")
     data, ndim = _target_data(target)
     backend = _check_backend(data.backend)
     _check_periodic(data, "target")
@@ -319,6 +320,7 @@ def synthesize_from_stats(
     array that broadcasts to ``(n_batch, Nc, N1, N2)``. The other parameters are those of
     :func:`synthesize_from_maps`. The power spectrum joins with T4.1.
     """
+    _refuse_tensor_product(stats, "synthesize_from_stats", "stats")
     if not isinstance(stats, STStatistics):
         raise TypeError(
             f"synthesize_from_stats takes STStatistics, got {type(stats).__name__}; to start "
@@ -526,6 +528,23 @@ def _start(backend: Backend, init: Any, seed: int, running: Data, dtype: Any) ->
 
 
 # ---------------------------------------------------------------------- checks and helpers
+
+
+def _refuse_tensor_product(value: object, function: str, name: str) -> None:
+    """Syntheses on tensor products are not part of ESTEL 1.0.0: refused before any other
+    check, since a ``DataTensorProd`` of one 2D block has ``ndim == 2`` and its ``pbc`` is a
+    tuple, which the checks of planar data would let through. Read from the geometry the class
+    declares, as L2 knows the mother class only (Part I, §2.4)."""
+    if isinstance(value, Data) and value._geometry == "tensor_prod":
+        advice = (
+            "Pass estel.Data2D maps, or a single 2D field as an array."
+            if function == "synthesize_from_maps"
+            else "Pass the statistics of estel.Data2D maps, computed with estel.STOperator."
+        )
+        raise NotImplementedError(
+            f"{function}: the {name} is a DataTensorProd; syntheses on tensor products are not "
+            f"part of ESTEL 1.0.0, which synthesises 2D planar data (maths.md section 5). {advice}"
+        )
 
 
 def _target_data(target: Any) -> tuple[Data, int]:

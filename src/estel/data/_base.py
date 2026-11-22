@@ -3,7 +3,8 @@
 A ``Data`` object is one backend array plus static metadata: the periodicity ``pbc`` and the mask of
 missing values. It is immutable: operations return new objects (:meth:`Data.with_array`),
 never modify one. Subclasses (``Data1D``, ``Data2D`` in ``_planar.py``) set the number of spatial
-axes and the geometry constants, and override only the geometry hooks (tag G of §12.4).
+axes and the geometry constants, and override only the geometry hooks (tag G of §12.4);
+``DataTensorProd`` (``_tensor_prod.py``) composes them, one geometry per block.
 
 Validation happens once, here, when the object is built (review rule B1): the array is converted
 to the backend, promoted to ``(Nb, Nc, *spatial)``, and its NaN become the mask. The mask is a
@@ -128,6 +129,11 @@ class Data:
         new._set(array, mask, pbc, backend)
         return new
 
+    def _like(self, array: Any) -> Data:
+        """A new object of this geometry with ``array`` and the static metadata of this one: no
+        conversion, no check of values (the functional updates and the slicing use it)."""
+        return self._from_parts(array, self._mask, self._pbc, self._backend)
+
     def __setattr__(self, name: str, value: Any) -> None:
         raise AttributeError(
             f"{type(self).__name__} is immutable: build a new object instead, for example "
@@ -198,7 +204,7 @@ class Data:
                 f"{type(self).__name__} has shape {self.shape}. Pass an array of the same "
                 "shape, or build a new object."
             )
-        return self._from_parts(new_array, self._mask, self._pbc, self._backend)
+        return self._like(new_array)
 
     def copy(self, empty: bool = False) -> Data:
         """A new object with a copy of the array, and the same metadata.
@@ -208,7 +214,7 @@ class Data:
         """
         xp = _registry.backend_named(self._backend).xp
         array = xp.zeros_like(self._array) if empty else xp.asarray(self._array, copy=True)
-        return self._from_parts(array, self._mask, self._pbc, self._backend)
+        return self._like(array)
 
     def __getitem__(self, key: Any) -> Data:
         """Select batch elements and channels: ``data[b]``, ``data[b, c]``, with ``b`` and
@@ -234,7 +240,7 @@ class Data:
                 f"{type(self).__name__}[{key!r}] selects no element: the data have "
                 f"{self.n_batch} batch element(s) and {self.n_channels} channel(s)."
             )
-        return self._from_parts(array, self._mask, self._pbc, self._backend)
+        return self._like(array)
 
     # ------------------------------------------------------------------ pytree
 
@@ -310,6 +316,48 @@ class Data:
         raise NotImplementedError(
             f"{type(self).__name__} does not implement the geometry hook _crop_weights: every "
             "geometry overrides it (Part II, §12.4)."
+        )
+
+    # The same three operations along given axes of an array, for a geometry that is a block of
+    # a tensor product (``DataTensorProd``, maths.md M-NOT-TP): the tensor product dispatches its
+    # hooks to them, along the axes of each block, without moving any axis (Part II, §12.4).
+
+    @classmethod
+    def _conv_along(
+        cls, x: Any, tables: Any, *, axes: tuple[int, ...], pbc: bool, backend: str, owner: str
+    ) -> Any:
+        """:meth:`_conv` of this geometry along ``axes`` of ``x``: the orientation axis of the
+        result right after the batch axis, ``(Nb, L, Nc, ...)``."""
+        raise NotImplementedError(
+            f"{owner}: {cls.__name__} cannot be a block of a tensor product; the blocks of 1.0.0 "
+            "are Data1D and Data2D (maths.md M-DATA-TP)."
+        )
+
+    @classmethod
+    def _downsample_along(
+        cls,
+        x: Any,
+        weights: DownsampleWeights,
+        *,
+        axes: tuple[int, ...],
+        pbc: bool,
+        backend: str,
+        owner: str,
+    ) -> Any:
+        """:meth:`_downsample` of this geometry along ``axes`` of ``x``."""
+        raise NotImplementedError(
+            f"{owner}: {cls.__name__} cannot be a block of a tensor product; the blocks of 1.0.0 "
+            "are Data1D and Data2D (maths.md M-DATA-TP)."
+        )
+
+    @classmethod
+    def _crop_weights_along(
+        cls, shape: tuple[int, ...], level: int, border: int, *, owner: str
+    ) -> NDArray[np.float64]:
+        """:meth:`_crop_weights` of this geometry on a grid of full-resolution ``shape``."""
+        raise NotImplementedError(
+            f"{owner}: {cls.__name__} cannot be a block of a tensor product; the blocks of 1.0.0 "
+            "are Data1D and Data2D (maths.md M-DATA-TP)."
         )
 
     def __repr__(self) -> str:
@@ -433,15 +481,19 @@ def _to_backend(array: Any, backend_name: str, cls: type[Data]) -> Any:
 
 def _promote(array: Any, cls: type[Data]) -> Any:
     """Promote ``array`` to ``(Nb, Nc, *spatial)`` (maths.md M-DATA-2D, M-DATA-1D, OP-29)."""
+    return _promote_spatial(array, cls.ndim, cls.__name__, cls._accepted_shapes())
+
+
+def _promote_spatial(array: Any, ndim: int, owner: str, accepted: str) -> Any:
+    """Promote ``array``, with ``ndim`` spatial axes last, to ``(Nb, Nc, *spatial)``: one
+    leading axis is the channels, none gives ``(1, 1, *spatial)`` (maths.md M-DATA-2D,
+    M-DATA-1D, M-DATA-TP, OP-29)."""
     shape = tuple(int(n) for n in array.shape)
-    accepted = cls._accepted_shapes()
-    if not cls.ndim <= len(shape) <= cls.ndim + 2:
-        raise ValueError(
-            f"{cls.__name__}: the array has shape {shape}; accepted shapes are {accepted}."
-        )
+    if not ndim <= len(shape) <= ndim + 2:
+        raise ValueError(f"{owner}: the array has shape {shape}; accepted shapes are {accepted}.")
     if 0 in shape:
-        raise ValueError(f"{cls.__name__}: the array has shape {shape}, with an empty axis.")
-    full = (1,) * (cls.ndim + 2 - len(shape)) + shape
+        raise ValueError(f"{owner}: the array has shape {shape}, with an empty axis.")
+    full = (1,) * (ndim + 2 - len(shape)) + shape
     if full == shape:
         return array
     return _registry.current_backend().xp.reshape(array, full)
