@@ -40,7 +40,7 @@ from ..scattering._plan import STPlan, build_plan
 from . import _layout as compact
 from ._arrays import constant
 from ._grid import REAL_PART_ONLY, FamilyGrid
-from ._layout import FamilyValues, Gather, Layout
+from ._layout import Chunked, Copy, FamilyChunks, Layout, Take, Unpack
 from ._normalization import _NormReference
 from ._reductions import ORIENTATION_AXES, SCALE_AXES
 from ._reductions import angular_fourier as reduce_angular_fourier
@@ -199,7 +199,7 @@ class STStatistics:
                 + "; ".join(f"{g.name} has {', '.join(g.axes)}" for g in chosen)
                 + "."
             )
-        specs = [_select_family(self._layout.entries(g.name), index) for g in kept]
+        specs = [_select_family(self._layout, g.name, index) for g in kept]
         transform = compact.make_map(self._layout, specs)
         return self._replace(*_mapped(self._backend_object(), self._buffer, transform))
 
@@ -220,12 +220,9 @@ class STStatistics:
         """
         backend = self._backend_object()
         xp = backend.xp
-        extended = compact.with_zero(backend, self._buffer)
         parts = [
-            xp.reshape(
-                xp.take(extended, constant(backend, floats, extended, "int32"), axis=1), (-1,)
-            )
-            for floats in _vector_floats(self._layout)
+            xp.reshape(compact.unpack(backend, self._buffer, spec), (-1,))
+            for spec in _vector_specs(self._layout)
         ]
         vector = xp.concat(parts, axis=0)
         if mask_st is None:
@@ -262,14 +259,11 @@ class STStatistics:
                 f"weights names {unknown}, which these statistics do not hold; name families "
                 f"among {[g.name for g in self._grids]}."
             )
-        extended = compact.with_zero(backend, self._buffer)
+        n_batch = int(self._buffer.shape[0])
         parts: list[Any] = []
-        for grid, (re, im) in zip(self._grids, _complex_floats(self._layout), strict=True):
-            pairs = [
-                xp.take(extended, constant(backend, floats, extended, "int32"), axis=1)
-                for floats in (re, im)
-            ]
-            x = backend.real_pairs_to_complex(xp.stack(pairs, axis=-1))
+        for grid, spec in zip(self._grids, _complex_specs(self._layout), strict=True):
+            dense = compact.unpack(backend, self._buffer, spec)
+            x = xp.reshape(backend.real_pairs_to_complex(dense), (n_batch, -1))
             if grid.name in weights:
                 x = x * weights[grid.name]
             if mean_along_batch:
@@ -541,44 +535,28 @@ def _mapped(backend: Backend, buffer: Any, transform: compact.FloatMap) -> tuple
     return compact.apply(backend, buffer, transform), transform.layout
 
 
-def _grid_order(layout: Layout, name: str) -> NDArray[np.int64]:
-    """The entries of family ``name`` in the order of its full grid (C order)."""
-    entries = layout.entries(name)
-    order: NDArray[np.int64] = np.argsort(
-        compact.flat_positions(entries.positions, entries.grid.shape), kind="stable"
-    ).astype(np.int64)
-    return order
-
-
 @functools.lru_cache(maxsize=64)
-def _vector_floats(layout: Layout) -> tuple[NDArray[np.int64], ...]:
-    """For each family, the floats of :meth:`STStatistics.to_vector` in the buffer extended by
-    ``compact.with_zero``: the coefficients in the order of the full grid, (re, im) for a
-    complex family (the 0 for the imaginary part of a real entry), re alone for mean, var and
-    the families of ``REAL_PART_ONLY`` (M-FLAT, OP-37)."""
-    found: list[NDArray[np.int64]] = []
-    for grid in layout.grids:
-        order = _grid_order(layout, grid.name)
-        re, im = (floats[order] for floats in compact.real_and_imaginary(layout, grid.name))
-        if grid.is_complex and grid.name not in REAL_PART_ONLY:
-            found.append(np.stack([re, im], axis=1).reshape(-1))
-        else:
-            found.append(re)
-    return tuple(found)
-
-
-@functools.lru_cache(maxsize=64)
-def _complex_floats(
-    layout: Layout,
-) -> tuple[tuple[NDArray[np.int64], NDArray[np.int64]], ...]:
-    """For each family, the floats of the real and of the imaginary parts of its coefficients
-    in the order of the full grid, in the buffer extended by ``compact.with_zero``."""
+def _vector_specs(layout: Layout) -> tuple[Unpack, ...]:
+    """For each family, how :meth:`STStatistics.to_vector` reads it: its chunks in the order of
+    its full grid, (re, im) for a complex family (0 for the imaginary part of a real entry), re
+    alone for mean, var and the families of ``REAL_PART_ONLY`` (M-FLAT, OP-37). Tables of one
+    row per chunk."""
     return tuple(
-        tuple(  # type: ignore[misc]
-            floats[_grid_order(layout, grid.name)]
-            for floats in compact.real_and_imaginary(layout, grid.name)
+        compact.unpack_spec(
+            layout,
+            grid.name,
+            compact.grid_order(grid),
+            2 if grid.is_complex and grid.name not in REAL_PART_ONLY else 1,
         )
         for grid in layout.grids
+    )
+
+
+@functools.lru_cache(maxsize=64)
+def _complex_specs(layout: Layout) -> tuple[Unpack, ...]:
+    """For each family, its chunks in the order of its full grid, read as (re, im)."""
+    return tuple(
+        compact.unpack_spec(layout, grid.name, compact.grid_order(grid), 2) for grid in layout.grids
     )
 
 
@@ -642,22 +620,41 @@ def _positions(axis: str, value: Any, size: int) -> int | NDArray[np.int64]:
     return found.astype(np.int64)
 
 
-def _select_family(entries: compact.FamilyEntries, index: dict[str, Any]) -> Gather:
-    """The selection of one family as a static gather (Part III, §19.6): which entry of the
-    family each entry of the result is, with the new axes and coordinates. Computed on the
-    entries, with tables their size, never the size of the full grid."""
-    grid = entries.grid
+def _select_family(layout: Layout, name: str, index: dict[str, Any]) -> Copy | Chunked:
+    """The selection of one family as a static map (Part III, §19.6): which chunk of the family
+    each chunk of the result is, then the positions kept along its orientation axes, with the
+    new axes and coordinates. Computed on the chunks, with tables their size, never the size of
+    the coefficients or of the full grid."""
+    if not index:
+        return Copy(name)
+    grid = layout.grid(name)
+    k = grid.n_chunk_axes
     chosen = {axis: _positions(axis, index[axis], grid.shape[grid.axis(axis)]) for axis in index}
-    positions = entries.positions
-    sources = np.arange(entries.n_entries, dtype=np.int64)
+    positions = grid.chunks.astype(np.int64)
+    sources = np.arange(grid.n_chunks, dtype=np.int64)
     coords = list(grid.coords)
+    orientation_axes = list(range(k, len(grid.axes)))  # those not dropped yet, in order
+    steps: list[Take] = []
     for axis, where in chosen.items():
         column = grid.axis(axis)
+        if column >= k:
+            at = orientation_axes.index(column)
+            if isinstance(where, int):
+                steps.append(Take(at, np.array([where], dtype=np.int64), True))
+                orientation_axes = [a for a in orientation_axes if a != column]
+            else:
+                steps.append(Take(at, where, False))
+                coords = [
+                    *coords[:column],
+                    tuple(grid.coords[column][int(i)] for i in where),
+                    *coords[column + 1 :],
+                ]
+            continue
         if isinstance(where, int):
             kept = positions[:, column] == where
             positions, sources = positions[kept], sources[kept]
             continue
-        # Each entry at position p along the axis goes to every k with where[k] == p.
+        # Each chunk at position p along the axis goes to every k with where[k] == p.
         order = np.argsort(where, kind="stable")
         ordered = where[order]
         low = np.searchsorted(ordered, positions[:, column], side="left")
@@ -677,16 +674,23 @@ def _select_family(entries: compact.FamilyEntries, index: dict[str, Any]) -> Gat
         ]
     dropped = {grid.axis(a) for a, w in chosen.items() if isinstance(w, int)}
     keep = [i for i in range(len(grid.axes)) if i not in dropped]
-    positions = positions[:, keep].astype(np.int64)
-    axes = tuple(grid.axes[i] for i in keep)
-    coords_kept = tuple(coords[i] for i in keep)
-    shape = tuple(len(c) for c in coords_kept)
-    present = compact.mask_of(compact.flat_positions(positions, shape), shape)
-    new_grid = grid.replace(axes=axes, coords=coords_kept, present=present)
-    values = FamilyValues(
-        new_grid, positions, entries.is_complex[sources], entries.levels, entries.level_ids[sources]
+    chunk_axes = [i for i in range(k) if i not in dropped]
+    real = grid.real.reshape(-1, *grid.orientations)
+    for step in steps:
+        real = np.take(real, step.positions, axis=1 + step.axis)
+        if step.drop:
+            real = real.reshape(*real.shape[: 1 + step.axis], *real.shape[2 + step.axis :])
+    new_grid = grid.replace(
+        axes=tuple(grid.axes[i] for i in keep),
+        coords=tuple(coords[i] for i in keep),
+        n_chunk_axes=len(chunk_axes),
+        chunks=positions[:, chunk_axes],
+        kinds=grid.kinds[sources],
+        real=real.reshape(real.shape[0], -1),
     )
-    return Gather(values, sources)
+    levels, level_ids = layout.levels(name)
+    family = FamilyChunks(new_grid, levels, level_ids[sources])
+    return Chunked(family, sources[:, None], None, tuple(steps))
 
 
 def _mask_positions(mask_st: Any, length: int) -> NDArray[np.int64]:

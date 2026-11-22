@@ -13,8 +13,9 @@ the scales with valid pixels. It stores the scales compactly, and builds STL's
 ``S2_ref_sqrt_chan_diag`` on demand (:attr:`_NormReference.s2_sqrt`). The divisors of M-NORM are
 products of sigma; where a sigma does not exist the coefficient is NaN in STL (OP-30, OP-3), and
 is not stored. On the compact buffer, for a fixed reference, the normalisation is a static linear
-map (Part III, §19.6): a static gather of the coefficients that keep a divisor, divided by their
-divisors, gathered from the reference with static tables built in NumPy.
+map (Part III, §19.6) that acts chunk by chunk (task T3.7): a static gather of the chunks that
+keep a divisor, divided by their divisors, each the product of two rows of sigma over the
+orientations of the chunk, with static tables of one row per chunk built in NumPy.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ from numpy.typing import NDArray
 
 from ..backend._protocol import Backend
 from ._arrays import backend_of, constant
-from ._layout import Copy, FloatMap, Gather, Layout, apply, make_map
+from ._layout import Chunked, Copy, FamilyChunks, FloatMap, Layout, apply, chunk_index, make_map
 
 if TYPE_CHECKING:
     from ..scattering._plan import STPlan
@@ -102,16 +103,12 @@ class _NormReference:
         )
 
 
-def _sigma_table(present: NDArray[np.bool_], n_orientations: int) -> NDArray[np.int64]:
-    """``(Nc, J, L)``: the position of sigma_c(j, l) in :attr:`_NormReference.sigma`, -1 where it
-    does not exist."""
-    rank = (np.cumsum(present.ravel()) - 1).reshape(present.shape)
-    table: NDArray[np.int64] = np.where(
-        present[:, :, None],
-        rank[:, :, None] * n_orientations + np.arange(n_orientations),
-        -1,
-    ).astype(np.int64)
-    return table
+def _chunks_at(layout: Layout, name: str, rows: NDArray[np.int64]) -> NDArray[np.int64]:
+    """The chunks of family ``name`` of ``layout`` at the positions ``rows`` ``(n, n_chunk_axes)``
+    of its chunk axes, -1 where none."""
+    grid = layout.grid(name)
+    flat = np.ravel_multi_index(tuple(rows.T), grid.chunk_shape) if rows.shape[0] else rows[:, 0]
+    return chunk_index(grid).find(np.asarray(flat, dtype=np.int64))
 
 
 @functools.lru_cache(maxsize=64)
@@ -120,16 +117,18 @@ def _reference_tables(
 ) -> tuple[NDArray[np.int64], NDArray[np.int64]]:
     """The floats of var and of the auto S2 at every sigma of the ``present`` given by
     ``shape`` and ``data``, in a buffer of ``layout``, a layout of the loop
-    (``_layout.base_layout``)."""
+    (``_layout.base_layout``): one real chunk of S2, of L floats, per sigma row."""
     present = np.frombuffer(data, dtype=bool).reshape(shape)
-    var = layout.entries("var")
-    var_floats = var.first[var.find(np.arange(int(shape[0]), dtype=np.int64))]
-    s2 = layout.entries("S2")
-    c, j, ll = np.nonzero(np.broadcast_to(present[:, :, None], (*shape, n_orientations)))
-    where = s2.find(np.ravel_multi_index((c, c, j, ll), s2.grid.shape))
-    if (where < 0).any() or s2.is_complex[where].any():
+    channels = np.arange(int(shape[0]), dtype=np.int64)[:, None]
+    var = _chunks_at(layout, "var", channels)
+    c, j = np.nonzero(present)
+    s2 = _chunks_at(layout, "S2", np.stack([c, c, j], axis=1).astype(np.int64))
+    grid = layout.grid("S2")
+    if (var < 0).any() or (s2 < 0).any() or not grid.real[grid.kinds[s2]].all():
         raise ValueError("the reference reads a real auto S2 at every sigma it holds.")
-    return var_floats, s2.first[where]
+    starts = layout.chunk_starts("S2")[s2]
+    s2_floats = (starts[:, None] + np.arange(n_orientations)).reshape(-1)
+    return layout.chunk_starts("var")[var], s2_floats
 
 
 def self_reference(
@@ -173,86 +172,67 @@ def as_constant(backend: Backend, reference: _NormReference) -> _NormReference:
 
 
 _SIGMA_AXES = {
-    "S1": ((0, 2, 3), (1, 2, 3)),
-    "S2": ((0, 2, 3), (1, 2, 3)),
-    "S3": ((0, 2, 4), (1, 3, 5)),
-    "S4": ((0, 2, 5), (1, 3, 6)),
+    "S1": ((0, 2), (1, 2)),
+    "S2": ((0, 2), (1, 2)),
+    "S3": ((0, 2), (1, 3)),
+    "S4": ((0, 2), (1, 3)),
 }
-"""For each normalised family, the (channel, scale, orientation) axes of the two sigma of its
-divisor (M-NORM): sigma_{c1}(j, l) sigma_{c2}(j, l) for S1 and S2, sigma_{c1}(j2, l2)
-sigma_{c2}(j3, l3) for S3, sigma_{c1}(j1, l1) sigma_{c2}(j2, l2) for S4."""
+"""For each normalised family, the (channel, scale) chunk axes of the two sigma of its divisor
+(M-NORM): sigma_{c1}(j, l) sigma_{c2}(j, l) for S1 and S2, sigma_{c1}(j2, l2) sigma_{c2}(j3, l3)
+for S3, sigma_{c1}(j1, l1) sigma_{c2}(j2, l2) for S4."""
+
+_SIGMA_ORIENTATIONS = {"S1": (0, 0), "S2": (0, 0), "S3": (0, 1), "S4": (0, 1)}
+"""The orientation axis of each of the two sigma: l, l; l2, l3; l1, l2."""
 
 
 class _NormTables(NamedTuple):
     """The static part of :func:`normalize`, for one layout and one ``present`` of the
-    reference."""
+    reference: tables of one row per chunk."""
 
     transform: FloatMap
-    """The gather of the coefficients that keep a divisor."""
-    first: NDArray[np.int64]
-    """For each float of the result, its first factor in ``[1, var_ref, sigma]``."""
-    second: NDArray[np.int64]
-    """Its second factor."""
-    root: tuple[int, int]
-    """The floats of S1, whose divisor is the square root of the product."""
+    """The gather of the chunks that keep a divisor."""
+    rows: dict[str, tuple[NDArray[np.int64], NDArray[np.int64]]]
+    """For each normalised family, the row of sigma of the first and of the second factor of
+    the divisor of each chunk of the result, in the order of its buffer; for var, the channel
+    of each chunk, twice (its divisor is ``var_ref``)."""
 
 
 @functools.lru_cache(maxsize=64)
 def _norm_tables(
     layout: Layout, shape: tuple[int, ...], data: bytes, n_orientations: int
 ) -> _NormTables:
-    """:class:`_NormTables` of ``layout``, a layout of the loop, whose full-grid positions are
-    the coordinates themselves, and of the ``present`` given by ``shape`` and ``data``."""
-    table = _sigma_table(np.frombuffer(data, dtype=bool).reshape(shape), n_orientations)
-    sigma_at = 1 + int(shape[0])  # the factors are [1, var_ref (Nc), sigma]
-    specs: list[Copy | Gather] = []
+    """:class:`_NormTables` of ``layout``, a layout of the loop, whose chunk positions are the
+    channels and scales themselves, and of the ``present`` given by ``shape`` and ``data``."""
+    present = np.frombuffer(data, dtype=bool).reshape(shape)
+    rank = np.where(present, np.cumsum(present.ravel()).reshape(present.shape) - 1, -1)
+    specs: list[Copy | Chunked] = []
+    factors: dict[str, tuple[NDArray[np.int64], NDArray[np.int64]]] = {}
     for grid in layout.grids:
-        entries = layout.entries(grid.name)
+        levels, level_ids = layout.levels(grid.name)
+        chunks = grid.chunks.astype(np.int64)
+        if grid.name == "var":
+            every = np.arange(grid.n_chunks, dtype=np.int64)
+            specs.append(Chunked(layout.chunked("var"), every[:, None], None))
+            factors = {**factors, "var": (chunks[:, 0], chunks[:, 0])}
+            continue
         if grid.name not in _SIGMA_AXES:
             specs.append(Copy(grid.name))
             continue
         first, second = _SIGMA_AXES[grid.name]
-        p = entries.positions.T
-        kept = np.flatnonzero(
-            (table[p[first[0]], p[first[1]], p[first[2]]] >= 0)
-            & (table[p[second[0]], p[second[1]], p[second[2]]] >= 0)
+        a = rank[chunks[:, first[0]], chunks[:, first[1]]]
+        b = rank[chunks[:, second[0]], chunks[:, second[1]]]
+        kept = np.flatnonzero((a >= 0) & (b >= 0))
+        family = FamilyChunks(
+            grid.replace(chunks=chunks[kept], kinds=grid.kinds[kept]), levels, level_ids[kept]
         )
-        values = entries.values()
-        specs.append(
-            Gather(
-                values._replace(
-                    positions=values.positions[kept],
-                    is_complex=values.is_complex[kept],
-                    level_ids=values.level_ids[kept],
-                ),
-                kept,
-            )
-        )
+        specs.append(Chunked(family, kept[:, None], None))
+        factors = {**factors, grid.name: (a[kept], b[kept])}
     transform = make_map(layout, specs)
-    firsts: list[NDArray[np.int64]] = []
-    seconds: list[NDArray[np.int64]] = []
-    root = (0, 0)
-    for grid in transform.layout.grids:
-        out = transform.layout.entries(grid.name)
-        counts = 1 + out.is_complex.astype(np.int64)
-        p = out.positions.T
-        if grid.name in _SIGMA_AXES:
-            first, second = _SIGMA_AXES[grid.name]
-            a = sigma_at + table[p[first[0]], p[first[1]], p[first[2]]]
-            b = sigma_at + table[p[second[0]], p[second[1]], p[second[2]]]
-        else:
-            a = 1 + p[0] if grid.name == "var" else np.zeros(out.n_entries, dtype=np.int64)
-            b = np.zeros(out.n_entries, dtype=np.int64)
-        firsts.append(np.repeat(a, counts))
-        seconds.append(np.repeat(b, counts))
-        if grid.name == "S1":
-            root = (out.start, out.stop)
-    return _NormTables(
-        transform=transform,
-        first=np.concatenate(firsts).astype(np.int64),
-        second=np.concatenate(seconds).astype(np.int64),
-        root=root,
-    )
+    for name, (a, _) in factors.items():
+        n = transform.layout.grid(name).n_chunks
+        if n != a.shape[0]:
+            raise ValueError(f"{name}: the normalisation keeps {n} chunks, not {a.shape[0]}.")
+    return _NormTables(transform=transform, rows=factors)
 
 
 def normalize(
@@ -273,20 +253,36 @@ def normalize(
     """
     xp = backend.xp
     present = reference.present
-    tables = _norm_tables(layout, present.shape, present.tobytes(), reference.n_orientations)
-    kept = apply(backend, buffer, tables.transform)
-    factors = xp.concat(
-        [xp.ones_like(reference.var[:, :1]), reference.var, reference.sigma], axis=1
-    )
-    first = xp.take(factors, constant(backend, tables.first, buffer, "int32"), axis=1)
-    second = xp.take(factors, constant(backend, tables.second, buffer, "int32"), axis=1)
-    divisor = first * second
-    start, stop = tables.root
-    if stop > start:
-        divisor = xp.concat(
-            [divisor[:, :start], xp.sqrt(divisor[:, start:stop]), divisor[:, stop:]], axis=1
-        )
-    return kept / divisor, tables.transform.layout
+    L = reference.n_orientations  # noqa: N806
+    tables = _norm_tables(layout, present.shape, present.tobytes(), L)
+    n_ref = int(reference.var.shape[0])
+    sigma = xp.reshape(reference.sigma, (n_ref, -1, L))
+    like = reference.sigma
+
+    def divided(name: str) -> Any:
+        a, b = tables.rows[name]
+        n = int(a.shape[0])
+        if name == "var":
+            divisor = xp.take(reference.var, constant(backend, a, like, "int32"), axis=1)
+            return lambda dense: dense / xp.reshape(divisor, (n_ref, n, 1, 1))
+        first = xp.take(sigma, constant(backend, a, like, "int32"), axis=1)  # (Nr, n, L)
+        second = xp.take(sigma, constant(backend, b, like, "int32"), axis=1)
+        shape = layout.grid(name).orientations
+        axes = _SIGMA_ORIENTATIONS[name]
+
+        def along(factor: Any, axis: int) -> Any:
+            return xp.reshape(
+                factor, (n_ref, n, *(L if i == axis else 1 for i in range(len(shape))))
+            )
+
+        product = along(first, axes[0]) * along(second, axes[1])
+        if name == "S1":
+            product = xp.sqrt(product)
+        divisor = xp.reshape(xp.broadcast_to(product, (n_ref, n, *shape)), (n_ref, n, -1, 1))
+        return lambda dense: dense / divisor
+
+    scale = {name: divided(name) for name in tables.rows}
+    return apply(backend, buffer, tables.transform, scale), tables.transform.layout
 
 
 def check_reference(reference: _NormReference, plan: STPlan, n_batch: int, dtype: Any) -> None:

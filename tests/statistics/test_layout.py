@@ -1,4 +1,5 @@
-"""The compact coefficient layout (task T2.15, issue #93; Part III, §19.2, §19.4, §19.5).
+"""The compact coefficient layout (tasks T2.15 and T3.7, issues #93 and #139; Part III, §19.2,
+§19.4 to §19.6).
 
 The values are compared with STL through the full-grid views in ``tests/parity/``, and the
 accessors in ``test_statistics.py``. These tests check what those do not: that the buffer and the
@@ -22,7 +23,7 @@ import estel
 from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
 from estel.backend import _registry
 from estel.functional import _scattering
-from estel.statistics import _layout
+from estel.statistics import _grid, _layout, _normalization
 from estel.statistics import _reductions as reductions
 
 pytestmark = pytest.mark.maths("M-FLAT")
@@ -216,3 +217,45 @@ def test_angular_fourier_is_applied_one_axis_at_a_time(dtype: str) -> None:
     ]
     assert widths
     assert max(widths) <= 2 * planar._plan.L
+
+
+def _static_elements(found: Any, seen: set[int] | None = None) -> int:
+    """The elements of the NumPy arrays reachable from ``found`` through containers, named
+    tuples and the attributes of objects (cached properties included), each base array once."""
+    seen = set() if seen is None else seen
+    if id(found) in seen or isinstance(found, str | bytes | int | float | bool | type | None):
+        return 0
+    seen.add(id(found))
+    if isinstance(found, np.ndarray):
+        base = found
+        while isinstance(base.base, np.ndarray):
+            base = base.base
+        if base is not found and id(base) in seen:
+            return 0
+        seen.add(id(base))
+        return int(base.size)
+    if isinstance(found, dict):
+        found = list(found.values())
+    if isinstance(found, tuple | list | set | frozenset):
+        return sum(_static_elements(item, seen) for item in found)
+    return sum(_static_elements(item, seen) for item in vars(found).values())
+
+
+def test_layout_tables_grow_with_the_chunks() -> None:
+    """Part III, §19.4 and §19.6 (T3.7): on 2D data with J = 5 and L = 4, the static arrays of
+    the layout of the loop and of its normalisation, its maps' caches filled, hold fewer
+    elements in all than the coefficients the layout stores: one row per chunk, no table per
+    coefficient."""
+    data = Data2D(_field((1, 1, 32, 32)), pbc=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        plan = STOperator(data, 5, L=4, compute_PS=False).plan
+    layout = _layout.base_layout(plan)
+    present = _grid.auto_scales(plan)
+    tables = _normalization._norm_tables(layout, present.shape, present.tobytes(), plan.L)
+    assert all(
+        layout.chunk_starts(name).shape == (layout.grid(name).n_chunks,) for name in layout.names
+    )
+    n_coefficients = sum(g.n_chunks * g.n_orientations for g in layout.grids)
+    assert n_coefficients == sum(int(np.count_nonzero(g.present)) for g in layout.grids)
+    assert _static_elements((layout, tables)) < n_coefficients

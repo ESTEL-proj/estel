@@ -32,10 +32,10 @@ to the order of the sums. The convolutions and the downsamplings are those of th
 weights, and does not depend on the geometry. Nothing is written in place (Part I, §3.1,
 rule 1): every step returns a new array, the
 divided sums of each level are collected in a list, in the order of ``_plan.loop_sums``, and one
-static gather, built in NumPy with the plan (``statistics._layout.loop_gather``), turns them
-into the compact buffer at the end (Part III, §19.3, §19.9): no full-grid tensor is written in
-the computation (review rule X5). The loops run over scales, levels and channel pairs, as
-STL's, never over pixels or orientations.
+static gather, built in NumPy with the plan (``statistics._layout.loop_gather``), concatenates
+them, chunk by chunk, into the compact buffer at the end (Part III, §19.3, §19.9): no full-grid
+tensor is written in the computation (review rule X5). The loops run over scales, levels and
+channel pairs, as STL's, never over pixels or orientations.
 
 **Sums, then division.** Every mean is a weighted sum over the pixels divided by a denominator
 of the plan (M-MEAN). The loop takes the sums of a level, stacks them, passes them once to
@@ -59,7 +59,7 @@ from ..backend import _registry
 from ..backend._protocol import Backend
 from ..data._base import Data
 from ..data._moments import cov_sum_valid, divide, gram_sum, modulus, standardize, sum_valid
-from ..statistics._layout import loop_gather
+from ..statistics._layout import gather_loop, loop_gather
 from ..wavelets._operator import WaveletOperator
 from ._filters import STFilters, window
 from ._plan import STPlan
@@ -189,16 +189,16 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
             moduli = {j2: wavelets.downsample(u2, level, (j2,)) for j2, u2 in moduli.items()}
 
     # One static gather from the sums, in the order of loop_sums, to the compact buffer
-    # (Part III, §19.3, §19.9): no full-grid tensor inside the computation (review rule X5).
-    raw = xp.concat(divided, axis=1)
-    expected = loop_gather(plan)[1]
-    if int(raw.shape[1]) != expected:
+    # (Part III, §19.3, §19.9), chunk by chunk: no full-grid tensor inside the computation
+    # (review rule X5).
+    gather = loop_gather(plan)
+    if len(divided) != gather.n_sums:
         raise RuntimeError(
-            f"the loop produced {int(raw.shape[1])} floats where the plan expects {expected}: "
+            f"the loop produced {len(divided)} sums where the plan expects {gather.n_sums}: "
             "scattering._plan.loop_sums no longer follows the loop; make them agree."
         )
     return ScatteringValues(
-        buffer=xp.take(raw, filters.gather, axis=1),
+        buffer=gather_loop(backend, divided, gather, filters.gather),
         mean_pre_std=mean_pre_std,
         std_pre_std=std_pre_std,
     )
