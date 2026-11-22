@@ -3,8 +3,8 @@
 
 :func:`scattering_values` is the pure function at the core of ``estel.functional.scattering``:
 it takes the data, the static plan and the filters, and returns the statistics without
-normalisation, as STL's full-grid arrays (:class:`ScatteringValues`). The normalisation and the
-``STStatistics`` object are added by ``estel.functional.scattering``.
+normalisation, in the compact buffer (:class:`ScatteringValues`; Part III, §19.2). The
+normalisation and the ``STStatistics`` object are added by ``estel.functional.scattering``.
 
 It follows STL's loop over the levels (``ST_Operator.apply`` at `master` ``8eaf769``,
 ``_compute_ST_loop`` at `2D+1D` ``8f51143``): for each level d, and for each scale j3 computed
@@ -31,9 +31,11 @@ to the order of the sums. The convolutions and the downsamplings are those of th
 (``WaveletOperator.apply``, ``downsample``; Part I, §2.3): the loop sees levels, maps and
 weights, and does not depend on the geometry. Nothing is written in place (Part I, §3.1,
 rule 1): every step returns a new array, the
-means are collected in lists, and each family is assembled once, at the end, with
-``scatter_to_grid`` (§3.1.1). The loops run over scales, levels and channel pairs, as STL's,
-never over pixels or orientations.
+divided sums of each level are collected in a list, in the order of ``_plan.loop_sums``, and one
+static gather, built in NumPy with the plan (``statistics._layout.loop_gather``), turns them
+into the compact buffer at the end (Part III, §19.3, §19.9): no full-grid tensor is written in
+the computation (review rule X5). The loops run over scales, levels and channel pairs, as
+STL's, never over pixels or orientations.
 
 **Sums, then division.** Every mean is a weighted sum over the pixels divided by a denominator
 of the plan (M-MEAN). The loop takes the sums of a level, stacks them, passes them once to
@@ -44,8 +46,8 @@ the sum and the division, so that the statistics are global.
 Missing values are weights (Part I, §3.1.1; maths.md OP-27): the field is set to 0 at its
 missing pixels before anything else, so that every intermediate array is finite, and every mean
 reads only the pixels its weights keep (M-MEAN, M-MASK, M-BORDER). The means the plan lists as
-empty (OP-3) are not computed: they are absent from the index of ``scatter_to_grid``, and NaN in
-the full grid, like the structural NaN (M-CHAN).
+empty (OP-3) are not computed: they are absent from the buffer, and NaN in the full-grid view,
+like the structural NaN (M-CHAN).
 """
 
 from __future__ import annotations
@@ -57,6 +59,7 @@ from ..backend import _registry
 from ..backend._protocol import Backend
 from ..data._base import Data
 from ..data._moments import cov_sum_valid, divide, gram_sum, modulus, standardize, sum_valid
+from ..statistics._layout import loop_gather
 from ..wavelets._operator import WaveletOperator
 from ._filters import STFilters, window
 from ._plan import STPlan
@@ -82,22 +85,14 @@ def _global_sum(partial_sums: Any) -> Any:
 
 
 class ScatteringValues(NamedTuple):
-    """The statistics without normalisation in STL's full-grid shapes and dtypes (maths.md
-    M-MOM, M-S1 to M-S4, M-CHAN), NaN where no coefficient exists (structural, or an empty
-    mean, OP-3). ``estel.functional.scattering`` stores them in ``STStatistics``."""
+    """The statistics without normalisation, in the compact buffer of
+    ``statistics._layout.base_layout(plan)`` (Part III, §19.2, §19.4; maths.md M-MOM, M-S1 to
+    M-S4, M-CHAN): every coefficient STL computes, and only those, real entries as one float,
+    complex entries as (re, im). ``estel.functional.scattering`` stores them in
+    ``STStatistics``."""
 
-    mean: Any
-    """``(Nb, Nc)``, real."""
-    var: Any
-    """``(Nb, Nc)``, real: the non-centred second moment (OP-11)."""
-    S1: Any
-    """``(Nb, Nc, Nc, J, L)``, complex."""
-    S2: Any
-    """``(Nb, Nc, Nc, J, L)``, complex."""
-    S3: Any
-    """``(Nb, Nc, Nc, J, J, L, L)``, complex: ``[.., j2, j3, l2, l3]``."""
-    S4: Any
-    """``(Nb, Nc, Nc, J, J, J, L, L, L)``, complex: ``[.., j1, j2, j3, l1, l2, l3]``."""
+    buffer: Any
+    """``(Nb, n_floats)``, real."""
     mean_pre_std: Any = None
     """With ``standardize``, the mean removed from each map, ``(Nb, Nc)``; otherwise ``None``."""
     std_pre_std: Any = None
@@ -150,7 +145,7 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
         _Sum("mean", sum_valid(x, weights, axes), moments.denominator),
         _Sum("var", cov_sum_valid(x, x, weights, axes), moments.denominator),
     ]
-    means: dict[str, list[Any]] = {"mean": [], "var": [], "S1": [], "S2": [], "S3": [], "S4": []}
+    divided: list[Any] = []  # the divided sums of each level, as real (Nb, n) arrays
 
     moduli: dict[int, Any] = {}  # U_{j2} x of every scale computed so far, at the current level
     for level in plan.levels:
@@ -186,26 +181,24 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
             if j3 in plan.second_layer:
                 pending.extend(_second_layer(backend, wavelets, plan, filters, j3, moduli, w))
 
-        for family, value in _divide_level(backend, pending, total):
-            means[family].append(value)
+        divided.extend(_divide_level(backend, pending, total))
         pending = []
 
         if level < plan.levels[-1]:
             x = wavelets.downsample(x, level)
             moduli = {j2: wavelets.downsample(u2, level, (j2,)) for j2, u2 in moduli.items()}
 
-    nc, J = pairs.n_channels, plan.J  # noqa: N806
-    s1 = [_as_complex(backend, v) for v in means["S1"]]
-    s2 = [_as_complex(backend, v) for v in means["S2"]]
+    # One static gather from the sums, in the order of loop_sums, to the compact buffer
+    # (Part III, §19.3, §19.9): no full-grid tensor inside the computation (review rule X5).
+    raw = xp.concat(divided, axis=1)
+    expected = loop_gather(plan)[1]
+    if int(raw.shape[1]) != expected:
+        raise RuntimeError(
+            f"the loop produced {int(raw.shape[1])} floats where the plan expects {expected}: "
+            "scattering._plan.loop_sums no longer follows the loop; make them agree."
+        )
     return ScatteringValues(
-        mean=means["mean"][0],
-        var=means["var"][0],
-        S1=_assemble(backend, s1, filters.s1_index, (nc, nc, J), n_orientation_axes=1),
-        S2=_assemble(backend, s2, filters.s1_index, (nc, nc, J), n_orientation_axes=1),
-        S3=_assemble(backend, means["S3"], filters.s3_index, (nc, nc, J, J), n_orientation_axes=2),
-        S4=_assemble(
-            backend, means["S4"], filters.s4_index, (nc, nc, J, J, J), n_orientation_axes=3
-        ),
+        buffer=xp.take(raw, filters.gather, axis=1),
         mean_pre_std=mean_pre_std,
         std_pre_std=std_pre_std,
     )
@@ -283,10 +276,11 @@ def _second_layer(
     return sums
 
 
-def _divide_level(backend: Backend, pending: Sequence[_Sum], total: Any) -> list[tuple[str, Any]]:
+def _divide_level(backend: Backend, pending: Sequence[_Sum], total: Any) -> list[Any]:
     """The means of one level: its weighted sums, stacked as one real ``(Nb, n)`` array, passed
     once to ``total`` (:func:`_global_sum`), split back, then divided by their denominators,
-    in their order. The stacking is exact: it only moves values."""
+    in their order, each as a real ``(Nb, m)`` array (complex values as (re, im) pairs, the
+    order of ``loop_sums``). The stacking is exact: it only moves values."""
     if not pending:
         return []
     xp = backend.xp
@@ -296,44 +290,10 @@ def _divide_level(backend: Backend, pending: Sequence[_Sum], total: Any) -> list
         real = backend.complex_to_real_pairs(item.value) if is_complex else item.value
         flat.append(xp.reshape(real, (real.shape[0], -1)))
     summed = total(xp.concat(flat, axis=1))
-    out: list[tuple[str, Any]] = []
+    out: list[Any] = []
     offset = 0
     for item, part in zip(pending, flat, strict=True):
         size = int(part.shape[1])
-        piece = summed[:, offset : offset + size]
+        out.append(summed[:, offset : offset + size] / item.denominator)
         offset += size
-        is_complex = bool(xp.isdtype(item.value.dtype, "complex floating"))
-        shape = tuple(item.value.shape)
-        if is_complex:
-            value = backend.real_pairs_to_complex(xp.reshape(piece, (*shape, 2)))
-        else:
-            value = xp.reshape(piece, shape)
-        out.append((item.family, value / item.denominator))
     return out
-
-
-def _as_complex(backend: Backend, x: Any) -> Any:
-    """A real array as complex, STL's storage of real coefficients (M-CHAN); complex arrays are
-    returned unchanged."""
-    xp = backend.xp
-    if xp.isdtype(x.dtype, "complex floating"):
-        return x
-    return backend.real_pairs_to_complex(xp.stack([x, xp.zeros_like(x)], axis=-1))
-
-
-def _assemble(
-    backend: Backend,
-    values: Sequence[Any],
-    index: tuple[Any, ...],
-    grid: tuple[int, ...],
-    n_orientation_axes: int,
-) -> Any:
-    """The full grid of one family, assembled once (Part I, §3.1.1): the values, each
-    ``(Nb, *orientations)``, at the static positions ``index`` of ``grid`` (channels and
-    scales), NaN elsewhere; the axes in STL's order, ``(Nb, *grid, *orientations)``."""
-    xp = backend.xp
-    stacked = xp.stack(list(values), axis=-1)  # (Nb, *orientations, n)
-    full = backend.scatter_to_grid(stacked, index, grid)  # (Nb, *orientations, *grid)
-    o, g = n_orientation_axes, len(grid)
-    order = (0, *range(1 + o, 1 + o + g), *range(1, 1 + o))
-    return xp.permute_dims(full, order)

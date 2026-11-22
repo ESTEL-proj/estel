@@ -1,5 +1,5 @@
-"""Small helpers of the statistics on backend arrays (task T2.5): static masks as backend
-constants, NaN fills and dtype names. Written on the L0 protocol."""
+"""Small helpers of the statistics on backend arrays (tasks T2.5, T2.15): static NumPy tables as
+backend constants, backends, devices and dtype names. Written on the L0 protocol."""
 
 from __future__ import annotations
 
@@ -29,10 +29,6 @@ def device_of(x: Any) -> Any:
         return None
 
 
-def is_complex(backend: Backend, x: Any) -> bool:
-    return bool(backend.xp.isdtype(x.dtype, "complex floating"))
-
-
 def dtype_name(x: Any) -> DType:
     """The dtype of a backend array as the protocol names it (``"float32"``, ``"complex128"``)."""
     name = str(x.dtype).split(".")[-1]
@@ -46,27 +42,3 @@ def constant(backend: Backend, array: NDArray[Any], like: Any, dtype: DType | No
     booleans unless ``dtype`` is given."""
     kind: DType = dtype if dtype is not None else "bool"
     return backend.asarray(np.asarray(array), kind, device_of(like))
-
-
-def nan_like(backend: Backend, x: Any) -> Any:
-    """An array like ``x``, NaN everywhere (``nan + nan·j`` for a complex ``x``, as STL)."""
-    fill: complex | float = complex(np.nan, np.nan) if is_complex(backend, x) else float("nan")
-    return backend.xp.full_like(x, fill)
-
-
-def masked(backend: Backend, present: NDArray[np.bool_], x: Any, other: Any) -> Any:
-    """``x`` where ``present`` (static, broadcast against the axes of ``x`` after the batch
-    axis), ``other`` elsewhere."""
-    mask = constant(backend, present[None], x)
-    return backend.xp.where(mask, x, other)
-
-
-def zero_absent(backend: Backend, present: NDArray[np.bool_], x: Any) -> Any:
-    """``x`` with 0 where no coefficient exists: finite everywhere, so that nothing absent
-    reaches a product or a gradient."""
-    return masked(backend, present, x, backend.xp.zeros_like(x))
-
-
-def nan_absent(backend: Backend, present: NDArray[np.bool_], x: Any) -> Any:
-    """``x`` with NaN where no coefficient exists, STL's full grid."""
-    return masked(backend, present, x, nan_like(backend, x))

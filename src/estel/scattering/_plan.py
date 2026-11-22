@@ -92,7 +92,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -377,6 +377,50 @@ def build_plan(
             bool(standardize),
         ),
     )
+
+
+# ---------------------------------------------------------------------- the sums of the loop
+
+
+class LoopSum(NamedTuple):
+    """One weighted sum of the scattering loop, as the loop takes it (``_loop.py``): what the
+    gather to the compact buffer reads (Part III, §19.2, §19.9; ``statistics._layout``)."""
+
+    family: str
+    """``"mean"``, ``"var"``, ``"S1"`` … ``"S4"``."""
+    key: tuple[int, ...]
+    """The grid coordinates before the axes the sum carries: ``()`` for mean and var, whose
+    sum carries the channels; ``(c1, c2, j)`` for S1 and S2, ``(c1, c2, j2, j3)`` for S3 and
+    ``(c1, c2, j1, j2, j3)`` for S4, whose sums carry the orientations."""
+    is_complex: bool
+    """Whether the loop computes it complex: the cross S1 and S2, S3 and S4."""
+
+
+def loop_sums(plan: STPlan) -> tuple[LoopSum, ...]:
+    """The sums of the scattering loop, in the order the loop takes them (``_loop.py``): mean
+    and var, then for each level and each scale j3 computed there, S1 (auto channels, then
+    cross pairs) and S2 alike, then for each scale j2 of the second layer, S3 at (j2, j3) and
+    S4 at (j1, j2, j3) for j1 ≤ j2, every channel pair of S3 and S4 inside (M-CHAN). The means
+    the plan lists as empty (OP-3) are not taken. The loop concatenates the divided sums in
+    this order, and one static gather turns them into the compact buffer."""
+    pairs = plan.pairs
+    channels_12 = (*((c, c) for c in pairs.auto), *pairs.cross)
+    sums = [LoopSum("mean", (), False), LoopSum("var", (), False)]
+    for level in plan.levels:
+        for j3 in (j for j in plan.scales if plan.scale_levels[j] == level):
+            if j3 in plan.first_layer:
+                for family in ("S1", "S2"):
+                    sums.extend(LoopSum(family, (c1, c2, j3), c1 != c2) for c1, c2 in channels_12)
+            arms = plan.second_layer[j3].arms if j3 in plan.second_layer else ()
+            for j2 in arms:
+                if (j2, j3) in plan.s3:
+                    sums.extend(LoopSum("S3", (c1, c2, j2, j3), True) for c1, c2 in pairs.ordered)
+                for j1 in range(j2 + 1):
+                    if (j1, j2, j3) in plan.s4:
+                        sums.extend(
+                            LoopSum("S4", (c1, c2, j1, j2, j3), True) for c1, c2 in pairs.ordered
+                        )
+    return tuple(sums)
 
 
 # ---------------------------------------------------------------------- helpers

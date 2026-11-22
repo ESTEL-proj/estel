@@ -1,23 +1,28 @@
 """``STStatistics``: the scattering statistics and their accessors (Part II, §12.7; maths.md
-§1.8; task T2.5).
+§1.8; Part III, §19; tasks T2.5, T2.15).
 
-An ``STStatistics`` holds, for each family (``mean``, ``var``, ``S1`` … ``S4``), STL's full-grid
-tensor, NaN where no coefficient exists, with its static layout (``_grid.FamilyGrid``: named
-axes, where coefficients exist). The normalisation reference (``_normalization._NormReference``)
-and, with ``standardize``, the mean and standard deviation removed from the data are kept with
-it. It is immutable: every method returns a new object.
+An ``STStatistics`` holds the statistics in the compact layout (Part III, §19.2, §19.4;
+``_layout.py``): one real buffer ``(Nb, n_floats)``, every coefficient STL computes and only
+those, real entries as one float and complex entries as (re, im), with its static
+:class:`_layout.Layout` (for each family its named axes, its coordinates, and the position of
+every entry). The normalisation reference (``_normalization._NormReference``) and, with
+``standardize``, the mean and standard deviation removed from the data are kept with it. It is
+immutable: every method returns a new object.
 
 The accessors do not depend on this storage (Part II, §12.7; ``docs/agents/storage.md``):
-``select`` and ``full_grid`` read the statistics, ``to_vector`` flattens them for losses, and
-``reduce`` applies the reductions ``iso``, ``angular_fourier`` and ``scale_cosine``. In step 2
-the compact layout (Part III, §19) replaces the full grids behind the same methods.
+``full_grid`` builds STL's full-grid view on demand, ``select`` restricts the statistics (a
+static gather on the buffer), ``to_vector`` flattens them for losses, and ``reduce`` applies the
+reductions ``iso``, ``angular_fourier`` and ``scale_cosine``, static linear maps on the buffer
+(Part III, §19.6).
 
-It is a pytree on every backend (Part I, §3.1, rule 9; T2.9): the arrays are its leaves; the
-plan, the layout and the reductions applied are static.
+It is a pytree on every backend (Part I, §3.1, rule 9; T2.9): the buffer is its leaf, with the
+arrays of the reference and of the standardisation; the layout, the plan and the reductions
+applied are static.
 """
 
 from __future__ import annotations
 
+import functools
 import os
 import warnings
 from collections.abc import Sequence
@@ -32,8 +37,10 @@ from ..backend._protocol import Backend
 from ..data._base import geometry_class
 from ..io import _schema
 from ..scattering._plan import STPlan, build_plan
-from ._arrays import constant, dtype_name
+from . import _layout as compact
+from ._arrays import constant
 from ._grid import REAL_PART_ONLY, FamilyGrid
+from ._layout import FamilyValues, Gather, Layout
 from ._normalization import _NormReference
 from ._reductions import ORIENTATION_AXES, SCALE_AXES
 from ._reductions import angular_fourier as reduce_angular_fourier
@@ -60,10 +67,10 @@ class STStatistics:
     return (Part II, §12.7).
 
     The families are ``"mean"``, ``"var"``, ``"S1"``, ``"S2"``, ``"S3"`` and ``"S4"`` (maths.md
-    M-MOM, M-S1 to M-S4), each an array of the backend whose first axis is the batch. Read them
-    with :meth:`full_grid` and :meth:`select`, flatten them with :meth:`to_vector`, reduce them
-    with :meth:`reduce`, and store them with :meth:`save` and :meth:`load`. Every method returns
-    a new object; nothing is modified.
+    M-MOM, M-S1 to M-S4), each with the batch as its first axis. Read them with
+    :meth:`full_grid` and :meth:`select`, flatten them with :meth:`to_vector`, reduce them with
+    :meth:`reduce`, and store them with :meth:`save` and :meth:`load`. Every method returns a
+    new object; nothing is modified.
 
     The named axes, after the batch axis, are ``(c,)`` for mean and var, ``(c1, c2, j, l)`` for
     S1 and S2, ``(c1, c2, j2, j3, l2, l3)`` for S3 and ``(c1, c2, j1, j2, j3, l1, l2, l3)`` for
@@ -74,21 +81,21 @@ class STStatistics:
 
     __slots__ = (
         "_backend",
-        "_grids",
+        "_buffer",
+        "_layout",
         "_plan",
         "_reductions",
         "_reference",
         "_standardization",
-        "_values",
     )
 
     _backend: str
-    _grids: tuple[FamilyGrid, ...]
+    _buffer: Any
+    _layout: Layout
     _plan: STPlan
     _reductions: _Reductions
     _reference: _NormReference | None
     _standardization: tuple[Any, Any] | None
-    _values: dict[str, Any]
 
     def __init__(self) -> None:
         raise TypeError(
@@ -99,8 +106,8 @@ class STStatistics:
     @classmethod
     def _create(
         cls,
-        values: dict[str, Any],
-        grids: tuple[FamilyGrid, ...],
+        buffer: Any,
+        layout: Layout,
         plan: STPlan,
         backend: str,
         *,
@@ -112,8 +119,8 @@ class STStatistics:
         traced code."""
         new = cls.__new__(cls)
         for name, value in (
-            ("_values", {g.name: values[g.name] for g in grids}),
-            ("_grids", grids),
+            ("_buffer", buffer),
+            ("_layout", layout),
             ("_plan", plan),
             ("_backend", backend),
             ("_reductions", reductions),
@@ -123,16 +130,14 @@ class STStatistics:
             object.__setattr__(new, name, value)
         return new
 
-    def _replace(
-        self, values: dict[str, Any], grids: tuple[FamilyGrid, ...], **changes: Any
-    ) -> STStatistics:
+    def _replace(self, buffer: Any, layout: Layout, **changes: Any) -> STStatistics:
         parts: dict[str, Any] = {
             "reductions": self._reductions,
             "reference": self._reference,
             "standardization": self._standardization,
         }
         return STStatistics._create(
-            values, grids, self._plan, self._backend, **{**parts, **changes}
+            buffer, layout, self._plan, self._backend, **{**parts, **changes}
         )
 
     def __setattr__(self, name: str, value: Any) -> None:
@@ -143,6 +148,12 @@ class STStatistics:
     def __delattr__(self, name: str) -> None:
         raise AttributeError("STStatistics are immutable: their attributes stay set.")
 
+    @property
+    def _grids(self) -> tuple[FamilyGrid, ...]:
+        """The full-grid view of each family (named axes, coordinates, where coefficients
+        exist), in order: static, from the layout."""
+        return self._layout.grids
+
     # ------------------------------------------------------------------ reading
 
     def full_grid(self, family: str) -> Any:
@@ -151,10 +162,12 @@ class STStatistics:
 
         Without reduction or selection the shapes are: ``(Nb, Nc)`` for mean and var,
         ``(Nb, Nc, Nc, J, L)`` for S1 and S2, ``(Nb, Nc, Nc, J, J, L, L)`` for S3 and
-        ``(Nb, Nc, Nc, J, J, J, L, L, L)`` for S4; mean and var are real, S1 to S4 complex.
+        ``(Nb, Nc, Nc, J, J, J, L, L, L)`` for S4; mean and var are real, S1 to S4 complex, the
+        coefficients that are real by construction with an imaginary part 0. The view is built
+        on demand from the compact storage (Part III, §19.5).
         """
         grid = self._grid(family)
-        return self._values[grid.name]
+        return compact.full_grid(self._backend_object(), self._buffer, self._layout, grid.name)
 
     def select(self, family: str | Sequence[str] | None = None, **index: Any) -> STStatistics:
         """The statistics restricted to ``family`` and along the named axes of ``index``
@@ -186,14 +199,9 @@ class STStatistics:
                 + "; ".join(f"{g.name} has {', '.join(g.axes)}" for g in chosen)
                 + "."
             )
-        backend = self._backend_object()
-        values: dict[str, Any] = {}
-        grids: list[FamilyGrid] = []
-        for grid in kept:
-            value, new_grid = _select_family(backend, self._values[grid.name], grid, index)
-            values = {**values, grid.name: value}
-            grids.append(new_grid)
-        return self._replace(values, tuple(grids))
+        specs = [_select_family(self._layout.entries(g.name), index) for g in kept]
+        transform = compact.make_map(self._layout, specs)
+        return self._replace(*_mapped(self._backend_object(), self._buffer, transform))
 
     def to_vector(self, mask_st: Any = None) -> Any:
         """The statistics as one flat real vector, for losses (Part II, §12.7; maths.md
@@ -212,19 +220,13 @@ class STStatistics:
         """
         backend = self._backend_object()
         xp = backend.xp
-        parts: list[Any] = []
-        for grid in self._grids:
-            x = self._values[grid.name]
-            present = grid.present
-            if grid.is_complex:
-                x = backend.complex_to_real_pairs(x)
-                if grid.name in REAL_PART_ONLY:
-                    x = x[..., 0]
-                else:
-                    present = np.repeat(present[..., None], 2, axis=-1)
-            flat = xp.reshape(x, (int(x.shape[0]), -1))
-            positions = constant(backend, np.flatnonzero(present.ravel()), flat, "int32")
-            parts.append(xp.reshape(xp.take(flat, positions, axis=1), (-1,)))
+        extended = compact.with_zero(backend, self._buffer)
+        parts = [
+            xp.reshape(
+                xp.take(extended, constant(backend, floats, extended, "int32"), axis=1), (-1,)
+            )
+            for floats in _vector_floats(self._layout)
+        ]
         vector = xp.concat(parts, axis=0)
         if mask_st is None:
             return vector
@@ -253,10 +255,6 @@ class STStatistics:
         """
         backend = self._backend_object()
         xp = backend.xp
-        reference = self._values[self._grids[-1].name]
-        cdtype = (
-            xp.complex128 if dtype_name(reference) in ("float64", "complex128") else xp.complex64
-        )
         weights = {} if weights is None else weights
         unknown = sorted(set(weights) - {g.name for g in self._grids})
         if unknown:
@@ -264,17 +262,19 @@ class STStatistics:
                 f"weights names {unknown}, which these statistics do not hold; name families "
                 f"among {[g.name for g in self._grids]}."
             )
+        extended = compact.with_zero(backend, self._buffer)
         parts: list[Any] = []
-        for grid in self._grids:
-            x = xp.astype(self._values[grid.name], cdtype)
+        for grid, (re, im) in zip(self._grids, _complex_floats(self._layout), strict=True):
+            pairs = [
+                xp.take(extended, constant(backend, floats, extended, "int32"), axis=1)
+                for floats in (re, im)
+            ]
+            x = backend.real_pairs_to_complex(xp.stack(pairs, axis=-1))
             if grid.name in weights:
                 x = x * weights[grid.name]
             if mean_along_batch:
                 x = xp.mean(x, axis=0, keepdims=True)
-            flat = xp.reshape(x, (int(x.shape[0]), -1))
-            positions = constant(backend, np.flatnonzero(grid.present.ravel()), flat, "int32")
-            kept = xp.take(flat, positions, axis=1)
-            parts.append(kept if keep_batch_dim else xp.reshape(kept, (-1,)))
+            parts.append(x if keep_batch_dim else xp.reshape(x, (-1,)))
         return xp.concat(parts, axis=1 if keep_batch_dim else 0)
 
     # ------------------------------------------------------------------ reductions
@@ -358,19 +358,22 @@ class STStatistics:
             self._check_complete(scales, J, "scale_cosine", "scale")
 
         backend = self._backend_object()
-        values, grids = self._values, self._grids
+        buffer, layout = self._buffer, self._layout
         if iso:
-            values, grids = reduce_iso(backend, values, grids, L)
+            buffer, layout = _mapped(backend, buffer, reduce_iso(layout, L))
         if angular_fourier:
-            values, grids = reduce_angular_fourier(backend, values, grids, n_angular, iso)
+            for per_axis in reduce_angular_fourier(layout, n_angular, iso):
+                buffer, layout = _mapped(backend, buffer, per_axis)
         if scale_cosine:
-            values, grids = reduce_scale_cosine(backend, values, grids, J, n_scale, width)
+            buffer, layout = _mapped(
+                backend, buffer, reduce_scale_cosine(layout, J, n_scale, width)
+            )
         reductions = _Reductions(
             iso=iso,
             angular_fourier=n_angular if angular_fourier else None,
             scale_cosine=(n_scale, width) if scale_cosine else None,
         )
-        return self._replace(values, grids, reductions=reductions)
+        return self._replace(buffer, layout, reductions=reductions)
 
     # ------------------------------------------------------------------ storage
 
@@ -428,13 +431,10 @@ class STStatistics:
     def _payload(self) -> tuple[dict[str, NDArray[Any]], dict[str, Any]]:
         backend = self._backend_object()
         plan = self._plan
+        layout_arrays, layout_content = compact.payload(self._layout)
         arrays: dict[str, NDArray[Any]] = {
-            f"values__{g.name}": np.asarray(backend.to_numpy(self._values[g.name]))
-            for g in self._grids
-        }
-        arrays = {
-            **arrays,
-            **{f"present__{g.name}": np.asarray(g.present) for g in self._grids},
+            "buffer": np.asarray(backend.to_numpy(self._buffer)),
+            **{f"layout__{k}": v for k, v in layout_arrays.items()},
             "plan__cross_matrix": np.asarray(plan.cross_matrix),
         }
         if plan.mask is not None:
@@ -444,7 +444,7 @@ class STStatistics:
             arrays = {
                 **arrays,
                 "reference__var": np.asarray(backend.to_numpy(ref.var)),
-                "reference__s2_sqrt": np.asarray(backend.to_numpy(ref.s2_sqrt)),
+                "reference__sigma": np.asarray(backend.to_numpy(ref.sigma)),
                 "reference__present": np.asarray(ref.present),
             }
         if self._standardization is not None:
@@ -469,15 +469,7 @@ class STStatistics:
                 "ref_batch_mean": plan.ref_batch_mean,
                 "standardize": plan.standardize,
             },
-            "families": [
-                {
-                    "name": g.name,
-                    "axes": list(g.axes),
-                    "coords": [list(c) for c in g.coords],
-                    "is_complex": g.is_complex,
-                }
-                for g in self._grids
-            ],
+            "layout": layout_content,
             "reductions": {
                 "iso": state.iso,
                 "angular_fourier": state.angular_fourier,
@@ -485,19 +477,22 @@ class STStatistics:
             },
             "reference": None
             if self._reference is None
-            else {"ref_batch_mean": self._reference.ref_batch_mean},
+            else {
+                "ref_batch_mean": self._reference.ref_batch_mean,
+                "n_orientations": self._reference.n_orientations,
+            },
         }
         return arrays, content
 
     def _tree_flatten(self) -> tuple[tuple[Any, ...], tuple[Any, ...]]:
         reference = self._reference
         children = (
-            tuple(self._values[g.name] for g in self._grids),
-            None if reference is None else (reference.var, reference.s2_sqrt),
+            self._buffer,
+            None if reference is None else (reference.var, reference.sigma),
             self._standardization,
         )
         aux = (
-            self._grids,
+            self._layout,
             self._plan,
             self._backend,
             self._reductions,
@@ -507,16 +502,16 @@ class STStatistics:
 
     @classmethod
     def _tree_unflatten(cls, aux: tuple[Any, ...], children: tuple[Any, ...]) -> STStatistics:
-        grids, plan, backend, reductions, reference_static = aux
-        values, reference_arrays, standardization = children
+        layout, plan, backend, reductions, reference_static = aux
+        buffer, reference_arrays, standardization = children
         reference = (
             None
             if reference_static is None
             else _NormReference.from_static(reference_static, *reference_arrays)
         )
         return cls._create(
-            {g.name: v for g, v in zip(grids, values, strict=True)},
-            grids,
+            buffer,
+            layout,
             plan,
             backend,
             reductions=reductions,
@@ -525,9 +520,8 @@ class STStatistics:
         )
 
     def __repr__(self) -> str:
-        shapes = ", ".join(
-            f"{g.name}{tuple(int(n) for n in self._values[g.name].shape)}" for g in self._grids
-        )
+        n_batch = int(self._buffer.shape[0])
+        shapes = ", ".join(f"{g.name}{(n_batch, *g.shape)}" for g in self._grids)
         state = self._reductions
         return (
             f"STStatistics({shapes}; norm={self._plan.norm!r}"
@@ -537,6 +531,55 @@ class STStatistics:
 
 
 _registry.register_pytree(STStatistics, STStatistics._tree_flatten, STStatistics._tree_unflatten)
+
+
+# ---------------------------------------------------------------------- static tables
+
+
+def _mapped(backend: Backend, buffer: Any, transform: compact.FloatMap) -> tuple[Any, Layout]:
+    """The buffer mapped by ``transform``, and its new layout."""
+    return compact.apply(backend, buffer, transform), transform.layout
+
+
+def _grid_order(layout: Layout, name: str) -> NDArray[np.int64]:
+    """The entries of family ``name`` in the order of its full grid (C order)."""
+    entries = layout.entries(name)
+    order: NDArray[np.int64] = np.argsort(
+        compact.flat_positions(entries.positions, entries.grid.shape), kind="stable"
+    ).astype(np.int64)
+    return order
+
+
+@functools.lru_cache(maxsize=64)
+def _vector_floats(layout: Layout) -> tuple[NDArray[np.int64], ...]:
+    """For each family, the floats of :meth:`STStatistics.to_vector` in the buffer extended by
+    ``compact.with_zero``: the coefficients in the order of the full grid, (re, im) for a
+    complex family (the 0 for the imaginary part of a real entry), re alone for mean, var and
+    the families of ``REAL_PART_ONLY`` (M-FLAT, OP-37)."""
+    found: list[NDArray[np.int64]] = []
+    for grid in layout.grids:
+        order = _grid_order(layout, grid.name)
+        re, im = (floats[order] for floats in compact.real_and_imaginary(layout, grid.name))
+        if grid.is_complex and grid.name not in REAL_PART_ONLY:
+            found.append(np.stack([re, im], axis=1).reshape(-1))
+        else:
+            found.append(re)
+    return tuple(found)
+
+
+@functools.lru_cache(maxsize=64)
+def _complex_floats(
+    layout: Layout,
+) -> tuple[tuple[NDArray[np.int64], NDArray[np.int64]], ...]:
+    """For each family, the floats of the real and of the imaginary parts of its coefficients
+    in the order of the full grid, in the buffer extended by ``compact.with_zero``."""
+    return tuple(
+        tuple(  # type: ignore[misc]
+            floats[_grid_order(layout, grid.name)]
+            for floats in compact.real_and_imaginary(layout, grid.name)
+        )
+        for grid in layout.grids
+    )
 
 
 # ---------------------------------------------------------------------- helpers
@@ -599,36 +642,51 @@ def _positions(axis: str, value: Any, size: int) -> int | NDArray[np.int64]:
     return found.astype(np.int64)
 
 
-def _select_family(
-    backend: Backend, value: Any, grid: FamilyGrid, index: dict[str, Any]
-) -> tuple[Any, FamilyGrid]:
-    xp = backend.xp
+def _select_family(entries: compact.FamilyEntries, index: dict[str, Any]) -> Gather:
+    """The selection of one family as a static gather (Part III, §19.6): which entry of the
+    family each entry of the result is, with the new axes and coordinates. Computed on the
+    entries, with tables their size, never the size of the full grid."""
+    grid = entries.grid
     chosen = {axis: _positions(axis, index[axis], grid.shape[grid.axis(axis)]) for axis in index}
-    present = grid.present
+    positions = entries.positions
+    sources = np.arange(entries.n_entries, dtype=np.int64)
     coords = list(grid.coords)
-    out = value
     for axis, where in chosen.items():
+        column = grid.axis(axis)
         if isinstance(where, int):
+            kept = positions[:, column] == where
+            positions, sources = positions[kept], sources[kept]
             continue
-        position = grid.axis(axis)
-        out = xp.take(out, constant(backend, where, out, "int32"), axis=position + 1)
-        present = np.take(present, where, axis=position)
+        # Each entry at position p along the axis goes to every k with where[k] == p.
+        order = np.argsort(where, kind="stable")
+        ordered = where[order]
+        low = np.searchsorted(ordered, positions[:, column], side="left")
+        counts = np.searchsorted(ordered, positions[:, column], side="right") - low
+        taken = np.repeat(np.arange(positions.shape[0]), counts)
+        within = np.arange(taken.shape[0]) - np.repeat(np.cumsum(counts) - counts, counts)
+        new_column = order[np.repeat(low, counts) + within].astype(np.int64)
+        positions = np.concatenate(
+            [positions[taken, :column], new_column[:, None], positions[taken, column + 1 :]],
+            axis=1,
+        )
+        sources = sources[taken]
         coords = [
-            *coords[:position],
-            tuple(grid.coords[position][int(i)] for i in where),
-            *coords[position + 1 :],
+            *coords[:column],
+            tuple(grid.coords[column][int(i)] for i in where),
+            *coords[column + 1 :],
         ]
-    drops = sorted(
-        ((grid.axis(a), w) for a, w in chosen.items() if isinstance(w, int)), reverse=True
+    dropped = {grid.axis(a) for a, w in chosen.items() if isinstance(w, int)}
+    keep = [i for i in range(len(grid.axes)) if i not in dropped]
+    positions = positions[:, keep].astype(np.int64)
+    axes = tuple(grid.axes[i] for i in keep)
+    coords_kept = tuple(coords[i] for i in keep)
+    shape = tuple(len(c) for c in coords_kept)
+    present = compact.mask_of(compact.flat_positions(positions, shape), shape)
+    new_grid = grid.replace(axes=axes, coords=coords_kept, present=present)
+    values = FamilyValues(
+        new_grid, positions, entries.is_complex[sources], entries.levels, entries.level_ids[sources]
     )
-    axes = list(grid.axes)
-    for position, where in drops:
-        out = out[(slice(None),) * (position + 1) + (where,)]
-        present = np.take(present, where, axis=position)
-        coords = [*coords[:position], *coords[position + 1 :]]
-        axes = [*axes[:position], *axes[position + 1 :]]
-    new_grid = grid.replace(axes=tuple(axes), coords=tuple(coords), present=np.array(present))
-    return out, new_grid
+    return Gather(values, sources)
 
 
 def _mask_positions(mask_st: Any, length: int) -> NDArray[np.int64]:
@@ -684,25 +742,21 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
     def to_backend(array: NDArray[Any]) -> Any:
         return backend.asarray(array, str(array.dtype), None)  # type: ignore[arg-type]
 
-    grids = tuple(
-        FamilyGrid(
-            name=f["name"],
-            axes=tuple(f["axes"]),
-            coords=tuple(tuple(c) for c in f["coords"]),
-            present=arrays[f"present__{f['name']}"].astype(bool),
-            is_complex=bool(f["is_complex"]),
-        )
-        for f in content["families"]
+    prefix = "layout__"
+    layout = compact.from_payload(
+        {k[len(prefix) :]: v for k, v in arrays.items() if k.startswith(prefix)},
+        content["layout"],
     )
-    values = {g.name: to_backend(arrays[f"values__{g.name}"]) for g in grids}
+    buffer = to_backend(arrays["buffer"])
     reference = None
     if content["reference"] is not None:
         present = arrays["reference__present"].astype(bool)
         present.flags.writeable = False
         reference = _NormReference(
             var=to_backend(arrays["reference__var"]),
-            s2_sqrt=to_backend(arrays["reference__s2_sqrt"]),
+            sigma=to_backend(arrays["reference__sigma"]),
             present=present,
+            n_orientations=int(content["reference"]["n_orientations"]),
             ref_batch_mean=bool(content["reference"]["ref_batch_mean"]),
         )
     standardization = None
@@ -718,8 +772,8 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
         scale_cosine=None if state["scale_cosine"] is None else tuple(state["scale_cosine"]),
     )
     return STStatistics._create(
-        values,
-        grids,
+        buffer,
+        layout,
         plan,
         backend_name,
         reductions=reductions,

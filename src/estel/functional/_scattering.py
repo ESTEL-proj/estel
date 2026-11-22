@@ -27,7 +27,8 @@ from ..data._base import Data
 from ..scattering._filters import STFilters
 from ..scattering._loop import ScatteringValues, scattering_values
 from ..scattering._plan import STPlan
-from ..statistics._grid import auto_scales, base_grids
+from ..statistics._grid import auto_scales
+from ..statistics._layout import base_layout
 from ..statistics._normalization import (
     _NormReference,
     as_constant,
@@ -154,20 +155,21 @@ def compute(
         check_reference(reference, plan, int(data.shape[0]), filters.wavelets.smoothing.dtype)
     backend = _registry.backend_named(data.backend)
     found = _loop(backend.name)(data, plan=plan, filters=filters)
-    values = {name: getattr(found, name) for name in ("mean", "var", "S1", "S2", "S3", "S4")}
-    grids = base_grids(plan)
+    buffer, layout = found.buffer, base_layout(plan)
     if plan.norm == "self":
-        reference = self_reference(backend, values, auto_scales(plan), plan.ref_batch_mean)
+        reference = self_reference(
+            backend, buffer, layout, auto_scales(plan), plan.L, plan.ref_batch_mean
+        )
     elif plan.norm == "ref" and reference is not None:  # checked before the loop
         reference = as_constant(backend, reference)
     else:
         reference = None
     if reference is not None:
-        values, grids = normalize(backend, values, grids, reference)
+        buffer, layout = normalize(backend, buffer, layout, reference)
     standardization = (found.mean_pre_std, found.std_pre_std) if plan.standardize else None
     return STStatistics._create(
-        values,
-        grids,
+        buffer,
+        layout,
         plan,
         data.backend,
         reference=reference,

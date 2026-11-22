@@ -247,7 +247,9 @@ class Backend(Protocol):
     def gather_weighted(self, x: Array, axis: int, index: Array, weight: Array) -> Array:
         """Apply a sparse matrix, stored in padded CSR form, along ``axis``.
 
-        Used for the HEALPix stencils and decimation of step 1 (Part II, §9.3).
+        Used for the HEALPix stencils and decimation of step 1 (Part II, §9.3), and for the
+        static linear maps on the compact buffer of the statistics, the reductions (Part III,
+        §19.6).
 
         Shapes:
             ``index`` and ``weight`` have the same shape ``(P, Q, M)``: for each output
@@ -303,8 +305,9 @@ class Backend(Protocol):
     ) -> Array:
         """Build a new array on the complete grid of indices, out of place.
 
-        Assembles the full-grid statistics once, at the end of the computation, from the
-        values computed at the static positions of the plan (Part I, §3.1.1).
+        Builds the full-grid view of the statistics on demand, for ``STStatistics.full_grid``,
+        from the entries of the compact buffer at their static positions (Part I, §3.1.1;
+        Part III, §19.5). Never called inside the computation.
 
         Shapes:
             ``index`` holds d integer arrays of shape ``(n,)``, one coordinate per grid axis;

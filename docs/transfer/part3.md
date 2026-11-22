@@ -148,7 +148,7 @@ A generated capability matrix, `docs/engines.md`, built from the engine's declar
 
 ## 19. Compact coefficient layout
 
-Implemented in step 1, in phase P3 (Part II, §15.2, T2.15). Until then the statistics keep STL's full-grid storage behind accessors that do not depend on it (Part II, §12.7), so switching to the compact layout changes no public signature and no value.
+Implemented in step 1, in phase P3 (Part II, §15.2, T2.15). The statistics are stored in it behind accessors that do not depend on the storage (Part II, §12.7): STL's full-grid storage, used until then, is now a view built on demand (§19.5), and the switch changed no public signature and no value.
 
 The principle: **compute on structured arrays, store in a flat compact buffer, and never mix the two.** The conversion between them is a static gather whose indices are built once, in NumPy, with the plan.
 
@@ -236,7 +236,7 @@ Every stored entry carries its full named coordinates, so selection, plotting an
 
 ### 19.6 Reductions as static linear maps
 
-Normalisation (for a fixed reference), `iso`, `angular_fourier` and `scale_cosine` are linear in the coefficients. Each is precomputed in NumPy as an (index, weight) table and applied with `segment_sum` or a small matrix product per segment, returning a new layout. They are therefore differentiable, compilable and backend-neutral.
+Normalisation (for a fixed reference), `iso`, `angular_fourier` and `scale_cosine` are linear in the coefficients. Each is precomputed in NumPy as an (index, weight) table and applied with `gather_weighted`, a sparse matrix in padded CSR form (`angular_fourier` one orientation axis at a time), returning a new layout. They are therefore differentiable, compilable and backend-neutral.
 
 ### 19.7 What the compact layout does not solve
 
@@ -330,7 +330,7 @@ The reorganisations that change no value come first, so that each later change i
 
 What the optimisations of step 1 brought, measured by the benchmark (Part I, §6.3) on CPU (Apple M3); the detail is in the pull requests and in `bench/results/`. Each optimisation adds its result here. The optimisation session of the benchmark of step 2 (LF62) confirms these conclusions on native x86 Linux and on GPU.
 
-- **Kept:** the Gram form of the second layer (memory of the computation 39 to 49 % lower, #95); the compilation of the loop on JAX (2 to 15 times faster, #96); plain sums for the means without a mask (#96).
+- **Kept:** the Gram form of the second layer (memory of the computation 39 to 49 % lower, #95); the compilation of the loop on JAX (2 to 15 times faster, #96); plain sums for the means without a mask (#96); the compact coefficient layout (T2.15, #132): time and memory of the computation unchanged within the noise (median ratios to `main` 0.93 to 1.00 for the forward pass, 0.93 to 0.98 with the gradient, 1.000 to 1.005 for the memory), statistics and gradient equal to `main`'s within the parity tolerance, and the output 3.7 to 6.7 times smaller (0.18 to 0.46 MB per batch element on `main`, 0.03 to 0.12 MB in the buffer); `angular_fourier` is applied one orientation axis at a time, so its static map grows as L⁴ on 2D data rather than L⁶ (on 64 × 64, J = 5, L = 8: first call 0.11 s and 86 MB instead of 3.3 s and 3.9 GB of resident memory).
 - **Tried without gain:** half of the Gram product, slices inside the Gram form, kernels as constants (#96); level-wise gradients (LF36, issue #92).
 - **Deferred:** per-scale convolutions and the measurements on x86 and GPU (LF62, issue #91); a first-order gradient (LF46).
 

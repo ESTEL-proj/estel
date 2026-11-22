@@ -54,7 +54,7 @@ Step 1 rebuilds what STL computes inside the architecture of Part I, and proves,
 | Wavelets | 2D bump-steerable 5×5; 1D analytic wavelet with its conjugate (L = 2) in tensor products; HEALPix gauge-oriented kernels; smoothing kernel (the anti-aliasing filter of the downsampling) | wavelet optimisation (LF22) |
 | Low-pass | φ and box term in tensor products, S1/S2 only | low-pass in every geometry and in S3/S4 (LF6) |
 | Statistics | vanilla ScatCov: mean, var, S1–S4; normalisation; iso, angular\_fourier, scale\_cosine; selection | canonical coefficient set (LF20); reductions on tensor products redefined (LF26) |
-| Storage | STL-shaped full-grid tensors, behind accessors that do not depend on storage | compact layout (LF14) |
+| Storage | the compact layout (Part III, §19; T2.15): one real buffer holding every coefficient STL computes and only those, real entries as one float, STL's conjugate duplicates kept; STL-shaped full-grid views built on demand, behind accessors that do not depend on storage | packing of the conjugate duplicates, with the canonical set (LF20) |
 | Spectra | 2D only, as in `master` v1.6.0: four estimators with automatic selection. `compute_PS` is True by default for 2D data; for other geometries it is unavailable in 1.0.0 and raises a clear error | 1D and tensor-product spectra (LF23); HEALPix spectra (LF24); v1.6.0 estimators in every geometry (LF10); positive non-periodic estimator (LF7) |
 | Synthesis | periodic fields only: from maps or stats, `mean_field`, `running_shape`, `nbatch`, Gaussian start; the built-in L-BFGS of PyTorch; checkpoints (new, §12.9). One comparison with STL (T6.1); synthesis tests and parity come after 1.0.0 | non-periodic and masked syntheses (LF47); Rust L-BFGS (LF3); coarse-to-fine, per-iteration filtering, ensembles (LF12) |
 | Backends and engines | PyTorch; JAX experimental (every primitive, tested on every PR, not covered by the 1.0.0 guarantees); float32 default, float64 path; Python engine only | JAX stable, with its synthesis optimiser (LF1); Rust engine (LF3); MPI (LF4) |
@@ -69,7 +69,7 @@ Step 1 rebuilds what STL computes inside the architecture of Part I, and proves,
 | --- | --- | --- |
 | L0 protocol and backend registry | PyTorch; `"jax"` registered as experimental, with a warning | the JAX backend (Part III, §17) |
 | `engine=` argument, engine registry and protocol, `diff_order` | only `"python"`, order 2 | the Rust engine (Part III, §18) |
-| `STStatistics` accessors (`family`, `select`, `to_vector`, `full_grid`) | backed by full-grid tensors | the compact layout (Part III, §19), with no API change |
+| `STStatistics` accessors (`family`, `select`, `to_vector`, `full_grid`) | backed by the compact layout (Part III, §19; T2.15), the full-grid tensors being views built on demand | the canonical set (LF20, Part III, §19.8), with no API change |
 | `DataHealpix(cell_ids=…, partition=…)` | whole sky by default; partial ranges accepted | MPI in process (Part III, §18.3) |
 | `_global_sum`, internal: the hook between the weighted pixel sums of the means and their division, called once per level on the stacked sums (issue #17) | identity | MPI in process, as an MPI Allreduce with a sum (Part III, §18.3) |
 | `estel.io`, with a versioned schema | ESTEL format | the JSON formats of STL-Dev-MPI (Part III, §18.3) |
@@ -141,7 +141,7 @@ estel/                             # one repository for Python and Rust (Part IV
 │   │                              # _healpix_geometry.py (ported from TorchGeometry)
 │   ├── scattering/                # _plan.py, operator.py, operator_tensor_prod.py
 │   ├── statistics/                # _statistics.py, _grid.py, _reductions.py, _normalization.py,
-│   │                              # _layout.py (step 2, LF14)
+│   │                              # _layout.py (the compact layout, T2.15)
 │   ├── spectra/                   # operator.py, _estimators.py (2D), _bins.py
 │   ├── synthesis/                 # api.py, _loss.py, _init.py, _checkpoints.py
 │   ├── functional/                # pure functions: scattering(), cross_spectrum(), loss()
@@ -208,9 +208,9 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `asarray(np_array, dtype, device)` / `to_numpy(x)` | P | Moving plans and results between NumPy and the backend | `Base_DataClass._to_array` |
 | `pad(x, widths, axes, mode)` | P | mode ∈ {`circular`, `replicate`, `zeros`}; absent from the Array API | `_get_padding_mode` |
 | `conv_axes(x, k, axes, stride=1)` | P | Valid real correlation along the given axes, batched over the others; complex = two real calls, in L1. Applied directly along a block's axes, without moving them | `_conv_circular`, `_semicomplex_conv_circular` |
-| `gather_weighted(x, axis, index, weight)` | P | `y[..., p, k] = Σ_m weight[p,k,m] · x[..., index[p,k,m]]`: a sparse matrix in padded CSR form, for the HEALPix stencils and decimation of step 1 | `TorchGeometry` |
+| `gather_weighted(x, axis, index, weight)` | P | `y[..., p, k] = Σ_m weight[p,k,m] · x[..., index[p,k,m]]`: a sparse matrix in padded CSR form, for the static linear maps of the statistics (normalisation, reductions, selection; Part III, §19.6) and for the HEALPix stencils and decimation of step 1 | `TorchGeometry` |
 | `segment_sum(x, axis, segment_ids, num_segments)` | P | Bin averages, HEALPix parent binning, reductions | bin masks, `_bin_to_parents` |
-| `scatter_to_grid(values, index, shape, fill)` | P | Builds a new array on the complete grid of indices: values at the static positions `index`, `fill` (NaN) everywhere else; out of place. Its inverse, `gather_from_grid(grid, index)`, reads the existing coefficients back. Assembles the statistics in step 1 (Part I, §3.1.1); builds full-grid views in step 2 | new |
+| `scatter_to_grid(values, index, shape, fill)` | P | Builds a new array on the complete grid of indices: values at the static positions `index`, `fill` (NaN) everywhere else; out of place. Its inverse, `gather_from_grid(grid, index)`, reads the existing coefficients back. Builds the full-grid views of the statistics on demand, for `full_grid`, from the compact buffer; never called inside the computation (Part I, §3.1.1; Part III, §19.5) | new |
 | `complex_to_real_pairs(z)` / `real_pairs_to_complex(r)` | P | Complex values as trailing (re, im) floats, and back | new |
 | `stop_gradient(x)` | P | `x.detach()` / `jax.lax.stop_gradient` | `.detach()` calls |
 | `random_normal(key, shape, dtype)`, `make_key(seed)` | P | Explicit keys on every backend | `torch.randn` in `Synthesis.py` |
@@ -285,18 +285,18 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 
 ### 12.7 Statistics
 
-`estel/statistics/`. The accessors do not depend on how statistics are stored: in 1.0.0 they read STL-shaped full-grid tensors; in step 2 they read the compact layout, with no API change. In ESTEL, "reduction" means only `iso`, `angular_fourier` and `scale_cosine`.
+`estel/statistics/`. The accessors do not depend on how statistics are stored: they read the compact layout (Part III, §19; T2.15), from which `full_grid` rebuilds STL-shaped full-grid tensors on demand, so the storage changed with no API change. In ESTEL, "reduction" means only `iso`, `angular_fourier` and `scale_cosine`.
 
 | Function | Tag | Purpose | Origin |
 | --- | --- | --- | --- |
 | `STStatistics` | F | Returned by `STOperator.apply`, `estel.functional.scattering` and `STStatistics.load`; not built directly. Pytree: arrays as leaves; plan, layout and reductions applied static | `ST_Statistics.__init__` |
-| `.full_grid(family)` | F | The tensor of `family` (`"mean"`, `"var"`, `"S1"` … `"S4"`, later `"PS"`), in STL's shape, NaN where no coefficient exists. The storage itself in 1.0.0; a view rebuilt on demand in step 2 | attributes `.S1 … .S4` |
+| `.full_grid(family)` | F | The tensor of `family` (`"mean"`, `"var"`, `"S1"` … `"S4"`, later `"PS"`), in STL's shape, NaN where no coefficient exists. A view rebuilt on demand from the compact layout, never inside the computation (Part III, §19.5) | attributes `.S1 … .S4` |
 | `.select(family=None, **index) -> STStatistics` | F | One selection method. `family` is a name (`"S3"`) or a sequence of names, `None` for all. `**index` restricts along named axes: an int drops the axis, a sequence or a slice keeps it; `channel=(a, b)` is shorthand for `c1=a, c2=b`. A family that does not have a named axis is left out of the result: `select(j3=2)` returns S3 and S4 restricted to j3 = 2, without mean, var, S1 or S2. An axis name that no selected family has raises an error listing the valid names. The axes are `(c,)` for mean and var, `(c1, c2, j, l)` for S1 and S2, `(c1, c2, j2, j3, l2, l3)` for S3 and `(c1, c2, j1, j2, j3, l1, l2, l3)` for S4; `iso` turns the orientations of S3 into `dl` and those of S4 into `dl2, dl3`, `angular_fourier` prefixes the axes it transforms with `h`, `scale_cosine` turns the scales into `(k, a)` and `(k, a, b)`. The result keeps every `STStatistics` method (`to_vector`, `reduce`, `full_grid`, `save`) | `select` (a stub in STL) |
 | `.to_vector(mask_st=None)` | F | Flat real vector for losses, STL's `to_flatten(flatten_complex=True)`: families in the order mean, var, S1 … S4, each batch element in turn, complex values as (real, imaginary) pairs, of which only the real part of S1 and S2 (and PS) is kept, as in STL, including for the cross-channel terms (maths tab, M-FLAT, OP-37). The positions where no coefficient exists (structural, empty means, OP-30, missing scales of `scale_cosine`) are left out, decided statically. `mask_st`, STL's name, is an optional boolean array over that vector: True keeps a coefficient, as in STL. It drops coefficients found unreliable by a boolean test; in a synthesis it is computed once on the target and reused at every iteration | `to_flatten`, `mask_st` |
 | `.reduce(*, iso=False, angular_fourier=False, angular_harmonics=None, scale_cosine=False, scale_harmonics=None, dj=None)` | F | Applies the selected reductions in the order of M-NORM (`iso`, then `angular_fourier`, then `scale_cosine`) in one call, and returns a new `STStatistics`. `angular_harmonics` (STL's `harmonics_angle`, 1 to L), `scale_harmonics` (STL's `harmonics_scale`) and `dj` (1 to J) default to all; `angular_fourier` is allowed without `iso`, and `scale_cosine` needs `iso`, as in STL; reduced statistics are not reduced again | `to_iso`, `to_angular_ft`, `to_scale_ft` |
 | `.save(path)`, `STStatistics.load(path)` | F | Through `estel.io`, which owns the versioned schema (`estel/io/_schema.py`): one npz archive with the arrays and a JSON document holding the schema version, the reference counters, the plan's parameters, the layout and the reductions applied. There is no `statistics/io.py` | new |
 | `.to_xarray()` | F | *(step 2, LF13)* Export for inspection | new |
-| `Layout`, `Segment` | I/N | *(step 2, LF14)* The compact layout (Part III, §19) | new |
+| `Layout`, `Segment` | I/N | The compact layout (Part III, §19.4; T2.15), in `_layout.py`: the buffer's segments, one per family and level, with their named index tables; static and hashable. Normalisation, reductions and selection are static linear maps on the buffer (Part III, §19.6) | new |
 
 ### 12.8 Spectra
 

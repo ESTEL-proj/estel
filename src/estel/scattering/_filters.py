@@ -6,10 +6,10 @@ wavelet bank, the smoothing kernel and the maps of each downsampling (maths.md M
 M-WAV-1D, M-SMOOTH-2D, M-SMOOTH-1D, M-DOWN-MASK); and everything derived from the plan to apply
 them: the valid pixels, the weights of the means of the field and of the first layer and the
 windows of the second-layer maps, with their border crops, where the data have missing values
-(M-MEAN, M-BORDER, M-MASK; maths_step2.md M-GRAM, M-WIN), and the grid positions of the
-coefficients. They are backend arrays in the operator's dtype, built once from the plan
-(:func:`build_filters`) and passed to the computation as an argument rather than baked in
-(Part I, §3.1, rules 4 and 7).
+(M-MEAN, M-BORDER, M-MASK; maths_step2.md M-GRAM, M-WIN), and the gather from the sums of the
+loop to the compact buffer (Part III, §19.9). They are backend arrays in the operator's dtype,
+built once from the plan (:func:`build_filters`) and passed to the computation as an argument
+rather than baked in (Part I, §3.1, rules 4 and 7).
 
 ``STFilters`` is public as a name only (Part II, §12.6): users get it from
 ``STOperator.filters`` and pass it to ``estel.functional.scattering``. Its fields are those of
@@ -19,7 +19,7 @@ leaves are the arrays.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -27,6 +27,7 @@ from numpy.typing import NDArray
 
 from .._config import FloatDType
 from ..backend import _registry
+from ..statistics._layout import loop_gather
 from ..wavelets._operator import MeanWeights, WaveletFilters, build_wavelet_filters
 from ._plan import STPlan
 
@@ -54,12 +55,10 @@ class _FilterFields(NamedTuple):
     ``None`` when every window is the whole grid (maths_step2.md M-GRAM). S3 and S4 need no
     other weights: each mean is a Gram product of windowed maps, divided by the denominator
     of the plan."""
-    s1_index: tuple[Any, ...]
-    """The grid positions ``(c1, c2, j)`` of the S1 and S2 values (:func:`first_layer_keys`)."""
-    s3_index: tuple[Any, ...]
-    """The grid positions ``(c1, c2, j2, j3)`` of the S3 values (:func:`s3_keys`)."""
-    s4_index: tuple[Any, ...]
-    """The grid positions ``(c1, c2, j1, j2, j3)`` of the S4 values (:func:`s4_keys`)."""
+    gather: Any
+    """The static gather from the divided sums of the loop, in the order of
+    ``_plan.loop_sums``, to the compact buffer of the statistics (int32;
+    ``statistics._layout.loop_gather``; Part III, §19.3, §19.9)."""
 
 
 class STFilters(_FilterFields):
@@ -74,36 +73,7 @@ class STFilters(_FilterFields):
     __slots__ = ()
 
 
-# ---------------------------------------------------------------------- static coefficient keys
-
-
-def first_layer_keys(plan: STPlan) -> list[tuple[int, int, int]]:
-    """The ``(c1, c2, j)`` of S1 (and of S2) the loop computes, in its order: for each scale
-    with valid pixels, the auto channels, then the cross pairs."""
-    pairs = plan.pairs
-    return [
-        (c1, c2, j)
-        for j in plan.first_layer
-        for c1, c2 in (*((c, c) for c in pairs.auto), *pairs.cross)
-    ]
-
-
-def s3_keys(plan: STPlan) -> list[tuple[int, int, int, int]]:
-    """The ``(c1, c2, j2, j3)`` of S3 the loop computes, in its order."""
-    return [(c1, c2, j2, j3) for j2, j3 in plan.s3 for c1, c2 in plan.pairs.ordered]
-
-
-def s4_keys(plan: STPlan) -> list[tuple[int, int, int, int, int]]:
-    """The ``(c1, c2, j1, j2, j3)`` of S4 the loop computes, in its order."""
-    return [(c1, c2, j1, j2, j3) for j1, j2, j3 in plan.s4 for c1, c2 in plan.pairs.ordered]
-
-
-def coefficient_index(
-    keys: Sequence[tuple[int, ...]], n_axes: int
-) -> tuple[NDArray[np.int64], ...]:
-    """The index of ``scatter_to_grid`` for ``keys``: one coordinate array per grid axis."""
-    table = np.asarray(keys, dtype=np.int64).reshape(len(keys), n_axes)
-    return tuple(np.ascontiguousarray(table[:, axis]) for axis in range(n_axes))
+# ---------------------------------------------------------------------- windows
 
 
 def window(weights: MeanWeights, array: Any) -> Any:
@@ -134,12 +104,6 @@ def build_filters(plan: STPlan, backend_name: str, dtype: FloatDType, device: An
     def boolean(a: NDArray[Any]) -> Any:
         return backend.asarray(np.asarray(a, dtype=bool), "bool", device)
 
-    def index(keys: Sequence[tuple[int, ...]], n_axes: int) -> tuple[Any, ...]:
-        return tuple(
-            backend.asarray(c.astype(np.int32), "int32", device)
-            for c in coefficient_index(keys, n_axes)
-        )
-
     return STFilters(
         wavelets=build_wavelet_filters(plan.wavelets, backend_name, dtype, device),
         valid=None if plan.mask is None else boolean(~plan.mask),
@@ -149,7 +113,5 @@ def build_filters(plan: STPlan, backend_name: str, dtype: FloatDType, device: An
             j3: real(np.stack(maps.windows)) if maps.windows else None
             for j3, maps in plan.second_layer.items()
         },
-        s1_index=index(first_layer_keys(plan), 3),
-        s3_index=index(s3_keys(plan), 4),
-        s4_index=index(s4_keys(plan), 5),
+        gather=backend.asarray(loop_gather(plan)[0].astype(np.int32), "int32", device),
     )

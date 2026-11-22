@@ -122,7 +122,7 @@ class STOperator:
                 f"STOperator.from_statistics takes STStatistics, got {type(stats).__name__}."
             )
         operator = cls.__new__(cls)
-        wide = dtype_name(next(iter(stats._values.values()))) in _WIDE
+        wide = dtype_name(stats._buffer) in _WIDE
         dtype: FloatDType = "float64" if wide else "float32"
         operator._setup(
             stats._plan, stats._backend, dtype, default_device(), "python", stats._reference
