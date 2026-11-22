@@ -230,7 +230,7 @@ MAPS_ERRORS: dict[str, tuple[type[Exception], str, Any, dict[str, Any]]] = {
     "masked": (ValueError, "LF47", lambda: Data2D(_masked(), pbc=True), {}),
     "power-spectrum": (NotImplementedError, "T4.1", _maps, {"compute_PS": None}),
     "n-batch": (ValueError, "n_batch", _maps, {"mean_field": False, "n_batch": 2}),
-    "st-kwargs": (ValueError, r"takes \['J'\] only", _maps, {"st_kwargs": {"J": 2, "L": 8}}),
+    "st-kwargs": (ValueError, r"takes \['J'\] only", _maps, {"st_kwargs": {"J": 2, "L": 4}}),
     "checkpoint-dir": (ValueError, "go together", _maps, {"checkpoint_every": 2}),
     "init-shape": (ValueError, "broadcast", _maps, {"init": np.zeros((3, N, N))}),
     "running-shape": (ValueError, "running_shape", _maps, {"running_shape": (N,)}),
