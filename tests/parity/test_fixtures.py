@@ -22,10 +22,12 @@ from numpy.typing import NDArray
 from tests.parity._compare import (
     FIXTURE_DTYPES,
     FIXTURES,
+    LAYOUT_DTYPES,
     MANIFEST,
     PARITY_RTOL,
     STL_COMMITS,
     assert_parity,
+    full_grid,
     load_fixture,
     parity_atol,
     read_manifest,
@@ -62,9 +64,40 @@ def test_fixture_matches_its_manifest_entry(name: str, entry: dict[str, Any]) ->
     arrays = load_fixture(Path(name).stem)
     assert sorted(arrays) == sorted(entry["arrays"])
     for key, array in arrays.items():
-        assert str(array.dtype) in FIXTURE_DTYPES, f"{name}:{key} is {array.dtype}"
+        packed = key.endswith(("_shape", "_mask")) and str(array.dtype) in LAYOUT_DTYPES
+        assert packed or str(array.dtype) in FIXTURE_DTYPES, f"{name}:{key} is {array.dtype}"
         assert str(array.dtype) == entry["arrays"][key]["dtype"]
         assert list(array.shape) == entry["arrays"][key]["shape"]
+    assert packed_layout_errors(arrays) == [], f"{name}: malformed packed grids"
+
+
+LAYOUT_SUFFIXES = {"_shape": "int64", "_mask": "uint8"}
+
+
+def packed_layout_errors(arrays: dict[str, NDArray[Any]]) -> list[str]:
+    """What is wrong with the packed grids of a fixture (decisions on the review of #131, item
+    4). A layout key is a key ending in ``_shape`` or ``_mask`` whose dtype is not float64 or
+    complex128 (the float64 ``<config>_mask`` of the 1D and 2D fixtures are data masks). Each
+    ``_shape`` is int64 and each ``_mask`` uint8, both one-dimensional, and each has its partner
+    keys: the statistic it describes and the other suffix, with which it rebuilds the grid."""
+    errors = []
+    for key, array in sorted(arrays.items()):
+        suffix = next((s for s in LAYOUT_SUFFIXES if key.endswith(s)), None)
+        if suffix is None or str(array.dtype) in FIXTURE_DTYPES:
+            continue
+        base, dtype = key.removesuffix(suffix), LAYOUT_SUFFIXES[suffix]
+        partners = [base, *(f"{base}{s}" for s in LAYOUT_SUFFIXES if s != suffix)]
+        missing = [partner for partner in partners if partner not in arrays]
+        if str(array.dtype) != dtype or array.ndim != 1:
+            errors.append(f"{key} is {array.dtype} of {array.ndim} dimensions, not 1D {dtype}")
+        elif missing:
+            errors.append(f"{key} has no partner {', '.join(missing)}")
+        elif suffix == "_shape":
+            try:
+                full_grid(arrays, base)
+            except ValueError as error:
+                errors.append(str(error))
+    return errors
 
 
 def test_bump_steerable_kernel_2d_fixture() -> None:
@@ -90,6 +123,54 @@ def test_bump_steerable_kernel_1d_fixture() -> None:
         assert kernel.dtype == np.complex128
         assert kernel.shape == (1, n_orientations, 5)
         assert np.isfinite(kernel).all()
+
+
+# ---------------------------------------------------------------- full_grid
+
+
+def _packed(grid: NDArray[Any]) -> dict[str, NDArray[Any]]:
+    """``grid`` packed as the tensor-product cases pack it (``pack_grid`` of scattering_tp)."""
+    finite = np.isfinite(grid)
+    return {
+        "S": grid[finite],
+        "S_shape": np.asarray(grid.shape, dtype=np.int64),
+        "S_mask": np.packbits(finite.ravel()),
+    }
+
+
+def test_full_grid_rebuilds_a_packed_grid() -> None:
+    grid = _reference(np.complex128)
+    grid[0, 1, :] = np.nan
+    grid[2, 3, 4] = np.nan
+    rebuilt = full_grid(_packed(grid), "S")
+    assert rebuilt.dtype == grid.dtype
+    assert np.array_equal(rebuilt, grid, equal_nan=True)
+
+
+def test_packed_layout_errors_name_each_malformed_key() -> None:
+    arrays = _packed(_reference(np.complex128))
+    assert packed_layout_errors({**arrays, "x_mask": np.ones(3)}) == []  # a float64 data mask
+    wrong = {
+        "S": arrays["S"],
+        "S_shape": arrays["S_shape"].astype(np.int32),
+        "S_mask": arrays["S_mask"][None],
+        "T_mask": arrays["S_mask"],
+    }
+    assert packed_layout_errors(wrong) == [
+        "S_mask is uint8 of 2 dimensions, not 1D uint8",
+        "S_shape is int32 of 1 dimensions, not 1D int64",
+        "T_mask has no partner T, T_shape",
+    ]
+
+
+def test_full_grid_refuses_a_malformed_grid() -> None:
+    arrays = _packed(_reference())
+    with pytest.raises(ValueError, match="60 finite positions"):
+        full_grid({**arrays, "S": arrays["S"][:-1]}, "S")
+    with pytest.raises(ValueError, match="bytes"):
+        full_grid({**arrays, "S_mask": arrays["S_mask"][:-1]}, "S")
+    with pytest.raises(KeyError, match="packed grid"):
+        full_grid({"S": arrays["S"]}, "S")
 
 
 # ---------------------------------------------------------------- load_fixture

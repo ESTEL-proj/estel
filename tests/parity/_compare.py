@@ -8,6 +8,9 @@ with `assert_parity`:
     expected = load_fixture("bump_steerable_kernel_2d")["kernel"]
     assert_parity(actual, expected, dtype)
 
+The tensor-product fixtures (``scattering_tp``, ``statistics_tp``) store their grids packed:
+``full_grid(arrays, key)`` rebuilds STL's full grid, NaN outside its finite entries.
+
 `tests/parity/fixtures/` is protected: only a maintainer regenerates it. A failing comparison is
 reported in an issue, with the coefficients it names; never regenerate the fixture or loosen the
 tolerance to make it pass.
@@ -38,6 +41,9 @@ STL_COMMITS = {
     "HealpixUpdate": "90eb1a954e71abb7af621b10e70b0456e8a86b4e",
 }
 FIXTURE_DTYPES = ("float64", "complex128")
+# The layout of a packed grid (tensor-product fixtures, issue #127): ``<key>_shape`` (int64) and
+# ``<key>_mask`` (uint8, the finite positions packed with np.packbits). Read with ``full_grid``.
+LAYOUT_DTYPES = ("int64", "uint8")
 _REPORT = (
     "Do not regenerate the fixture or loosen the tolerance: report the coefficients above in an "
     "issue (Part II, §14.3)."
@@ -151,3 +157,36 @@ def assert_parity(
             f"{actual[index]!r}, STL {expected[index]!r}, difference {error[failing][worst]:.3g}, "
             f"allowed {allowed[failing][worst]:.3g}. {_REPORT}"
         )
+
+
+def full_grid(arrays: dict[str, NDArray[Any]], key: str) -> NDArray[Any]:
+    """The full grid ``key`` of a fixture that stores it packed, NaN outside its finite entries.
+
+    A packed grid is three arrays (issue #127): ``key``, the finite entries in the row-major
+    order of the grid; ``key_shape``, the shape of the grid; ``key_mask``, its finite positions,
+    flattened in row-major order and packed with ``np.packbits``.
+    """
+    try:
+        values, shape, packed = arrays[key], arrays[f"{key}_shape"], arrays[f"{key}_mask"]
+    except KeyError as missing:
+        raise KeyError(
+            f"{key} is not a packed grid of this fixture: it needs {key}, {key}_shape and "
+            f"{key}_mask ({missing} is missing). Read an unpacked array directly."
+        ) from None
+    grid_shape = tuple(int(n) for n in shape)
+    size = int(np.prod(grid_shape, dtype=np.int64))
+    if packed.size != (size + 7) // 8 or np.unpackbits(packed)[size:].any():
+        raise ValueError(
+            f"{key}_mask holds {packed.size} bytes, not the {(size + 7) // 8} of a grid of shape "
+            f"{grid_shape} with zero padding bits: the fixture is malformed; regenerate it with "
+            "make parity-fixtures."
+        )
+    finite = np.unpackbits(packed, count=size).astype(bool).reshape(grid_shape)
+    if int(finite.sum()) != values.size:
+        raise ValueError(
+            f"{key} holds {values.size} entries but {key}_mask marks {int(finite.sum())} finite "
+            "positions: the fixture is malformed; regenerate it with make parity-fixtures."
+        )
+    grid = np.full(grid_shape, np.nan, dtype=values.dtype)
+    grid[finite] = values
+    return grid
