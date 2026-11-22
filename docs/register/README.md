@@ -53,12 +53,13 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 
 ## Queue
 
-3 entries: 3 need a human, 0 can be treated.
+4 entries: 4 need a human, 0 can be treated.
 
 ### Needs a human
 
 | ID | Title | Phase | To decide | Category |
 | --- | --- | --- | --- | --- |
+| [LF65](LF65.md) | The full-grid view replaced by labelled tables | — | what replaces `full_grid` for reading coefficients by their labels: a labelled table, the xarray export of LF13, or both; whether `full_grid` is removed (a major version) or kept for small cases | New feature |
 | [W5](W5.md) | Notation of the maths tab harmonised | — | for each remark R-N01 to R-N18 of issue #71 except R-N10: its recommendation, or another choice; the single table of symbols (R-N18) | Work that is not a feature |
 | [W6](W6.md) | Vocabulary of the code harmonised | — | for each remark R-V01 to R-V10 of issue #72: its recommendation, or another choice | Work that is not a feature |
 | [W7](W7.md) | Structure of maths.md and of the specification | — | for each remark R-S03, R-S04, R-S06 and R-S09 of issue #73: its recommendation, or another choice; whether the remarks apply to the transfer document, archived after 1.0.0, or to `docs/maths.md` and the reference document only | Work that is not a feature |
