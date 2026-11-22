@@ -214,8 +214,8 @@ class Segment:
     family: str                 # "mean" | "var" | "S1" | "S2" | "S3" | "S4" | "PS"
     level: tuple[int, ...]      # output level (multi-index in tensor products)
     index_names: tuple[str, ...]        # e.g. ("c1", "c2", "j1", "l1", "j2", "l2", "l3")
-    index: np.ndarray           # (n_entries, len(index_names)) int32, static
-    is_complex: np.ndarray      # (n_entries,) bool, static
+    chunks: np.ndarray          # (n_chunks, ...) int32: channel pair and scales of each chunk, static
+    orientations: tuple[int, ...]  # the dense shape of the orientations of every chunk
     offset: int                 # first float in the buffer
     n_floats: int
 
@@ -228,7 +228,7 @@ class Layout:                   # hashable: usable as a JAX static argument
     def gather_tables(self, level): ...      # Gram → segment indices (static)
 ```
 
-Every stored entry carries its full named coordinates, so selection, plotting and full-grid views never need the full-grid tensor itself.
+The entries are stored by chunks: one per channel pair and scale combination, holding the dense array of its orientations, which always exists in full (a block of a tensor product taken at its low-pass scale keeps its orientation 0 only, a smaller chunk). The layout keeps one small row per chunk, never a table per coefficient, and computes the coordinates of an entry on demand, so selection, plotting and full-grid views need neither the full-grid tensor nor a table the size of the coefficients (Part II, §15.2, T3.7). Which entries of a chunk take one float (the auto terms, the diagonal of S4) depends only on the kind of the chunk.
 
 ### 19.5 Full-grid views
 
@@ -236,7 +236,7 @@ Every stored entry carries its full named coordinates, so selection, plotting an
 
 ### 19.6 Reductions as static linear maps
 
-Normalisation (for a fixed reference), `iso`, `angular_fourier` and `scale_cosine` are linear in the coefficients. Each is precomputed in NumPy as an (index, weight) table and applied with `gather_weighted`, a sparse matrix in padded CSR form (`angular_fourier` one orientation axis at a time), returning a new layout. They are therefore differentiable, compilable and backend-neutral.
+Normalisation (for a fixed reference), `iso`, `angular_fourier` and `scale_cosine` are linear in the coefficients. Each is precomputed in NumPy as a static map that acts chunk by chunk, on the dense orientations of every chunk (`iso`; `angular_fourier`, one orientation axis at a time) or across chunks (`scale_cosine`, the normalisation), with tables that grow with the number of chunks and of orientations, never with the number of coefficients (Part II, §15.2, T3.7); it returns a new layout. They are therefore differentiable, compilable and backend-neutral.
 
 ### 19.7 What the compact layout does not solve
 
