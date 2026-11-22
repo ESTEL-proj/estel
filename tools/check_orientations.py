@@ -6,10 +6,14 @@ L ≤ 4, the default. A larger L enters the repository only where a human approv
 issue, marked on its line with ``# allow-large-L: #<issue>``.
 
 The tool reads, without importing or running them, the Python files of ``tests/``, ``bench/``
-and ``tools/stl_parity/cases/``, and ``bench/cases.toml``. It fails on any of these whose value
-is an integer literal above 4:
+and ``tools/stl_parity/cases/``, and ``bench/cases.toml``: only the files git tracks (``git
+ls-files``), so local copies such as ``bench/results/.work/`` are left out; outside a git
+repository, every file of these directories. It fails on any of these whose value is an integer
+literal above 4:
 
 * a keyword argument ``L=`` (``STOperator(data, L=8)``);
+* an assignment to a name ``L``: ``L = 8``, ``L: int = 8``, or the value at L's position in a
+  tuple unpacking (``J, L = 5, 8``);
 * a dictionary key ``"L"`` (``{"J": 2, "L": 8}``) or a TOML field ``L`` (``L = 8``);
 * an entry of a ``pytest.mark.parametrize`` over a name ``L``, alone or among other names.
 
@@ -30,6 +34,7 @@ import argparse
 import ast
 import io
 import re
+import subprocess
 import sys
 import tokenize
 from dataclasses import dataclass
@@ -136,11 +141,32 @@ def _parametrize_values(call: ast.Call) -> list[ast.expr]:
     return values
 
 
+def _assigned_values(target: ast.expr, value: ast.expr) -> list[ast.expr]:
+    """The values an assignment ``target = value`` gives to the name L."""
+    if isinstance(target, ast.Name):
+        return [value] if target.id == NAME else []
+    if (
+        isinstance(target, ast.Tuple | ast.List)
+        and isinstance(value, ast.Tuple | ast.List)
+        and len(target.elts) == len(value.elts)
+        and not any(isinstance(e, ast.Starred) for e in target.elts + value.elts)
+    ):
+        return [
+            v for t, e in zip(target.elts, value.elts, strict=True) for v in _assigned_values(t, e)
+        ]
+    return []
+
+
 def _python_candidates(tree: ast.AST) -> list[tuple[str, ast.expr]]:
     """Each value given to L in ``tree``, with the form that gives it."""
     found: list[tuple[str, ast.expr]] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.keyword) and node.arg == NAME:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                found += [("assignment L = {}", v) for v in _assigned_values(target, node.value)]
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            found += [("assignment L = {}", v) for v in _assigned_values(node.target, node.value)]
+        elif isinstance(node, ast.keyword) and node.arg == NAME:
             found.append(("keyword argument L={}", node.value))
         elif isinstance(node, ast.Dict):
             for key, value in zip(node.keys, node.values, strict=True):
@@ -216,11 +242,36 @@ def check_toml(source: str, rel: str) -> list[Hit]:
     return hits
 
 
+def _tracked(root: Path) -> list[str] | None:
+    """The files git tracks under ``root``, if ``root`` is the top of a git repository."""
+    git = ["git", "-C", str(root)]
+    top = subprocess.run([*git, "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    if top.returncode != 0 or Path(top.stdout.strip()).resolve() != root.resolve():
+        return None
+    listed = subprocess.run(
+        [*git, "ls-files", "-z", "--", *PYTHON_DIRS, *TOML_FILES],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return [rel for rel in listed.stdout.split("\0") if rel]
+
+
 def files(root: Path) -> list[Path]:
-    paths: list[Path] = []
-    for directory in PYTHON_DIRS:
-        paths += sorted((root / directory).rglob("*.py"))
-    return paths + [root / f for f in TOML_FILES if (root / f).exists()]
+    """The files read: those git tracks, or every one outside a git repository."""
+    tracked = _tracked(root)
+    if tracked is None:
+        paths: list[Path] = []
+        for directory in PYTHON_DIRS:
+            paths += sorted((root / directory).rglob("*.py"))
+        return paths + [root / f for f in TOML_FILES if (root / f).exists()]
+    wanted = [
+        root / rel
+        for rel in tracked
+        if (rel.endswith(".py") and rel.startswith(tuple(d + "/" for d in PYTHON_DIRS)))
+        or rel in TOML_FILES
+    ]
+    return sorted(path for path in wanted if path.is_file())
 
 
 def check(root: Path) -> list[Hit]:

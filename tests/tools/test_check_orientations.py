@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,9 @@ def test_repository_passes() -> None:
         pytest.param('@pytest.mark.parametrize("n", [8, 16])\ndef f(n): ...\n', id="other-name"),
         pytest.param('x = {"N": 64, "K": 8}\nf(J=6)\n', id="other-keys"),
         pytest.param("op = STOperator(data, L=8)  # allow-large-L: #133\n", id="marker"),
+        pytest.param("J, L = 5, 4\nL: int = 4\nL = [4, 2]\n", id="assignments"),
+        pytest.param("L = n_orientations\nJ, L = sizes\nop.L = 8\n", id="assigned-variable"),
+        pytest.param("J, L = 5, 8  # allow-large-L: #133\n", id="assignment-marker"),
     ],
 )
 def test_allowed_forms_pass(source: str) -> None:
@@ -63,6 +67,11 @@ def test_allowed_forms_pass(source: str) -> None:
             "keyword argument L=[8, 2]",
             id="per-block",
         ),
+        pytest.param("L = 8\n", 1, "assignment L = 8", id="assignment"),
+        pytest.param("L: int = 6\n", 1, "assignment L = 6", id="annotated"),
+        pytest.param("x = 1\nJ, L = 5, 8\n", 2, "assignment L = 8", id="unpacking"),
+        pytest.param("L = [4, 8]\n", 1, "assignment L = [4, 8]", id="assignment-per-block"),
+        pytest.param("n = L = 5\n", 1, "assignment L = 5", id="chained"),
         pytest.param(
             "op = STOperator(data, L=8)  # allow-large-L\n",
             1,
@@ -115,3 +124,17 @@ def test_files_read(tmp_path: Path) -> None:
         "tests/a/test_x.py:1",
         "tools/stl_parity/cases/c.py:1",
     ]
+
+
+def test_only_tracked_files_are_read(tmp_path: Path) -> None:
+    write(
+        tmp_path,
+        {
+            "tests/test_x.py": "f(L=8)\n",
+            "bench/results/.work/copy.py": "f(L=8)\n",  # a local copy, not tracked
+        },
+    )
+    git = ["git", "-C", str(tmp_path)]
+    subprocess.run([*git, "init", "-q"], check=True)
+    subprocess.run([*git, "add", "tests/test_x.py"], check=True)
+    assert [h.where for h in check(tmp_path)] == ["tests/test_x.py:1"]
