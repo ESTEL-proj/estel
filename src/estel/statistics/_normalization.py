@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 import numpy as np
 from numpy.typing import NDArray
 
+from ..backend import _registry
 from ..backend._protocol import Backend
 from ._arrays import backend_of, constant
 from ._layout import Chunked, Copy, FamilyChunks, FloatMap, Layout, apply, chunk_index, make_map
@@ -251,22 +252,47 @@ def normalize(
     reference broadcasts over the batch (Nr = 1) or matches it. ``layout`` is a layout of the
     loop (``_layout.base_layout``).
     """
-    xp = backend.xp
     present = reference.present
-    L = reference.n_orientations  # noqa: N806
-    tables = _norm_tables(layout, present.shape, present.tobytes(), L)
-    n_ref = int(reference.var.shape[0])
-    sigma = xp.reshape(reference.sigma, (n_ref, -1, L))
-    like = reference.sigma
+    key = (layout, present.shape, present.tobytes(), reference.n_orientations)
+    divide = _compiled(backend.name, *key)
+    return divide(buffer, reference.var, reference.sigma), _norm_tables(*key).transform.layout
+
+
+@functools.lru_cache(maxsize=64)
+def _compiled(
+    backend_name: str, layout: Layout, shape: tuple[int, ...], data: bytes, n_orientations: int
+) -> Any:
+    """The division of :func:`normalize` for one layout and one ``present``, a function of the
+    buffer, ``var_ref`` and sigma, compiled once where the backend compiles
+    (``Backend.jit``)."""
+    backend = _registry.backend_named(backend_name)
+    tables = _norm_tables(layout, shape, data, n_orientations)
+    return backend.jit(functools.partial(_divide, backend, tables, layout, n_orientations))
+
+
+def _divide(
+    backend: Backend,
+    tables: _NormTables,
+    layout: Layout,
+    n_orientations: int,
+    buffer: Any,
+    var: Any,
+    sigma: Any,
+) -> Any:
+    """The buffer of the kept chunks divided by their divisors (:func:`normalize`)."""
+    xp = backend.xp
+    L = n_orientations  # noqa: N806
+    n_ref = int(var.shape[0])
+    sigma = xp.reshape(sigma, (n_ref, -1, L))
 
     def divided(name: str) -> Any:
         a, b = tables.rows[name]
         n = int(a.shape[0])
         if name == "var":
-            divisor = xp.take(reference.var, constant(backend, a, like, "int32"), axis=1)
+            divisor = xp.take(var, constant(backend, a, var, "int32"), axis=1)
             return lambda dense: dense / xp.reshape(divisor, (n_ref, n, 1, 1))
-        first = xp.take(sigma, constant(backend, a, like, "int32"), axis=1)  # (Nr, n, L)
-        second = xp.take(sigma, constant(backend, b, like, "int32"), axis=1)
+        first = xp.take(sigma, constant(backend, a, var, "int32"), axis=1)  # (Nr, n, L)
+        second = xp.take(sigma, constant(backend, b, var, "int32"), axis=1)
         shape = layout.grid(name).orientations
         axes = _SIGMA_ORIENTATIONS[name]
 
@@ -282,7 +308,7 @@ def normalize(
         return lambda dense: dense / divisor
 
     scale = {name: divided(name) for name in tables.rows}
-    return apply(backend, buffer, tables.transform, scale), tables.transform.layout
+    return apply(backend, buffer, tables.transform, scale)
 
 
 def check_reference(reference: _NormReference, plan: STPlan, n_batch: int, dtype: Any) -> None:

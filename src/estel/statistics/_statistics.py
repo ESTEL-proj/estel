@@ -354,12 +354,12 @@ class STStatistics:
         backend = self._backend_object()
         buffer, layout = self._buffer, self._layout
         if iso:
-            buffer, layout = _mapped(backend, buffer, reduce_iso(layout, L))
+            buffer, layout = _reduced(backend, buffer, reduce_iso(layout, L))
         if angular_fourier:
             for per_axis in reduce_angular_fourier(layout, n_angular, iso):
-                buffer, layout = _mapped(backend, buffer, per_axis)
+                buffer, layout = _reduced(backend, buffer, per_axis)
         if scale_cosine:
-            buffer, layout = _mapped(
+            buffer, layout = _reduced(
                 backend, buffer, reduce_scale_cosine(layout, J, n_scale, width)
             )
         reductions = _Reductions(
@@ -533,6 +533,19 @@ _registry.register_pytree(STStatistics, STStatistics._tree_flatten, STStatistics
 def _mapped(backend: Backend, buffer: Any, transform: compact.FloatMap) -> tuple[Any, Layout]:
     """The buffer mapped by ``transform``, and its new layout."""
     return compact.apply(backend, buffer, transform), transform.layout
+
+
+def _reduced(backend: Backend, buffer: Any, transform: compact.FloatMap) -> tuple[Any, Layout]:
+    """:func:`_mapped` for a map of the reductions, which are cached: compiled once per map
+    where the backend compiles (``Backend.jit``), so that its many small operations on the
+    chunks are not compiled one by one."""
+    return _compiled(backend.name, transform)(buffer), transform.layout
+
+
+@functools.lru_cache(maxsize=64)
+def _compiled(backend_name: str, transform: compact.FloatMap) -> Any:
+    backend = _registry.backend_named(backend_name)
+    return backend.jit(functools.partial(compact.apply, backend, transform=transform))
 
 
 @functools.lru_cache(maxsize=64)
