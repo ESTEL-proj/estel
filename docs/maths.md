@@ -2,7 +2,7 @@
 
 [Back to the overview](transfer/overview.md)
 
-**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it, and checked numerically by the oracle `estel._spec`, which agrees with ESTEL to the parity tolerance (task T2.6); ESTEL itself agrees with STL's fixtures. Sections 3 (tensor products) and 4 (HEALPix) are checked against STL's code, and numerically where they say so (tasks T3.0 and T5.0). Section 5 (syntheses) is checked against STL's code for periodic syntheses, and numerically where it says so (task T6.0); its non-periodic and masked parts come after 1.0.0 (Part III, §16, LF47). It has no oracle: the syntheses are validated against STL's trajectory and by their own tests (task T6.1; Part IV, §22).
+**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it, and checked numerically by the oracle `estel._spec`, which agrees with ESTEL to the parity tolerance (task T2.6); ESTEL itself agrees with STL's fixtures. Section 3 (tensor products) is checked against STL's code (task T3.0), and numerically by the oracle, which agrees with STL's parity fixtures to the parity tolerance (tasks T3.3 and T3.4). Section 4 (HEALPix) is checked against STL's code, and numerically where it says so (task T5.0). Section 5 (syntheses) is checked against STL's code for periodic syntheses, and numerically where it says so (task T6.0); its non-periodic and masked parts come after 1.0.0 (Part III, §16, LF47). It has no oracle: the syntheses are validated against STL's trajectory and by their own tests (task T6.1; Part IV, §22).
 
 **Role of this file.** This file is the reference version of the mathematics of step 1; it changes only through pull requests that a maintainer requests and merges.
 
@@ -673,7 +673,7 @@ The rule of §1.11 applies. OP-2, OP-8, OP-10, OP-12, OP-24, OP-25 and OP-26 als
 
 ## 3. Tensor products
 
-**Status:** checked against STL's code, entry by entry, and numerically in the parity container where an entry says so (task T3.0, 17 November 2026). Not implemented yet: the oracle comes with T3.3, the parity fixtures with T3.4, and the tests of the operator with T3.2.
+**Status:** checked against STL's code, entry by entry, and numerically in the parity container where an entry says so (task T3.0, 17 November 2026). Checked numerically by the oracle `estel._spec`, which agrees with STL's parity fixtures to the parity tolerance (tasks T3.3 and T3.4). ESTEL's operator, and its tests against the oracle and the fixtures, come with T3.2.
 
 **Source:** STL-Dev `2D+1D` at `8f51143`: `Tensor_Product_Kernel_Torch.py`, `ST_Operator_Tensor_Product.py`, `ST_Statistics.py`, and what they call in `ST_Operator.py` (`apply`, `_finalize_compute`) and in the block operators (`STL_2D_Kernel_Torch.py`, `STL_1D_Kernel_Torch.py`). Entries of sections 1 and 2 not mentioned here apply block by block.
 

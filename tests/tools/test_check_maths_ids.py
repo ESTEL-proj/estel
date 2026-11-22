@@ -46,12 +46,10 @@ GOOD = {
 }
 
 
-# Sections 3 and 4 and M-PS-2D are listed in the tool as not yet implemented (issue #18);
+# Section 4 and M-PS-2D are listed in the tool as not yet implemented (issues #18 and #126);
 # section 5 has no oracle by decision (Part IV, §22, "No oracle for the syntheses"): its IDs
 # need a test and no _spec function.
 PENDING = """### 1.9 Power spectrum — M-PS-2D
-## 3. Tensor products
-### 3.1 Data — M-DATA-TP
 """
 PENDING_SECTIONS = """## 4. HEALPix
 ### 4.0 Data — M-DATA-HPX
@@ -140,7 +138,7 @@ def test_unlisted_id_of_a_covered_section_is_not_accepted(tmp_path: Path) -> Non
     code, err = check(tmp_path)
     assert code == 1
     assert "M-X has no oracle function" in err
-    assert "M-DATA-TP" not in err
+    assert "M-DATA-HPX" not in err
 
 
 def test_id_without_oracle_by_decision_still_needs_a_test(tmp_path: Path) -> None:
@@ -174,21 +172,16 @@ def test_oracle_function_of_a_section_without_oracle_fails(tmp_path: Path) -> No
             id="section-without-oracle-without-id",
         ),
         pytest.param(
-            {
-                "docs/maths.md": MATHS
-                + PENDING_SECTIONS
-                + NO_ORACLE
-                + "## 3. Tensor products\n#### M-TP\n"
-            },
+            {"docs/maths.md": MATHS + PENDING_SECTIONS + NO_ORACLE},
             "lists M-PS-2D (T4.1), which docs/maths.md does not define",
             id="listed-id-not-defined",
         ),
         pytest.param(
             {
-                "src/estel/_spec/tp.py": 'def spec_tp(x):\n    """Implements M-DATA-TP."""\n',
-                "tests/spec/test_tp.py": MARKED.format("M-DATA-TP"),
+                "src/estel/_spec/hpx.py": 'def spec_hpx(x):\n    """Implements M-DATA-HPX."""\n',
+                "tests/spec/test_hpx.py": MARKED.format("M-DATA-HPX"),
             },
-            "lists section 3 (T3.2), but every ID of that section has an oracle function",
+            "lists section 4 (T5.1), but every ID of that section has an oracle function",
             id="section-implemented",
         ),
         pytest.param(
