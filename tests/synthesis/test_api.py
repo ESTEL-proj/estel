@@ -144,29 +144,36 @@ def _stats(n_batch: int = 2, ref_batch_mean: bool = True, standardize: bool = Tr
     return operator.apply(data)
 
 
-def test_float32_runs_and_resumes(
+def test_float32_from_maps_resumes(
     backend: Backend, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Both entries in float32, the default dtype: a short run that ends finite, in float32,
-    and a resume that continues it bit for bit."""
+    """From maps in float32, the default dtype: a short run with checkpoints that ends finite,
+    in float32, and a resume that continues it bit for bit. That a run with checkpoints equals
+    the run without is checked in float64 only."""
     monkeypatch.setattr(_config, "_dtype", "float32")
     if _unavailable(backend):
         return
     target = _maps()[0, 0]
-    whole = estel.synthesize_from_maps(target, max_iter=4, **SMALL)
     run = estel.synthesize_from_maps(
         target, max_iter=4, checkpoint_every=2, checkpoint_dir=tmp_path, **SMALL
     )
     resumed = estel.synthesize_from_maps(
         target, max_iter=4, resume_from=run.checkpoints[0], **SMALL
     )
-    for result in (whole, resumed):
+    for result in (run, resumed):
         field = np.asarray(backend.to_numpy(result.field))
         assert field.dtype == np.float32
         assert np.all(np.isfinite(field))
         assert np.all(np.isfinite(result.losses))
-    np.testing.assert_array_equal(resumed.losses, whole.losses)
-    np.testing.assert_array_equal(backend.to_numpy(resumed.field), backend.to_numpy(whole.field))
+    np.testing.assert_array_equal(resumed.losses, run.losses)
+    np.testing.assert_array_equal(backend.to_numpy(resumed.field), backend.to_numpy(run.field))
+
+
+def test_float32_from_stats_runs(backend: Backend, monkeypatch: pytest.MonkeyPatch) -> None:
+    """From statistics in float32: a short run that ends finite, in float32."""
+    monkeypatch.setattr(_config, "_dtype", "float32")
+    if _unavailable(backend):
+        return
     from_stats = estel.synthesize_from_stats(_stats(), n_batch=1, max_iter=2)
     field = np.asarray(backend.to_numpy(from_stats.field))
     assert field.dtype == np.float32
