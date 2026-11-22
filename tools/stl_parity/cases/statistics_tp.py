@@ -14,7 +14,7 @@ tensor-product scattering operator (``ST_Operator_TensorProd.apply``) without sp
 * ``to_flatten`` of the ``store_ref`` statistics in both forms, ``flatten_complex=False`` (a
   complex vector) and ``flatten_complex=True`` (a real vector).
 
-It stores ``field`` and ``ref_field``, ``(Nb, Nc, 16, 16, 8)``, and for each run ``<run>``
+It stores ``field`` and ``other_field``, ``(Nb, Nc, 16, 16, 8)``, and for each run ``<run>``
 (``store``, ``load``, ``store_batch_mean``):
 
 * ``<run>_mean`` and ``<run>_var``, ``(Nb, Nc)``;
@@ -50,7 +50,7 @@ PARAMETERS: dict[str, Any] = {
     "Nb": 2,
     "Nc": 2,
     "seed": 400,
-    "ref_seed": 401,
+    "other_seed": 401,
 }
 GRIDS = ("S1", "S2", "S3", "S4")
 
@@ -115,11 +115,11 @@ def run() -> dict[str, NDArray[Any]]:
     p = PARAMETERS
     shape = tuple(n for sizes in p["sizes"] for n in sizes)
     field = input_field(shape, p["Nb"], p["Nc"], p["seed"])
-    ref_field = input_field(shape, p["Nb"], p["Nc"], p["ref_seed"])
-    out: dict[str, NDArray[Any]] = {"field": field, "ref_field": ref_field}
+    other_field = input_field(shape, p["Nb"], p["Nc"], p["other_seed"])
+    out: dict[str, NDArray[Any]] = {"field": field, "other_field": other_field}
     kwargs = {"lowpass": p["lowpass"], "compute_PS": False}  # J: STL's default per block
 
-    target, other = tensor_data(field), tensor_data(ref_field)
+    target, other = tensor_data(field), tensor_data(other_field)
     operator = target.get_ST_op(norm="store_ref", **kwargs)
     stored = operator.apply(target, norm="store_ref", norm_batch_mean=False)
     out.update(_statistics("store", stored))

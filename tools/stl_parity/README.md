@@ -11,13 +11,13 @@ kernels, `bump_steerable_kernel_2d.py` on `master`), the masks and reweighting m
 (`bump_steerable_kernel_1d.py` on `2D+1D`) and the borders, masks and denominators of the means
 of T2.3 (`plan_2d.py` on `master`, `plan_1d.py` on `2D+1D`), with the NaN coefficients STL returns
 where a mean has no valid pixel (`empty_means_2d.py` on `master`, `empty_means_1d.py` on `2D+1D`),
-the vanilla statistics of the scattering loop of T2.4 (`scattering_2d.py` on `master`,
-`scattering_1d.py` on `2D+1D`), and the normalised and reduced statistics of T2.5, with the flat
-vectors of `to_flatten` (`statistics_2d.py` on `master`, `statistics_1d.py` on `2D+1D`), the
-loss of the first 20 iterations of a periodic synthesis of T6.1 (`synthesis_2d.py` on `master`),
-and the tensor products of T3.4 (on `2D+1D`): the vanilla statistics (`scattering_tp.py`), the
-normalisations and flat vectors (`statistics_tp.py`) and the gradient of the synthesis loss
-(`gradient_tp.py`).
+the statistics without normalisation of the scattering loop of T2.4 (`scattering_2d.py` on
+`master`, `scattering_1d.py` on `2D+1D`), and the normalised and reduced statistics of T2.5, with
+the flat vectors of `to_flatten` (`statistics_2d.py` on `master`, `statistics_1d.py` on `2D+1D`),
+the loss of the first 20 iterations of a periodic synthesis of T6.1 (`synthesis_2d.py` on
+`master`), and the tensor products of T3.4 (on `2D+1D`): the statistics without normalisation
+(`scattering_tp.py`), the normalisations and flat vectors (`statistics_tp.py`) and the gradient
+of the synthesis loss (`gradient_tp.py`).
 
 ## The container
 

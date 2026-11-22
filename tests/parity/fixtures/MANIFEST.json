@@ -7907,7 +7907,7 @@
       "Nb": 2,
       "Nc": 2,
       "seed": 400,
-      "ref_seed": 401
+      "other_seed": 401
     },
     "torch_default_dtype": "float64",
     "arrays": {
@@ -8007,7 +8007,7 @@
           2
         ]
       },
-      "ref_field": {
+      "other_field": {
         "dtype": "float64",
         "shape": [
           2,
@@ -8252,7 +8252,7 @@
         ]
       }
     },
-    "sha256": "c8744af278892db4082d0e9cd1dc0d69e1f1a85a0073978481c5820ca082e910"
+    "sha256": "ca18989e1f1122f84f2cd49317eaa648ca2d0cc6281b7e4d40af87aadba43461"
   },
   "synthesis_2d.npz": {
     "case": "tools/stl_parity/cases/synthesis_2d.py",
