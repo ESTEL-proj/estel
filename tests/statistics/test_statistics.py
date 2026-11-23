@@ -83,6 +83,7 @@ def test_layout_predicts_every_nan() -> None:
     matrix = np.array([[True, False, True], [False, False, True], [False, False, True]])
     for norm in ("none", "self"):
         stats = _operator(data, 4, norm=norm, cross_matrix=matrix).apply(data)
+        assert isinstance(stats._plan, estel.STPlan)
         assert stats._plan.empty_s3_pairs
         for reduced in (
             stats,

@@ -31,13 +31,16 @@ from numpy.typing import NDArray
 
 from .._reference import STATISTICS_REFERENCE, SYNTHESIS_REFERENCE
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 """The version of the schema written by this version of ESTEL. Version 2 renamed the values of
 ``norm`` (``"none"``, ``"self"``, ``"ref"``), ``ref_batch_mean`` and the reductions
 (``angular_fourier``, ``scale_cosine``); version 3 stores the statistics in the compact layout
 (Part III, §19; task T2.15): the buffer, its layout, and the compact scales of the
 normalisation reference; version 4 stores the layout by chunks (task T3.7): one row per channel
-pair and scale combination, the buffer unchanged. Files of earlier versions are not read."""
+pair and scale combination, the buffer unchanged; version 5 adds the statistics of tensor
+products (task T3.6): their blocks, J, L and low-pass flags, the orientation shape of each kind
+of chunk, and the blocks of the reference, the content of planar statistics unchanged. Files of
+earlier versions are not read."""
 
 META = "__meta__"
 """The name of the member holding the JSON document."""
