@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Sequence
-from typing import Any, ClassVar
+from typing import Any, ClassVar, TypeVar
 
 import numpy as np
 
@@ -243,8 +243,7 @@ class STOperator:
         return stats
 
     def __repr__(self) -> str:
-        plan = self._plan
-        assert isinstance(plan, PlanarPlan)
+        plan = _plan_of(self, PlanarPlan)
         return (
             f"STOperator(J={plan.J}, L={plan.L}, norm={plan.norm!r}, "
             f"ref_batch_mean={plan.ref_batch_mean}, standardize={plan.standardize}, "
@@ -345,13 +344,10 @@ class STOperatorTensorProd(STOperator):
     @property
     def lowpass(self) -> str | None:
         """``"ST"`` or ``None`` (maths.md M-LP)."""
-        plan = self._plan
-        assert isinstance(plan, TensorProdPlan)
-        return plan.lowpass
+        return _plan_of(self, TensorProdPlan).lowpass
 
     def __repr__(self) -> str:
-        plan = self._plan
-        assert isinstance(plan, TensorProdPlan)
+        plan = _plan_of(self, TensorProdPlan)
         names = ", ".join(g.__name__ for g in plan.block_geometries)
         return (
             f"STOperatorTensorProd(J={list(plan.J)}, L={list(plan.L)}, "
@@ -361,6 +357,23 @@ class STOperatorTensorProd(STOperator):
             f"n_channels={plan.n_channels}, pbc={list(plan.pbc)}, backend={self._backend!r}, "
             f"dtype={self._dtype!r})"
         )
+
+
+_P = TypeVar("_P", PlanarPlan, TensorProdPlan)
+
+
+def _plan_of(operator: STOperator, kind: type[_P]) -> _P:
+    """The plan of ``operator``, which must be a ``kind``, the plan of its geometry; a check
+    that holds under ``python -O`` (rule B4), unlike an ``assert``."""
+    plan = operator._plan
+    if not isinstance(plan, kind):
+        name = type(operator).__name__
+        raise TypeError(
+            f"{name} holds a {type(plan).__name__}, not the {kind.__name__} of its geometry: "
+            f"build it with {name}(data, ...) or {name}.from_statistics(stats), which set its "
+            "plan, and do not replace the plan of an operator."
+        )
+    return plan
 
 
 # ---------------------------------------------------------------------- validation
