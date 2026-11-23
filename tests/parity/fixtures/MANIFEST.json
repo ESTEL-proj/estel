@@ -5016,6 +5016,19 @@
           "seed": 77,
           "J": 2,
           "auto": "fft"
+        },
+        "open_Jmin1": {
+          "shape": [
+            32,
+            32
+          ],
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": false,
+          "seed": 78,
+          "Jmin": 1,
+          "n_bins": 5,
+          "auto": "pbc_mask"
         }
       }
     },
@@ -5114,6 +5127,123 @@
         ]
       },
       "nan_per_map_weight_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          17
+        ]
+      },
+      "open_Jmin1_auto": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          5
+        ]
+      },
+      "open_Jmin1_auto_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "open_Jmin1_bin_centers": {
+        "dtype": "float64",
+        "shape": [
+          5
+        ]
+      },
+      "open_Jmin1_bin_norm": {
+        "dtype": "float64",
+        "shape": [
+          5
+        ]
+      },
+      "open_Jmin1_bin_scalars": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "open_Jmin1_bin_windows": {
+        "dtype": "float64",
+        "shape": [
+          5,
+          17
+        ]
+      },
+      "open_Jmin1_crop_borders": {
+        "dtype": "float64",
+        "shape": [
+          5
+        ]
+      },
+      "open_Jmin1_fft": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          5
+        ]
+      },
+      "open_Jmin1_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "open_Jmin1_n_modes_radial": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "open_Jmin1_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          5
+        ]
+      },
+      "open_Jmin1_pbc_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          5
+        ]
+      },
+      "open_Jmin1_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          5
+        ]
+      },
+      "open_Jmin1_radial_bin_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          17
+        ]
+      },
+      "open_Jmin1_radial_k": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "open_Jmin1_weight_of_k": {
         "dtype": "float64",
         "shape": [
           32,
@@ -5904,7 +6034,7 @@
         ]
       }
     },
-    "sha256": "4b08f21aec4af61614198a2bb60d41e4ebcb180e27ede5357082d3b5926b1c5b"
+    "sha256": "49300fff4f70ee2ae34a454e8dada9c85fc9f0f169a372b0542f2accc031004a"
   },
   "statistics_1d.npz": {
     "case": "tools/stl_parity/cases/statistics_1d.py",
@@ -9013,6 +9143,20 @@
           ],
           "norm_batch_mean": false,
           "auto": "fft"
+        },
+        "spectrum_options": {
+          "N": 32,
+          "J": null,
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": true,
+          "seed": 86,
+          "ref_seed": 96,
+          "norm_batch_mean": false,
+          "Jmin": 1,
+          "n_bins": 5,
+          "spectrum_method": "pbc_mask",
+          "auto": "fft"
         }
       }
     },
@@ -9059,7 +9203,7 @@
       "cross_matrix_ps_bins": {
         "dtype": "float64",
         "shape": [
-          3
+          4
         ]
       },
       "cross_matrix_ps_method": {
@@ -9237,7 +9381,7 @@
       "open_masked_ps_bins": {
         "dtype": "float64",
         "shape": [
-          3
+          4
         ]
       },
       "open_masked_ps_method": {
@@ -9332,7 +9476,7 @@
       "open_ps_bins": {
         "dtype": "float64",
         "shape": [
-          3
+          4
         ]
       },
       "open_ps_method": {
@@ -9465,7 +9609,7 @@
       "periodic_J2_ps_bins": {
         "dtype": "float64",
         "shape": [
-          3
+          4
         ]
       },
       "periodic_J2_ps_method": {
@@ -9643,7 +9787,7 @@
       "periodic_masked_ps_bins": {
         "dtype": "float64",
         "shape": [
-          3
+          4
         ]
       },
       "periodic_masked_ps_method": {
@@ -9738,7 +9882,7 @@
       "periodic_ps_bins": {
         "dtype": "float64",
         "shape": [
-          3
+          4
         ]
       },
       "periodic_ps_method": {
@@ -9829,9 +9973,142 @@
         "shape": [
           11964
         ]
+      },
+      "spectrum_options_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "spectrum_options_load_PS": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          5
+        ]
+      },
+      "spectrum_options_load_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "spectrum_options_load_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "spectrum_options_load_vector": {
+        "dtype": "complex128",
+        "shape": [
+          6070
+        ]
+      },
+      "spectrum_options_ps_bins": {
+        "dtype": "float64",
+        "shape": [
+          4
+        ]
+      },
+      "spectrum_options_ps_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "spectrum_options_ps_ref": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          5
+        ]
+      },
+      "spectrum_options_raw_PS": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          5
+        ]
+      },
+      "spectrum_options_ref_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "spectrum_options_s2_ref": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "spectrum_options_store_PS": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          5
+        ]
+      },
+      "spectrum_options_store_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "spectrum_options_store_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "spectrum_options_var_ref": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "spectrum_options_vector": {
+        "dtype": "complex128",
+        "shape": [
+          6070
+        ]
+      },
+      "spectrum_options_vector_batch_mean": {
+        "dtype": "complex128",
+        "shape": [
+          3035
+        ]
+      },
+      "spectrum_options_vector_real": {
+        "dtype": "float64",
+        "shape": [
+          11958
+        ]
       }
     },
-    "sha256": "1c3138b7bf0b711af9821a90cdb1c07d944b1eee537656ce191823ccc323ce5c"
+    "sha256": "ec9df21bda98ed2eaf85d09c1502ecce58e21b4c993d6054971481303fe6fa1a"
   },
   "statistics_tp.npz": {
     "case": "tools/stl_parity/cases/statistics_tp.py",

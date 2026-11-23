@@ -3,8 +3,8 @@ issue #150; maths.md M-PS-2D, OP-6, OP-7, OP-19, OP-20, OP-21).
 
 For each configuration ``<config>``, builds STL's spectrum operator
 (``STL_2D_Kernel_Torch.get_CS_op``) on the configuration's field with STL's defaults (log-Gaussian
-bins, ``n_bins=None``, ``Jmin=0``, the hard border mask, ``flexible_crop``), and ``J`` only where
-the configuration gives one, then:
+bins, ``n_bins=None``, ``Jmin=0``, the hard border mask, ``flexible_crop``), but ``J``, ``Jmin``
+and ``n_bins`` where the configuration gives them (the options kept on #148), then:
 
 * lets STL choose the estimator from ``pbc`` and the NaN of the field, checks that it chose the
   configuration's ``auto`` estimator, and applies it with the default channel pairs
@@ -37,7 +37,9 @@ The configurations cover the cells of §14.4 that T4.3 owns for the operator: ea
 the automatic choice in each of its four cases, auto and cross spectra of two channels, two
 rectangular images (OP-6), the long side on either axis, and the default bins with the default J
 (6 bins, ``round(3 log₂(k_max / k_min))``) and with an explicit J = 2 (4 bins, the floor of
-``max(4, ·)``). Every size is even (OP-20) and divisible by 2^(J-1). ``nan_per_map`` has missing
+``max(4, ·)``), and ``Jmin = 1`` with an explicit ``n_bins = 5`` (``open_Jmin1``, on open
+data, so that the border widths of the non-periodic estimators follow the bins of J_min; k_max
+is then 0.5/√2/2). Every size is even (OP-20) and divisible by 2^(J-1). ``nan_per_map`` has missing
 pixels that differ between batch elements and channels, so that a pixel is observed only if it is
 valid in every map, and each map is filled with its own mean (OP-7).
 
@@ -89,6 +91,10 @@ PARAMETERS: dict[str, Any] = {
         },
         "periodic_J2": {
             "shape": [32, 32], "Nb": 1, "Nc": 2, "pbc": True, "seed": 77, "J": 2, "auto": "fft",
+        },
+        "open_Jmin1": {
+            "shape": [32, 32], "Nb": 2, "Nc": 2, "pbc": False, "seed": 78, "Jmin": 1,
+            "n_bins": 5, "auto": "pbc_mask",
         },
     },
 }  # fmt: skip
@@ -173,7 +179,8 @@ def run() -> dict[str, NDArray[Any]]:
         field = input_field(config)
         out[f"{name}_field"] = field
         data = data_cls(array=torch.from_numpy(field.copy()), pbc=config["pbc"])
-        operator = data.get_CS_op(**({"J": config["J"]} if "J" in config else {}))
+        options = {key: config[key] for key in ("J", "Jmin", "n_bins") if key in config}
+        operator = data.get_CS_op(**options)
         assert operator.spectrum_method == config["auto"], (
             f"{name}: STL chose {operator.spectrum_method}, not {config['auto']}"
         )

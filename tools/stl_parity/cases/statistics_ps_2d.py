@@ -16,16 +16,20 @@ the spectrum (``compute_PS=True``, STL's default), as ``statistics_2d`` does wit
   the ``load_ref`` statistics.
 
 The operator is built as a user builds it: ``get_ST_op`` with the configuration's J where it
-gives one, and no option of the spectrum, so that STL chooses the estimator from ``pbc`` and the
-NaN of the example field, with its default bins. Given J, STL passes it to the spectrum as J_PS
-(M-PS-2D, "Range"); without it, the spectrum takes its own default, equal to the scattering one.
+gives one, and, except in ``spectrum_options``, no option of the spectrum, so that STL chooses the
+estimator from ``pbc`` and the NaN of the example field, with its default bins.
+``spectrum_options`` passes the three options of the spectrum that ``ST_Operator`` forwards and
+that ESTEL keeps (#148): ``Jmin=1``, ``n_bins=5`` and ``spectrum_method="pbc_mask"`` on periodic
+data, an estimator forced against the automatic choice (``fft``). Given J, STL passes it to the
+spectrum as J_PS (M-PS-2D, "Range"); without it, the spectrum takes its own default, equal to the
+scattering one.
 
 It stores, for each configuration:
 
 * ``<config>_field`` and ``<config>_ref_field``: the target and the second field,
   ``(Nb, Nc, N, N)``, NaN at the missing pixels; ``<config>_mask`` (absent without a mask);
-* ``<config>_ps_method``: the estimator STL chose, as its index in ``METHODS``, ``(1,)``;
-  ``<config>_ps_bins``: [J, J_PS, n_b], ``(3,)``;
+* ``<config>_ps_method``: the estimator of the spectrum, as its index in ``METHODS``, ``(1,)``;
+  ``<config>_ps_bins``: [J, J_PS, J_min, n_b], ``(4,)``;
 * ``<config>_raw_PS``: the spectrum without normalisation, ``(Nb, Nc, Nc, n_b)``, complex128,
   computed by the operator's own spectrum operator with the same channel pairs;
 * ``<config>_store_<family>`` and ``<config>_load_<family>`` for ``mean``, ``var`` and ``PS``,
@@ -42,8 +46,9 @@ The configurations cover the cells of §14.4 that T4.3 owns for the statistics: 
 channels, ``norm_batch_mean`` False (STL's default) and True, the default J and an explicit J
 smaller than the default (J = 2 on 32 x 32, where the default is 3: J_PS = 2 and 4 bins instead of
 6), periodic and open data, with and without a mask of missing values (so each of the four
-estimators), and a channel without auto statistics, whose spectrum reference is NaN, so that its
-cross spectrum becomes NaN after normalisation (OP-30). The fields are built as in
+estimators), the options of the spectrum forwarded by the operator, and a channel without auto
+statistics, whose spectrum reference is NaN, so that its cross spectrum becomes NaN after
+normalisation (OP-30). The fields are built as in
 ``statistics_2d``, with other seeds.
 
 Runs in the parity container, with the interpreter of the `master` environment, through
@@ -99,6 +104,11 @@ PARAMETERS: dict[str, Any] = {
             "cross_matrix": [[False, True], [False, True]], "norm_batch_mean": False,
             "auto": "fft",
         },
+        "spectrum_options": {
+            "N": 32, "J": None, "Nb": 2, "Nc": 2, "pbc": True, "seed": 86, "ref_seed": 96,
+            "norm_batch_mean": False, "Jmin": 1, "n_bins": 5, "spectrum_method": "pbc_mask",
+            "auto": "fft",
+        },
     },
 }  # fmt: skip
 FAMILIES = ("mean", "var", "PS")
@@ -148,21 +158,31 @@ def run() -> dict[str, NDArray[Any]]:
         out.update({f"{name}_{key}": f for key, f in fields.items()})
         target = data_cls(array=torch.from_numpy(fields["field"].copy()), pbc=config["pbc"])
         other = data_cls(array=torch.from_numpy(fields["ref_field"].copy()), pbc=config["pbc"])
+        options = {k: config[k] for k in ("Jmin", "n_bins", "spectrum_method") if k in config}
         operator = target.get_ST_op(
             J=config["J"],
             L=PARAMETERS["L"],
             norm="store_ref",
             compute_PS=True,
             downsample_nan_weight_threshold=PARAMETERS["threshold"],
+            **options,
             **kwargs,
         )
-        assert operator.CS_op.spectrum_method == config["auto"], (
-            f"{name}: STL chose {operator.CS_op.spectrum_method}, not {config['auto']}"
+        method = config.get("spectrum_method", config["auto"])
+        assert operator.CS_op.spectrum_method == method, (
+            f"{name}: STL's spectrum uses {operator.CS_op.spectrum_method}, not {method}"
         )
+        auto = target.get_CS_op().spectrum_method  # what STL would choose without the option
+        assert auto == config["auto"], f"{name}: STL chose {auto}, not {config['auto']}"
         assert config["J"] in (None, operator.CS_op.J)
-        out[f"{name}_ps_method"] = np.asarray([METHODS.index(config["auto"])], dtype=np.float64)
+        assert (operator.CS_op.Jmin, operator.n_bins) == (
+            config.get("Jmin", 0),
+            config.get("n_bins", operator.n_bins),
+        )
+        out[f"{name}_ps_method"] = np.asarray([METHODS.index(method)], dtype=np.float64)
         out[f"{name}_ps_bins"] = np.asarray(
-            [operator.J, operator.CS_op.J, operator.n_bins], dtype=np.float64
+            [operator.J, operator.CS_op.J, operator.CS_op.Jmin, operator.n_bins],
+            dtype=np.float64,
         )
         matrix = config.get("cross_matrix")
         pairs = None if matrix is None else torch.tensor(matrix)
