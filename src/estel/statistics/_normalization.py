@@ -30,7 +30,18 @@ from numpy.typing import NDArray
 from ..backend import _registry
 from ..backend._protocol import Backend
 from ._arrays import backend_of, constant
-from ._layout import Chunked, Copy, FamilyChunks, FloatMap, Layout, apply, chunk_index, make_map
+from ._layout import (
+    Chunked,
+    Copy,
+    FamilyChunks,
+    FloatMap,
+    Layout,
+    MapTables,
+    apply,
+    chunk_index,
+    make_map,
+    map_tables,
+)
 
 if TYPE_CHECKING:
     from ..scattering._plan import STPlan
@@ -255,7 +266,9 @@ def normalize(
     present = reference.present
     key = (layout, present.shape, present.tobytes(), reference.n_orientations)
     divide = _compiled(backend.name, *key)
-    return divide(buffer, reference.var, reference.sigma), _norm_tables(*key).transform.layout
+    transform = _norm_tables(*key).transform
+    tables = map_tables(backend, transform, buffer)
+    return divide(buffer, reference.var, reference.sigma, tables), transform.layout
 
 
 @functools.lru_cache(maxsize=64)
@@ -263,8 +276,8 @@ def _compiled(
     backend_name: str, layout: Layout, shape: tuple[int, ...], data: bytes, n_orientations: int
 ) -> Any:
     """The division of :func:`normalize` for one layout and one ``present``, a function of the
-    buffer, ``var_ref`` and sigma, compiled once where the backend compiles
-    (``Backend.jit``)."""
+    buffer, ``var_ref``, sigma and the tables of the chunks (``_layout.map_tables``), compiled
+    once where the backend compiles (``Backend.jit``; the identity on PyTorch)."""
     backend = _registry.backend_named(backend_name)
     tables = _norm_tables(layout, shape, data, n_orientations)
     return backend.jit(functools.partial(_divide, backend, tables, layout, n_orientations))
@@ -278,6 +291,7 @@ def _divide(
     buffer: Any,
     var: Any,
     sigma: Any,
+    chunks: MapTables,
 ) -> Any:
     """The buffer of the kept chunks divided by their divisors (:func:`normalize`)."""
     xp = backend.xp
@@ -308,7 +322,7 @@ def _divide(
         return lambda dense: dense / divisor
 
     scale = {name: divided(name) for name in tables.rows}
-    return apply(backend, buffer, tables.transform, scale)
+    return apply(backend, buffer, tables.transform, scale, chunks)
 
 
 def check_reference(reference: _NormReference, plan: STPlan, n_batch: int, dtype: Any) -> None:

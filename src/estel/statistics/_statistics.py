@@ -220,11 +220,12 @@ class STStatistics:
         """
         backend = self._backend_object()
         xp = backend.xp
-        parts = [
-            xp.reshape(compact.unpack(backend, self._buffer, spec), (-1,))
-            for spec in _vector_specs(self._layout)
-        ]
-        vector = xp.concat(parts, axis=0)
+        specs = _vector_specs(self._layout)
+        tables = tuple(
+            compact.chunk_tables(backend, spec.within, spec.kinds, spec.starts, self._buffer)
+            for spec in specs
+        )
+        vector = _vector_function(backend.name, self._layout)(self._buffer, tables)
         if mask_st is None:
             return vector
         keep = _mask_positions(mask_st, int(vector.shape[0]))
@@ -537,15 +538,22 @@ def _mapped(backend: Backend, buffer: Any, transform: compact.FloatMap) -> tuple
 
 def _reduced(backend: Backend, buffer: Any, transform: compact.FloatMap) -> tuple[Any, Layout]:
     """:func:`_mapped` for a map of the reductions, which are cached: compiled once per map
-    where the backend compiles (``Backend.jit``), so that its many small operations on the
-    chunks are not compiled one by one."""
-    return _compiled(backend.name, transform)(buffer), transform.layout
+    where the backend compiles (``Backend.jit``; the identity on PyTorch), so that its many
+    small operations on the chunks are not compiled one by one, as JAX does outside a
+    compiled function. The tables of its chunks are arguments, not constants: the index the
+    size of the coefficients is built inside the computation."""
+    tables = compact.map_tables(backend, transform, buffer)
+    return _compiled(backend.name, transform)(buffer, tables), transform.layout
 
 
 @functools.lru_cache(maxsize=64)
 def _compiled(backend_name: str, transform: compact.FloatMap) -> Any:
     backend = _registry.backend_named(backend_name)
-    return backend.jit(functools.partial(compact.apply, backend, transform=transform))
+
+    def mapped(buffer: Any, tables: compact.MapTables) -> Any:
+        return compact.apply(backend, buffer, transform, tables=tables)
+
+    return backend.jit(mapped)
 
 
 @functools.lru_cache(maxsize=64)
@@ -563,6 +571,27 @@ def _vector_specs(layout: Layout) -> tuple[Unpack, ...]:
         )
         for grid in layout.grids
     )
+
+
+@functools.lru_cache(maxsize=64)
+def _vector_function(backend_name: str, layout: Layout) -> Any:
+    """The flattening of :meth:`STStatistics.to_vector` for ``layout``, a function of the
+    buffer and of the tables of the chunks (``_layout.ChunkTables``, one per family), compiled
+    once per layout where the backend compiles (``Backend.jit``; the identity on PyTorch)."""
+    backend = _registry.backend_named(backend_name)
+    specs = _vector_specs(layout)
+
+    def vector(buffer: Any, tables: tuple[compact.ChunkTables, ...]) -> Any:
+        xp = backend.xp
+        return xp.concat(
+            [
+                xp.reshape(compact.unpack(backend, buffer, spec, found), (-1,))
+                for spec, found in zip(specs, tables, strict=True)
+            ],
+            axis=0,
+        )
+
+    return backend.jit(vector)
 
 
 @functools.lru_cache(maxsize=64)

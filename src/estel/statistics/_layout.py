@@ -556,10 +556,51 @@ def unpack_spec(layout: Layout, name: str, chunks: NDArray[np.int64], parts: int
     return Unpack(starts, kinds, within, view)
 
 
-def unpack(backend: Backend, buffer: Any, spec: Unpack) -> Any:
+ChunkTables = tuple[Any, Any, Any]
+"""The tables of some chunks as integer arrays of the backend, ``(within, kinds, starts)``: the
+floats within a chunk of each kind ``(n_kinds, n_orientations, parts)``, and the kind and first
+float of each chunk ``(n,)``. Passed as arguments to the compiled maps, never as constants."""
+
+
+def chunk_tables(
+    backend: Backend,
+    within: NDArray[np.int64],
+    kinds: NDArray[np.int64],
+    starts: NDArray[np.int64],
+    like: Any,
+) -> ChunkTables:
+    """:data:`ChunkTables` on the backend and device of ``like``."""
+    return (
+        constant(backend, within, like, "int32"),
+        constant(backend, kinds, like, "int32"),
+        constant(backend, starts, like, "int32"),
+    )
+
+
+def _floats(backend: Backend, tables: ChunkTables, missing: int) -> Any:
+    """The float of each entry and part of the chunks of ``tables``, ``missing`` for the
+    imaginary part of a real entry: built inside the computation from the tables of the
+    chunks, so that no array the size of the coefficients is a static table or a constant of a
+    compiled program."""
+    xp = backend.xp
+    within, kinds, starts = tables
+    table = xp.take(within, kinds, axis=0)
+    found = xp.where(
+        table >= 0, table + xp.reshape(starts, (-1, 1, 1)), xp.full_like(table, missing)
+    )
+    return xp.reshape(found, (-1,))
+
+
+def _needs_index(within: NDArray[np.int64], kinds: NDArray[np.int64]) -> bool:
+    """Whether chunks of these kinds have a real entry, whose imaginary part is read as 0."""
+    return bool((within[np.unique(kinds)] < 0).any())
+
+
+def unpack(backend: Backend, buffer: Any, spec: Unpack, tables: ChunkTables | None = None) -> Any:
     """The chunks of ``spec`` read from ``buffer`` ``(Nb, n_floats)`` as a dense array
     ``(Nb, n, n_orientations, parts)``, with 0 for the imaginary part of a real entry: a view,
-    or one ``take`` whose index is built from the tables of the chunks when it applies."""
+    or one ``take`` whose index is built inside the computation from ``tables``, the
+    :data:`ChunkTables` of ``spec`` (made here when not given)."""
     xp = backend.xp
     n_batch = int(buffer.shape[0])
     n, n_o, parts = int(spec.starts.shape[0]), int(spec.within.shape[1]), int(spec.within.shape[2])
@@ -571,21 +612,11 @@ def unpack(backend: Backend, buffer: Any, spec: Unpack) -> Any:
         return xp.concat([real, xp.zeros_like(real)], axis=3) if parts == 2 else real
     if n == 0:
         return xp.zeros((n_batch, 0, n_o, parts), dtype=buffer.dtype)
-    index = _floats(spec.within, spec.kinds, spec.starts, int(buffer.shape[1]))
-    source = with_zero(backend, buffer) if (spec.within[spec.kinds] < 0).any() else buffer
-    values = xp.take(source, constant(backend, index, buffer, "int32"), axis=1)
+    if tables is None:
+        tables = chunk_tables(backend, spec.within, spec.kinds, spec.starts, buffer)
+    source = with_zero(backend, buffer) if _needs_index(spec.within, spec.kinds) else buffer
+    values = xp.take(source, _floats(backend, tables, int(buffer.shape[1])), axis=1)
     return xp.reshape(values, (n_batch, n, n_o, parts))
-
-
-def _floats(
-    within: NDArray[np.int64], kinds: NDArray[np.int64], starts: NDArray[np.int64], missing: int
-) -> NDArray[np.int64]:
-    """The float of each entry and part of chunks of kinds ``kinds`` starting at ``starts``,
-    ``missing`` for the imaginary part of a real entry: built when a map is applied, from the
-    tables of the chunks, and not kept."""
-    table = within[kinds]
-    found: NDArray[np.int64] = np.where(table >= 0, table + starts[:, None, None], missing)
-    return found.reshape(-1)
 
 
 class Pack(NamedTuple):
@@ -615,20 +646,27 @@ def pack_spec(layout: Layout, name: str) -> Pack:
     )
 
 
-def pack(backend: Backend, dense: Any, spec: Pack) -> Any:
+def _single_kind(spec: Pack) -> int | None:
+    """The kind of every chunk of ``spec`` when they share one, else ``None``."""
+    kinds = np.unique(spec.kinds)
+    return int(kinds[0]) if kinds.shape[0] == 1 else None
+
+
+def pack(backend: Backend, dense: Any, spec: Pack, tables: ChunkTables | None = None) -> Any:
     """The floats ``(Nb, n_floats)`` of a family from its dense array ``(Nb, n, n_o, 2)``,
     without the imaginary part of its real entries: a reshape when the chunks are of one kind
     whose entries are all complex or all real, a ``take`` on the orientations when they are of
-    one kind, a ``segment_sum`` whose ids are built from the tables of the chunks when it
-    applies otherwise (each float receives one value)."""
+    one kind, a ``segment_sum`` otherwise (each float receives one value), whose ids are built
+    inside the computation from ``tables``, the :data:`ChunkTables` of ``spec`` (made here when
+    not given)."""
     xp = backend.xp
     n_batch = int(dense.shape[0])
     n, n_o = int(dense.shape[1]), int(dense.shape[2])
     if n == 0 or spec.n_floats == 0:
         return xp.zeros((n_batch, 0), dtype=dense.dtype)
-    kinds = np.unique(spec.kinds)
-    if kinds.shape[0] == 1:
-        within = spec.within[int(kinds[0])]
+    kind = _single_kind(spec)
+    if kind is not None:
+        within = spec.within[kind]
         if (within[:, 1] >= 0).all():
             return xp.reshape(dense, (n_batch, n * n_o * 2))
         if (within[:, 1] < 0).all():
@@ -637,11 +675,12 @@ def pack(backend: Backend, dense: Any, spec: Pack) -> Any:
         flat = xp.reshape(dense, (n_batch, n, n_o * 2))
         taken = xp.take(flat, constant(backend, keep, dense, "int32"), axis=2)
         return xp.reshape(taken, (n_batch, n * int(keep.shape[0])))
-    ids = _floats(spec.within, spec.kinds, spec.starts, spec.n_floats)
+    if tables is None:
+        tables = chunk_tables(backend, spec.within, spec.kinds, spec.starts, dense)
     summed = backend.segment_sum(
         xp.reshape(dense, (n_batch, n * n_o * 2)),
         1,
-        constant(backend, ids, dense, "int32"),
+        _floats(backend, tables, spec.n_floats),
         spec.n_floats + 1,
     )
     return summed[:, : spec.n_floats]
@@ -685,21 +724,37 @@ class OnOrientations(NamedTuple):
 Step = Take | OnOrientations
 
 
-class _Part(NamedTuple):
-    """How one family of the output of a :class:`FloatMap` is made: a slice of the input
-    (``copy``), or chunks of an input family unpacked, combined across chunks (``mix``),
-    transformed on their orientations (``steps``), and packed."""
+class _Slice(NamedTuple):
+    """A family of the output of a :class:`FloatMap` copied from the input: a slice."""
 
     name: str
-    copy: tuple[int, int] | None
-    unpack: Unpack | None
+    start: int
+    stop: int
+
+    @property
+    def columns(self) -> None:
+        """No map on the orientations."""
+        return None
+
+    @property
+    def weights(self) -> None:
+        return None
+
+
+class _Part(NamedTuple):
+    """A family of the output of a :class:`FloatMap` made from chunks of an input family:
+    unpacked, combined across chunks (``mix``), transformed on their orientations
+    (``steps``), and packed."""
+
+    name: str
+    unpack: Unpack
     mix: tuple[NDArray[np.int64], NDArray[np.float64]] | None
     """``(index, weights)``, each ``(n_out, M)``: output chunk ``i`` is
     ``Σ_m weights[i, m] · unpacked[index[i, m]]``."""
     steps: tuple[Step, ...]
     orientations: tuple[int, ...]
     """The orientation shape of the chunks read, before the steps."""
-    pack: Pack | None
+    pack: Pack
 
     @property
     def columns(self) -> NDArray[np.int64] | None:
@@ -720,7 +775,7 @@ class FloatMap:
     III, §19.6), one part per output family."""
 
     layout: Layout
-    parts: tuple[_Part, ...]
+    parts: tuple[_Slice | _Part, ...]
 
 
 class Copy(NamedTuple):
@@ -750,12 +805,12 @@ def make_map(layout: Layout, specs: Sequence[Copy | Chunked]) -> FloatMap:
         layout.chunked(spec.name) if isinstance(spec, Copy) else spec.chunks for spec in specs
     ]
     out_layout, orders = build_layout(families)
-    parts: list[_Part] = []
+    parts: list[_Slice | _Part] = []
     for spec, order in zip(specs, orders, strict=True):
         if isinstance(spec, Copy):
             if not np.array_equal(order, np.arange(order.shape[0])):
                 raise ValueError(f"{spec.name}: a copied family keeps its order.")
-            parts.append(_Part(spec.name, layout.span(spec.name), None, None, (), (), None))
+            parts.append(_Slice(spec.name, *layout.span(spec.name)))
             continue
         name = spec.chunks.grid.name
         sources = spec.sources[order]
@@ -766,9 +821,7 @@ def make_map(layout: Layout, specs: Sequence[Copy | Chunked]) -> FloatMap:
             read = unpack_spec(layout, name, np.arange(layout.grid(name).n_chunks))
             mix = (sources, spec.weights[order])
         orientations = layout.grid(name).orientations
-        parts.append(
-            _Part(name, None, read, mix, spec.steps, orientations, pack_spec(out_layout, name))
-        )
+        parts.append(_Part(name, read, mix, spec.steps, orientations, pack_spec(out_layout, name)))
     return FloatMap(layout=out_layout, parts=tuple(parts))
 
 
@@ -799,25 +852,48 @@ def _on_orientations(
     return xp.reshape(a, (n_batch, n, *new, 2))
 
 
+MapTables = tuple[tuple[ChunkTables, ChunkTables] | None, ...]
+"""For each part of a :class:`FloatMap`, the :data:`ChunkTables` of its unpacking and of its
+packing (``None`` for a slice): the arguments of a compiled map (:func:`map_tables`)."""
+
+
+def map_tables(backend: Backend, transform: FloatMap, like: Any) -> MapTables:
+    """The :data:`MapTables` of ``transform`` on the backend and device of ``like``: tables of
+    one row per chunk, made when the map is applied and passed to it as arguments."""
+    return tuple(
+        None
+        if isinstance(part, _Slice)
+        else (
+            chunk_tables(backend, part.unpack.within, part.unpack.kinds, part.unpack.starts, like),
+            chunk_tables(backend, part.pack.within, part.pack.kinds, part.pack.starts, like),
+        )
+        for part in transform.parts
+    )
+
+
 def apply(
     backend: Backend,
     buffer: Any,
     transform: FloatMap,
     scale: Mapping[str, Callable[[Any], Any]] | None = None,
+    tables: MapTables | None = None,
 ) -> Any:
     """The buffer ``(Nb, n)`` mapped by ``transform``: ``(Nb, transform.layout.n_floats)``.
     ``scale`` may give, for a family made from chunks, a function applied to its dense array
-    ``(Nb, n, n_orientations, 2)`` before it is packed (the divisors of the normalisation)."""
+    ``(Nb, n, n_orientations, 2)`` before it is packed (the divisors of the normalisation).
+    ``tables`` are the :func:`map_tables` of ``transform``, made here when not given."""
     xp = backend.xp
     scale = {} if scale is None else scale
+    found = map_tables(backend, transform, buffer) if tables is None else tables
     pieces: list[Any] = []
-    for part in transform.parts:
-        if part.copy is not None:
-            pieces.append(buffer[:, part.copy[0] : part.copy[1]])
+    for part, part_tables in zip(transform.parts, found, strict=True):
+        if isinstance(part, _Slice):
+            pieces.append(buffer[:, part.start : part.stop])
             continue
-        assert part.unpack is not None
-        assert part.pack is not None
-        dense = unpack(backend, buffer, part.unpack)
+        if part_tables is None:
+            raise ValueError(f"{part.name}: the tables of a map made from chunks are missing.")
+        read_tables, write_tables = part_tables
+        dense = unpack(backend, buffer, part.unpack, read_tables)
         grid = transform.layout.grid(part.name)
         if part.mix is not None:
             index, weights = part.mix
@@ -837,9 +913,8 @@ def apply(
         if part.name in scale:
             dense = scale[part.name](dense)
         n_batch, n = int(dense.shape[0]), int(dense.shape[1])
-        pieces.append(
-            pack(backend, xp.reshape(dense, (n_batch, n, grid.n_orientations, 2)), part.pack)
-        )
+        reshaped = xp.reshape(dense, (n_batch, n, grid.n_orientations, 2))
+        pieces.append(pack(backend, reshaped, part.pack, write_tables))
     return pieces[0] if len(pieces) == 1 else xp.concat(pieces, axis=1)
 
 

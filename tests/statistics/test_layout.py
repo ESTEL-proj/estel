@@ -23,8 +23,9 @@ import estel
 from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
 from estel.backend import _registry
 from estel.functional import _scattering
-from estel.statistics import _grid, _layout, _normalization
+from estel.statistics import _grid, _layout, _normalization, _statistics
 from estel.statistics import _reductions as reductions
+from estel.statistics._arrays import constant
 
 pytestmark = pytest.mark.maths("M-FLAT")
 
@@ -241,15 +242,18 @@ def _static_elements(found: Any, seen: set[int] | None = None) -> int:
     return sum(_static_elements(item, seen) for item in vars(found).values())
 
 
-def test_layout_tables_grow_with_the_chunks() -> None:
+def test_layout_tables_grow_with_the_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
     """Part III, §19.4 and §19.6 (T3.7): on 2D data with J = 5 and L = 4, the static arrays of
     the layout of the loop and of its normalisation, its maps' caches filled, hold fewer
     elements in all than the coefficients the layout stores: one row per chunk, no table per
-    coefficient."""
+    coefficient. Applying the maps (the normalisation of ``norm="self"``, ``to_vector``, the
+    reductions, ``select``) makes no constant that large either: their indices are built inside
+    the computation, from the tables of the chunks."""
     data = Data2D(_field((1, 1, 32, 32)), pbc=True)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        plan = STOperator(data, 5, L=4, compute_PS=False).plan
+        operator = STOperator(data, 5, L=4, compute_PS=False)
+    plan = operator.plan
     layout = _layout.base_layout(plan)
     present = _grid.auto_scales(plan)
     tables = _normalization._norm_tables(layout, present.shape, present.tobytes(), plan.L)
@@ -259,3 +263,18 @@ def test_layout_tables_grow_with_the_chunks() -> None:
     n_coefficients = sum(g.n_chunks * g.n_orientations for g in layout.grids)
     assert n_coefficients == sum(int(np.count_nonzero(g.present)) for g in layout.grids)
     assert _static_elements((layout, tables)) < n_coefficients
+
+    sizes: list[int] = []
+
+    def recording(backend: Any, array: Any, like: Any, dtype: Any = None) -> Any:
+        sizes.append(int(np.asarray(array).size))
+        return constant(backend, array, like, dtype)
+
+    for module in (_layout, _normalization, _statistics):
+        monkeypatch.setattr(module, "constant", recording)
+    stats = operator.apply(data)
+    stats.to_vector()
+    stats.reduce(iso=True, angular_fourier=True, scale_cosine=True).to_vector()
+    stats.select("S4", l1=[1, 0]).to_vector()
+    assert sizes
+    assert max(sizes) < n_coefficients
