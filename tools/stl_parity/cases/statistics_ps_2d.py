@@ -32,15 +32,17 @@ It stores, for each configuration:
   ``<config>_ps_bins``: [J, J_PS, J_min, n_b], ``(4,)``;
 * ``<config>_raw_PS``: the spectrum without normalisation, ``(Nb, Nc, Nc, n_b)``, complex128,
   computed by the operator's own spectrum operator with the same channel pairs;
-* ``<config>_store_<family>`` and ``<config>_load_<family>`` for ``mean``, ``var`` and ``PS``,
-  normalised (``PS``: ``(Nb, Nc, Nc, n_b)``, complex128);
+* ``<config>_store_<family>`` and ``<config>_load_<family>`` for ``mean``, ``var``, ``S1`` to
+  ``S4`` and ``PS``, normalised, in STL's full-grid shapes (``PS``: ``(Nb, Nc, Nc, n_b)``,
+  complex128), so that the normalised statistics and the flat vectors can be rebuilt from this
+  fixture alone;
 * ``<config>_var_ref``, ``<config>_s2_ref`` and ``<config>_ps_ref``: the reference the operator
   stored (``var_ref``, ``S2_ref_sqrt_chan_diag``, ``PS_ref_sqrt_chan_diag``; the last
   ``(Nb or 1, Nc, n_b)``);
 * ``<config>_vector`` (complex), ``<config>_vector_real`` (real),
   ``<config>_vector_batch_mean`` (complex) and ``<config>_load_vector`` (complex): the flat
-  vectors. S1 to S4 are in them, and are those of ``statistics_2d`` without the spectrum: the
-  spectrum changes no other family (M-ORDER).
+  vectors, PS last (M-FLAT). The spectrum changes no other family (M-ORDER), but the fields are
+  not those of ``statistics_2d``: S1 to S4 here are this case's own.
 
 The configurations cover the cells of §14.4 that T4.3 owns for the statistics: one and two
 channels, ``norm_batch_mean`` False (STL's default) and True, the default J and an explicit J
@@ -48,8 +50,7 @@ smaller than the default (J = 2 on 32 x 32, where the default is 3: J_PS = 2 and
 6), periodic and open data, with and without a mask of missing values (so each of the four
 estimators), the options of the spectrum forwarded by the operator, and a channel without auto
 statistics, whose spectrum reference is NaN, so that its cross spectrum becomes NaN after
-normalisation (OP-30). The fields are built as in
-``statistics_2d``, with other seeds.
+normalisation (OP-30). The fields are built as in ``statistics_2d``, with other seeds.
 
 Runs in the parity container, with the interpreter of the `master` environment, through
 `make parity-fixtures` (tools/stl_parity/make_fixtures.py). It imports STL, never `estel`.
@@ -111,7 +112,7 @@ PARAMETERS: dict[str, Any] = {
         },
     },
 }  # fmt: skip
-FAMILIES = ("mean", "var", "PS")
+FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4", "PS")
 
 
 def input_mask(n: int, spec: dict[str, Any]) -> NDArray[np.bool_]:
@@ -191,7 +192,8 @@ def run() -> dict[str, NDArray[Any]]:
             "compute_cross_matrix": pairs,
         }
         with warnings.catch_warnings(), contextlib.redirect_stdout(io.StringIO()):
-            warnings.simplefilter("ignore", UserWarning)  # OP-30, on purpose in cross_matrix
+            if name == "cross_matrix":  # STL warns on purpose here: no auto statistics (OP-30)
+                warnings.simplefilter("ignore", UserWarning)
             stored = operator.apply(target, norm="store_ref", **apply_kwargs)
             loaded = operator.apply(other, norm="load_ref", **apply_kwargs)
         out[f"{name}_var_ref"] = _numpy(operator.var_ref)

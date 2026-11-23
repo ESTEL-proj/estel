@@ -9,8 +9,10 @@ and ``n_bins`` where the configuration gives them (the options kept on #148), th
 * lets STL choose the estimator from ``pbc`` and the NaN of the field, checks that it chose the
   configuration's ``auto`` estimator, and applies it with the default channel pairs
   (``compute_cross_spectrum_matrix=None``: the auto spectra only);
-* applies each estimator that accepts the field (all four without NaN, ``nan_mask`` and
-  ``pbc_nan_mask`` with NaN) with every channel pair c₁ ≤ c₂, auto and cross spectra.
+* builds one operator for each estimator that accepts the field (all four without NaN,
+  ``nan_mask`` and ``pbc_nan_mask`` with NaN), ``get_CS_op(spectrum_method=<estimator>)`` with
+  the same options, and applies it with every channel pair c₁ ≤ c₂, auto and cross spectra
+  (``compute_cross_spectrum_matrix`` the upper triangle).
 
 It also checks STL's automatic choice with ``pbc=None``, which counts as periodic (``fft``
 without NaN, ``nan_mask`` with NaN; maths.md M-PS-2D, OP-4), and stores nothing for it: ESTEL
@@ -22,8 +24,8 @@ It stores, for each configuration:
 * ``<config>_auto_method``: the estimator STL chose, as its index in ``METHODS``, ``(1,)``;
 * ``<config>_auto``: the spectrum of that estimator with the default pairs, ``(Nb, Nc, Nc, n_b)``,
   complex128 as STL returns it (real values, NaN where no pair is computed);
-* ``<config>_<method>``: the spectrum of each estimator that accepts the field, every pair
-  c₁ ≤ c₂ (NaN for c₁ > c₂), ``(Nb, Nc, Nc, n_b)``, complex128;
+* ``<config>_method_<estimator>``: the spectrum of each estimator that accepts the field, every
+  pair c₁ ≤ c₂ (NaN for c₁ > c₂), ``(Nb, Nc, Nc, n_b)``, complex128;
 * the bins and what the estimators read from them, as STL holds them on the operator:
   ``<config>_bin_scalars`` = [J_PS, J_min, n_b, k_min, k_max, N_max]; ``<config>_radial_k``,
   ``(N_max + 1,)``; ``<config>_n_modes_radial`` (N_k), ``(N_max + 1,)``;
@@ -187,15 +189,16 @@ def run() -> dict[str, NDArray[Any]]:
         out[f"{name}_auto_method"] = np.asarray([METHODS.index(config["auto"])], dtype=np.float64)
         out[f"{name}_auto"] = _numpy(operator.apply(data))
 
-        pairs = torch.ones((config["Nc"], config["Nc"]), dtype=torch.bool)
+        pairs = torch.triu(torch.ones((config["Nc"], config["Nc"]), dtype=torch.bool))
         has_nan = bool(np.isnan(field).any())
         for method in METHODS:
             if has_nan and method in ("fft", "pbc_mask"):
                 continue
-            spectrum = operator.apply(
-                data, spectrum_method=method, compute_cross_spectrum_matrix=pairs
-            )
-            out[f"{name}_{method}"] = _numpy(spectrum)
+            # One operator per estimator, chosen at construction, as ESTEL chooses it.
+            forced = data.get_CS_op(spectrum_method=method, **options)
+            assert forced.spectrum_method == method
+            spectrum = forced.apply(data, compute_cross_spectrum_matrix=pairs)
+            out[f"{name}_method_{method}"] = _numpy(spectrum)
 
         out[f"{name}_bin_scalars"] = np.asarray(
             [

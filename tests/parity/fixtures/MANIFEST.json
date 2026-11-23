@@ -5089,28 +5089,28 @@
           32
         ]
       },
+      "nan_per_map_method_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "nan_per_map_method_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
       "nan_per_map_n_modes_radial": {
         "dtype": "float64",
         "shape": [
           17
-        ]
-      },
-      "nan_per_map_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          2,
-          2,
-          2,
-          6
-        ]
-      },
-      "nan_per_map_pbc_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          2,
-          2,
-          2,
-          6
         ]
       },
       "nan_per_map_radial_bin_of_k": {
@@ -5179,15 +5179,6 @@
           5
         ]
       },
-      "open_Jmin1_fft": {
-        "dtype": "complex128",
-        "shape": [
-          2,
-          2,
-          2,
-          5
-        ]
-      },
       "open_Jmin1_field": {
         "dtype": "float64",
         "shape": [
@@ -5197,37 +5188,46 @@
           32
         ]
       },
+      "open_Jmin1_method_fft": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          5
+        ]
+      },
+      "open_Jmin1_method_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          5
+        ]
+      },
+      "open_Jmin1_method_pbc_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          5
+        ]
+      },
+      "open_Jmin1_method_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          5
+        ]
+      },
       "open_Jmin1_n_modes_radial": {
         "dtype": "float64",
         "shape": [
           17
-        ]
-      },
-      "open_Jmin1_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          2,
-          2,
-          2,
-          5
-        ]
-      },
-      "open_Jmin1_pbc_mask": {
-        "dtype": "complex128",
-        "shape": [
-          2,
-          2,
-          2,
-          5
-        ]
-      },
-      "open_Jmin1_pbc_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          2,
-          2,
-          2,
-          5
         ]
       },
       "open_Jmin1_radial_bin_of_k": {
@@ -5296,7 +5296,16 @@
           6
         ]
       },
-      "open_fft": {
+      "open_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "open_method_fft": {
         "dtype": "complex128",
         "shape": [
           2,
@@ -5305,13 +5314,31 @@
           6
         ]
       },
-      "open_field": {
-        "dtype": "float64",
+      "open_method_nan_mask": {
+        "dtype": "complex128",
         "shape": [
           2,
           2,
-          32,
-          32
+          2,
+          6
+        ]
+      },
+      "open_method_pbc_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "open_method_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
         ]
       },
       "open_n_modes_radial": {
@@ -5375,7 +5402,16 @@
           32
         ]
       },
-      "open_nan_mask": {
+      "open_nan_method_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "open_nan_method_pbc_nan_mask": {
         "dtype": "complex128",
         "shape": [
           2,
@@ -5388,24 +5424,6 @@
         "dtype": "float64",
         "shape": [
           17
-        ]
-      },
-      "open_nan_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          2,
-          2,
-          2,
-          6
-        ]
-      },
-      "open_nan_pbc_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          2,
-          2,
-          2,
-          6
         ]
       },
       "open_nan_radial_bin_of_k": {
@@ -5426,24 +5444,6 @@
         "shape": [
           32,
           17
-        ]
-      },
-      "open_pbc_mask": {
-        "dtype": "complex128",
-        "shape": [
-          2,
-          2,
-          2,
-          6
-        ]
-      },
-      "open_pbc_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          2,
-          2,
-          2,
-          6
         ]
       },
       "open_radial_bin_of_k": {
@@ -5512,15 +5512,6 @@
           4
         ]
       },
-      "periodic_J2_fft": {
-        "dtype": "complex128",
-        "shape": [
-          1,
-          2,
-          2,
-          4
-        ]
-      },
       "periodic_J2_field": {
         "dtype": "float64",
         "shape": [
@@ -5530,37 +5521,46 @@
           32
         ]
       },
+      "periodic_J2_method_fft": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          4
+        ]
+      },
+      "periodic_J2_method_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          4
+        ]
+      },
+      "periodic_J2_method_pbc_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          4
+        ]
+      },
+      "periodic_J2_method_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          4
+        ]
+      },
       "periodic_J2_n_modes_radial": {
         "dtype": "float64",
         "shape": [
           17
-        ]
-      },
-      "periodic_J2_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          1,
-          2,
-          2,
-          4
-        ]
-      },
-      "periodic_J2_pbc_mask": {
-        "dtype": "complex128",
-        "shape": [
-          1,
-          2,
-          2,
-          4
-        ]
-      },
-      "periodic_J2_pbc_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          1,
-          2,
-          2,
-          4
         ]
       },
       "periodic_J2_radial_bin_of_k": {
@@ -5629,7 +5629,16 @@
           6
         ]
       },
-      "periodic_fft": {
+      "periodic_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "periodic_method_fft": {
         "dtype": "complex128",
         "shape": [
           2,
@@ -5638,13 +5647,31 @@
           6
         ]
       },
-      "periodic_field": {
-        "dtype": "float64",
+      "periodic_method_nan_mask": {
+        "dtype": "complex128",
         "shape": [
           2,
           2,
-          32,
-          32
+          2,
+          6
+        ]
+      },
+      "periodic_method_pbc_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_method_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
         ]
       },
       "periodic_n_modes_radial": {
@@ -5708,7 +5735,16 @@
           32
         ]
       },
-      "periodic_nan_mask": {
+      "periodic_nan_method_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_nan_method_pbc_nan_mask": {
         "dtype": "complex128",
         "shape": [
           2,
@@ -5721,24 +5757,6 @@
         "dtype": "float64",
         "shape": [
           17
-        ]
-      },
-      "periodic_nan_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          2,
-          2,
-          2,
-          6
-        ]
-      },
-      "periodic_nan_pbc_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          2,
-          2,
-          2,
-          6
         ]
       },
       "periodic_nan_radial_bin_of_k": {
@@ -5759,24 +5777,6 @@
         "shape": [
           32,
           17
-        ]
-      },
-      "periodic_pbc_mask": {
-        "dtype": "complex128",
-        "shape": [
-          2,
-          2,
-          2,
-          6
-        ]
-      },
-      "periodic_pbc_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          2,
-          2,
-          2,
-          6
         ]
       },
       "periodic_radial_bin_of_k": {
@@ -5845,15 +5845,6 @@
           6
         ]
       },
-      "rect_tall_fft": {
-        "dtype": "complex128",
-        "shape": [
-          1,
-          2,
-          2,
-          6
-        ]
-      },
       "rect_tall_field": {
         "dtype": "float64",
         "shape": [
@@ -5863,37 +5854,46 @@
           32
         ]
       },
+      "rect_tall_method_fft": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_tall_method_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_tall_method_pbc_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_tall_method_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
       "rect_tall_n_modes_radial": {
         "dtype": "float64",
         "shape": [
           17
-        ]
-      },
-      "rect_tall_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          1,
-          2,
-          2,
-          6
-        ]
-      },
-      "rect_tall_pbc_mask": {
-        "dtype": "complex128",
-        "shape": [
-          1,
-          2,
-          2,
-          6
-        ]
-      },
-      "rect_tall_pbc_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          1,
-          2,
-          2,
-          6
         ]
       },
       "rect_tall_radial_bin_of_k": {
@@ -5962,15 +5962,6 @@
           6
         ]
       },
-      "rect_wide_fft": {
-        "dtype": "complex128",
-        "shape": [
-          1,
-          2,
-          2,
-          6
-        ]
-      },
       "rect_wide_field": {
         "dtype": "float64",
         "shape": [
@@ -5980,37 +5971,46 @@
           48
         ]
       },
+      "rect_wide_method_fft": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_wide_method_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_wide_method_pbc_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_wide_method_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
       "rect_wide_n_modes_radial": {
         "dtype": "float64",
         "shape": [
           17
-        ]
-      },
-      "rect_wide_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          1,
-          2,
-          2,
-          6
-        ]
-      },
-      "rect_wide_pbc_mask": {
-        "dtype": "complex128",
-        "shape": [
-          1,
-          2,
-          2,
-          6
-        ]
-      },
-      "rect_wide_pbc_nan_mask": {
-        "dtype": "complex128",
-        "shape": [
-          1,
-          2,
-          2,
-          6
         ]
       },
       "rect_wide_radial_bin_of_k": {
@@ -6034,7 +6034,7 @@
         ]
       }
     },
-    "sha256": "49300fff4f70ee2ae34a454e8dada9c85fc9f0f169a372b0542f2accc031004a"
+    "sha256": "c5d6a99717283031d5fd5ae10f37823d5232a37759f6d726aa4787657c47dd33"
   },
   "statistics_1d.npz": {
     "case": "tools/stl_parity/cases/statistics_1d.py",
@@ -9180,6 +9180,52 @@
           6
         ]
       },
+      "cross_matrix_load_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "cross_matrix_load_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "cross_matrix_load_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "cross_matrix_load_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
       "cross_matrix_load_mean": {
         "dtype": "float64",
         "shape": [
@@ -9256,6 +9302,52 @@
           6
         ]
       },
+      "cross_matrix_store_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "cross_matrix_store_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "cross_matrix_store_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "cross_matrix_store_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
       "cross_matrix_store_mean": {
         "dtype": "float64",
         "shape": [
@@ -9313,6 +9405,52 @@
           6
         ]
       },
+      "open_load_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "open_load_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "open_load_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "open_load_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
       "open_load_mean": {
         "dtype": "float64",
         "shape": [
@@ -9349,6 +9487,52 @@
           2,
           2,
           6
+        ]
+      },
+      "open_masked_load_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "open_masked_load_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "open_masked_load_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "open_masked_load_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
         ]
       },
       "open_masked_load_mean": {
@@ -9432,6 +9616,52 @@
           2,
           2,
           6
+        ]
+      },
+      "open_masked_store_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "open_masked_store_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "open_masked_store_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "open_masked_store_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
         ]
       },
       "open_masked_store_mean": {
@@ -9529,6 +9759,52 @@
           6
         ]
       },
+      "open_store_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "open_store_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "open_store_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "open_store_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
       "open_store_mean": {
         "dtype": "float64",
         "shape": [
@@ -9583,6 +9859,52 @@
           2,
           1,
           1,
+          4
+        ]
+      },
+      "periodic_J2_load_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          4
+        ]
+      },
+      "periodic_J2_load_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          4
+        ]
+      },
+      "periodic_J2_load_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          4,
+          4
+        ]
+      },
+      "periodic_J2_load_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          4,
+          4,
           4
         ]
       },
@@ -9662,6 +9984,52 @@
           4
         ]
       },
+      "periodic_J2_store_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          4
+        ]
+      },
+      "periodic_J2_store_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          4
+        ]
+      },
+      "periodic_J2_store_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          4,
+          4
+        ]
+      },
+      "periodic_J2_store_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          4,
+          4,
+          4
+        ]
+      },
       "periodic_J2_store_mean": {
         "dtype": "float64",
         "shape": [
@@ -9719,6 +10087,52 @@
           6
         ]
       },
+      "periodic_load_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "periodic_load_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "periodic_load_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "periodic_load_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
       "periodic_load_mean": {
         "dtype": "float64",
         "shape": [
@@ -9755,6 +10169,52 @@
           2,
           2,
           6
+        ]
+      },
+      "periodic_masked_load_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "periodic_masked_load_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "periodic_masked_load_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "periodic_masked_load_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
         ]
       },
       "periodic_masked_load_mean": {
@@ -9838,6 +10298,52 @@
           2,
           2,
           6
+        ]
+      },
+      "periodic_masked_store_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "periodic_masked_store_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "periodic_masked_store_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "periodic_masked_store_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
         ]
       },
       "periodic_masked_store_mean": {
@@ -9935,6 +10441,52 @@
           6
         ]
       },
+      "periodic_store_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "periodic_store_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "periodic_store_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "periodic_store_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
       "periodic_store_mean": {
         "dtype": "float64",
         "shape": [
@@ -9990,6 +10542,52 @@
           2,
           2,
           5
+        ]
+      },
+      "spectrum_options_load_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "spectrum_options_load_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "spectrum_options_load_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "spectrum_options_load_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
         ]
       },
       "spectrum_options_load_mean": {
@@ -10068,6 +10666,52 @@
           5
         ]
       },
+      "spectrum_options_store_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "spectrum_options_store_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "spectrum_options_store_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "spectrum_options_store_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
       "spectrum_options_store_mean": {
         "dtype": "float64",
         "shape": [
@@ -10108,7 +10752,7 @@
         ]
       }
     },
-    "sha256": "ec9df21bda98ed2eaf85d09c1502ecce58e21b4c993d6054971481303fe6fa1a"
+    "sha256": "893dc5fe4406fb4c6e47fa59be94f51ad2e3a7b953e1a1e95aa00ca514dda6f7"
   },
   "statistics_tp.npz": {
     "case": "tools/stl_parity/cases/statistics_tp.py",

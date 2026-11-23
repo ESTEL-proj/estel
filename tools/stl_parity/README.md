@@ -17,11 +17,11 @@ the flat vectors of `to_flatten` (`statistics_2d.py` on `master`, `statistics_1d
 the loss of the first 20 iterations of a periodic synthesis of T6.1 (`synthesis_2d.py` on
 `master`), and the tensor products of T3.4 (on `2D+1D`): the statistics without normalisation
 (`scattering_tp.py`), the normalisations and flat vectors (`statistics_tp.py`) and the gradient
-of the synthesis loss (`gradient_tp.py`), and the 2D power spectrum of T4.3 (on `master`): the
-spectrum operator, its four estimators, its automatic choice and its bins (`spectrum_2d.py`), the
-statistics with the spectrum, its reference and the flat vectors (`statistics_ps_2d.py`), and the
-loss of the first 20 iterations of a periodic synthesis with the spectrum in the loss
-(`synthesis_ps_2d.py`).
+of the synthesis loss (`gradient_tp.py`). The 2D power spectrum of T4.3 has three cases on
+`master`: the spectrum operator, its four estimators, its automatic choice, its bins and the
+options kept on #148 (`spectrum_2d.py`); the statistics with the spectrum, its reference and the
+flat vectors (`statistics_ps_2d.py`); and the loss of the first 20 iterations of a periodic
+synthesis with the spectrum in the loss (`synthesis_ps_2d.py`).
 
 ## The container
 
