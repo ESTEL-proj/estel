@@ -18,11 +18,11 @@ Each of their IDs needs at least one test; a ``_spec`` function that cites one i
 so is an entry whose section defines no ID.
 
 **Not yet implemented.** The oracle covers sections 1 (planar 2D) and 2 (1D) of
-``docs/maths.md`` (task T2.6, issue #18), and section 3 (tensor products; task T3.3, issue
-#126). ``NOT_YET_IMPLEMENTED_SECTIONS`` and ``NOT_YET_IMPLEMENTED_IDS`` list what the coverage
-step accepts without an oracle function or a test, each with the task that implements it; that
-task removes its own entries. An entry that names nothing, or whose IDs all have an oracle
-function and a test, is an error: remove it.
+``docs/maths.md`` (task T2.6, issue #18), section 3 (tensor products; task T3.3, issue #126),
+and the 2D power spectrum M-PS-2D (task T4.2, issue #149). ``NOT_YET_IMPLEMENTED_SECTIONS``
+and ``NOT_YET_IMPLEMENTED_IDS`` list what the coverage step accepts without an oracle function
+or a test, each with the task that implements it; that task removes its own entries. An entry
+that names nothing, or whose IDs all have an oracle function and a test, is an error: remove it.
 """
 
 from __future__ import annotations
@@ -48,9 +48,7 @@ NOT_YET_IMPLEMENTED_SECTIONS = {
 SECTIONS_WITHOUT_ORACLE = {
     "5": 'Part IV, §22, row of 21 November 2026, "No oracle for the syntheses"',  # syntheses
 }
-NOT_YET_IMPLEMENTED_IDS = {
-    "M-PS-2D": "T4.1",  # the 2D power spectrum
-}
+NOT_YET_IMPLEMENTED_IDS: dict[str, str] = {}
 SECTION_RE = re.compile(r"^##\s+(\d+)\.")
 ID_RE = re.compile(r"(?<![\w-])M-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*(?![\w-])")
 HEADING_RE = re.compile(r"^#{1,6}\s")

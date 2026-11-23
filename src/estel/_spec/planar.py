@@ -20,8 +20,9 @@ the formulas are written; only the sums over pixels are NumPy operations.
   ``[c1, c2, j1, j2, j3, l1, l2, l3]``, complex, NaN where no coefficient exists.
 
 Every public function lists the ``M-`` IDs it implements; ``tools/check_maths_ids.py`` checks
-the mapping in both directions. The power spectrum (M-PS-2D) is not here: it comes with task
-T4.1.
+the mapping in both directions. The power spectrum (M-PS-2D) is in ``spectra``; ``spec_apply``
+adds it to the statistics when asked (``compute_PS=True``), as the family ``PS``, ``(Nb, Nc, Nc,
+n_b)``, with its reference in the normalisation and its place, last, in the vectors.
 """
 
 from __future__ import annotations
@@ -32,6 +33,8 @@ from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
+
+from . import spectra
 
 Array = NDArray[Any]
 Mask = NDArray[np.bool_] | None
@@ -65,7 +68,8 @@ def _check_ndim(ndim: int) -> None:
 def spec_defaults(spatial_shape: tuple[int, ...]) -> dict[str, Any]:
     """The default parameters for data of ``spatial_shape``. Implements M-DEF and M-DEF-1D.
 
-    ``compute_PS`` is left out: the spectrum is not part of this oracle (M-PS-2D, task T4.1).
+    ``compute_PS`` is left out: ``spec_apply`` computes the spectrum only when it is asked for
+    (``compute_PS=True``), so that without it the statistics are those of sections 1 and 2 alone.
     """
     ndim = len(spatial_shape)
     _check_ndim(ndim)
@@ -571,6 +575,11 @@ def spec_reference(stats: Statistics, ref_batch_mean: bool = False) -> Statistic
 
     With ``ref_batch_mean`` the variance and the auto S2 are first averaged over the batch, and
     Nr = 1; otherwise Nr = Nb. A channel without auto statistics has sigma = NaN (OP-30).
+
+    With the spectrum (a family ``PS`` in ``stats``), the reference also holds ``sigma_PS``,
+    ``(Nr, Nc, n_b)``, with ``sigma_PS_c(b) = √PS[c, c, b]``, of the batch mean of the auto
+    spectra with ``ref_batch_mean`` (M-PS-2D, "In the scattering operator"); a channel without
+    auto spectrum has sigma_PS = NaN (OP-30).
     """
     var, s2 = stats["var"], stats["S2"]
     nc = s2.shape[1]
@@ -578,7 +587,14 @@ def spec_reference(stats: Statistics, ref_batch_mean: bool = False) -> Statistic
     if ref_batch_mean:
         var = var.mean(axis=0, keepdims=True)
         diagonal = diagonal.mean(axis=0, keepdims=True)
-    return {"var": var, "sigma": np.sqrt(diagonal)}
+    reference = {"var": var, "sigma": np.sqrt(diagonal)}
+    if "PS" in stats:
+        ps = stats["PS"]
+        auto = np.stack([ps[:, c, c] for c in range(nc)], axis=1)
+        if ref_batch_mean:
+            auto = auto.mean(axis=0, keepdims=True)
+        reference["sigma_PS"] = np.sqrt(auto)
+    return reference
 
 
 def spec_normalize(stats: Statistics, reference: Statistics) -> Statistics:
@@ -586,9 +602,26 @@ def spec_normalize(stats: Statistics, reference: Statistics) -> Statistics:
 
     ``mean`` is not normalised; ``var`` is divided by ``var_ref``; S1 by
     √(sigma_{c1}(j, l) sigma_{c2}(j, l)); S2 by sigma_{c1}(j, l) sigma_{c2}(j, l); S3 by
-    sigma_{c1}(j2, l2) sigma_{c2}(j3, l3); S4 by sigma_{c1}(j1, l1) sigma_{c2}(j2, l2). A
-    reference of one batch element applies to every batch element.
+    sigma_{c1}(j2, l2) sigma_{c2}(j3, l3); S4 by sigma_{c1}(j1, l1) sigma_{c2}(j2, l2); PS, when
+    the statistics hold it, by sigma_PS_{c1}(b) sigma_PS_{c2}(b) (M-PS-2D). A reference of one
+    batch element applies to every batch element.
     """
+    normalized: Statistics = {}
+    if "PS" in stats:
+        if "sigma_PS" not in reference:
+            raise ValueError(
+                "the statistics hold the spectrum but the reference has no sigma_PS (M-NORM, "
+                "M-PS-2D); pass the reference of statistics computed with compute_PS=True."
+            )
+        sigma_ps = reference["sigma_PS"]
+        ps = np.array(stats["PS"])
+        with np.errstate(invalid="ignore"):  # NaN where no pair or no sigma_PS exists
+            for c1 in range(ps.shape[1]):
+                for c2 in range(ps.shape[2]):
+                    for b in range(ps.shape[3]):
+                        divisor = sigma_ps[:, c1, b] * sigma_ps[:, c2, b]
+                        ps[:, c1, c2, b] = ps[:, c1, c2, b] / divisor
+        normalized["PS"] = ps
     sigma = reference["sigma"]
     nc, n_scales, n_orient = sigma.shape[1:]
     s1, s2, s3, s4 = (np.array(stats[k]) for k in SCATTERING)
@@ -616,6 +649,7 @@ def spec_normalize(stats: Statistics, reference: Statistics) -> Statistics:
         "S2": s2,
         "S3": s3,
         "S4": s4,
+        **normalized,
     }
 
 
@@ -722,17 +756,18 @@ def spec_flatten(
 ) -> Array:
     """The statistics as one vector. Implements M-FLAT.
 
-    The families in the order ``mean``, ``var``, S1, S2, S3, S4, each in the row-major order of
-    its array, without its NaN entries. With ``flatten_complex=False`` the vector is complex;
-    with ``flatten_complex=True`` it is real: each complex coefficient gives its real and
-    imaginary parts, except those of S1 and S2, which give their real part only (OP-37), and
+    The families in the order ``mean``, ``var``, S1, S2, S3, S4, then PS when the statistics hold
+    it (M-PS-2D), each in the row-major order of its array, without its NaN entries. With
+    ``flatten_complex=False`` the vector is complex; with ``flatten_complex=True`` it is real:
+    each complex coefficient gives its real and imaginary parts, except those of S1, S2 and PS,
+    which give their real part only (OP-37), and
     ``mean`` and ``var`` give one value each. The batch axis is flattened with the rest, unless
     ``keep_batch_dim``, which gives ``(Nb, n)``; ``mean_along_batch`` first averages every
     family over the batch. ``mask_st`` is a boolean array over the vector: True keeps a
     coefficient.
     """
     rows = []
-    for family in FAMILIES:
+    for family in FAMILIES + (("PS",) if "PS" in stats else ()):
         x = np.asarray(stats[family])
         if mean_along_batch:
             x = x.mean(axis=0, keepdims=True)
@@ -746,7 +781,7 @@ def spec_flatten(
             kept = x[present][None, :]
         if not flatten_complex:
             rows.append(kept.astype(np.complex128))
-        elif family in ("mean", "var", "S1", "S2"):
+        elif family in ("mean", "var", "S1", "S2", "PS"):
             rows.append(kept.real.astype(np.float64))
         else:
             parts = np.stack([kept.real, kept.imag], axis=-1)
@@ -787,6 +822,10 @@ def spec_apply(
     scale_harmonics: int | None = None,
     dj: int | None = None,
     flatten: bool = False,
+    compute_PS: bool = False,  # noqa: N803
+    n_bins: int | None = None,
+    Jmin: int = 0,  # noqa: N803
+    spectrum_method: str = "auto",
 ) -> Statistics:
     """The statistics of ``array``: the whole of ``apply``, in its order. Implements M-ORDER.
 
@@ -794,7 +833,10 @@ def spec_apply(
     2. standardisation, if asked (M-STD);
     3. ``mean`` and ``var`` (M-MOM);
     4. the scattering statistics S1 to S4 (M-S1 to M-S4);
-    5. the power spectrum: not in this oracle (M-PS-2D, task T4.1);
+    5. the power spectrum, if asked (``compute_PS``, 2D only; M-PS-2D): ``spectra.spec_spectra``
+       on the field at full resolution, after the standardisation, with J_PS = J, the pairs of
+       ``cross_matrix``, ``Jmin``, ``n_bins`` and ``spectrum_method`` (the automatic choice by
+       default, from ``pbc`` and the NaN of the field), under ``"PS"``;
     6. normalisation (M-NORM): ``norm="self"`` by the statistics themselves, ``norm="ref"`` by
        ``ref``, the ``"reference"`` of other statistics, ``norm="none"`` not at all;
     7. the reductions asked for, in the order ``iso``, ``angular_fourier``, ``scale_cosine``
@@ -804,6 +846,10 @@ def spec_apply(
     Returns the families, the ``"reference"`` used (``None`` with ``norm="none"``) and, with
     ``standardize``, ``"mean_pre_std"`` and ``"std_pre_std"``. J and L default to M-DEF and
     M-DEF-1D.
+
+    ``compute_PS`` is False by default, so that without it every value is that of the
+    statistics alone; ``n_bins``, ``Jmin`` and ``spectrum_method`` other than their defaults
+    need it, and it needs J ≥ 2 + Jmin (decisions of the maintainer on #148).
     """
     spatial = np.shape(array)[-ndim:]
     defaults = spec_defaults(tuple(int(n) for n in spatial))
@@ -817,6 +863,18 @@ def spec_apply(
         raise ValueError('norm="ref" needs a reference (M-NORM).')
     if scale_cosine and not iso:
         raise ValueError("scale_cosine is defined after iso only (M-RED-SCALE).")
+    if compute_PS and ndim != 2:
+        raise ValueError("the power spectrum is defined on 2D data only (M-PS-2D); pass ndim=2.")
+    if not compute_PS and (n_bins is not None or Jmin != 0 or spectrum_method != "auto"):
+        raise ValueError(
+            "n_bins, Jmin and spectrum_method act only with compute_PS=True (M-PS-2D); pass "
+            "compute_PS=True or leave them at their defaults."
+        )
+    if compute_PS and n_scales < 2 + Jmin:
+        raise ValueError(
+            f"J={n_scales} < 2 + Jmin = {2 + Jmin}: the spectrum needs J >= 2 + Jmin (M-PS-2D, "
+            "OP-93); pass compute_PS=False or use a larger image."
+        )
 
     x, invalid = spec_data(array, ndim, n_scales, mask, pbc)  # 1
     out: Statistics = {}
@@ -824,6 +882,10 @@ def spec_apply(
         x, out["mean_pre_std"], out["std_pre_std"] = spec_standardize(x, ndim, invalid)
     out["mean"], out["var"] = spec_moments(x, ndim, invalid)  # 3
     out.update(spec_scattering(x, ndim, n_scales, n_orient, pbc, invalid, cross_matrix))  # 4
+    if compute_PS:  # 5
+        out["PS"] = spectra.spec_spectra(
+            x, pbc, n_scales, Jmin, n_bins, spectrum_method, cross_matrix
+        )["PS"]
     out["reference"] = None
     if norm != "none":  # 6
         reference = spec_reference(out, ref_batch_mean) if norm == "self" else ref
