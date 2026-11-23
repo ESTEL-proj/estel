@@ -12,6 +12,7 @@ flat vectors are compared with the fixtures, in float64, with the tolerances of 
 
 from __future__ import annotations
 
+import dataclasses
 import tracemalloc
 import warnings
 from functools import cache
@@ -283,9 +284,42 @@ def test_select_takes_family_and_channels() -> None:
         [_flat(s1[:, [1, 0]], real_part=True), _flat(s4[:, [1, 0]], real_part=False)]
     )
     np.testing.assert_array_equal(_numpy(chosen.to_vector()), expected)
-    for axis in ("j[0]", "l", "j3"):
-        with pytest.raises(ValueError, match="LF44"):
-            stats.select("S3", **{axis: 0})
+
+
+@pytest.mark.parametrize(
+    ("family", "index", "match"),
+    [
+        pytest.param("S3", {"j[0]": 0}, r"LF44\). Until then, use full_grid", id="block-axis"),
+        pytest.param("S3", {"l": 0}, r"in block order \(maths\.md M-S-TP\)", id="planar-l"),
+        pytest.param("S4", {"j3": 1}, r"or to_vector\.$", id="planar-j3"),
+        pytest.param(
+            "S1",
+            {"c": 0},
+            r"no selected family \(S1\) has an axis 'c'; valid axis names: c1, c2 \(channel="
+            r"\(a, b\) stands for c1, c2; on a tensor product, the scale and orientation axes "
+            r"of the blocks have no name yet, LF44\)\.$",
+            id="valid-names",
+        ),
+        pytest.param(
+            ("S1", "mean"),
+            {"c": 0, "c1": 0},
+            r"no selected family has every axis of \['c', 'c1'\]: mean has c; S1 has c1, c2\.$",
+            id="every-axis",
+        ),
+    ],
+)
+def test_select_errors_name_the_channels_only(
+    family: str | tuple[str, ...], index: dict[str, int], match: str
+) -> None:
+    """On a tensor product, the errors of ``select`` name the channel axes only, the axes of
+    the blocks having no public name yet (LF44, answer 2 of the maintainer on #137), and say
+    what to use instead: ``full_grid`` on a small case, or ``to_vector``."""
+    with pytest.raises(ValueError, match=match) as raised:
+        _two_channels().select(family, **index)
+    # No axis of the blocks is named, but the one the caller passed.
+    message = str(raised.value).replace(f"select({next(iter(index))}=...)", "")
+    assert "[0]" not in message
+    assert "[1]" not in message
 
 
 def _flat(grid: NDArray[Any], real_part: bool) -> NDArray[Any]:
@@ -297,13 +331,13 @@ def _flat(grid: NDArray[Any], real_part: bool) -> NDArray[Any]:
     return pairs.reshape(-1)
 
 
-def test_reduce_raises_before_computing() -> None:
+@pytest.mark.parametrize("reduction", ["iso", "angular_fourier", "scale_cosine"])
+def test_reduce_raises_before_computing(reduction: str) -> None:
     """The reductions are not defined on tensor products (maths.md M-NORM-TP, OP-44): a clear
-    error, raised before any computation, even with arguments that planar statistics refuse."""
-    stats = _two_channels()
-    for options in ({"iso": True}, {"angular_fourier": True}, {"scale_cosine": True}):
-        with pytest.raises(ValueError, match=r"OP-44.*LF26"):
-            stats.reduce(**options)
+    error, raised before any computation, even with arguments that planar statistics refuse
+    (``scale_cosine`` without ``iso``)."""
+    with pytest.raises(ValueError, match=r"OP-44.*LF26"):
+        _two_channels().reduce(**{reduction: True})
 
 
 def test_save_and_load_round_trip(tmp_path: Path) -> None:
@@ -329,14 +363,14 @@ def test_save_and_load_round_trip(tmp_path: Path) -> None:
     )
 
 
-def test_reference_of_another_tensor_product() -> None:
-    """A reference from another tensor product is accepted when the blocks, J, L, low-pass
-    flags and channels match, whatever its sizes and periodicity, and refused with a clear error
-    otherwise (maths.md M-NORM-TP; Part IV, R-Y03); a planar reference is refused too."""
+def test_reference_of_another_tensor_product_is_accepted() -> None:
+    """A reference from another tensor product with the same blocks, J, L, low-pass flags and
+    channels is accepted, whatever its sizes and periodicity (maths.md M-NORM-TP); a planar
+    reference is refused on a tensor product, and the reference of a tensor product on planar
+    statistics."""
     reference = _two_channels()._reference
     assert reference is not None
     rng = np.random.default_rng(3)
-    # The same blocks, J, L and flags at another size and periodicity: accepted.
     other = _plan(
         rng.standard_normal((2, 2, 32, 32, 16)), ["2D", "1D"], [False, True], [2, 1], norm="ref"
     )
@@ -345,17 +379,6 @@ def test_reference_of_another_tensor_product() -> None:
     )
     stats = tensor_prod_statistics(buffer, other, reference)
     assert stats._reference is not None
-    refused = {
-        "J": (["2D", "1D"], (32, 32, 16), [3, 1]),
-        "blocks": (["1D", "2D"], (8, 16, 16), [1, 2]),
-        "low-pass flags": (["2D", "1D"], (16, 16, 9), [2, 1]),  # 9 is odd: no low-pass (M-LP)
-    }
-    for what, (blocks, shape, J) in refused.items():  # noqa: N806
-        plan = _plan(np.zeros((2, 2, *shape)), blocks, [True, True], J, norm="ref")
-        n_floats = _layout.tensor_prod_layout(plan).n_floats
-        data = _registry.current_backend().asarray(np.ones((2, n_floats)), "float64", None)
-        with pytest.raises(ValueError, match=what):
-            tensor_prod_statistics(data, plan, reference)
     planar = estel.STOperator(
         Data2D(rng.standard_normal((2, 2, 16, 16)), pbc=True), 2, compute_PS=False
     ).apply(Data2D(rng.standard_normal((2, 2, 16, 16)), pbc=True))
@@ -365,3 +388,45 @@ def test_reference_of_another_tensor_product() -> None:
     assert isinstance(planar._plan, estel.STPlan)
     with pytest.raises(ValueError, match="tensor product"):
         _normalization.check_reference(reference, planar._plan, 2, reference.var.dtype)
+
+
+@pytest.mark.parametrize(
+    ("what", "blocks", "shape", "J"),
+    [
+        pytest.param("J", ["2D", "1D"], (32, 32, 16), [3, 1], id="J"),
+        pytest.param("blocks", ["1D", "2D"], (8, 16, 16), [1, 2], id="blocks"),
+        # 9 is odd: block 1 has no low-pass filter (M-LP).
+        pytest.param("low-pass flags", ["2D", "1D"], (16, 16, 9), [2, 1], id="low-pass"),
+    ],
+)
+def test_reference_of_another_tensor_product_is_refused(
+    what: str,
+    blocks: list[str],
+    shape: tuple[int, ...],
+    J: list[int],  # noqa: N803 (maths.md notation)
+) -> None:
+    """A reference from a tensor product whose blocks, J or low-pass flags differ is refused
+    with an error naming what differs (maths.md M-NORM-TP; Part IV, R-Y03)."""
+    reference = _two_channels()._reference
+    assert reference is not None
+    plan = _plan(np.zeros((2, 2, *shape)), blocks, [True, True], J, norm="ref")
+    n_floats = _layout.tensor_prod_layout(plan).n_floats
+    data = _registry.current_backend().asarray(np.ones((2, n_floats)), "float64", None)
+    with pytest.raises(ValueError, match=what):
+        tensor_prod_statistics(data, plan, reference)
+
+
+def test_layout_refuses_a_segment_of_another_orientation_shape() -> None:
+    """``Layout`` checks that the orientations of each segment are those of its chunks: a
+    segment of S1 at a low-pass scale holds orientation 0 only along that block (maths.md
+    M-LP), and claiming the full orientations for it is refused (task T3.6)."""
+    layout = _two_channels()._layout
+    index, segment = next(
+        (i, s)
+        for i, s in enumerate(layout.segments)
+        if s.family == "S1" and s.orientations != (4, 2)
+    )
+    wrong = dataclasses.replace(segment, orientations=(4, 2))
+    segments = (*layout.segments[:index], wrong, *layout.segments[index + 1 :])
+    with pytest.raises(ValueError, match="orientations of a segment are not those of its chunks"):
+        _layout.Layout(grids=layout.grids, segments=segments, n_floats=layout.n_floats)

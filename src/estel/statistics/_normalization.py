@@ -29,6 +29,7 @@ from numpy.typing import NDArray
 
 from ..backend import _registry
 from ..backend._protocol import Backend
+from ..scattering._plan import orientations_at
 from ._arrays import backend_of, constant
 from ._layout import (
     Chunked,
@@ -41,6 +42,7 @@ from ._layout import (
     chunk_index,
     make_map,
     map_tables,
+    pad_nan,
 )
 
 if TYPE_CHECKING:
@@ -62,9 +64,7 @@ class TensorProdBlocks(NamedTuple):
     def row_shape(self, scale: tuple[int, ...]) -> tuple[int, ...]:
         """The orientations of sigma at the multi-index ``scale``: L_a, or 1 along a block at
         its low-pass scale (M-LP)."""
-        return tuple(
-            1 if j == n else size for j, n, size in zip(scale, self.J, self.L, strict=True)
-        )
+        return orientations_at(scale, self.J, self.L)
 
 
 def tensor_prod_blocks(plan: TensorProdPlan) -> TensorProdBlocks:
@@ -141,7 +141,8 @@ class _NormReference:
         orientation shape at a time, padded with NaN to the orientations of the blocks and
         placed in the grid of the channels and the scales."""
         xp = backend.xp
-        assert self.blocks is not None
+        if self.blocks is None:
+            raise ValueError("this reference is planar: it has no blocks of a tensor product.")
         full = self.blocks.L
         positions, shapes, starts = self.rows()
         n_ref = int(self.sigma.shape[0])
@@ -157,7 +158,7 @@ class _NormReference:
             values = xp.take(self.sigma, constant(backend, index, self.sigma, "int32"), axis=1)
             values = xp.reshape(values, (n_ref, int(rows.shape[0]), *shape))
             parts = xp.stack([values, xp.zeros_like(values)], axis=-1)
-            padded = _pad(backend, parts, full)
+            padded = pad_nan(backend, parts, full)
             pieces.append(xp.reshape(padded, (n_ref, int(rows.shape[0]), -1)))
             order.append(rows)
         found = xp.permute_dims(xp.concat(pieces, axis=1), (0, 2, 1))
@@ -198,18 +199,6 @@ class _NormReference:
             ref_batch_mean=ref_batch_mean,
             blocks=blocks,
         )
-
-
-def _pad(backend: Backend, x: Any, orientations: tuple[int, ...]) -> Any:
-    """``x`` ``(Nr, n, *shape, 2)``, ``shape`` a corner of ``orientations``, padded with NaN to
-    ``(Nr, n, *orientations, 2)``."""
-    xp = backend.xp
-    for axis, size in enumerate(orientations):
-        found = int(x.shape[2 + axis])
-        if found < size:
-            pad_shape = (*x.shape[: 2 + axis], size - found, *x.shape[3 + axis :])
-            x = xp.concat([x, xp.full(pad_shape, float("nan"), dtype=x.dtype)], axis=2 + axis)
-    return x
 
 
 @functools.lru_cache(maxsize=64)

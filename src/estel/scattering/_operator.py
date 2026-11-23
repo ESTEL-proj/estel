@@ -126,7 +126,8 @@ class STOperator:
             raise ValueError(
                 "STOperator.from_statistics: these are the statistics of a tensor product, which "
                 "STOperator does not compute; the operator of tensor products comes later "
-                "(task T3.2)."
+                "(task T3.2). Until then, read these statistics with to_vector, select (family "
+                "and channels) or full_grid."
             )
         operator = cls.__new__(cls)
         wide = dtype_name(stats._buffer) in _WIDE

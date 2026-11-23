@@ -1184,7 +1184,7 @@ def full_grid(backend: Backend, buffer: Any, layout: Layout, name: str) -> Any:
             found = xp.reshape(found, (n_batch, int(rows.shape[0]), *shape, parts))
             pieces.append(
                 xp.reshape(
-                    _pad_nan(backend, found, grid.orientations),
+                    pad_nan(backend, found, grid.orientations),
                     (n_batch, int(rows.shape[0]), grid.n_orientations, parts),
                 )
             )
@@ -1205,7 +1205,7 @@ def full_grid(backend: Backend, buffer: Any, layout: Layout, name: str) -> Any:
     return backend.real_pairs_to_complex(placed) if grid.is_complex else placed[..., 0]
 
 
-def _pad_nan(backend: Backend, x: Any, orientations: tuple[int, ...]) -> Any:
+def pad_nan(backend: Backend, x: Any, orientations: tuple[int, ...]) -> Any:
     """``x`` ``(Nb, n, *shape, parts)``, ``shape`` a corner of ``orientations``, padded with NaN
     to ``(Nb, n, *orientations, parts)``."""
     xp = backend.xp

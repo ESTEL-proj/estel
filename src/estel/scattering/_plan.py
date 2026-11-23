@@ -461,11 +461,21 @@ class TensorProdPlan:
         return tuple(len(scales) for scales in self.first_layer)
 
     def orientations_at(self, scale: tuple[int, ...]) -> tuple[int, ...]:
-        """The orientation shape of the chunks of S1 and S2 at the multi-index ``scale``: L_a,
-        or 1 along a block taken at its low-pass scale, which has orientation 0 only (M-LP)."""
-        return tuple(
-            1 if j == n else size for j, n, size in zip(scale, self.J, self.L, strict=True)
-        )
+        """The orientation shape of the chunks of S1 and S2 at the multi-index ``scale``
+        (:func:`orientations_at`)."""
+        return orientations_at(scale, self.J, self.L)
+
+
+def orientations_at(
+    scale: tuple[int, ...],
+    J: tuple[int, ...],  # noqa: N803 (maths.md notation)
+    L: tuple[int, ...],  # noqa: N803
+) -> tuple[int, ...]:
+    """The orientation shape of a tensor product at the multi-index ``scale``, for the blocks
+    of ``J`` wavelet scales and ``L`` orientations: L_a, or 1 along a block taken at its
+    low-pass scale J_a, which has orientation 0 only (maths.md M-LP). The chunks of S1 and S2
+    and the rows of the normalisation scales sigma have this shape."""
+    return tuple(1 if j == n else size for j, n, size in zip(scale, J, L, strict=True))
 
 
 def build_tensor_prod_statistics_plan(

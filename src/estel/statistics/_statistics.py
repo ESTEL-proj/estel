@@ -222,30 +222,46 @@ class STStatistics:
         """
         names = self._family_names(family)
         index = _expand_channel(index)
-        if isinstance(self._plan, TensorProdPlan):
+        tensor_prod = isinstance(self._plan, TensorProdPlan)
+        if tensor_prod:
             others = sorted(a for a in index if a not in _TENSOR_PROD_SELECT)
             if others:
                 raise ValueError(
                     f"select({', '.join(f'{a}=...' for a in others)}): on the statistics of a "
                     "tensor product, select takes family and the channels only (c1, c2, "
                     "channel=(a, b), and c for mean and var); naming the scale and orientation "
-                    "axes of the blocks comes later (LF44). Use full_grid on a small case, or "
-                    "to_vector."
+                    "axes of the blocks comes later (LF44). Until then, use full_grid on a small "
+                    "case: one scale axis and one orientation axis per block, in block order "
+                    "(maths.md M-S-TP), or to_vector."
                 )
+
+        def named(grid: FamilyGrid) -> tuple[str, ...]:
+            """The axes of ``grid`` that select names: on a tensor product, its channels only,
+            the axes of the blocks having no public name yet (LF44)."""
+            if not tensor_prod:
+                return grid.axes
+            return tuple(a for a in grid.axes if a in _TENSOR_PROD_SELECT)
+
         chosen = [g for g in self._grids if g.name in names]
-        valid = sorted({a for g in chosen for a in g.axes})
+        valid = sorted({a for g in chosen for a in named(g)})
+        blocks = (
+            "; on a tensor product, the scale and orientation axes of the blocks have no name "
+            "yet, LF44"
+            if tensor_prod
+            else ""
+        )
         for axis in index:
             if axis not in valid:
                 raise ValueError(
                     f"select({axis}=...): no selected family ({', '.join(names)}) has an axis "
                     f"{axis!r}; valid axis names: {', '.join(valid)} (channel=(a, b) stands for "
-                    "c1, c2)."
+                    f"c1, c2{blocks})."
                 )
         kept = [g for g in chosen if all(a in g.axes for a in index)]
         if not kept:
             raise ValueError(
                 f"select: no selected family has every axis of {sorted(index)}: "
-                + "; ".join(f"{g.name} has {', '.join(g.axes)}" for g in chosen)
+                + "; ".join(f"{g.name} has {', '.join(named(g))}" for g in chosen)
                 + "."
             )
         specs = [_select_family(self._layout, g.name, index) for g in kept]
@@ -391,8 +407,7 @@ class STStatistics:
                 "reduce(scale_cosine=True) without iso=True: the scale cosine transform is "
                 "defined on isotropic statistics (maths.md M-RED-SCALE); pass iso=True as well."
             )
-        plan = self._plan
-        assert isinstance(plan, STPlan)
+        plan = self._plan  # an STPlan: a tensor product raised above
         L, J = plan.L, plan.J  # noqa: N806
         n_angular = _check_count("angular_harmonics", angular_harmonics, L, "L")
         n_scale = _check_count("scale_harmonics", scale_harmonics, J, "J")

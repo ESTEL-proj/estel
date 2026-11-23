@@ -500,7 +500,9 @@ def tensor_prod_grids(plan: TensorProdPlan) -> tuple[FamilyGrid, ...]:
     # S1 and S2: two kinds (auto, cross) per orientation shape.
     rows_12 = _product_rows(pairs_12, [[(j,) for j in js] for js in plan.first_layer])
     scale_12 = rows_12[:, 2:]
-    chunk_shapes = np.where(scale_12 == np.array(J), 1, np.array(L)).astype(np.int32)
+    chunk_shapes = np.array(
+        [plan.orientations_at(tuple(int(j) for j in row)) for row in scale_12], dtype=np.int32
+    ).reshape(-1, n_blocks)
     cross = (rows_12[:, 0] != rows_12[:, 1]).astype(np.int32)
     keys = np.concatenate([cross[:, None], chunk_shapes], axis=1)
     distinct, kinds_12 = np.unique(keys, axis=0, return_inverse=True)
