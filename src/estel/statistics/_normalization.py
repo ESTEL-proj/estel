@@ -16,6 +16,10 @@ is not stored. On the compact buffer, for a fixed reference, the normalisation i
 map (Part III, §19.6) that acts chunk by chunk (task T3.7): a static gather of the chunks that
 keep a divisor, divided by their divisors, each the product of two rows of sigma over the
 orientations of the chunk, with static tables of one row per chunk built in NumPy.
+
+With the power spectrum (maths.md §1.9; task T4.4), the reference also holds STL's
+``PS_ref_sqrt_chan_diag``, σᴾˢ_c(b) = √PS_ref[c, c, b], compactly, for the channels with an auto
+spectrum (:attr:`_NormReference.ps`), and PS[c1, c2, b] is divided by σᴾˢ_{c1}(b) σᴾˢ_{c2}(b).
 """
 
 from __future__ import annotations
@@ -47,6 +51,25 @@ from ._layout import (
 
 if TYPE_CHECKING:
     from ..scattering._plan import PlanarPlan, TensorProdPlan
+
+
+class SpectrumReference(NamedTuple):
+    """What the reference of statistics with the power spectrum holds of it, statically
+    (maths.md M-NORM, §1.9; task T4.4): the channels with σᴾˢ, and the bins it was computed
+    with, which statistics normalised by it must share."""
+
+    present: NDArray[np.bool_]
+    """``(Nc,)``: the channels with an auto spectrum, where σᴾˢ exists (OP-30)."""
+    bins: tuple[int, int, int]
+    """``(n_b, J_PS, J_min)``."""
+
+
+def spectrum_reference_of(spectrum: Any, n_channels: int) -> SpectrumReference:
+    """The :class:`SpectrumReference` of the spectrum of a plan (``scattering._plan.SpectrumPlan``)
+    with ``n_channels`` channels."""
+    present = np.isin(np.arange(n_channels), np.asarray(spectrum.auto, dtype=np.int64))
+    present.flags.writeable = False
+    return SpectrumReference(present, (int(spectrum.n_bins), int(spectrum.J), int(spectrum.Jmin)))
 
 
 class TensorProdBlocks(NamedTuple):
@@ -102,6 +125,11 @@ class _NormReference:
     """Whether the reference was averaged over the batch."""
     blocks: TensorProdBlocks | None = None
     """The blocks of a tensor product, or ``None`` for planar statistics."""
+    ps: Any = None
+    """``(Nr, n)``, real: σᴾˢ_c(b) for every channel ``c`` of ``spectrum.present``, in order, and
+    every bin b inside; ``None`` when the statistics hold no power spectrum."""
+    spectrum: SpectrumReference | None = None
+    """The channels and the bins of :attr:`ps`, static; ``None`` with it."""
 
     def rows(self) -> tuple[NDArray[np.int64], tuple[tuple[int, ...], ...], NDArray[np.int64]]:
         """The ``(c, j)`` of each row of :attr:`sigma` ``(n_rows, 1 + n_scale_axes)``, the
@@ -135,6 +163,28 @@ class _NormReference:
             for x in (self.sigma, xp.zeros_like(self.sigma))
         ]
         return backend.real_pairs_to_complex(xp.stack(parts, axis=-1))
+
+    @property
+    def ps_sqrt(self) -> Any:
+        """STL's ``PS_ref_sqrt_chan_diag``: ``(Nr, Nc, n_b)``, complex, NaN where σᴾˢ does not
+        exist (a channel without auto spectrum, OP-30); ``None`` without the spectrum. A view,
+        built on demand; the normalisation reads :attr:`ps`."""
+        if self.spectrum is None:
+            return None
+        backend = backend_object_of(self.ps)
+        xp = backend.xp
+        n_ref = int(self.ps.shape[0])
+        n_bins = self.spectrum.bins[0]
+        channels = np.flatnonzero(self.spectrum.present)
+        shape = (int(self.spectrum.present.shape[0]),)
+        values = xp.reshape(self.ps, (n_ref, int(channels.shape[0]), n_bins))
+        carried = xp.permute_dims(values, (0, 2, 1))  # (Nr, n_b, n)
+        index = [constant(backend, channels, self.ps, "int32")]
+        parts = [
+            backend.scatter_to_grid(x, index, shape) for x in (carried, xp.zeros_like(carried))
+        ]
+        placed = xp.permute_dims(xp.stack(parts, axis=-1), (0, 2, 1, 3))  # (Nr, Nc, n_b, 2)
+        return backend.real_pairs_to_complex(placed)
 
     def _s2_sqrt_tensor_prod(self, backend: Backend) -> Any:
         """:attr:`s2_sqrt` of a tensor product, ``(Nr, Nc, *J', *L)``: the rows of sigma, one
@@ -184,13 +234,23 @@ class _NormReference:
             self.ref_batch_mean,
             self.n_orientations,
             self.blocks,
+            None
+            if self.spectrum is None
+            else (self.spectrum.present.tobytes(), self.spectrum.bins),
         )
 
     @classmethod
-    def from_static(cls, static: tuple[Any, ...], var: Any, sigma: Any) -> _NormReference:
-        shape, data, ref_batch_mean, n_orientations, blocks = static
+    def from_static(
+        cls, static: tuple[Any, ...], var: Any, sigma: Any, ps: Any = None
+    ) -> _NormReference:
+        shape, data, ref_batch_mean, n_orientations, blocks, spectrum = static
         present = np.frombuffer(data, dtype=bool).reshape(shape).copy()
         present.flags.writeable = False
+        found = None
+        if spectrum is not None:
+            channels = np.frombuffer(spectrum[0], dtype=bool).copy()
+            channels.flags.writeable = False
+            found = SpectrumReference(channels, spectrum[1])
         return cls(
             var=var,
             sigma=sigma,
@@ -198,7 +258,21 @@ class _NormReference:
             n_orientations=n_orientations,
             ref_batch_mean=ref_batch_mean,
             blocks=blocks,
+            ps=ps,
+            spectrum=found,
         )
+
+    def ps_rows(self) -> NDArray[np.int64]:
+        """``(Nc,)``: the row of :attr:`ps` of each channel, -1 where σᴾˢ does not exist."""
+        if self.spectrum is None:
+            raise ValueError("this reference holds no power spectrum.")
+        return _ranks(self.spectrum.present)
+
+
+def _ranks(present: NDArray[np.bool_]) -> NDArray[np.int64]:
+    """The rank of each True of ``present`` among them, -1 at each False."""
+    found: NDArray[np.int64] = np.where(present, np.cumsum(present) - 1, -1).astype(np.int64)
+    return found
 
 
 @functools.lru_cache(maxsize=64)
@@ -274,20 +348,27 @@ def self_reference(
     n_orientations: int,
     ref_batch_mean: bool,
     blocks: TensorProdBlocks | None = None,
+    spectrum: SpectrumReference | None = None,
 ) -> _NormReference:
     """The reference of ``norm="self"``, from the statistics being normalised (M-NORM,
     M-NORM-TP; STL ``to_norm(norm_type="self")``, ``_get_sqrt_chan_diag``): ``buffer`` in
     ``layout``, the layout of the loop. ``present`` is where sigma exists; ``blocks`` those of
-    a tensor product, or ``None``."""
+    a tensor product, or ``None``; ``spectrum`` the channels and bins of the power spectrum, whose
+    σᴾˢ is read from the auto spectra of the buffer, or ``None`` without it."""
     xp = backend.xp
     var_floats, s2_floats = _reference_tables(
         layout, present.shape, present.tobytes(), n_orientations, blocks
     )
     var = xp.take(buffer, constant(backend, var_floats, buffer, "int32"), axis=1)
     diagonal = xp.take(buffer, constant(backend, s2_floats, buffer, "int32"), axis=1)
+    ps = None
+    if spectrum is not None:
+        floats = _spectrum_tables(layout, spectrum.present.tobytes())
+        ps = xp.take(buffer, constant(backend, floats, buffer, "int32"), axis=1)
     if ref_batch_mean:
         var = xp.mean(var, axis=0, keepdims=True)
         diagonal = xp.mean(diagonal, axis=0, keepdims=True)
+        ps = None if ps is None else xp.mean(ps, axis=0, keepdims=True)
     return _NormReference(
         var=var,
         sigma=xp.sqrt(diagonal),
@@ -295,7 +376,26 @@ def self_reference(
         n_orientations=n_orientations,
         ref_batch_mean=ref_batch_mean,
         blocks=blocks,
+        ps=None if ps is None else xp.sqrt(ps),
+        spectrum=spectrum,
     )
+
+
+@functools.lru_cache(maxsize=64)
+def _spectrum_tables(layout: Layout, data: bytes) -> NDArray[np.int64]:
+    """The floats of the auto spectrum PS[c, c, :] of every channel of the ``present`` given by
+    ``data``, in a buffer of ``layout``, a layout of the loop: one real chunk of n_b floats per
+    channel (maths.md §1.9, M-NORM)."""
+    present = np.frombuffer(data, dtype=bool)
+    channels = np.flatnonzero(present).astype(np.int64)[:, None]
+    chunks = _chunks_at(layout, "PS", np.concatenate([channels, channels], axis=1))
+    grid = layout.grid("PS")
+    if (chunks < 0).any() or not grid.real[grid.kinds[chunks]].all():
+        raise ValueError("the reference reads a real auto spectrum at every channel it holds.")
+    n_bins = grid.n_orientations
+    starts = layout.chunk_starts("PS")[chunks]
+    found: NDArray[np.int64] = (starts[:, None] + np.arange(n_bins)).reshape(-1).astype(np.int64)
+    return found
 
 
 def as_constant(backend: Backend, reference: _NormReference) -> _NormReference:
@@ -307,6 +407,8 @@ def as_constant(backend: Backend, reference: _NormReference) -> _NormReference:
         n_orientations=reference.n_orientations,
         ref_batch_mean=reference.ref_batch_mean,
         blocks=reference.blocks,
+        ps=None if reference.ps is None else backend.stop_gradient(reference.ps),
+        spectrum=reference.spectrum,
     )
 
 
@@ -343,9 +445,12 @@ def _norm_tables(
     data: bytes,
     n_orientations: int,
     blocks: TensorProdBlocks | None = None,
+    spectrum: bytes | None = None,
 ) -> _NormTables:
     """:class:`_NormTables` of ``layout``, a layout of the loop, whose chunk positions are the
-    channels and scales themselves, and of the ``present`` given by ``shape`` and ``data``."""
+    channels and scales themselves, and of the ``present`` given by ``shape`` and ``data``;
+    ``spectrum`` is the ``present`` of σᴾˢ (``SpectrumReference.present``), by its bytes, when
+    ``layout`` holds the power spectrum."""
     present = np.frombuffer(data, dtype=bool).reshape(shape)
     k = len(shape) - 1
     rank = np.where(present, np.cumsum(present.ravel()).reshape(present.shape) - 1, -1)
@@ -358,6 +463,18 @@ def _norm_tables(
             every = np.arange(grid.n_chunks, dtype=np.int64)
             specs.append(Chunked(layout.chunked("var"), every[:, None], None))
             factors = {**factors, "var": (chunks[:, 0], chunks[:, 0])}
+            continue
+        if grid.name == "PS":
+            if spectrum is None:
+                raise ValueError("the power spectrum is normalised by a reference that has it.")
+            ps_rank = _ranks(np.frombuffer(spectrum, dtype=bool))
+            a, b = ps_rank[chunks[:, 0]], ps_rank[chunks[:, 1]]
+            kept = np.flatnonzero((a >= 0) & (b >= 0))
+            family = FamilyChunks(
+                grid.replace(chunks=chunks[kept], kinds=grid.kinds[kept]), levels, level_ids[kept]
+            )
+            specs.append(Chunked(family, kept[:, None], None))
+            factors = {**factors, "PS": (a[kept], b[kept])}
             continue
         if grid.name not in _SIGMA_ORIENTATIONS:
             specs.append(Copy(grid.name))
@@ -395,11 +512,11 @@ def normalize(
 
     ``mean`` is not normalised; ``var`` is divided by ``var_ref``; S1 by
     √(sigma_{c1} sigma_{c2}) and S2 by sigma_{c1} sigma_{c2} at (j, l); S3 by
-    sigma_{c1}(j2, l2) sigma_{c2}(j3, l3); S4 by sigma_{c1}(j1, l1) sigma_{c2}(j2, l2). The
-    reference broadcasts over the batch (Nr = 1) or matches it. ``layout`` is a layout of the
-    loop (``_layout.base_layout``, ``_layout.tensor_prod_layout``). In a tensor product the
-    scales and orientations are multi-indices, and S3 and S4 read the wavelet scales of the
-    reference only (M-NORM-TP).
+    sigma_{c1}(j2, l2) sigma_{c2}(j3, l3); S4 by sigma_{c1}(j1, l1) sigma_{c2}(j2, l2); PS by
+    σᴾˢ_{c1}(b) σᴾˢ_{c2}(b) (maths.md §1.9). The reference broadcasts over the batch (Nr = 1)
+    or matches it. ``layout`` is a layout of the loop (``_layout.base_layout``,
+    ``_layout.tensor_prod_layout``). In a tensor product the scales and orientations are
+    multi-indices, and S3 and S4 read the wavelet scales of the reference only (M-NORM-TP).
     """
     present = reference.present
     if reference.blocks is not None:
@@ -412,22 +529,32 @@ def normalize(
             divide_tp(buffer, reference.var, reference.sigma, chunks, found),
             tables_tp.transform.layout,
         )
-    key = (layout, present.shape, present.tobytes(), reference.n_orientations)
+    spectrum = None
+    if "PS" in layout.names and reference.spectrum is not None:
+        spectrum = reference.spectrum.present.tobytes()
+    key = (layout, present.shape, present.tobytes(), reference.n_orientations, spectrum)
     divide = _compiled(backend.name, *key)
-    transform = _norm_tables(*key).transform
+    transform = _norm_tables(*key[:4], None, spectrum).transform
     tables = map_tables(backend, transform, buffer)
-    return divide(buffer, reference.var, reference.sigma, tables), transform.layout
+    ps = reference.ps if spectrum is not None else None
+    return divide(buffer, reference.var, reference.sigma, tables, ps), transform.layout
 
 
 @functools.lru_cache(maxsize=64)
 def _compiled(
-    backend_name: str, layout: Layout, shape: tuple[int, ...], data: bytes, n_orientations: int
+    backend_name: str,
+    layout: Layout,
+    shape: tuple[int, ...],
+    data: bytes,
+    n_orientations: int,
+    spectrum: bytes | None = None,
 ) -> Any:
-    """The division of :func:`normalize` for one layout and one ``present``, a function of the
-    buffer, ``var_ref``, sigma and the tables of the chunks (``_layout.map_tables``), compiled
-    once where the backend compiles (``Backend.jit``; the identity on PyTorch)."""
+    """The division of :func:`normalize` for one layout and one ``present`` (and that of σᴾˢ),
+    a function of the buffer, ``var_ref``, sigma, the tables of the chunks
+    (``_layout.map_tables``) and σᴾˢ, compiled once where the backend compiles
+    (``Backend.jit``; the identity on PyTorch)."""
     backend = _registry.backend_named(backend_name)
-    tables = _norm_tables(layout, shape, data, n_orientations)
+    tables = _norm_tables(layout, shape, data, n_orientations, None, spectrum)
     return backend.jit(functools.partial(_divide, backend, tables, layout, n_orientations))
 
 
@@ -440,8 +567,10 @@ def _divide(
     var: Any,
     sigma: Any,
     chunks: MapTables,
+    ps: Any = None,
 ) -> Any:
-    """The buffer of the kept chunks divided by their divisors (:func:`normalize`)."""
+    """The buffer of the kept chunks divided by their divisors (:func:`normalize`); ``ps`` is
+    σᴾˢ, ``(Nr, n)``, when the layout holds the power spectrum."""
     xp = backend.xp
     L = n_orientations  # noqa: N806
     n_ref = int(var.shape[0])
@@ -453,6 +582,13 @@ def _divide(
         if name == "var":
             divisor = xp.take(var, constant(backend, a, var, "int32"), axis=1)
             return lambda dense, *_: dense / xp.reshape(divisor, (n_ref, n, 1, 1))
+        if name == "PS":
+            n_bins = layout.grid("PS").n_orientations
+            rows = xp.reshape(ps, (n_ref, -1, n_bins))
+            first = xp.take(rows, constant(backend, a, var, "int32"), axis=1)  # (Nr, n, n_b)
+            second = xp.take(rows, constant(backend, b, var, "int32"), axis=1)
+            spectrum = xp.reshape(first * second, (n_ref, n, n_bins, 1))
+            return lambda dense, *_: dense / spectrum
         first = xp.take(sigma, constant(backend, a, var, "int32"), axis=1)  # (Nr, n, L)
         second = xp.take(sigma, constant(backend, b, var, "int32"), axis=1)
         shape = layout.grid(name).orientations
@@ -644,7 +780,42 @@ def check_reference(reference: _NormReference, plan: PlanarPlan, n_batch: int, d
             "the reference with their diagonal entries set, so that it holds their auto "
             "statistics (maths.md M-NORM, M-CHAN, OP-30)."
         )
+    if plan.spectrum is not None:
+        _check_spectrum(reference, plan)
     _check_batch_and_dtype(reference, n_batch, dtype)
+
+
+def _check_spectrum(reference: _NormReference, plan: PlanarPlan) -> None:
+    """Raise unless ``reference`` holds σᴾˢ for the power spectrum of ``plan`` (maths.md M-NORM,
+    §1.9): the same n_b, J_PS and J_min, and σᴾˢ for every channel with an auto spectrum."""
+    spectrum = plan.spectrum
+    assert spectrum is not None
+    expected = (spectrum.n_bins, spectrum.J, spectrum.Jmin)
+    if reference.spectrum is None:
+        raise ValueError(
+            "the reference holds no power spectrum, and these statistics hold one: normalise "
+            "with statistics computed with the power spectrum (compute_PS=True), with the same "
+            f"n_bins, J and Jmin, {expected} (maths.md M-NORM, §1.9)."
+        )
+    found = reference.spectrum.bins
+    mismatches = [
+        f"{name} = {got} (the operator has {want})"
+        for name, got, want in zip(("n_bins", "J", "Jmin"), found, expected, strict=True)
+        if got != want
+    ]
+    if mismatches:
+        raise ValueError(
+            f"the power spectrum of the reference has {', '.join(mismatches)}: normalise with "
+            "statistics computed by an operator with the same n_bins, J and Jmin of the "
+            "spectrum; their size, mask and pbc may differ (maths.md M-NORM, §1.9)."
+        )
+    missing = [c for c in spectrum.auto if not reference.spectrum.present[c]]
+    if missing:
+        raise ValueError(
+            f"the reference has no spectrum scale for channel(s) {missing}, which have an auto "
+            "spectrum in cross_matrix: compute the reference with their diagonal entries set "
+            "(maths.md M-NORM, M-CHAN, OP-30)."
+        )
 
 
 def check_tensor_prod_reference(

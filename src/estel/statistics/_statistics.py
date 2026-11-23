@@ -47,6 +47,7 @@ from ._arrays import constant, dtype_name
 from ._grid import REAL_PART_ONLY, FamilyGrid
 from ._layout import Chunked, Copy, FamilyChunks, Layout, Pack, Take, Unpack
 from ._normalization import (
+    SpectrumReference,
     TensorProdBlocks,
     _NormReference,
     as_constant,
@@ -86,16 +87,18 @@ class STStatistics:
     return (Part II, §12.7).
 
     The families are ``"mean"``, ``"var"``, ``"S1"``, ``"S2"``, ``"S3"`` and ``"S4"`` (maths.md
-    M-MOM, M-S1 to M-S4), each with the batch as its first axis. Read them with
+    M-MOM, M-S1 to M-S4), and ``"PS"``, the 2D power spectrum, when the operator computes it
+    (maths.md §1.9), each with the batch as its first axis. Read them with
     :meth:`full_grid` and :meth:`select`, flatten them with :meth:`to_vector`, reduce them with
     :meth:`reduce`, and store them with :meth:`save` and :meth:`load`. Every method returns a
     new object; nothing is modified.
 
     The named axes, after the batch axis, are ``(c,)`` for mean and var, ``(c1, c2, j, l)`` for
-    S1 and S2, ``(c1, c2, j2, j3, l2, l3)`` for S3 and ``(c1, c2, j1, j2, j3, l1, l2, l3)`` for
-    S4. ``iso`` turns the orientations of S3 into ``dl`` and those of S4 into ``dl2, dl3``;
-    ``angular_fourier`` prefixes the orientation axes it transforms with ``h``; ``scale_cosine``
-    turns the scales of S3 into ``(k, a)`` and those of S4 into ``(k, a, b)``.
+    S1 and S2, ``(c1, c2, j2, j3, l2, l3)`` for S3, ``(c1, c2, j1, j2, j3, l1, l2, l3)`` for
+    S4 and ``(c1, c2, bin)`` for PS. ``iso`` turns the orientations of S3 into ``dl`` and those
+    of S4 into ``dl2, dl3``; ``angular_fourier`` prefixes the orientation axes it transforms with
+    ``h``; ``scale_cosine`` turns the scales of S3 into ``(k, a)`` and those of S4 into
+    ``(k, a, b)``.
     """
 
     __slots__ = (
@@ -176,13 +179,14 @@ class STStatistics:
     # ------------------------------------------------------------------ reading
 
     def full_grid(self, family: str) -> Any:
-        """The tensor of ``family`` (``"mean"``, ``"var"``, ``"S1"`` … ``"S4"``) in its full
-        grid shape, NaN where no coefficient exists (Part II, §12.7).
+        """The tensor of ``family`` (``"mean"``, ``"var"``, ``"S1"`` … ``"S4"``, ``"PS"``) in its
+        full grid shape, NaN where no coefficient exists (Part II, §12.7).
 
         Without reduction or selection the shapes are: ``(Nb, Nc)`` for mean and var,
-        ``(Nb, Nc, Nc, J, L)`` for S1 and S2, ``(Nb, Nc, Nc, J, J, L, L)`` for S3 and
-        ``(Nb, Nc, Nc, J, J, J, L, L, L)`` for S4; mean and var are real, S1 to S4 complex, the
-        coefficients that are real by construction with an imaginary part 0. The view is built
+        ``(Nb, Nc, Nc, J, L)`` for S1 and S2, ``(Nb, Nc, Nc, J, J, L, L)`` for S3,
+        ``(Nb, Nc, Nc, J, J, J, L, L, L)`` for S4 and ``(Nb, Nc, Nc, n_bins)`` for PS; mean and
+        var are real, S1 to S4 and PS complex, the coefficients that are real by construction
+        with an imaginary part 0. The view is built
         on demand from the compact storage (Part III, §19.5).
 
         On the statistics of a tensor product, each scale and orientation axis is one axis per
@@ -212,9 +216,11 @@ class STStatistics:
         ``family`` is a family name (``"S3"``) or a sequence of names; ``None`` keeps every
         family. Each keyword of ``index`` is an axis name with an integer, which drops the axis,
         or a slice or a sequence of integers, which keeps it; the integers are positions along
-        the axis as it is now. ``channel=(a, b)`` is shorthand for ``c1=a, c2=b``. A family that
-        does not have every named axis is left out of the result: ``select(j3=2)`` returns S3
-        and S4 restricted to j3 = 2, without mean, var, S1 or S2. An axis that no selected
+        the axis as it is now. ``channel=(a, b)`` is shorthand for ``c1=a, c2=b``: it returns
+        every family of that pair, the power spectrum included. A family that does not have
+        every named axis is left out of the result: ``select(j3=2)`` returns S3 and S4
+        restricted to j3 = 2, without mean, var, S1, S2 or PS, and ``select(bin=0)`` the power
+        spectrum alone. An axis that no selected
         family has raises an error listing the valid names.
         """
         names = self._family_names(family)
@@ -269,12 +275,12 @@ class STStatistics:
         """The statistics as one flat real vector, for losses (Part II, §12.7; maths.md
         M-FLAT).
 
-        Families in the order mean, var, S1, S2, S3, S4; within each, every batch element in
-        turn, then the coefficients in the order of the full grid, without the positions where
-        no coefficient exists. Complex coefficients give their real and imaginary parts, one
-        after the other, except S1 and S2, of which only the real part is kept (OP-37: the
-        imaginary part of the cross-channel terms is dropped). Mean and var give one real value
-        each.
+        Families in the order mean, var, S1, S2, S3, S4, then PS when they hold it; within each,
+        every batch element in turn, then the coefficients in the order of the full grid,
+        without the positions where no coefficient exists. Complex coefficients give their real
+        and imaginary parts, one after the other, except S1, S2 and PS, of which only the real
+        part is kept (OP-37: the imaginary part of the cross-channel terms is dropped). Mean and
+        var give one real value each.
 
         ``mask_st`` is an optional boolean array of the length of this vector:
         True keeps a coefficient. It drops coefficients found unreliable by a boolean test; in
@@ -359,7 +365,9 @@ class STStatistics:
           ``scale_harmonics`` harmonics kept. ``scale_harmonics`` and ``dj`` lie between 1 and
           J, and are J by default.
 
-        Reduce once, with every reduction wanted: reduced statistics are not reduced again.
+        The power spectrum passes through every reduction unchanged (maths.md §1.9,
+        "Reductions"). Reduce once, with every reduction wanted: reduced statistics are not
+        reduced again.
         The reductions are not defined on the statistics of a tensor product: they raise.
         """
         if self._plan.geometry._geometry == "tensor_prod":
@@ -512,6 +520,12 @@ class STStatistics:
                 "reference__sigma": np.asarray(backend.to_numpy(ref.sigma)),
                 "reference__present": np.asarray(ref.present),
             }
+            if ref.spectrum is not None:
+                arrays = {
+                    **arrays,
+                    "reference__ps": np.asarray(backend.to_numpy(ref.ps)),
+                    "reference__ps_present": np.asarray(ref.spectrum.present),
+                }
         if self._standardization is not None:
             mean, std = self._standardization
             arrays = {
@@ -538,6 +552,11 @@ class STStatistics:
                     if self._reference.blocks is None
                     else {"blocks": _blocks_content(self._reference.blocks)}
                 ),
+                **(
+                    {}
+                    if self._reference.spectrum is None
+                    else {"spectrum_bins": list(self._reference.spectrum.bins)}
+                ),
             },
         }
         return arrays, content
@@ -546,7 +565,11 @@ class STStatistics:
         reference = self._reference
         children = (
             self._buffer,
-            None if reference is None else (reference.var, reference.sigma),
+            None
+            if reference is None
+            # σᴾˢ only with the power spectrum: without it the leaves are those of before T4.4.
+            else (reference.var, reference.sigma)
+            + (() if reference.ps is None else (reference.ps,)),
             self._standardization,
         )
         aux = (
@@ -933,6 +956,7 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
         )
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)  # OP-3 and OP-13 were shown when computed
+            spectrum = spec["spectrum"]
             plan = build_plan(
                 example,
                 spec["J"],
@@ -942,6 +966,17 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
                 norm=spec["norm"],
                 ref_batch_mean=spec["ref_batch_mean"],
                 standardize=spec["standardize"],
+                compute_PS=spectrum is not None,
+                **(
+                    {}
+                    if spectrum is None
+                    else {"n_bins": spectrum["n_bins"], "Jmin": spectrum["Jmin"]}
+                ),
+            )
+        if spectrum is not None and plan.spectrum is not None and spectrum["J"] != plan.spectrum.J:
+            raise ValueError(
+                f"the file has a power spectrum with J = {spectrum['J']}, but its plan now gives "
+                f"{plan.spectrum.J} (maths.md §1.9): recompute the statistics."
             )
         if plan.nan_threshold != spec["nan_threshold"]:
             raise ValueError(
@@ -965,6 +1000,13 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
         present = arrays["reference__present"].astype(bool)
         present.flags.writeable = False
         blocks = content["reference"].get("blocks")
+        bins = content["reference"].get("spectrum_bins")
+        spectrum = None
+        if bins is not None:
+            channels = arrays["reference__ps_present"].astype(bool)
+            channels.flags.writeable = False
+            a, b, c = (int(n) for n in bins)
+            spectrum = SpectrumReference(channels, (a, b, c))
         reference = _NormReference(
             var=to_backend(arrays["reference__var"]),
             sigma=to_backend(arrays["reference__sigma"]),
@@ -979,6 +1021,8 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
                 L=tuple(int(n) for n in blocks["L"]),
                 lowpass=tuple(bool(f) for f in blocks["lowpass"]),
             ),
+            ps=None if spectrum is None else to_backend(arrays["reference__ps"]),
+            spectrum=spectrum,
         )
     standardization = None
     if "standardization__mean" in arrays:

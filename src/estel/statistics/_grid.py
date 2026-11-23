@@ -17,7 +17,10 @@ The axes have names, used by ``STStatistics.select`` (Part II, §12.7):
 * ``mean``, ``var``: ``(c,)``;
 * ``S1``, ``S2``: ``(c1, c2, j, l)``;
 * ``S3``: ``(c1, c2, j2, j3, l2, l3)`` (maths.md M-S3, OP-15);
-* ``S4``: ``(c1, c2, j1, j2, j3, l1, l2, l3)``.
+* ``S4``: ``(c1, c2, j1, j2, j3, l1, l2, l3)``;
+* ``PS``: ``(c1, c2, bin)``, the 2D power spectrum (maths.md §1.9), when the plan has it: one
+  chunk per channel pair, holding the dense array of its bins (the axis ``bin`` plays the role
+  of the orientations of the other families), every entry real (task T4.4).
 
 ``iso`` replaces the orientations of S1 and S2 by nothing, those of S3 by ``dl`` (l3 - l2 mod
 L) and those of S4 by ``dl2``, ``dl3`` (l2 - l1, l3 - l1 mod L); ``angular_fourier`` prefixes
@@ -43,10 +46,11 @@ import numpy as np
 from numpy.typing import NDArray
 
 if TYPE_CHECKING:
-    from ..scattering._plan import PlanarPlan, TensorProdPlan
+    from ..scattering._plan import PlanarPlan, SpectrumPlan, TensorProdPlan
 
-FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
-"""The families of ESTEL 1.0.0, in STL's order (``to_flatten``); PS joins them in T4.1."""
+FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4", "PS")
+"""The families of ESTEL 1.0.0, in STL's order (``to_flatten``, M-FLAT): PS last, held only when
+the plan has the power spectrum (maths.md §1.9; task T4.4)."""
 
 REAL_PART_ONLY = ("S1", "S2", "PS")
 """The families whose imaginary part ``to_vector`` drops, as STL's ``to_flatten`` (M-FLAT,
@@ -99,13 +103,13 @@ class FamilyGrid:
     """
 
     name: str
-    """``"mean"``, ``"var"``, ``"S1"`` … ``"S4"``."""
+    """``"mean"``, ``"var"``, ``"S1"`` … ``"S4"``, ``"PS"``."""
     axes: tuple[str, ...]
     """The names of the axes after the batch axis: the chunk axes, then the orientation axes."""
     coords: tuple[tuple[int, ...], ...]
     """For each axis, the original index of each of its positions (changed by ``select``)."""
     is_complex: bool
-    """Whether the family is stored complex (S1 to S4) or real (mean, var)."""
+    """Whether the family is stored complex (S1 to S4, PS) or real (mean, var)."""
     n_chunk_axes: int
     """The number of chunk axes, the leading axes."""
     chunks: NDArray[np.int32]
@@ -387,6 +391,7 @@ def base_grids(plan: PlanarPlan) -> tuple[FamilyGrid, ...]:
 
     channels = np.ones(nc, dtype=bool)
     s12 = first[:, :, None] & scales
+    spectrum = () if plan.spectrum is None else (spectrum_grid(plan.spectrum, nc),)
     return (
         _family("mean", ("c",), channels, (), False, single, np.ones((1, 1), dtype=bool)),
         _family("var", ("c",), channels, (), False, single, np.ones((1, 1), dtype=bool)),
@@ -410,6 +415,32 @@ def base_grids(plan: PlanarPlan) -> tuple[FamilyGrid, ...]:
             off_diagonal,
             np.stack([diagonal, np.zeros(L**3, dtype=bool)]),
         ),
+        *spectrum,
+    )
+
+
+PS_AXES = ("c1", "c2", "bin")
+"""The axes of the power spectrum (task T4.4; decision of the maintainer on #151: the axis of
+the bins is named ``bin``, to be thought again with the notation, W5, #71)."""
+
+
+def spectrum_grid(spectrum: SpectrumPlan, n_channels: int) -> FamilyGrid:
+    """The family ``"PS"`` of the 2D power spectrum (maths.md §1.9, "Channel pairs and layout";
+    M-CHAN): one chunk per channel pair c1 ≤ c2 of ``cross_matrix``, holding the dense array of
+    its n_b bins; one kind, every entry real (one float), as the auto S1 and S2, the full grid
+    complex with an imaginary part 0."""
+    pairs = np.array(
+        [[(c1, c2) in spectrum.pairs for c2 in range(n_channels)] for c1 in range(n_channels)],
+        dtype=bool,
+    ).reshape(n_channels, n_channels)
+    return _family(
+        "PS",
+        PS_AXES,
+        pairs,
+        (spectrum.n_bins,),
+        True,
+        lambda chunks: np.zeros(chunks.shape[0], dtype=np.int64),
+        np.ones((1, spectrum.n_bins), dtype=bool),
     )
 
 
