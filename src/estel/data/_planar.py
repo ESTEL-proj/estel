@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import warnings
 from numbers import Integral
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -51,7 +51,7 @@ def _planar_conv(self: Data, x: Any, tables: Any, level: int) -> Any:
         x,
         tables,
         axes=self._spatial_axes(),
-        pbc=self.pbc,
+        pbc=cast(bool, self.pbc),  # planar data: one boolean
         backend=self.backend,
         owner=f"{type(self).__name__}._conv",
     )
@@ -115,7 +115,7 @@ def _planar_downsample(self: Data, x: Any, weights: DownsampleWeights, level: in
         x,
         weights,
         axes=self._spatial_axes(),
-        pbc=self.pbc,
+        pbc=cast(bool, self.pbc),  # planar data: one boolean
         backend=self.backend,
         owner=f"{type(self).__name__}._downsample",
     )

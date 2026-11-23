@@ -123,7 +123,7 @@ def test_a_wrong_reference_is_refused_before_the_loop(monkeypatch: pytest.Monkey
     def no_loop(name: str) -> Any:
         raise AssertionError("the loop ran before the reference was checked")
 
-    monkeypatch.setattr(_scattering, "_tensor_prod_loop", no_loop)
+    monkeypatch.setattr(_scattering, "_loop", no_loop)
     with pytest.raises(ValueError, match=r"J = \[1, 1\] \(the operator has \[2, 1\]\)"):
         operator.apply(data, ref=other)
     with pytest.raises(ValueError, match=r"comes from planar statistics"):

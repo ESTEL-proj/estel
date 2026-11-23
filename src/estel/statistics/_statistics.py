@@ -44,17 +44,13 @@ from ..scattering._plan import (
 )
 from . import _layout as compact
 from ._arrays import constant, dtype_name
-from ._grid import REAL_PART_ONLY, FamilyGrid, auto_scales, tensor_prod_auto_scales
+from ._grid import REAL_PART_ONLY, FamilyGrid
 from ._layout import Chunked, Copy, FamilyChunks, Layout, Pack, Take, Unpack
 from ._normalization import (
     TensorProdBlocks,
     _NormReference,
     as_constant,
-    check_reference,
-    check_tensor_prod_reference,
     normalize,
-    self_reference,
-    tensor_prod_blocks,
 )
 from ._reductions import ORIENTATION_AXES, SCALE_AXES
 from ._reductions import angular_fourier as reduce_angular_fourier
@@ -194,7 +190,7 @@ class STStatistics:
         statistics with ``to_vector``, or ``select`` a family and channels first.
         """
         grid = self._grid(family)
-        if isinstance(self._plan, TensorProdPlan):
+        if self._plan._block_axes:
             n_batch = int(self._buffer.shape[0])
             itemsize = int(np.dtype(dtype_name(self._buffer)).itemsize)
             size = compact.full_grid_bytes(self._layout, grid.name, n_batch, itemsize)
@@ -223,7 +219,7 @@ class STStatistics:
         """
         names = self._family_names(family)
         index = _expand_channel(index)
-        tensor_prod = isinstance(self._plan, TensorProdPlan)
+        tensor_prod = self._plan._block_axes
         if tensor_prod:
             others = sorted(a for a in index if a not in _TENSOR_PROD_SELECT)
             if others:
@@ -366,7 +362,7 @@ class STStatistics:
         Reduce once, with every reduction wanted: reduced statistics are not reduced again.
         The reductions are not defined on the statistics of a tensor product: they raise.
         """
-        if isinstance(self._plan, TensorProdPlan):
+        if self._plan._block_axes:
             raise ValueError(
                 "reduce(): the reductions iso, angular_fourier and scale_cosine are written for "
                 "one scale and one orientation axis per layer, and are not defined on the "
@@ -408,7 +404,7 @@ class STStatistics:
                 "reduce(scale_cosine=True) without iso=True: the scale cosine transform is "
                 "defined on isotropic statistics (maths.md M-RED-SCALE); pass iso=True as well."
             )
-        plan = self._plan  # an STPlan: a tensor product raised above
+        plan = cast(PlanarPlan, self._plan)  # a single geometry: a tensor product raised above
         L, J = plan.L, plan.J  # noqa: N806
         n_angular = _check_count("angular_harmonics", angular_harmonics, L, "L")
         n_scale = _check_count("scale_harmonics", scale_harmonics, J, "J")
@@ -501,29 +497,13 @@ class STStatistics:
         backend = self._backend_object()
         plan = self._plan
         layout_arrays, layout_content = compact.payload(self._layout)
-        if isinstance(plan, TensorProdPlan):
-            plan_content = _tensor_prod_content(plan)
-        else:
-            plan_content = {
-                "geometry": plan.geometry._geometry,
-                "J": plan.J,
-                "L": plan.L,
-                "kernel_size": plan.kernel_size,
-                "spatial_shape": list(plan.spatial_shape),
-                "pbc": plan.pbc,
-                "nan_threshold": plan.nan_threshold,
-                "n_channels": plan.n_channels,
-                "norm": plan.norm,
-                "ref_batch_mean": plan.ref_batch_mean,
-                "standardize": plan.standardize,
-            }
+        plan_content, plan_arrays = plan._content()
         arrays: dict[str, NDArray[Any]] = {
             "buffer": np.asarray(backend.to_numpy(self._buffer)),
             **{f"layout__{k}": v for k, v in layout_arrays.items()},
             "plan__cross_matrix": np.asarray(plan.cross_matrix),
+            **{f"plan__{k}": v for k, v in plan_arrays.items()},
         }
-        if isinstance(plan, PlanarPlan) and plan.mask is not None:
-            arrays = {**arrays, "plan__mask": np.asarray(plan.mask)}
         if self._reference is not None:
             ref = self._reference
             arrays = {
@@ -898,25 +878,6 @@ def _mask_positions(mask_st: Any, length: int) -> NDArray[np.int64]:
     return np.flatnonzero(found)
 
 
-def _tensor_prod_content(plan: TensorProdPlan) -> dict[str, Any]:
-    """The parameters of the plan of a tensor product, for ``estel.io`` (schema version 5)."""
-    return {
-        "geometry": plan.geometry._geometry,
-        "blocks": [g._geometry for g in plan.block_geometries],
-        "J": list(plan.J),
-        "L": list(plan.L),
-        "lowpass": plan.lowpass,
-        "lowpass_blocks": list(plan.lowpass_blocks),
-        "kernel_size": plan.kernel_size,
-        "spatial_shape": list(plan.spatial_shape),
-        "pbc": list(plan.pbc),
-        "n_channels": plan.n_channels,
-        "norm": plan.norm,
-        "ref_batch_mean": plan.ref_batch_mean,
-        "standardize": plan.standardize,
-    }
-
-
 def _blocks_content(blocks: TensorProdBlocks) -> dict[str, Any]:
     return {
         "geometries": list(blocks.geometries),
@@ -1045,26 +1006,6 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
 # ---------------------------------------------------------------------- after the loop
 
 
-def check_reference_of(
-    reference: _NormReference, plan: PlanarPlan | TensorProdPlan, n_batch: int, dtype: Any
-) -> None:
-    """Raise unless ``reference`` can normalise the statistics of ``plan`` (M-NORM,
-    M-NORM-TP): one check for both geometries, made before the loop and again by
-    :func:`statistics_of`."""
-    if isinstance(plan, TensorProdPlan):
-        check_tensor_prod_reference(reference, plan, n_batch, dtype)
-    else:
-        check_reference(reference, plan, n_batch, dtype)
-
-
-def layout_of(plan: PlanarPlan | TensorProdPlan) -> Layout:
-    """The layout of the raw buffer of the loop of ``plan`` (``base_layout`` or
-    ``tensor_prod_layout``)."""
-    if isinstance(plan, TensorProdPlan):
-        return compact.tensor_prod_layout(plan)
-    return compact.base_layout(plan)
-
-
 def statistics_of(
     buffer: Any,
     plan: PlanarPlan | TensorProdPlan,
@@ -1074,12 +1015,12 @@ def statistics_of(
     """The statistics of a raw buffer, ``(Nb, n_floats)`` in the layout of the loop of ``plan``,
     normalised as the plan says (maths.md M-NORM, M-NORM-TP), from a buffer made outside the
     loop: its arguments checked, the ``norm="ref"`` reference among them
-    (:func:`check_reference_of`), then :func:`finish`. ``estel.functional.scattering`` checks
+    (``STPlan._check_reference``), then :func:`finish`. ``estel.functional.scattering`` checks
     the reference before its loop and calls :func:`finish` itself."""
     backend_name = _registry.backend_of(buffer)
     if backend_name is None:
         raise TypeError("statistics_of takes a buffer of a backend, not a NumPy array.")
-    layout = layout_of(plan)
+    layout = plan._layout()
     if tuple(buffer.shape[1:]) != (layout.n_floats,):
         raise ValueError(
             f"the buffer has shape {tuple(buffer.shape)}, and the layout of these statistics "
@@ -1091,7 +1032,7 @@ def statistics_of(
                 'norm="ref" needs a reference: pass ref=, statistics computed with '
                 'norm="self" (maths.md M-NORM).'
             )
-        check_reference_of(reference, plan, int(buffer.shape[0]), buffer.dtype)
+        plan._check_reference(reference, int(buffer.shape[0]), buffer.dtype)
     elif reference is not None:
         raise ValueError(f'norm="{plan.norm}" takes no reference (maths.md M-NORM).')
     return finish(buffer, plan, reference, standardization)
@@ -1107,26 +1048,13 @@ def finish(
     "Decisions of the maintainer for T3.2", point 4): the statistics of the raw buffer of the
     loop of ``plan``, normalised as the plan says (M-NORM, M-NORM-TP). With ``norm="self"`` the
     reference is computed from the buffer, and gradients flow through it; with ``norm="ref"``,
-    ``reference``, already checked against the plan (:func:`check_reference_of`), is made a
+    ``reference``, already checked against the plan (``STPlan._check_reference``), is made a
     constant. Nothing is checked here: the caller has."""
     backend_name = _registry.backend_of(buffer) or ""
     backend = _registry.backend_named(backend_name)
-    layout = layout_of(plan)
+    layout = plan._layout()
     if plan.norm == "self":
-        if isinstance(plan, TensorProdPlan):
-            reference = self_reference(
-                backend,
-                buffer,
-                layout,
-                tensor_prod_auto_scales(plan),
-                int(np.prod(plan.L, dtype=np.int64)),
-                plan.ref_batch_mean,
-                tensor_prod_blocks(plan),
-            )
-        else:
-            reference = self_reference(
-                backend, buffer, layout, auto_scales(plan), plan.L, plan.ref_batch_mean
-            )
+        reference = plan._self_reference(backend, buffer, layout)
     elif plan.norm == "ref" and reference is not None:
         reference = as_constant(backend, reference)
     else:

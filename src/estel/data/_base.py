@@ -75,7 +75,7 @@ class Data:
     _array: Any
     _backend: str
     _mask: NDArray[np.bool_] | None
-    _pbc: bool
+    _pbc: bool | tuple[bool, ...]
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Register every geometry as a pytree on every backend (task T2.9): registration is
@@ -113,7 +113,9 @@ class Data:
 
     # ------------------------------------------------------------------ construction
 
-    def _set(self, array: Any, mask: NDArray[np.bool_] | None, pbc: bool, backend: str) -> None:
+    def _set(
+        self, array: Any, mask: NDArray[np.bool_] | None, pbc: bool | tuple[bool, ...], backend: str
+    ) -> None:
         object.__setattr__(self, "_array", array)
         object.__setattr__(self, "_mask", mask)
         object.__setattr__(self, "_pbc", pbc)
@@ -121,7 +123,7 @@ class Data:
 
     @classmethod
     def _from_parts(
-        cls, array: Any, mask: NDArray[np.bool_] | None, pbc: bool, backend: str
+        cls, array: Any, mask: NDArray[np.bool_] | None, pbc: bool | tuple[bool, ...], backend: str
     ) -> Data:
         """A new object from parts already validated: no conversion, no check of values, so
         that it works inside traced code."""
@@ -157,8 +159,9 @@ class Data:
         return self._mask
 
     @property
-    def pbc(self) -> bool:
-        """Whether the boundary conditions are periodic."""
+    def pbc(self) -> bool | tuple[bool, ...]:
+        """Whether the boundary conditions are periodic: one boolean for a single geometry, one
+        per block for a tensor product (``DataTensorProd.pbc``)."""
         return self._pbc
 
     @property

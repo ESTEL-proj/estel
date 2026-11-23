@@ -47,7 +47,7 @@ import warnings
 from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass, field
 from numbers import Integral
-from typing import Any, Literal, NamedTuple, TypeVar
+from typing import Any, Literal, NamedTuple, TypeVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -386,7 +386,7 @@ def build_wavelet_plan(
     return _wavelet_plan(
         type(data),
         data.shape[2:],
-        data.pbc,
+        cast(bool, data.pbc),  # one boolean: a tensor product raised above
         data.mask,
         n_scales,
         n_orientations,

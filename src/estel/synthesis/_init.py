@@ -7,12 +7,13 @@ values (LF47). The mask of the pre-filter is static, built in NumPy from the spa
 
 from __future__ import annotations
 
-from typing import Any, NamedTuple
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 
 from ..backend._protocol import Backend, DType
+from ..data._moments import Standardized
 from ..statistics._arrays import constant
 
 SPATIAL_AXES = (-2, -1)
@@ -41,19 +42,10 @@ def nyquist_filter(backend: Backend, x: Any) -> Any:
     return xp.real(xp.fft.ifftn(filtered, axes=SPATIAL_AXES))
 
 
-class Standardized(NamedTuple):
-    """What :func:`standardize` returns."""
-
-    x: Any
-    """``(x - mean) / std``, ``(Nb, Nc, N1, N2)``."""
-    mean: Any
-    """μ, ``(1, Nc)`` with ``mean_field``, else ``(Nb, Nc)``."""
-    std: Any
-    """sigma, of the shape of ``mean``."""
-
-
-def standardize(backend: Backend, x: Any, mean_field: bool) -> Standardized:
-    """The standardisation of the target (M-SYN-TARGET, M-STD; STL's ``standardize``).
+def standardize_target(backend: Backend, x: Any, mean_field: bool) -> Standardized:
+    """The standardisation of the target (M-SYN-TARGET, M-STD; STL's ``standardize``), ``x``
+    being ``(Nb, Nc, N1, N2)``: μ and sigma are ``(1, Nc)`` with ``mean_field``, else
+    ``(Nb, Nc)``.
 
     Without missing values the mean over valid pixels is the mean over the grid. With
     ``mean_field``, μ is the batch mean of the means and sigma² the batch mean of the second

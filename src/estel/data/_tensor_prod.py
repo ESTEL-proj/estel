@@ -146,7 +146,7 @@ class DataTensorProd(Data):
         return tuple(b.geometry for b in self._blocks)
 
     @property
-    def pbc(self) -> tuple[bool, ...]:  # type: ignore[override]
+    def pbc(self) -> tuple[bool, ...]:
         """Whether each block is periodic, one boolean per block."""
         return tuple(b.pbc for b in self._blocks)
 

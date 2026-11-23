@@ -19,7 +19,7 @@ import importlib.metadata
 import os
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -35,7 +35,7 @@ from ..statistics._arrays import device_of
 from ..statistics._statistics import _NO_REDUCTION, STStatistics
 from ..wavelets._operator import default_scales
 from . import _checkpoints
-from ._init import gaussian_start, nyquist_filter, standardize, unstandardize
+from ._init import gaussian_start, nyquist_filter, standardize_target, unstandardize
 from ._loss import WEIGHTS, Objective, flatten
 
 # The settings of STL's optimize_lbfgs that the synthesis functions do not take (M-SYN-LBFGS).
@@ -243,7 +243,7 @@ def synthesize_from_maps(
     # The target (M-SYN-TARGET): pre-filtered, standardised, then its statistics with
     # norm="self", reweighted and flattened.
     filtered = nyquist_filter(backend, data.array)
-    standardized = standardize(backend, filtered, mean_field)
+    standardized = standardize_target(backend, filtered, mean_field)
     target_data = data.with_array(standardized.x)
     running = _running_data(data, (n_batch, data.n_channels, *shape), backend)
     J = options.get("J")  # noqa: N806 (maths.md notation)
@@ -327,14 +327,14 @@ def synthesize_from_stats(
             f"synthesize_from_stats takes STStatistics, got {type(stats).__name__}; to start "
             "from maps, use estel.synthesize_from_maps."
         )
-    plan = stats._plan
-    if not isinstance(plan, PlanarPlan):
+    if stats._plan.geometry._geometry == "tensor_prod":
         raise NotImplementedError(
             "synthesize_from_stats: these are the statistics of a tensor product; syntheses on "
             "tensor products are not part of ESTEL 1.0.0, which synthesises 2D planar data "
             "(maths.md section 5). Pass the statistics of estel.Data2D maps, computed with "
             "estel.STOperator."
         )
+    plan = cast(PlanarPlan, stats._plan)  # a single geometry: a tensor product raised above
     backend = _check_backend(stats._backend)
     if plan.ndim != 2:
         raise ValueError(

@@ -87,8 +87,10 @@ def test_borders_equal_stl(case: str, name: str) -> None:
     data, n_scales = _data(case, name, fixture)
     kernel_size = _parameters(case)["K"]
     expected = fixture[f"{name}_border"]
+    pbc = data.pbc
+    assert isinstance(pbc, bool)  # planar data: one boolean
     got = [
-        max(border_width(h, level, kernel_size, data.pbc) for h in histories)
+        max(border_width(h, level, kernel_size, pbc) for h in histories)
         for _, histories, level, _ in _stl_order(n_scales)
     ]
     np.testing.assert_array_equal(np.asarray(got, dtype=np.float64), expected)

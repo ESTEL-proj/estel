@@ -37,7 +37,7 @@ from ..functional._scattering import check_data, compute, reference_of
 from ..statistics._arrays import dtype_name
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
-from ._filters import PlanarFilters, STFilters, TensorProdFilters, filters_of
+from ._filters import PlanarFilters, STFilters, TensorProdFilters
 from ._plan import PlanarPlan, STPlan, TensorProdPlan, build_plan, build_tensor_prod_statistics_plan
 
 _WIDE = ("float64", "complex128")
@@ -157,8 +157,8 @@ class STOperator:
         reference: _NormReference | None,
     ) -> None:
         """The state of an operator: its plan, its filters built once on ``backend`` in
-        ``dtype`` (``filters_of``, for the geometry of the plan), its engine checked in the
-        registry (Part II, §9.4), and its reference."""
+        ``dtype`` by the plan (``STPlan._build_filters``), its engine checked in the registry
+        (Part II, §9.4), and its reference."""
         capabilities = _engines.resolve(engine)
         capabilities.check(geometry=plan.geometry._geometry, dtype=dtype)
         self._plan = plan
@@ -166,7 +166,7 @@ class STOperator:
         self._dtype = dtype
         self._device = device
         self._engine = engine
-        self._filters = filters_of(plan, backend, dtype, device)
+        self._filters = plan._build_filters(backend, dtype, device)
         self._reference = reference
 
     # ------------------------------------------------------------------ accessors

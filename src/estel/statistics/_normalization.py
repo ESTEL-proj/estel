@@ -29,8 +29,8 @@ from numpy.typing import NDArray
 
 from ..backend import _registry
 from ..backend._protocol import Backend
-from ..scattering._plan import orientations_at
 from ._arrays import backend_of, constant
+from ._grid import orientations_at
 from ._layout import (
     Chunked,
     Copy,

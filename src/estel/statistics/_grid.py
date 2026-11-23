@@ -37,12 +37,13 @@ import hashlib
 import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.typing import NDArray
 
-from ..scattering._plan import PlanarPlan, TensorProdPlan
+if TYPE_CHECKING:
+    from ..scattering._plan import PlanarPlan, TensorProdPlan
 
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
 """The families of ESTEL 1.0.0, in STL's order (``to_flatten``); PS joins them in T4.1."""
@@ -50,6 +51,18 @@ FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
 REAL_PART_ONLY = ("S1", "S2", "PS")
 """The families whose imaginary part ``to_vector`` drops, as STL's ``to_flatten`` (M-FLAT,
 OP-37)."""
+
+
+def orientations_at(
+    scale: tuple[int, ...],
+    J: tuple[int, ...],  # noqa: N803 (maths.md notation)
+    L: tuple[int, ...],  # noqa: N803
+) -> tuple[int, ...]:
+    """The orientation shape of a tensor product at the multi-index ``scale``, for the blocks
+    of ``J`` wavelet scales and ``L`` orientations: L_a, or 1 along a block taken at its
+    low-pass scale J_a, which has orientation 0 only (maths.md M-LP). The chunks of S1 and S2
+    and the rows of the normalisation scales sigma have this shape."""
+    return tuple(1 if j == n else size for j, n, size in zip(scale, J, L, strict=True))
 
 
 def _digest(array: NDArray[Any]) -> tuple[Any, ...]:

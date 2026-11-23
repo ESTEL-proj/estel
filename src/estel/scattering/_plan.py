@@ -94,12 +94,23 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, NamedTuple, cast
+from typing import Any, ClassVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
 
+from .._config import FloatDType
+from ..backend._protocol import Backend
 from ..data._base import Data
+from ..statistics._grid import auto_scales, orientations_at, tensor_prod_auto_scales
+from ..statistics._layout import Layout, base_layout, tensor_prod_layout
+from ..statistics._normalization import (
+    _NormReference,
+    check_reference,
+    check_tensor_prod_reference,
+    self_reference,
+    tensor_prod_blocks,
+)
 from ..wavelets._operator import (
     KERNEL_SIZE,
     History,
@@ -108,7 +119,16 @@ from ..wavelets._operator import (
     WaveletPlan,
     build_wavelet_plan,
 )
-from ..wavelets._tensor_prod import TensorProdWaveletPlan, build_tensor_prod_plan
+from ..wavelets._tensor_prod import TensorProdWaveletPlan, build_tensor_prod_wavelet_plan
+from ._filters import (
+    PlanarFilters,
+    STFilters,
+    TensorProdFilters,
+    build_filters,
+    build_tensor_prod_filters,
+)
+from ._loop import ScatteringValues, scattering_values
+from ._loop_tp import tensor_prod_values
 from ._tensor_prod import TensorProdLoop, build_tensor_prod_loop
 
 NORMS = ("none", "self", "ref")
@@ -190,10 +210,27 @@ class STPlan:
     equal, when they are of one class and were built from the same parameters and the same
     static metadata of the data (geometry, spatial shape, ``pbc``, mask, number of channels;
     for a tensor product, its blocks), so that they hold the same values.
+
+    **Hooks** (Part I, §2.3; Part II, §12.6). What depends on the geometry goes
+    through a small, fixed set of internal hooks, declared here and implemented by each
+    subclass, so that the operator, ``estel.functional.scattering`` and ``STStatistics`` make
+    one call where they would branch on the class of the plan: :attr:`_operator` and
+    :attr:`_block_axes`, two constants of the class; :meth:`_check_data`,
+    :meth:`_build_filters` and :meth:`_values`, for the computation; :meth:`_layout`,
+    :meth:`_check_reference` and :meth:`_self_reference`, for the normalisation;
+    :meth:`_content`, for the files. Each implementation calls the function of its geometry.
     """
 
     __slots__ = ()
     _key: tuple[Any, ...]
+
+    _operator: ClassVar[str]
+    """The name of the operator of this geometry, for the messages: ``"STOperator"`` or
+    ``"STOperatorTensorProd"``."""
+    _block_axes: ClassVar[bool]
+    """Whether the statistics have one scale and one orientation axis per block, those of a
+    tensor product (maths.md M-S-TP): ``select`` names their channels only (LF44), the
+    reductions are not defined on them (LF26), and their full grid has a size limit (LF65)."""
 
     def __hash__(self) -> int:
         return hash(self._key)
@@ -202,6 +239,44 @@ class STPlan:
         if not isinstance(other, STPlan):
             return NotImplemented
         return type(self) is type(other) and self._key == other._key
+
+    def _check_data(self, data: Data, filters: STFilters) -> None:
+        """Raise unless ``filters`` are those of a plan of this geometry and ``data`` the data
+        this plan was built for: its geometry, spatial shape and ``pbc``, and its mask or its
+        blocks. The number of channels, the backend and the dtype are checked by the caller
+        (``functional._scattering.check_data``)."""
+        raise NotImplementedError
+
+    def _build_filters(self, backend_name: str, dtype: FloatDType, device: Any) -> STFilters:
+        """The filters of this plan on the backend ``backend_name``, cast once to ``dtype`` on
+        ``device`` (Part I, §3.1, rules 4 and 7)."""
+        raise NotImplementedError
+
+    def _values(self, data: Data, filters: STFilters) -> ScatteringValues:
+        """The scattering loop of this geometry: the statistics of ``data`` without
+        normalisation, in the buffer of :meth:`_layout`. ``data`` and ``filters`` were checked
+        by :meth:`_check_data`. Pure."""
+        raise NotImplementedError
+
+    def _layout(self) -> Layout:
+        """The layout of the raw buffer of the loop (``statistics._layout``)."""
+        raise NotImplementedError
+
+    def _check_reference(self, reference: _NormReference, n_batch: int, dtype: Any) -> None:
+        """Raise unless ``reference`` can normalise the statistics of this plan, for a batch of
+        ``n_batch`` in ``dtype`` (maths.md M-NORM, M-NORM-TP)."""
+        raise NotImplementedError
+
+    def _self_reference(self, backend: Backend, buffer: Any, layout: Layout) -> _NormReference:
+        """The reference of ``norm="self"``, from the raw ``buffer`` of the loop in ``layout``
+        (M-NORM, M-NORM-TP): the scales of sigma, the orientations its diagonal averages, and the
+        blocks of a tensor product, read from this plan."""
+        raise NotImplementedError
+
+    def _content(self) -> tuple[dict[str, Any], dict[str, NDArray[Any]]]:
+        """The parameters of this plan for ``estel.io``, from which ``STStatistics.load``
+        builds it again, and its arrays other than ``cross_matrix``, by name."""
+        raise NotImplementedError
 
 
 @dataclass(frozen=True, eq=False)
@@ -283,6 +358,69 @@ class _PlanFields:
 class PlanarPlan(_PlanFields, STPlan):
     """The :class:`STPlan` of 1D and 2D planar data (``STOperator.plan``), built by
     :func:`build_plan`; its fields are those of ``_PlanFields``."""
+
+    _operator: ClassVar[str] = "STOperator"
+    _block_axes: ClassVar[bool] = False
+
+    def _check_data(self, data: Data, filters: STFilters) -> None:
+        if not isinstance(filters, PlanarFilters):
+            raise TypeError(_OTHER_OPERATORS)
+        if data.mask is None or self.mask is None:
+            same_mask = data.mask is None and self.mask is None
+        else:
+            same_mask = bool(np.array_equal(data.mask, self.mask))
+        if not (
+            isinstance(data, self.geometry)
+            and tuple(data.shape[2:]) == self.spatial_shape
+            and data.pbc == self.pbc
+            and same_mask
+        ):
+            raise ValueError(
+                f"the data ({type(data).__name__}, spatial shape {tuple(data.shape[2:])}, "
+                f"pbc={data.pbc}) differ from those the plan was built for "
+                f"({self.geometry.__name__}, spatial shape {self.spatial_shape}, pbc={self.pbc}, "
+                "and the same mask of missing values). The plan is static: build a new "
+                "STOperator for these data."
+            )
+
+    def _build_filters(self, backend_name: str, dtype: FloatDType, device: Any) -> PlanarFilters:
+        return build_filters(self, backend_name, dtype, device)
+
+    def _values(self, data: Data, filters: STFilters) -> ScatteringValues:
+        return scattering_values(data, self, cast(PlanarFilters, filters))  # by _check_data
+
+    def _layout(self) -> Layout:
+        return base_layout(self)
+
+    def _check_reference(self, reference: _NormReference, n_batch: int, dtype: Any) -> None:
+        check_reference(reference, self, n_batch, dtype)
+
+    def _self_reference(self, backend: Backend, buffer: Any, layout: Layout) -> _NormReference:
+        return self_reference(
+            backend, buffer, layout, auto_scales(self), self.L, self.ref_batch_mean
+        )
+
+    def _content(self) -> tuple[dict[str, Any], dict[str, NDArray[Any]]]:
+        content = {
+            "geometry": self.geometry._geometry,
+            "J": self.J,
+            "L": self.L,
+            "kernel_size": self.kernel_size,
+            "spatial_shape": list(self.spatial_shape),
+            "pbc": self.pbc,
+            "nan_threshold": self.nan_threshold,
+            "n_channels": self.n_channels,
+            "norm": self.norm,
+            "ref_batch_mean": self.ref_batch_mean,
+            "standardize": self.standardize,
+        }
+        return content, ({} if self.mask is None else {"mask": np.asarray(self.mask)})
+
+
+_OTHER_OPERATORS = (
+    "the plan and the filters come from different operators: pass op.plan and op.filters of "
+    "one operator."
+)
 
 
 def build_plan(
@@ -379,7 +517,13 @@ def build_plan(
         ),
         s3=MappingProxyType(s3),
         s4=MappingProxyType(s4),
-        second_layer=MappingProxyType(_second_layer(scales, weights, s3, s4)),
+        second_layer=MappingProxyType(
+            {
+                j3: maps
+                for j3 in scales
+                if (maps := _second_layer_windows(j3, weights, s3, s4)) is not None
+            }
+        ),
         empty_scales=tuple(j for j in scales if ("S1", j) not in weights),
         empty_s3_pairs=tuple(p for p in s3_pairs if ("S3", *p) not in weights),
         empty_s4_triples=tuple(t for t in s4_triples if ("S4", *t) not in weights),
@@ -473,20 +617,75 @@ class TensorProdPlan(STPlan):
 
     def orientations_at(self, scale: tuple[int, ...]) -> tuple[int, ...]:
         """The orientation shape of the chunks of S1 and S2 at the multi-index ``scale``
-        (:func:`orientations_at`)."""
+        (``statistics._grid.orientations_at``)."""
         return orientations_at(scale, self.J, self.L)
 
+    _operator: ClassVar[str] = "STOperatorTensorProd"
+    _block_axes: ClassVar[bool] = True
 
-def orientations_at(
-    scale: tuple[int, ...],
-    J: tuple[int, ...],  # noqa: N803 (maths.md notation)
-    L: tuple[int, ...],  # noqa: N803
-) -> tuple[int, ...]:
-    """The orientation shape of a tensor product at the multi-index ``scale``, for the blocks
-    of ``J`` wavelet scales and ``L`` orientations: L_a, or 1 along a block taken at its
-    low-pass scale J_a, which has orientation 0 only (maths.md M-LP). The chunks of S1 and S2
-    and the rows of the normalisation scales sigma have this shape."""
-    return tuple(1 if j == n else size for j, n, size in zip(scale, J, L, strict=True))
+    def _check_data(self, data: Data, filters: STFilters) -> None:
+        if not isinstance(filters, TensorProdFilters):
+            raise TypeError(_OTHER_OPERATORS)
+        # A DataTensorProd (isinstance), whose blocks L2 reads without importing its class
+        # (Part I, §2.4).
+        if not (
+            isinstance(data, self.geometry)
+            and tuple(cast(Any, data).blocks) == self.block_geometries
+            and tuple(data.shape[2:]) == self.spatial_shape
+            and data.pbc == self.pbc
+        ):
+            names = ", ".join(g.__name__ for g in self.block_geometries)
+            raise ValueError(
+                f"the data ({type(data).__name__}, spatial shape {tuple(data.shape[2:])}, "
+                f"pbc={data.pbc}) differ from those the plan was built for (DataTensorProd with "
+                f"the blocks [{names}], spatial shape {self.spatial_shape}, "
+                f"pbc={list(self.pbc)}). The plan is static: build a new STOperatorTensorProd "
+                "for these data."
+            )
+
+    def _build_filters(
+        self, backend_name: str, dtype: FloatDType, device: Any
+    ) -> TensorProdFilters:
+        return build_tensor_prod_filters(self, backend_name, dtype, device)
+
+    def _values(self, data: Data, filters: STFilters) -> ScatteringValues:
+        return tensor_prod_values(data, self, cast(TensorProdFilters, filters))  # by _check_data
+
+    def _layout(self) -> Layout:
+        return tensor_prod_layout(self)
+
+    def _check_reference(self, reference: _NormReference, n_batch: int, dtype: Any) -> None:
+        check_tensor_prod_reference(reference, self, n_batch, dtype)
+
+    def _self_reference(self, backend: Backend, buffer: Any, layout: Layout) -> _NormReference:
+        return self_reference(
+            backend,
+            buffer,
+            layout,
+            tensor_prod_auto_scales(self),
+            int(np.prod(self.L, dtype=np.int64)),
+            self.ref_batch_mean,
+            tensor_prod_blocks(self),
+        )
+
+    def _content(self) -> tuple[dict[str, Any], dict[str, NDArray[Any]]]:
+        """Schema version 5."""
+        content = {
+            "geometry": self.geometry._geometry,
+            "blocks": [g._geometry for g in self.block_geometries],
+            "J": list(self.J),
+            "L": list(self.L),
+            "lowpass": self.lowpass,
+            "lowpass_blocks": list(self.lowpass_blocks),
+            "kernel_size": self.kernel_size,
+            "spatial_shape": list(self.spatial_shape),
+            "pbc": list(self.pbc),
+            "n_channels": self.n_channels,
+            "norm": self.norm,
+            "ref_batch_mean": self.ref_batch_mean,
+            "standardize": self.standardize,
+        }
+        return content, {}
 
 
 def build_tensor_prod_statistics_plan(
@@ -526,7 +725,7 @@ def build_tensor_prod_statistics_plan(
         )
     _check_options(norm, ref_batch_mean, standardize)
     # The low-pass flags (M-LP, OP-34), with STL's warning, come with the plans of the blocks.
-    wavelets = build_tensor_prod_plan(
+    wavelets = build_tensor_prod_wavelet_plan(
         cast(Any, data), J, L, kernel_size=kernel_size, lowpass=lowpass, stacklevel=stacklevel + 1
     )
     matrix = _cross_matrix(cross_matrix, data.n_channels)
@@ -584,63 +783,7 @@ def build_tensor_prod_statistics_plan(
     )
 
 
-# ---------------------------------------------------------------------- the sums of the loop
-
-
-class LoopSum(NamedTuple):
-    """One weighted sum of the scattering loop, as the loop takes it (``_loop.py``): what the
-    gather to the compact buffer reads (Part III, §19.2, §19.9; ``statistics._layout``)."""
-
-    family: str
-    """``"mean"``, ``"var"``, ``"S1"`` … ``"S4"``."""
-    key: tuple[int, ...]
-    """The grid coordinates before the axes the sum carries: ``()`` for mean and var, whose
-    sum carries the channels; ``(c1, c2, j)`` for S1 and S2, ``(c1, c2, j2, j3)`` for S3 and
-    ``(c1, c2, j1, j2, j3)`` for S4, whose sums carry the orientations."""
-    is_complex: bool
-    """Whether the loop computes it complex: the cross S1 and S2, S3 and S4."""
-
-
-def loop_sums(plan: PlanarPlan) -> tuple[LoopSum, ...]:
-    """The sums of the scattering loop, in the order the loop takes them (``_loop.py``): mean
-    and var, then for each level and each scale j3 computed there, S1 (auto channels, then
-    cross pairs) and S2 alike, then for each scale j2 of the second layer, S3 at (j2, j3) and
-    S4 at (j1, j2, j3) for j1 ≤ j2, every channel pair of S3 and S4 inside (M-CHAN). The means
-    the plan lists as empty (OP-3) are not taken. The loop concatenates the divided sums in
-    this order, and one static gather turns them into the compact buffer."""
-    pairs = plan.pairs
-    channels_12 = (*((c, c) for c in pairs.auto), *pairs.cross)
-    sums = [LoopSum("mean", (), False), LoopSum("var", (), False)]
-    for level in plan.levels:
-        for j3 in (j for j in plan.scales if plan.scale_levels[j] == level):
-            if j3 in plan.first_layer:
-                for family in ("S1", "S2"):
-                    sums.extend(LoopSum(family, (c1, c2, j3), c1 != c2) for c1, c2 in channels_12)
-            arms = plan.second_layer[j3].arms if j3 in plan.second_layer else ()
-            for j2 in arms:
-                if (j2, j3) in plan.s3:
-                    sums.extend(LoopSum("S3", (c1, c2, j2, j3), True) for c1, c2 in pairs.ordered)
-                for j1 in range(j2 + 1):
-                    if (j1, j2, j3) in plan.s4:
-                        sums.extend(
-                            LoopSum("S4", (c1, c2, j1, j2, j3), True) for c1, c2 in pairs.ordered
-                        )
-    return tuple(sums)
-
-
 # ---------------------------------------------------------------------- helpers
-
-
-def _second_layer(
-    scales: tuple[int, ...],
-    weights: Mapping[Any, MeanWeights],
-    s3: Mapping[tuple[int, int], MeanWeights],
-    s4: Mapping[tuple[int, int, int], MeanWeights],
-) -> dict[int, SecondLayerWindows]:
-    """The second-layer maps of each scale j3 that has an S3 or an S4 mean, and their windows
-    (:class:`SecondLayerWindows`)."""
-    found = {j3: _second_layer_windows(j3, weights, s3, s4) for j3 in scales}
-    return {j3: maps for j3, maps in found.items() if maps is not None}
 
 
 def _second_layer_windows(
