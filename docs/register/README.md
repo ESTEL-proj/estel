@@ -70,13 +70,14 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 
 ## Step 2a
 
-30 entries: 15 need a human, 15 can be treated.
+30 entries: 16 need a human, 14 can be treated.
 
 ### Needs a human
 
 | ID | Title | Phase | To decide | Category |
 | --- | --- | --- | --- | --- |
 | [LF62](LF62.md) | The benchmark of step 2 | 2a.0 | public datasets of the cases; thresholds; TF32 on NVIDIA GPUs: disabled, or kept if parity holds; default length of the L-BFGS history | Optimisation |
+| [LF57](LF57.md) | A less conservative border crop | 2a.1 | — | Mathematical choice |
 | [LF20](LF20.md) | Canonical coefficient set | 2a.2 | STL's set kept (packing only) or the non-redundant set; what to_vector returns, and how an entry real by construction counts | Mathematical choice |
 | [LF26](LF26.md) | Reductions on tensor products redefined | 2a.2 | iso on products: rotations of the 2D block, 1D blocks not averaged; products of 1D blocks only, or of several 2D blocks; angular_fourier and scale_cosine block by block | Mathematical choice |
 | [LF28](LF28.md) | Better regularisation of the cross S1 terms | 2a.2 | what replaces ε = 1e-8: no ε, an ε relative to the mean modulus of each channel, or an ε from the reference | Mathematical choice |
@@ -98,7 +99,6 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 | --- | --- | --- | --- | --- | --- |
 | [LF6](LF6.md) | Low-pass filters in every geometry and S3/S4 | 2a.1 | ready | LF33 | — |
 | [LF33](LF33.md) | Centred covariances | 2a.1 | ready | LF57 | — |
-| [LF57](LF57.md) | A less conservative border crop | 2a.1 | study | — | — |
 | [LF60](LF60.md) | Zero border at a block's low-pass scale | 2a.1 | study | LF6, LF33 | — |
 | [LF7](LF7.md) | Positive spectrum estimator for non-periodic data | 2a.3 | study | — | — |
 | [LF52](LF52.md) | Masks downsampled as continuous weights | 2a.3 | study | — | — |
