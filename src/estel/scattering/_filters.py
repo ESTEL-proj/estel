@@ -55,10 +55,11 @@ class _FilterFields(NamedTuple):
     ``None`` when every window is the whole grid (maths_step2.md M-GRAM). S3 and S4 need no
     other weights: each mean is a Gram product of windowed maps, divided by the denominator
     of the plan."""
-    gather: Any
-    """The static gather from the divided sums of the loop, in the order of
-    ``_plan.loop_sums``, to the compact buffer of the statistics (int32;
-    ``statistics._layout.loop_gather``; Part III, §19.3, §19.9)."""
+    gather: tuple[Any, ...]
+    """The integer arrays of the static gather from the divided sums of the loop, in the order
+    of ``_plan.loop_sums``, to the compact buffer of the statistics: for each kind of chunk the
+    loop computes complex and the buffer stores with real entries, the floats kept (int32;
+    ``statistics._layout.loop_gather``; Part III, §19.3, §19.9; task T3.7)."""
 
 
 class STFilters(_FilterFields):
@@ -113,5 +114,8 @@ def build_filters(plan: STPlan, backend_name: str, dtype: FloatDType, device: An
             j3: real(np.stack(maps.windows)) if maps.windows else None
             for j3, maps in plan.second_layer.items()
         },
-        gather=backend.asarray(loop_gather(plan)[0].astype(np.int32), "int32", device),
+        gather=tuple(
+            backend.asarray(take.astype(np.int32), "int32", device)
+            for take in loop_gather(plan).takes
+        ),
     )
