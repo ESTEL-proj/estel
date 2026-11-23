@@ -48,7 +48,7 @@ from numpy.typing import NDArray
 
 from ..backend._protocol import Backend
 from ..io._schema import SCHEMA_VERSION
-from ..scattering._plan import STPlan, TensorProdPlan, loop_sums
+from ..scattering._plan import PlanarPlan, TensorProdPlan, loop_sums
 from ._arrays import constant, dtype_name
 from ._grid import FamilyGrid, base_grids, tensor_prod_grids
 
@@ -444,7 +444,7 @@ def build_layout(
 
 
 @functools.lru_cache(maxsize=64)
-def base_layout(plan: STPlan) -> Layout:
+def base_layout(plan: PlanarPlan) -> Layout:
     """The layout of the statistics the scattering loop computes, from the plan alone
     (``_grid.base_grids``): every chunk is at the level of the scale of its last convolution
     (the level of j, or of j3)."""
@@ -503,7 +503,7 @@ class LoopGather(NamedTuple):
     """The number of sums the loop produces."""
 
 
-def _carried_shape(plan: STPlan, family: str) -> tuple[int, ...]:
+def _carried_shape(plan: PlanarPlan, family: str) -> tuple[int, ...]:
     """The axes a sum of the loop carries after the batch axis (``loop_sums``)."""
     if family in ("mean", "var"):
         return (plan.n_channels,)
@@ -511,7 +511,7 @@ def _carried_shape(plan: STPlan, family: str) -> tuple[int, ...]:
 
 
 @functools.lru_cache(maxsize=64)
-def loop_gather(plan: STPlan) -> LoopGather:
+def loop_gather(plan: PlanarPlan) -> LoopGather:
     """The :class:`LoopGather` of ``plan``.
 
     The loop divides its sums level by level, each as real floats: a complex sum as (re, im)
@@ -574,6 +574,51 @@ def loop_gather(plan: STPlan) -> LoopGather:
         takes=tuple(takes),
         n_sums=len(sums),
     )
+
+
+@functools.lru_cache(maxsize=64)
+def tensor_prod_gather(plan: TensorProdPlan) -> Pack:
+    """The counterpart of :func:`loop_gather` for a tensor product (task T3.2): how the dense
+    S4 chunks of the loop, ``(Nb, n, L³, 2)`` in the order of the buffer, are packed into the
+    floats of S4 (:func:`pack`). S1, S2 and S3 need no table: their chunks are concatenated in
+    the order of the buffer.
+
+    Checks that the chunks the plan's loop computes (``TensorProdPlan.loop``: the channel pairs
+    of S1 and S2, the rows of S3 and S4 per segment) are those of :func:`tensor_prod_layout`, in
+    its order, and raises otherwise: the two are built apart, from the same index sets."""
+    layout = tensor_prod_layout(plan)
+    loop = plan.loop
+    n_blocks, nc = plan.n_blocks, plan.n_channels
+
+    def s3_chunk(arms: tuple[Level, ...], j3: Level, row: int) -> tuple[int, ...]:
+        arm, c1, c2 = row // (nc * nc), (row // nc) % nc, row % nc
+        return (c1, c2, *arms[arm], *j3)
+
+    def s4_chunk(arms: tuple[Level, ...], j3: Level, row: int) -> tuple[int, ...]:
+        c2, rest = row % nc, row // nc
+        arm2, rest = rest % len(arms), rest // len(arms)
+        c1, arm1 = rest % nc, rest // nc
+        return (c1, c2, *arms[arm1], *arms[arm2], *j3)
+
+    found = {
+        "S1": [(c1, c2, *f.scale) for f in loop.first_layer for c1, c2 in f.pairs],
+        "S3": [
+            s3_chunk(s.arms, s.j3, row) for s in loop.second_layer for row in s.s3_rows.tolist()
+        ],
+        "S4": [
+            s4_chunk(s.arms, s.j3, row) for s in loop.second_layer for row in s.s4_rows.tolist()
+        ],
+    }
+    for name, rows in found.items():
+        expected = [tuple(int(v) for v in r) for r in layout.grid(name).chunks.tolist()]
+        if rows != expected:
+            raise RuntimeError(
+                f"{name}: the chunks of the loop of this tensor product ({len(rows)}) are not "
+                f"those of its layout ({len(expected)}), in its order; "
+                "scattering._tensor_prod.build_tensor_prod_loop and tensor_prod_layout disagree "
+                f"({n_blocks} block(s)): make them agree."
+            )
+    return pack_spec(layout, "S4")
 
 
 def gather_loop(backend: Backend, sums: Sequence[Any], gather: LoopGather, takes: Any) -> Any:

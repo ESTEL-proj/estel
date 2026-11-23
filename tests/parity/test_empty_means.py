@@ -21,7 +21,7 @@ import pytest
 from numpy.typing import NDArray
 
 from estel import Data, Data1D, Data2D
-from estel.scattering._plan import STPlan, build_plan
+from estel.scattering._plan import PlanarPlan, build_plan
 from tests.parity._compare import load_fixture, read_manifest
 
 CASES: dict[str, type[Data]] = {"empty_means_2d": Data2D, "empty_means_1d": Data1D}
@@ -37,7 +37,7 @@ def _configs() -> list[tuple[str, str]]:
     return [(case, name) for case in sorted(CASES) for name in _parameters(case)["configs"]]
 
 
-def _plan(case: str, name: str, fixture: dict[str, NDArray[Any]]) -> STPlan:
+def _plan(case: str, name: str, fixture: dict[str, NDArray[Any]]) -> PlanarPlan:
     parameters = _parameters(case)
     config = parameters["configs"][name]
     cls = CASES[case]

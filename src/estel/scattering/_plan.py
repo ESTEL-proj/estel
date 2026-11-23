@@ -73,8 +73,10 @@ normalisation (``norm``, ``ref_batch_mean``; M-NORM) and the standardisation of 
 the data, the plan, the filters and an optional reference.
 
 **Public and opaque.** ``STPlan`` is public as a name only (Part II, §12.6): users get it
-from ``STOperator.plan`` and pass it to ``estel.functional.scattering``, and it has no public
-field. Its fields are those of the private base class ``_PlanFields``, read by ESTEL only.
+from an operator's ``plan`` and pass it to ``estel.functional.scattering``, and it has no public
+field. It is the base class of the plan of each geometry: :class:`PlanarPlan`, whose fields are
+those of the private base class ``_PlanFields``, and :class:`TensorProdPlan` (task T3.2), both
+read by ESTEL only.
 
 A mean with no pixel left is where STL divides by zero, and its coefficient is NaN (M-MEAN,
 OP-3). The plan knows these means statically: it leaves them out of ``first_layer``, ``s3``
@@ -107,6 +109,7 @@ from ..wavelets._operator import (
     build_wavelet_plan,
 )
 from ..wavelets._tensor_prod import TensorProdWaveletPlan, build_tensor_prod_plan
+from ._tensor_prod import TensorProdLoop, build_tensor_prod_loop
 
 NORMS = ("none", "self", "ref")
 """The values of ``norm`` (maths.md M-NORM)."""
@@ -174,6 +177,31 @@ class SecondLayerWindows:
     band_window: int | None
     """The position in :attr:`windows` of the window of the band map W_{j3} x, the other
     operand of S3; ``None`` when :attr:`windows` is empty or j3 has no S3."""
+
+
+class STPlan:
+    """The static description of a scattering transform: an opaque object (Part II, §12.6).
+
+    Get it from ``STOperator.plan`` or ``STOperatorTensorProd.plan`` and pass it, with the
+    operator's filters, to ``estel.functional.scattering``. It is immutable and hashable, so
+    that JAX can take it as a static argument; it has no public field. The plan of each
+    geometry is a subclass, internal to ESTEL: :class:`PlanarPlan` for 1D and 2D data,
+    :class:`TensorProdPlan` for tensor products (task T3.2). Two plans are equal, and hash
+    equal, when they are of one class and were built from the same parameters and the same
+    static metadata of the data (geometry, spatial shape, ``pbc``, mask, number of channels;
+    for a tensor product, its blocks), so that they hold the same values.
+    """
+
+    __slots__ = ()
+    _key: tuple[Any, ...]
+
+    def __hash__(self) -> int:
+        return hash(self._key)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, STPlan):
+            return NotImplemented
+        return type(self) is type(other) and self._key == other._key
 
 
 @dataclass(frozen=True, eq=False)
@@ -252,23 +280,9 @@ class _PlanFields:
     _key: tuple[Any, ...] = field(repr=False)
 
 
-class STPlan(_PlanFields):
-    """The static description of a scattering transform: an opaque object (Part II, §12.6).
-
-    Get it from ``STOperator.plan`` and pass it, with ``STOperator.filters``, to
-    ``estel.functional.scattering``. It is immutable and hashable, so that JAX can take it as a
-    static argument; it has no public field. Two plans are equal, and hash equal, when they
-    were built from the same parameters and the same static metadata of the data (geometry,
-    spatial shape, ``pbc``, mask, number of channels), so that they hold the same values.
-    """
-
-    def __hash__(self) -> int:
-        return hash(self._key)
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, STPlan):
-            return NotImplemented
-        return self._key == other._key
+class PlanarPlan(_PlanFields, STPlan):
+    """The :class:`STPlan` of 1D and 2D planar data (``STOperator.plan``), built by
+    :func:`build_plan`; its fields are those of ``_PlanFields``."""
 
 
 def build_plan(
@@ -281,8 +295,8 @@ def build_plan(
     norm: str = "none",
     ref_batch_mean: bool = False,
     standardize: bool = False,
-) -> STPlan:
-    """The ``STPlan`` of a scattering transform with ``J`` scales and ``L``
+) -> PlanarPlan:
+    """The :class:`PlanarPlan` of a scattering transform with ``J`` scales and ``L``
     orientations on data with the geometry, spatial shape, ``pbc``, mask and number of channels
     of ``data``; by default J and L are those of the geometry (M-DEF, M-DEF-1D) and the kernel
     size that of the wavelets.
@@ -337,7 +351,7 @@ def build_plan(
     s3 = {(j2, j3): weights[("S3", j2, j3)] for j2, j3 in s3_pairs if ("S3", j2, j3) in weights}
     s4 = {t: weights[("S4", *t)] for t in s4_triples if ("S4", *t) in weights}
 
-    return STPlan(
+    return PlanarPlan(
         geometry=wavelets.geometry,
         J=wavelets.J,
         L=wavelets.L,
@@ -389,10 +403,10 @@ spectrum, so STL's ``"PS"`` and ``("ST", "PS")`` are not taken."""
 
 
 @dataclass(frozen=True, eq=False)
-class TensorProdPlan:
+class TensorProdPlan(STPlan):
     """The static description of the statistics of a tensor product (maths.md M-NOT-TP, M-LP,
     M-IDX-TP, M-CHAN; Part II, §12.6; task T3.6): what the compact layout, the normalisation and
-    the files need, without the loop, which task T3.2 adds.
+    the files need, and the static description of the loop of task T3.2 (:attr:`loop`).
 
     Built by :func:`build_tensor_prod_statistics_plan` from the plan of the wavelet operator of
     the tensor product (``TensorProdWaveletPlan``, task T3.1); NumPy only, immutable and
@@ -434,6 +448,11 @@ class TensorProdPlan:
     """Whether the ``norm="self"`` reference is averaged over the batch (M-NORM)."""
     standardize: bool
     """Whether each map is standardised before the transform (M-MOM, M-STD)."""
+    loop: TensorProdLoop
+    """The static description of the loop (``_tensor_prod``; task T3.2): per scale, the
+    windows and denominators of S1 and S2; per wavelet scale j3, the arms, the crops of the
+    blocks, and the rows and denominators of the chunks of S3 and S4. Determined by the other
+    fields, so not part of the identity of the plan."""
     first_layer: tuple[tuple[int, ...], ...]
     """For each block, its scales of S1 and S2: 0 … J'_a - 1, with J'_a = J_a + 1 when the
     block has a low-pass filter, whose scale is J_a (M-IDX-TP, M-LP)."""
@@ -442,14 +461,6 @@ class TensorProdPlan:
     s4: tuple[tuple[tuple[int, int, int], ...], ...]
     """For each block, its triples ``(j1, j2, j3)`` of S4, j1 ≤ j2 ≤ j3 < J_a (M-IDX-TP)."""
     _key: tuple[Any, ...] = field(repr=False)
-
-    def __hash__(self) -> int:
-        return hash(self._key)
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, TensorProdPlan):
-            return NotImplemented
-        return self._key == other._key
 
     @property
     def n_blocks(self) -> int:
@@ -489,13 +500,19 @@ def build_tensor_prod_statistics_plan(
     norm: str = "none",
     ref_batch_mean: bool = False,
     standardize: bool = False,
+    stacklevel: int = 1,
 ) -> TensorProdPlan:
     """The :class:`TensorProdPlan` of a ``DataTensorProd``, with one J and one L per block
     (M-DATA-TP, M-DEF-TP: a list, an entry ``None`` giving the default of the block). The values
     of ``data`` are not read. ``lowpass`` is ``"ST"`` (STL's default) or ``None`` (M-LP);
     ``cross_matrix``, ``norm``, ``ref_batch_mean`` and ``standardize`` are those of
-    :func:`build_plan`. Warns once, as STL does, for each block whose sizes are not divisible
-    by 2^J_a: it has no low-pass filter (M-LP, OP-34)."""
+    :func:`build_plan`. The static description of the loop, its index tables, crop widths and
+    mean denominators, is built here too (:attr:`TensorProdPlan.loop`).
+
+    Warns once, as STL does, for each block whose sizes are not divisible by 2^J_a: it has no
+    low-pass filter (M-LP, OP-34); and once for the plan when a border is too large for a block
+    and is reduced (M-BORDER-TP, OP-13). ``stacklevel`` places the warnings, as for
+    ``warnings.warn``, from the caller of this function: 1 for that caller, 2 for its caller."""
     if not isinstance(data, Data) or data._geometry != "tensor_prod":
         raise TypeError(
             f"the statistics of a tensor product take a DataTensorProd, got "
@@ -507,23 +524,26 @@ def build_tensor_prod_statistics_plan(
             'or None (maths.md M-LP); ESTEL 1.0.0 has no tensor-product spectrum, so "PS" is '
             "not available."
         )
-    wavelets = build_tensor_prod_plan(cast(Any, data), J, L, kernel_size=kernel_size)
-    matrix = _cross_matrix(cross_matrix, data.n_channels)
     _check_options(norm, ref_batch_mean, standardize)
-    flags = []
-    for a, block in enumerate(wavelets.blocks):
-        has = lowpass == "ST" and all(n % 2**block.J == 0 for n in block.spatial_shape)
-        if lowpass == "ST" and not has:
-            warnings.warn(
-                f"block {a} ({block.geometry.__name__} of shape {block.spatial_shape}) has no "
-                f"low-pass filter: its sizes are not all divisible by 2^J_{a} = {2**block.J}, "
-                "which the low-pass filter needs, one downsampling more than its wavelets "
-                "(maths.md M-LP, OP-34). Its S1 and S2 have the wavelet scales only; use a size "
-                f"divisible by {2**block.J}, or J_{a} = {block.J - 1}, to keep it.",
-                UserWarning,
-                stacklevel=2,
-            )
-        flags.append(has)
+    # The low-pass flags (M-LP, OP-34), with STL's warning, come with the plans of the blocks.
+    wavelets = build_tensor_prod_plan(
+        cast(Any, data), J, L, kernel_size=kernel_size, lowpass=lowpass, stacklevel=stacklevel + 1
+    )
+    matrix = _cross_matrix(cross_matrix, data.n_channels)
+    pairs = channel_pairs(matrix)
+    # The crops of the blocks warn for each border too large for a block (OP-13): the plan
+    # gives the first of these warnings, once, as the planar plan does (mean_weights).
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        loop = build_tensor_prod_loop(
+            wavelets,
+            tuple({(c, c) for c in pairs.auto} | set(pairs.cross)),
+            pairs.ordered,
+            data.n_channels,
+        )
+    if caught:
+        warnings.warn(caught[0].message, stacklevel=stacklevel + 1)
+    flags = list(wavelets.lowpass_blocks)
     scales = tuple(range(block.J) for block in wavelets.blocks)
     return TensorProdPlan(
         geometry=type(data),
@@ -538,10 +558,11 @@ def build_tensor_prod_statistics_plan(
         lowpass_blocks=tuple(flags),
         n_channels=data.n_channels,
         cross_matrix=matrix,
-        pairs=channel_pairs(matrix),
+        pairs=pairs,
         norm=norm,
         ref_batch_mean=bool(ref_batch_mean),
         standardize=bool(standardize),
+        loop=loop,
         first_layer=tuple(
             tuple(range(block.J + int(flag)))
             for block, flag in zip(wavelets.blocks, flags, strict=True)
@@ -580,7 +601,7 @@ class LoopSum(NamedTuple):
     """Whether the loop computes it complex: the cross S1 and S2, S3 and S4."""
 
 
-def loop_sums(plan: STPlan) -> tuple[LoopSum, ...]:
+def loop_sums(plan: PlanarPlan) -> tuple[LoopSum, ...]:
     """The sums of the scattering loop, in the order the loop takes them (``_loop.py``): mean
     and var, then for each level and each scale j3 computed there, S1 (auto channels, then
     cross pairs) and S2 alike, then for each scale j2 of the second layer, S3 at (j2, j3) and

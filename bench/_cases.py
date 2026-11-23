@@ -15,7 +15,7 @@ import json
 import tomllib
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -37,18 +37,35 @@ class Settings:
 
 @dataclass(frozen=True)
 class Case:
-    """One benchmark case: a 2D field of one batch element, and the operator's parameters."""
+    """One benchmark case: a field of one batch element, and the operator's parameters. A 2D
+    field by default; with ``blocks``, a tensor product of those blocks (``"2D"``, ``"1D"``, in
+    axis order; task T3.2), with one J, one L and one ``pbc`` per block, measured on ESTEL
+    only."""
 
     name: str
-    shape: tuple[int, int]
+    shape: tuple[int, ...]
     channels: int
-    J: int
-    L: int
-    pbc: bool
+    J: int | tuple[int, ...]
+    L: int | tuple[int, ...]
+    pbc: bool | tuple[bool, ...]
     seed: int
     target_seed: int
     mask_seed: int | None = None
     mask_holes: tuple[int, ...] = ()
+    blocks: tuple[str, ...] = ()
+
+    @property
+    def tensor_prod(self) -> bool:
+        """Whether the case is a tensor product, which STL does not run here (ESTEL only)."""
+        return bool(self.blocks)
+
+
+def _case(name: str, spec: dict[str, Any]) -> Case:
+    """A :class:`Case` from its table, lists as tuples."""
+    tupled = {
+        key: tuple(value) if isinstance(value, list) else value for key, value in spec.items()
+    }
+    return Case(name=name, **cast(Any, {"mask_holes": (), **tupled}))
 
 
 @dataclass(frozen=True)
@@ -71,17 +88,7 @@ def load_cases(path: Path = CASES_FILE) -> tuple[Settings, dict[str, Case]]:
         content = tomllib.load(stream)
     try:
         settings = Settings(**content["settings"])
-        cases = {
-            name: Case(
-                name=name,
-                **{
-                    **spec,
-                    "shape": tuple(spec["shape"]),
-                    "mask_holes": tuple(spec.get("mask_holes", ())),
-                },
-            )
-            for name, spec in content["cases"].items()
-        }
+        cases = {name: _case(name, spec) for name, spec in content["cases"].items()}
     except (KeyError, TypeError) as error:
         raise ValueError(
             f"{path}: {error}. A cases file has a [settings] table (dtype, device, threads, "
@@ -92,6 +99,11 @@ def load_cases(path: Path = CASES_FILE) -> tuple[Settings, dict[str, Case]]:
     if settings.dtype not in DTYPES:
         raise ValueError(f"{path}: dtype={settings.dtype!r}; set it to one of {DTYPES}.")
     for case in cases.values():
+        if case.tensor_prod and case.mask_holes:
+            raise ValueError(
+                f"{path}: case {case.name!r} is a tensor product, which has no missing values "
+                "in ESTEL 1.0.0 (LF8): remove mask_seed and mask_holes."
+            )
         if bool(case.mask_holes) != (case.mask_seed is not None):
             raise ValueError(
                 f"{path}: case {case.name!r} needs both mask_seed and mask_holes, or neither."
@@ -132,7 +144,9 @@ def input_field(case: Case, seed: int) -> NDArray[np.float64]:
     """A seeded field, ``(1, Nc, N, M)``, float64: the exponential of a Gaussian field with a
     power-law spectrum, so that it has structure at every scale and S3 and S4 are not noise.
     Each channel is correlated with the previous one, so that the cross statistics are not
-    small."""
+    small. A tensor product has the same spectrum over all its axes."""
+    if case.tensor_prod:
+        return _tensor_prod_field(case, seed)
     rng = np.random.default_rng(seed)
     noise = rng.standard_normal((case.channels, *case.shape))
     k = np.hypot(np.fft.fftfreq(case.shape[0])[:, None], np.fft.rfftfreq(case.shape[1])[None, :])
@@ -140,6 +154,24 @@ def input_field(case: Case, seed: int) -> NDArray[np.float64]:
     red = np.fft.irfft2(np.fft.rfft2(noise) / k, s=case.shape)
     red = red - red.mean(axis=(-2, -1), keepdims=True)
     red = red / red.std(axis=(-2, -1), keepdims=True)
+    channels = [red[0]]
+    for c in range(1, case.channels):
+        channels.append(0.6 * channels[-1] + 0.8 * red[c])
+    field: NDArray[np.float64] = np.exp(0.5 * np.stack(channels))[None]
+    return field
+
+
+def _tensor_prod_field(case: Case, seed: int) -> NDArray[np.float64]:
+    """:func:`input_field` on every axis of a tensor product: ``(1, Nc, *shape)``."""
+    rng = np.random.default_rng(seed)
+    noise = rng.standard_normal((case.channels, *case.shape))
+    axes = tuple(range(1, 1 + len(case.shape)))
+    frequencies = [np.fft.fftfreq(n) for n in case.shape[:-1]] + [np.fft.rfftfreq(case.shape[-1])]
+    k = np.sqrt(sum(f**2 for f in np.meshgrid(*frequencies, indexing="ij")))
+    k.flat[0] = 1.0  # the mean is removed below
+    red = np.fft.irfftn(np.fft.rfftn(noise, axes=axes) / k, s=case.shape, axes=axes)
+    red = red - red.mean(axis=axes, keepdims=True)
+    red = red / red.std(axis=axes, keepdims=True)
     channels = [red[0]]
     for c in range(1, case.channels):
         channels.append(0.6 * channels[-1] + 0.8 * red[c])
@@ -167,7 +199,10 @@ def write_inputs(case: Case, dtype: str, path: Path) -> str:
     mask = input_mask(case)
     if mask is not None:
         arrays["mask"] = mask
-    description = json.dumps({"case": asdict(case), "dtype": dtype}, sort_keys=True)
+    described = asdict(case)
+    if not case.blocks:  # the description of planar cases, and so their digest, as before T3.2
+        del described["blocks"]
+    description = json.dumps({"case": described, "dtype": dtype}, sort_keys=True)
     members: dict[str, Any] = {"description": np.array(description), **arrays}
     np.savez(path, **members)
     return inputs_digest(description, arrays)
@@ -179,10 +214,8 @@ def read_inputs(path: Path) -> Inputs:
         text = str(stored["description"])
         arrays = {key: stored[key] for key in stored.files if key != "description"}
         description = json.loads(text)
-        spec = description["case"]
-        case = Case(
-            **{**spec, "shape": tuple(spec["shape"]), "mask_holes": tuple(spec["mask_holes"])}
-        )
+        spec = dict(description["case"])
+        case = _case(spec.pop("name"), spec)
         return Inputs(
             case=case,
             dtype=description["dtype"],

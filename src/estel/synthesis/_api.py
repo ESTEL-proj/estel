@@ -30,7 +30,7 @@ from ..backend import _registry
 from ..backend._protocol import Backend, LbfgsState
 from ..data._base import Data, geometry_class
 from ..scattering._operator import STOperator
-from ..scattering._plan import STPlan
+from ..scattering._plan import PlanarPlan
 from ..statistics._arrays import device_of
 from ..statistics._statistics import _NO_REDUCTION, STStatistics
 from ..wavelets._operator import default_scales
@@ -328,7 +328,7 @@ def synthesize_from_stats(
             "from maps, use estel.synthesize_from_maps."
         )
     plan = stats._plan
-    if not isinstance(plan, STPlan):
+    if not isinstance(plan, PlanarPlan):
         raise NotImplementedError(
             "synthesize_from_stats: these are the statistics of a tensor product; syntheses on "
             "tensor products are not part of ESTEL 1.0.0, which synthesises 2D planar data "

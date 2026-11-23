@@ -58,11 +58,12 @@ from typing import Any, NamedTuple
 from ..backend import _registry
 from ..backend._protocol import Backend
 from ..data._base import Data
+from ..data._moments import _backend as _backend_of
 from ..data._moments import cov_sum_valid, divide, gram_sum, modulus, standardize, sum_valid
 from ..statistics._layout import gather_loop, loop_gather
 from ..wavelets._operator import WaveletOperator
-from ._filters import STFilters, window
-from ._plan import STPlan
+from ._filters import PlanarFilters, window
+from ._plan import ChannelPairs, PlanarPlan
 
 S1_EPSILON = 1e-8
 """ε of the cross S1 terms, ``z / (|z| + ε)^(1/2)`` (maths.md M-S1, OP-16)."""
@@ -108,10 +109,86 @@ class _Sum(NamedTuple):
     denominator: float
 
 
+class FieldMoments(NamedTuple):
+    """The field after its standardisation, and the sums of its mean and var
+    (:func:`field_moments`)."""
+
+    x: Any
+    sums: list[_Sum]
+    mean_pre_std: Any
+    std_pre_std: Any
+
+
+def field_moments(
+    x: Any, weights: Any, denominator: float, axes: tuple[int, ...], standardized: bool
+) -> FieldMoments:
+    """The field standardised when ``standardized`` (STL's ``apply(standardize=True)``, M-MOM,
+    M-STD), with the mean and the standard deviation removed, and the sums of its ``mean`` and
+    ``var`` over the window ``weights`` (``window``), waiting for their division (M-MOM). Shared
+    by the loops of planar data and of tensor products; every sum goes through
+    :func:`_global_sum`."""
+    mean_pre_std = std_pre_std = None
+    if standardized:
+        x, mean_pre_std, std_pre_std = standardize(
+            x, weights, denominator, axes, global_sum=_global_sum
+        )
+    sums = [
+        _Sum("mean", sum_valid(x, weights, axes), denominator),
+        _Sum("var", cov_sum_valid(x, x, weights, axes), denominator),
+    ]
+    return FieldMoments(x, sums, mean_pre_std, std_pre_std)
+
+
+def first_layer_sums(
+    w: Any, u: Any, weights: Any, denominator: float, pairs: ChannelPairs, axes: tuple[int, ...]
+) -> list[_Sum]:
+    """The sums of the S1 and S2 means of one scale (M-S1, M-S2, M-CHAN, OP-16), in the order of
+    ``loop_sums``: S1 of the auto channels, every channel at once, then of the cross pairs, pair
+    by pair; then S2 alike. ``w`` is the first-layer map W_j x and ``u`` its modulus,
+    ``(Nb, L, Nc, *spatial)``, ``weights`` the window of the means (``window``). Shared by the
+    loops of planar data and of tensor products, whose orientations are flattened into L."""
+    auto_s1 = sum_valid(u, weights, axes)  # (Nb, L, Nc)
+    auto_s2 = cov_sum_valid(u, u, weights, axes)
+    sums = [_Sum("S1", auto_s1[:, :, c], denominator) for c in pairs.auto]
+    if pairs.cross:
+        rooted = divide(w, u, S1_EPSILON, 0.5)  # z / (|z| + eps)^(1/2), OP-16
+        sums.extend(
+            _Sum(
+                "S1", cov_sum_valid(rooted[:, :, c1], rooted[:, :, c2], weights, axes), denominator
+            )
+            for c1, c2 in pairs.cross
+        )
+    sums.extend(_Sum("S2", auto_s2[:, :, c], denominator) for c in pairs.auto)
+    sums.extend(
+        _Sum("S2", cov_sum_valid(w[:, :, c1], w[:, :, c2], weights, axes), denominator)
+        for c1, c2 in pairs.cross
+    )
+    return sums
+
+
+def gram_sums(v: Any, band: Any, with_s3: bool, with_s4: bool) -> tuple[Any, Any]:
+    """The sums of every S3 and S4 mean of one level, as two Gram products (maths_step2.md
+    M-GRAM): ``v`` holds the second-layer maps, ``(Nb, L3, n_arms, r, *spatial)``, the band
+    orientation leading, then the arms, each with ``r`` rows (its orientations and channels),
+    and ``band`` the band map W_{j3} x, ``(Nb, L3, Nc, *spatial)``, both already zero outside
+    their windows. Returns the products with the band map, ``(Nb, L3, P, Nc)``, and the Gram
+    matrix, ``(Nb, L3, P, P)``, P = n_arms · r, each ``None`` when not asked. Shared by the
+    loops of planar data and of tensor products."""
+    xp = _backend_of(v).xp
+    n_batch, n_band = int(v.shape[0]), int(v.shape[1])
+    rows = xp.reshape(v, (n_batch, n_band, int(v.shape[2]) * int(v.shape[3]), -1))
+    cross = gram = None
+    if with_s3:
+        cross = gram_sum(rows, xp.reshape(band, (n_batch, n_band, int(band.shape[2]), -1)))
+    if with_s4:
+        gram = gram_sum(rows)
+    return cross, gram
+
+
 # ---------------------------------------------------------------------- the loop
 
 
-def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> ScatteringValues:
+def scattering_values(data: Data, plan: PlanarPlan, filters: PlanarFilters) -> ScatteringValues:
     """The statistics of ``data`` without normalisation (maths.md M-MOM, M-W1, M-S1 to M-S4),
     STL's ``ST_Operator`` with ``norm="vanilla"`` and no spectrum.
 
@@ -135,16 +212,9 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
     if filters.valid is not None:
         x = xp.where(filters.valid, x, xp.zeros_like(x))
     moments = plan.moments
-    weights = window(moments, filters.moments)
-    mean_pre_std = std_pre_std = None
-    if plan.standardize:
-        x, mean_pre_std, std_pre_std = standardize(
-            x, weights, moments.denominator, axes, global_sum=total
-        )
-    pending: list[_Sum] = [
-        _Sum("mean", sum_valid(x, weights, axes), moments.denominator),
-        _Sum("var", cov_sum_valid(x, x, weights, axes), moments.denominator),
-    ]
+    x, pending, mean_pre_std, std_pre_std = field_moments(
+        x, window(moments, filters.moments), moments.denominator, axes, plan.standardize
+    )
     divided: list[Any] = []  # the divided sums of each level, as real (Nb, n) arrays
 
     moduli: dict[int, Any] = {}  # U_{j2} x of every scale computed so far, at the current level
@@ -158,25 +228,7 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
             if j3 in plan.first_layer:
                 weights = window(plan.first_layer[j3], filters.first_layer[j3])
                 denominator = plan.first_layer[j3].denominator
-                # Auto terms, every channel at once; cross terms, pair by pair (M-S1, M-S2).
-                auto_s1 = sum_valid(u, weights, axes)  # (Nb, L, Nc)
-                auto_s2 = cov_sum_valid(u, u, weights, axes)
-                pending.extend(_Sum("S1", auto_s1[:, :, c], denominator) for c in pairs.auto)
-                if pairs.cross:
-                    rooted = divide(w, u, S1_EPSILON, 0.5)  # z / (|z| + eps)^(1/2), OP-16
-                    pending.extend(
-                        _Sum(
-                            "S1",
-                            cov_sum_valid(rooted[:, :, c1], rooted[:, :, c2], weights, axes),
-                            denominator,
-                        )
-                        for c1, c2 in pairs.cross
-                    )
-                pending.extend(_Sum("S2", auto_s2[:, :, c], denominator) for c in pairs.auto)
-                pending.extend(
-                    _Sum("S2", cov_sum_valid(w[:, :, c1], w[:, :, c2], weights, axes), denominator)
-                    for c1, c2 in pairs.cross
-                )
+                pending.extend(first_layer_sums(w, u, weights, denominator, pairs, axes))
 
             if j3 in plan.second_layer:
                 pending.extend(_second_layer(backend, wavelets, plan, filters, j3, moduli, w))
@@ -207,8 +259,8 @@ def scattering_values(data: Data, plan: STPlan, filters: STFilters) -> Scatterin
 def _second_layer(
     backend: Backend,
     wavelets: WaveletOperator,
-    plan: STPlan,
-    filters: STFilters,
+    plan: PlanarPlan,
+    filters: PlanarFilters,
     j3: int,
     moduli: dict[int, Any],
     w: Any,
@@ -242,12 +294,12 @@ def _second_layer(
         v = v * of_arms[(slice(None), None, None, *([slice(None)] * plan.ndim))]
         if with_s3 and maps.band_window is not None:
             band = band * windows[maps.band_window]
-    rows = xp.reshape(v, (n_batch, L, n_arms * L * n_channels, -1))
-    cross = gram = None
-    if with_s3:
-        cross = gram_sum(rows, xp.reshape(band, (n_batch, L, n_channels, -1)))
-    if with_s4:
-        gram = gram_sum(rows)
+    cross, gram = gram_sums(
+        xp.reshape(v, (n_batch, L, n_arms, L * n_channels, *tuple(v.shape[5:]))),
+        band,
+        with_s3,
+        with_s4,
+    )
     if cross is not None:
         cross = xp.reshape(cross, (*grid, n_channels))  # [Nb, l3, j2, l2, c1, c2]
     if gram is not None:

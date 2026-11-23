@@ -105,6 +105,13 @@
     "estel.STOperator.standardize": {
       "kind": "property"
     },
+    "estel.STOperatorTensorProd": {
+      "kind": "class",
+      "signature": "(self, data: Data, J: Sequence[int | None] | None=None, L: Sequence[int | None] | None=None, *, lowpass: str | None='ST', norm: str='self', ref_batch_mean: bool=False, standardize: bool=False, cross_matrix: Any=None, compute_PS: bool | None=None, engine: str='python') -> None"
+    },
+    "estel.STOperatorTensorProd.lowpass": {
+      "kind": "property"
+    },
     "estel.STPlan": {
       "kind": "class",
       "signature": "()"

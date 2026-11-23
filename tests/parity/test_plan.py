@@ -23,7 +23,7 @@ import pytest
 from numpy.typing import NDArray
 
 from estel import Data, Data1D, Data2D
-from estel.scattering._plan import STPlan, build_plan
+from estel.scattering._plan import PlanarPlan, build_plan
 from estel.wavelets._operator import MeanWeights, border_width
 from tests.parity._compare import load_fixture, read_manifest
 
@@ -55,7 +55,7 @@ def _stl_order(J: int) -> list[tuple[str, tuple[tuple[int, ...], ...], int, Any]
     return order
 
 
-def _lookup(plan: STPlan, key: Any) -> MeanWeights:
+def _lookup(plan: PlanarPlan, key: Any) -> MeanWeights:
     if key == "moments":
         return plan.moments
     family, *index = key
@@ -74,7 +74,7 @@ def _data(case: str, name: str, fixture: dict[str, NDArray[Any]]) -> tuple[Data,
     return cls(np.zeros(shape), mask=mask, pbc=config["pbc"]), config["J"]
 
 
-def _build(data: Data, J: int, L: int) -> STPlan:  # noqa: N803
+def _build(data: Data, J: int, L: int) -> PlanarPlan:  # noqa: N803
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-13, checked in tests/scattering
         return build_plan(data, J, L)

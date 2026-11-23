@@ -15,10 +15,18 @@ hooks of ``DataTensorProd``, which dispatch to the geometry of the block:
 * :meth:`TensorProdWaveletOperator.crop_weights`, the border crop of M-BORDER-TP, the outer
   product of the crops of the blocks.
 
+* :meth:`TensorProdWaveletOperator.convolve`, the same convolution with its orientation right
+  after the batch axis, as ``WaveletOperator.apply`` places it, for the scattering loop;
+* :meth:`TensorProdWaveletOperator.lowpass`, the last step of the low-pass filter φ⁽ᵃ⁾ of block
+  a (M-LP), realised as the plan of the block says (``lowpass_realization``,
+  ``lowpass_level``).
+
 The wavelet W_j of M-W1-TP is the product of the block convolutions, applied block after
-block in block order, block 0 first, as STL does; the scattering loop that composes them, the
-low-pass filter (M-LP) and the box term come with task T3.2. Tensor products have no missing
-values in 1.0.0 (LF8), so the blocks have no masks.
+block in block order, block 0 first, as STL does; the scattering loop of task T3.2 composes
+them (``estel.scattering._loop_tp``). A block has a low-pass filter when ``lowpass="ST"`` and
+its sizes are divisible by 2^J_a (M-LP, OP-34): its plan then goes down to level J_a, one
+downsampling more than its wavelets need. Tensor products have no missing values in 1.0.0
+(LF8), so the blocks have no masks.
 
 **Defaults** (M-DEF-TP): J_a = ⌊log₂ min N⁽ᵃ⁾⌋ - 2, the rule of planar data, shared with
 ``_operator.py``, and L_a = 4 for a 2D block, 2 for a 1D block. **Arguments** (OP-83,
@@ -108,6 +116,24 @@ class TensorProdWaveletPlan:
         """The spatial shape of the data at full resolution."""
         return tuple(n for b in self.blocks for n in b.spatial_shape)
 
+    @property
+    def lowpass_blocks(self) -> tuple[bool, ...]:
+        """Whether each block has a low-pass filter, its plan going down to its level
+        (maths.md M-LP)."""
+        return tuple(b.has_lowpass for b in self.blocks)
+
+    def block_crop(self, block: int, level: int, border: int) -> NDArray[np.float64]:
+        """The border crop of block a = ``block`` alone at its level ``level`` (maths.md
+        M-BORDER-TP): a NumPy float64 array of the shape of that block at that level, 0 on
+        ``border`` pixels at both ends of each of its axes, a border too large for the block
+        reduced as in M-BORDER, with a warning (OP-13). The crop of a map is the outer product
+        of those of its blocks; the scattering loop multiplies a map by them block by block.
+        NumPy only: called when a plan is built."""
+        plan = self.blocks[block]
+        return plan.geometry._crop_weights_along(
+            plan.spatial_shape, level, border, owner=f"DataTensorProd (block {block})"
+        )
+
     def level_shape(self, level: Level) -> tuple[int, ...]:
         """The spatial shape at the multi-index ``level``: each block at its own level."""
         self.check_level(level)
@@ -137,10 +163,18 @@ def build_tensor_prod_plan(
     wavelet: str = "bump_steerable",
     *,
     kernel_size: int = KERNEL_SIZE,
+    lowpass: str | None = None,
+    stacklevel: int = 1,
 ) -> TensorProdWaveletPlan:
     """The :class:`TensorProdWaveletPlan` of ``data``, with the J and L of each block; the values
     of ``data`` are not read. The defaults are those of M-DEF-TP; the arguments are validated
-    here, with the sizes of each block divisible by 2^(J_a - 1) (OP-8, OP-83)."""
+    here, with the sizes of each block divisible by 2^(J_a - 1) (OP-8, OP-83).
+
+    With ``lowpass="ST"``, each block whose sizes are divisible by 2^J_a has a low-pass filter,
+    and its plan goes down to level J_a (maths.md M-LP); each other block warns once, as STL
+    does, and has none (OP-34). With ``None`` (the default here), no block has one.
+    ``stacklevel`` places that warning, as for ``warnings.warn``, from the caller of this
+    function: 1 for that caller, 2 for its caller."""
     if not isinstance(data, DataTensorProd):
         raise TypeError(
             f"TensorProdWaveletOperator takes a DataTensorProd, got {type(data).__name__}; for "
@@ -162,9 +196,28 @@ def build_tensor_prod_plan(
         what = f"block {a} ({spec.geometry.__name__} of shape {shape})"
         n_scales = _check_scales(j_value, shape, f"J_{a}", f"J[{a}]", what, tensor_prod=True)
         n_orientations = _check_block_orientations(l_value, spec.geometry, what, a)
+        has_lowpass = lowpass == "ST" and all(n % 2**n_scales == 0 for n in shape)
+        if lowpass == "ST" and not has_lowpass:
+            warnings.warn(
+                f"block {a} ({spec.geometry.__name__} of shape {shape}) has no low-pass filter: "
+                f"its sizes are not all divisible by 2^J_{a} = {2**n_scales}, which the low-pass "
+                "filter needs, one downsampling more than its wavelets (maths.md M-LP, OP-34). "
+                f"Its S1 and S2 have the wavelet scales only; use a size divisible by "
+                f"{2**n_scales}, or J_{a} = {n_scales - 1}, to keep it.",
+                UserWarning,
+                stacklevel=stacklevel + 1,
+            )
         plans.append(
             _wavelet_plan(
-                spec.geometry, shape, spec.pbc, None, n_scales, n_orientations, wavelet, size
+                spec.geometry,
+                shape,
+                spec.pbc,
+                None,
+                n_scales,
+                n_orientations,
+                wavelet,
+                size,
+                lowpass=has_lowpass,
             )
         )
     axes = tuple(spec.axes for spec in specs)
@@ -246,6 +299,9 @@ class TensorProdWaveletOperator:
         a 1D block.
     wavelet:
         ``"bump_steerable"``, the only wavelets of 1.0.0.
+    lowpass:
+        ``"ST"``: the low-pass filter of each block whose sizes allow it (M-LP); ``None``, the
+        default here: none.
     """
 
     __slots__ = ("_data", "_filters", "_plan")
@@ -262,8 +318,11 @@ class TensorProdWaveletOperator:
         wavelet: str = "bump_steerable",
         *,
         kernel_size: int = KERNEL_SIZE,
+        lowpass: str | None = None,
     ) -> None:
-        plan = build_tensor_prod_plan(data, J, L, wavelet, kernel_size=kernel_size)
+        plan = build_tensor_prod_plan(
+            data, J, L, wavelet, kernel_size=kernel_size, lowpass=lowpass, stacklevel=2
+        )
         filters = build_tensor_prod_filters(plan, data.backend, default_dtype(), default_device())
         self._bind(data, plan, filters)
 
@@ -355,6 +414,23 @@ class TensorProdWaveletOperator:
         batch axis, as for planar data, and this method moves it in front of the spatial axes.
         Pure: nothing is modified, nothing depends on array values.
         """
+        lead, spatial = self._split(x, level, "apply")
+        out = self.convolve(x, j, block=block, level=level)  # (Nb, L_a, Nc, *O, *spatial)
+        xp = _registry.backend_named(self._data.backend).xp
+        # (Nb, L_a, Nc·O, *spatial) -> (Nb, Nc·O, L_a, *spatial) -> (Nb, Nc, *O, L_a, *spatial)
+        n_spatial = len(spatial)
+        out = xp.reshape(out, (lead[0], int(out.shape[1]), -1, *spatial))
+        out = xp.permute_dims(out, (0, 2, 1, *range(3, 3 + n_spatial)))
+        return xp.reshape(out, (*lead, self._plan.blocks[block].L, *spatial))
+
+    def convolve(self, x: Any, j: int, *, block: int, level: Level) -> Any:
+        """ψ⁽ᵃ⁾_{j} ⋆_a x as :meth:`apply`, with the orientation of this convolution right after
+        the batch axis, as ``WaveletOperator.apply`` places it: ``x`` is ``(Nb, *O, *spatial)``
+        at the multi-index ``level``, with any axes ``O``, and the result is
+        ``(Nb, L_a, *O, *spatial)``, without a transposition. The scattering loop of tensor
+        products (task T3.2) chains these block after block, so that the orientations of the
+        blocks come in reverse block order, ``(Nb, L_{B-1}, …, L₀, *O, *spatial)``; the loop
+        orders the means it takes. Pure."""
         plan, filters = self._plan, self._arrays("apply")
         a = self._block(block, "apply")
         block_plan = plan.blocks[a]
@@ -363,7 +439,7 @@ class TensorProdWaveletOperator:
                 f"apply(j={j!r}, block={a}): block {a} has the scales 0 … {block_plan.J - 1} "
                 f"(J_{a} = {block_plan.J})."
             )
-        lead, spatial = self._split(x, level, "apply")
+        lead, spatial = self._split(x, level, "apply", minimum=1)
         expected = block_plan.scale_levels[j]
         if level[a] != expected:
             raise ValueError(
@@ -375,10 +451,44 @@ class TensorProdWaveletOperator:
         xp = _registry.backend_named(self._data.backend).xp
         flat = xp.reshape(x, (lead[0], -1, *spatial))
         out = self._data._conv(flat, filters[a].kernels, level[a], block=a)
-        # (Nb, L_a, Nc·O, *spatial) -> (Nb, Nc·O, L_a, *spatial) -> (Nb, Nc, *O, L_a, *spatial)
-        n_spatial = len(spatial)
-        out = xp.permute_dims(out, (0, 2, 1, *range(3, 3 + n_spatial)))
-        return xp.reshape(out, (*lead, block_plan.L, *spatial))
+        return xp.reshape(out, (lead[0], block_plan.L, *lead[1:], *spatial))
+
+    def lowpass(self, x: Any, level: Level, *, block: int) -> Any:
+        """The last step of the low-pass filter φ⁽ᵃ⁾ of block a = ``block`` (maths.md M-LP), from
+        the multi-index ``level``, whose entry for block a is the level before
+        ``lowpass_level`` of that block, to the level with d_a = ``lowpass_level``.
+
+        Realised as the plan of the block says (``lowpass_realization``): in 1.0.0,
+        ``"smoothing_cascade"``, one smoothing step with its downsampling, so that φ⁽ᵃ⁾ is the
+        cascade of the smoothing kernels of J_a downsamplings, as in STL; computing it without
+        the final downsampling (LF6, M-LP2) changes the plan, not the loop. ``x`` is
+        ``(Nb, *O, *spatial)``, real or complex; the result has the spatial shape of the new
+        level. Pure."""
+        plan, filters = self._plan, self._arrays("lowpass")
+        a = self._block(block, "lowpass")
+        block_plan = plan.blocks[a]
+        if not block_plan.has_lowpass:
+            raise ValueError(
+                f"lowpass(block={a}): block {a} has no low-pass filter: lowpass=None, or its "
+                f"sizes are not divisible by 2^J_{a} = {2**block_plan.J} (maths.md M-LP, OP-34)."
+            )
+        before = block_plan.lowpass_level - 1
+        if level[a] != before:
+            raise ValueError(
+                f"lowpass(level={level}, block={a}): the last step of the low-pass filter of "
+                f"block {a} starts from its level {before}, the level of its last wavelet scale "
+                f"(maths.md M-LP); bring the map there with downsample(..., block={a}) first."
+            )
+        if block_plan.lowpass_realization != "smoothing_cascade":  # pragma: no cover (LF6)
+            raise NotImplementedError(
+                f"lowpass: the realisation {block_plan.lowpass_realization!r} comes with LF6."
+            )
+        lead, spatial = self._split(x, level, "lowpass", minimum=1)
+        xp = _registry.backend_named(self._data.backend).xp
+        flat = xp.reshape(x, (lead[0], -1, *spatial))
+        weights = DownsampleWeights(filters[a].smoothing)
+        out = self._data._downsample(flat, weights, level[a], block=a)
+        return xp.reshape(out, (*lead, *tuple(out.shape[2:])))
 
     def downsample(self, x: Any, level: Level, *, block: int) -> Any:
         """One downsampling step of ``x`` along block a = ``block``, from the multi-index
@@ -391,12 +501,15 @@ class TensorProdWaveletOperator:
         """
         plan, filters = self._plan, self._arrays("downsample")
         a = self._block(block, "downsample")
-        lead, spatial = self._split(x, level, "downsample")
+        lead, spatial = self._split(x, level, "downsample", minimum=1)
         block_plan = plan.blocks[a]
-        if level[a] not in block_plan.levels[:-1]:
+        steps = block_plan.wavelet_levels[:-1]
+        if level[a] not in steps:
+            last = f"{steps[0]} … {steps[-1]}" if steps else "none"
             raise ValueError(
                 f"downsample(level={level}, block={a}): block {a} is downsampled from its levels "
-                f"{block_plan.levels[0]} … {block_plan.levels[-1] - 1} (J_{a} = {block_plan.J})."
+                f"{last} (J_{a} = {block_plan.J}); the step to the level of its low-pass filter "
+                "is lowpass(..., block=a) (maths.md M-LP)."
             )
         xp = _registry.backend_named(self._data.backend).xp
         flat = xp.reshape(x, (lead[0], -1, *spatial))
@@ -423,14 +536,15 @@ class TensorProdWaveletOperator:
         return int(block)
 
     def _split(
-        self, x: Any, level: Level, function: str
+        self, x: Any, level: Level, function: str, minimum: int = 2
     ) -> tuple[tuple[int, ...], tuple[int, ...]]:
         """The leading and the spatial shape of ``x``, a map ``(Nb, Nc, *O, *spatial)`` at the
-        multi-index ``level``; shapes are static, so the check works in traced code."""
+        multi-index ``level`` (``(Nb, *O, *spatial)`` with ``minimum=1``); shapes are static, so
+        the check works in traced code."""
         expected = self._plan.level_shape(level)
         ndim = len(expected)
         shape = tuple(int(n) for n in x.shape)
-        if len(shape) < 2 + ndim or shape[-ndim:] != expected:
+        if len(shape) < minimum + ndim or shape[-ndim:] != expected:
             raise ValueError(
                 f"TensorProdWaveletOperator.{function}: the array has shape {shape}, but a map "
                 f"at level {level} is (Nb, Nc, ..., {', '.join(str(n) for n in expected)}). "

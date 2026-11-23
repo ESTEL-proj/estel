@@ -468,7 +468,7 @@ def test_hooks_need_a_block(backend: Backend, dtype: DType) -> None:
 
 def test_scattering_operators_of_planar_data_refuse_a_tensor_product() -> None:
     product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[True, True])
-    with pytest.raises(TypeError, match=r"STOperatorTensorProd, comes with task T3.2"):
+    with pytest.raises(TypeError, match=r"a tensor product is STOperatorTensorProd"):
         STOperator(product)
 
 

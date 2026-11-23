@@ -37,19 +37,20 @@ from ..backend._protocol import Backend
 from ..data._base import geometry_class
 from ..io import _schema
 from ..scattering._plan import (
-    STPlan,
+    PlanarPlan,
     TensorProdPlan,
     build_plan,
     build_tensor_prod_statistics_plan,
 )
 from . import _layout as compact
 from ._arrays import constant, dtype_name
-from ._grid import REAL_PART_ONLY, FamilyGrid, tensor_prod_auto_scales
+from ._grid import REAL_PART_ONLY, FamilyGrid, auto_scales, tensor_prod_auto_scales
 from ._layout import Chunked, Copy, FamilyChunks, Layout, Pack, Take, Unpack
 from ._normalization import (
     TensorProdBlocks,
     _NormReference,
     as_constant,
+    check_reference,
     check_tensor_prod_reference,
     normalize,
     self_reference,
@@ -114,7 +115,7 @@ class STStatistics:
     _backend: str
     _buffer: Any
     _layout: Layout
-    _plan: STPlan | TensorProdPlan
+    _plan: PlanarPlan | TensorProdPlan
     _reductions: _Reductions
     _reference: _NormReference | None
     _standardization: tuple[Any, Any] | None
@@ -130,7 +131,7 @@ class STStatistics:
         cls,
         buffer: Any,
         layout: Layout,
-        plan: STPlan | TensorProdPlan,
+        plan: PlanarPlan | TensorProdPlan,
         backend: str,
         *,
         reductions: _Reductions = _NO_REDUCTION,
@@ -521,7 +522,7 @@ class STStatistics:
             **{f"layout__{k}": v for k, v in layout_arrays.items()},
             "plan__cross_matrix": np.asarray(plan.cross_matrix),
         }
-        if isinstance(plan, STPlan) and plan.mask is not None:
+        if isinstance(plan, PlanarPlan) and plan.mask is not None:
             arrays = {**arrays, "plan__mask": np.asarray(plan.mask)}
         if self._reference is not None:
             ref = self._reference
@@ -959,7 +960,7 @@ def _tensor_prod_plan(spec: dict[str, Any], cross_matrix: NDArray[np.bool_]) -> 
 def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> STStatistics:
     spec = content["plan"]
     cls = geometry_class(spec["geometry"])
-    plan: STPlan | TensorProdPlan
+    plan: PlanarPlan | TensorProdPlan
     if "blocks" in spec:
         plan = _tensor_prod_plan(spec, arrays["plan__cross_matrix"].astype(bool))
     else:
@@ -1041,55 +1042,95 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
     )
 
 
-# ---------------------------------------------------------------------- tensor products
+# ---------------------------------------------------------------------- after the loop
 
 
-def tensor_prod_statistics(
+def check_reference_of(
+    reference: _NormReference, plan: PlanarPlan | TensorProdPlan, n_batch: int, dtype: Any
+) -> None:
+    """Raise unless ``reference`` can normalise the statistics of ``plan`` (M-NORM,
+    M-NORM-TP): one check for both geometries, made before the loop and again by
+    :func:`statistics_of`."""
+    if isinstance(plan, TensorProdPlan):
+        check_tensor_prod_reference(reference, plan, n_batch, dtype)
+    else:
+        check_reference(reference, plan, n_batch, dtype)
+
+
+def layout_of(plan: PlanarPlan | TensorProdPlan) -> Layout:
+    """The layout of the raw buffer of the loop of ``plan`` (``base_layout`` or
+    ``tensor_prod_layout``)."""
+    if isinstance(plan, TensorProdPlan):
+        return compact.tensor_prod_layout(plan)
+    return compact.base_layout(plan)
+
+
+def statistics_of(
     buffer: Any,
-    plan: TensorProdPlan,
+    plan: PlanarPlan | TensorProdPlan,
     reference: _NormReference | None = None,
     standardization: tuple[Any, Any] | None = None,
 ) -> STStatistics:
-    """The statistics of a tensor product from its raw buffer, ``(Nb, n_floats)`` in the layout
-    of ``_layout.tensor_prod_layout(plan)``, normalised as the plan says (maths.md M-NORM-TP;
-    task T3.6): what the loop of the operator (task T3.2) returns through. ``reference`` is the
-    reference of ``norm="ref"``, from statistics of a tensor product computed with
-    ``norm="self"``, checked against the plan; with ``norm="self"`` the reference is computed
-    from the buffer, and gradients flow through it."""
+    """The statistics of a raw buffer, ``(Nb, n_floats)`` in the layout of the loop of ``plan``,
+    normalised as the plan says (maths.md M-NORM, M-NORM-TP), from a buffer made outside the
+    loop: its arguments checked, the ``norm="ref"`` reference among them
+    (:func:`check_reference_of`), then :func:`finish`. ``estel.functional.scattering`` checks
+    the reference before its loop and calls :func:`finish` itself."""
     backend_name = _registry.backend_of(buffer)
     if backend_name is None:
-        raise TypeError("tensor_prod_statistics takes a buffer of a backend, not a NumPy array.")
-    backend = _registry.backend_named(backend_name)
-    layout = compact.tensor_prod_layout(plan)
+        raise TypeError("statistics_of takes a buffer of a backend, not a NumPy array.")
+    layout = layout_of(plan)
     if tuple(buffer.shape[1:]) != (layout.n_floats,):
         raise ValueError(
-            f"the buffer has shape {tuple(buffer.shape)}, and the layout of this tensor product "
+            f"the buffer has shape {tuple(buffer.shape)}, and the layout of these statistics "
             f"holds {layout.n_floats} floats per batch element."
         )
-    blocks = tensor_prod_blocks(plan)
-    n_orientations = int(np.prod(plan.L, dtype=np.int64))
-    if plan.norm == "self":
-        if reference is not None:
-            raise ValueError('norm="self" takes no reference (maths.md M-NORM).')
-        reference = self_reference(
-            backend,
-            buffer,
-            layout,
-            tensor_prod_auto_scales(plan),
-            n_orientations,
-            plan.ref_batch_mean,
-            blocks,
-        )
-    elif plan.norm == "ref":
+    if plan.norm == "ref":
         if reference is None:
             raise ValueError(
-                'norm="ref" needs a reference: pass statistics of a tensor product computed '
-                'with norm="self" (maths.md M-NORM).'
+                'norm="ref" needs a reference: pass ref=, statistics computed with '
+                'norm="self" (maths.md M-NORM).'
             )
-        check_tensor_prod_reference(reference, plan, int(buffer.shape[0]), buffer.dtype)
-        reference = as_constant(backend, reference)
+        check_reference_of(reference, plan, int(buffer.shape[0]), buffer.dtype)
     elif reference is not None:
-        raise ValueError('norm="none" takes no reference (maths.md M-NORM).')
+        raise ValueError(f'norm="{plan.norm}" takes no reference (maths.md M-NORM).')
+    return finish(buffer, plan, reference, standardization)
+
+
+def finish(
+    buffer: Any,
+    plan: PlanarPlan | TensorProdPlan,
+    reference: _NormReference | None,
+    standardization: tuple[Any, Any] | None,
+) -> STStatistics:
+    """The one path after the loop, for planar data and for tensor products (issue #23,
+    "Decisions of the maintainer for T3.2", point 4): the statistics of the raw buffer of the
+    loop of ``plan``, normalised as the plan says (M-NORM, M-NORM-TP). With ``norm="self"`` the
+    reference is computed from the buffer, and gradients flow through it; with ``norm="ref"``,
+    ``reference``, already checked against the plan (:func:`check_reference_of`), is made a
+    constant. Nothing is checked here: the caller has."""
+    backend_name = _registry.backend_of(buffer) or ""
+    backend = _registry.backend_named(backend_name)
+    layout = layout_of(plan)
+    if plan.norm == "self":
+        if isinstance(plan, TensorProdPlan):
+            reference = self_reference(
+                backend,
+                buffer,
+                layout,
+                tensor_prod_auto_scales(plan),
+                int(np.prod(plan.L, dtype=np.int64)),
+                plan.ref_batch_mean,
+                tensor_prod_blocks(plan),
+            )
+        else:
+            reference = self_reference(
+                backend, buffer, layout, auto_scales(plan), plan.L, plan.ref_batch_mean
+            )
+    elif plan.norm == "ref" and reference is not None:
+        reference = as_constant(backend, reference)
+    else:
+        reference = None
     if reference is not None:
         buffer, layout = normalize(backend, buffer, layout, reference)
     return STStatistics._create(

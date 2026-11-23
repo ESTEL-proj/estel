@@ -37,11 +37,22 @@ TINY = Case(
 )  # fmt: skip
 
 
-def test_cases_file_holds_the_four_cases() -> None:
+def test_cases_file_holds_the_five_cases() -> None:
     settings, cases = load_cases()
     assert (settings.dtype, settings.device) == ("float32", "cpu")
     assert (settings.warmup, settings.repeats) == (1, 5)
-    assert sorted(cases) == ["planar-cross", "planar-masked", "planar-open", "planar-periodic"]
+    assert sorted(cases) == [
+        "planar-cross",
+        "planar-masked",
+        "planar-open",
+        "planar-periodic",
+        "tensor-prod-2d1d",
+    ]
+    space_time = cases["tensor-prod-2d1d"]  # T3.2: ESTEL only, one J, L and pbc per block
+    assert space_time.tensor_prod
+    assert space_time.blocks == ("2D", "1D")
+    assert (space_time.shape, space_time.J, space_time.L) == ((32, 32, 16), (3, 2), (4, 2))
+    assert input_mask(space_time) is None
     masked = cases["planar-masked"]
     assert not masked.pbc
     assert len(set(masked.mask_holes)) >= 3  # a few holes of different sizes
@@ -112,6 +123,29 @@ def test_harness_measures_and_checks_a_tiny_case(
     first.write_text(json.dumps(run))
     assert first.name == "2026-11-17-machine.json"
     assert results_path(tmp_path, "2026-11-17", "machine").name == "2026-11-17-machine-2.json"
+
+
+def test_harness_measures_a_tiny_tensor_product(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A tensor-product case (task T3.2): ``[2D, 1D]``, 8 x 8 x 8, J = (1, 1), measured on
+    ESTEL only, its seeded inputs read back with their blocks."""
+    monkeypatch.setattr(_config, "_dtype", "float32")
+    case = Case(
+        name="tiny-tp", shape=(8, 8, 8), channels=1, J=(1, 1), L=(4, 2), pbc=(True, True),
+        seed=1, target_seed=2, blocks=("2D", "1D"),
+    )  # fmt: skip
+    path = tmp_path / "tiny-tp.npz"
+    digest = write_inputs(case, "float32", path)
+    inputs = read_inputs(path)
+    assert (inputs.case, inputs.digest) == (case, digest)
+    assert inputs.field.shape == (1, 1, 8, 8, 8)
+    measurements, arrays = measure("estel", inputs, warmup=1, repeats=1)
+    # Both measured; on a field this small their order is noise, so it is not compared.
+    assert measurements["forward_seconds"] > 0
+    assert measurements["gradient_seconds"] > 0
+    assert arrays["gradient"].shape == inputs.field.shape
+    assert arrays["S4"].shape[3:] == (1, 1, 1, 1, 1, 1, 4, 2, 4, 2, 4, 2)
 
 
 def test_main_is_exported_without_a_checkout(tmp_path: Path) -> None:

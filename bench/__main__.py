@@ -426,6 +426,33 @@ def _reference(work: Path, case: Case, digest: str) -> dict[str, NDArray[Any]]:
 # ---------------------------------------------------------------------- comparison of two commits
 
 
+ESTEL_ONLY = "ESTEL only: STL is not measured on tensor products here (Part II, §15.2, T3.2)"
+
+
+def _check_stl(
+    case: Case,
+    actual: dict[str, NDArray[Any]],
+    expected: dict[str, NDArray[Any]] | None,
+    dtype: str,
+) -> Any:
+    """:func:`check_against_stl`, or :data:`ESTEL_ONLY` for a tensor product."""
+    if expected is None:
+        return ESTEL_ONLY
+    return check_against_stl(case.name, actual, expected, dtype)
+
+
+def _expected(work: Path, case: Case, digest: str) -> dict[str, NDArray[Any]] | None:
+    """STL's results for ``case``, or ``None`` for a tensor product, measured on ESTEL only."""
+    return None if case.tensor_prod else _reference(work, case, digest)
+
+
+def _has_tensor_prod(source: Path) -> bool:
+    """Whether the ESTEL exported at ``source`` has ``STOperatorTensorProd`` (task T3.2): the
+    commits before it cannot run a tensor-product case."""
+    init = source / "estel" / "__init__.py"
+    return init.is_file() and "STOperatorTensorProd" in init.read_text()
+
+
 def _measure_of(run: dict[str, Any], measure: str) -> float:
     """The value of ``measure`` in a run: the median time of the forward pass or of the forward
     pass with the gradient, the memory of the computation (the peak minus the baseline), or
@@ -547,7 +574,13 @@ def run_comparison(args: argparse.Namespace) -> Path:
     runs: list[dict[str, Any]] = []
     for case in selected:
         digest = write_inputs(case, settings.dtype, work / f"{case.name}.npz")
-        expected = _reference(work, case, digest)
+        expected = _expected(work, case, digest)
+        if case.tensor_prod and not all(_has_tensor_prod(sides[k]["source"]) for k in "ab"):
+            raise BenchError(
+                f"case {case.name!r} is a tensor product, and {sides['a']['ref']} or "
+                f"{sides['b']['ref']} has no STOperatorTensorProd (task T3.2): compare commits "
+                "that have it, or leave the case out with --case."
+            )
         rounds: list[tuple[dict[str, Any], dict[str, Any]]] = []
         for index in range(args.rounds):
             found: dict[str, dict[str, Any]] = {}
@@ -560,7 +593,7 @@ def run_comparison(args: argparse.Namespace) -> Path:
                 )
                 run = {**_record(out, "native", described), "side": side, "round": index + 1}
                 arrays[side] = _load(out.with_suffix(".npz"))
-                run["check"] = check_against_stl(case.name, arrays[side], expected, settings.dtype)
+                run["check"] = _check_stl(case, arrays[side], expected, settings.dtype)
                 found[side] = run
             found["b"]["check_a"] = check_against_main(
                 case.name, arrays["b"], arrays["a"], settings.dtype
@@ -611,7 +644,8 @@ def run_comparison(args: argparse.Namespace) -> Path:
                 for key, value in calls.items() if value is not None
             ))  # fmt: skip
     print(
-        f"\nEvery run equals STL within the {settings.dtype} parity tolerances; B equals A "
+        f"\nEvery run of a planar case equals STL within the {settings.dtype} parity "
+        f"tolerances (tensor products: ESTEL only); B equals A "
         f"within them, and its gradient within {MAIN_GRADIENT_RTOL:g}. Largest differences of "
         "the last round, relative to the largest value of A:"
     )
@@ -659,20 +693,26 @@ def run_benchmark(args: argparse.Namespace) -> Path:
     for case in selected:
         inputs = work / f"{case.name}.npz"
         digest = write_inputs(case, settings.dtype, inputs)
-        if "container" in environments:
+        here = [e for e in environments if not (case.tensor_prod and e == "container")]
+        if "container" in here:
             print(f"== {case.name}: STL, container", flush=True)
             out = run_container(case, "stl", work, settings, args.container, args.image)
             runs.append({**_record(out, "container", described), "check": "the reference"})
-        expected = _reference(work, case, digest)
-        for environment in environments:
+        elif case.tensor_prod:
+            print(f"== {case.name}: {ESTEL_ONLY}", flush=True)
+        expected = _expected(work, case, digest)
+        for environment in here:
             of_main = None
-            if environment == "native" and main_source is not None:
+            with_main = main_source is not None and (
+                not case.tensor_prod or _has_tensor_prod(main_source)
+            )
+            if environment == "native" and with_main:
                 # main first, then the working tree, one after the other on the same inputs.
                 print(f"== {case.name}: ESTEL of {args.main}, native", flush=True)
                 out = run_native(case, work, args.backend, settings, main_source)
                 run = {**_record(out, environment, described), "tree": "main"}
                 of_main = _load(out.with_suffix(".npz"))
-                run["check"] = check_against_stl(case.name, of_main, expected, settings.dtype)
+                run["check"] = _check_stl(case, of_main, expected, settings.dtype)
                 runs.append(run)
             print(f"== {case.name}: ESTEL, {environment}", flush=True)
             if environment == "container":
@@ -681,11 +721,11 @@ def run_benchmark(args: argparse.Namespace) -> Path:
                 out = run_native(case, work, args.backend, settings)
             run = _record(out, environment, described)
             actual = _load(out.with_suffix(".npz"))
-            run["check"] = check_against_stl(case.name, actual, expected, settings.dtype)
+            run["check"] = _check_stl(case, actual, expected, settings.dtype)
             if of_main is not None:
                 run["check_main"] = check_against_main(case.name, actual, of_main, settings.dtype)
             runs.append(run)
-    if "container" in described:
+    if "container" in described and "container" in environments:
         described["container"].update(
             image=args.image,
             image_id=image_id,
@@ -715,7 +755,11 @@ def run_benchmark(args: argparse.Namespace) -> Path:
     path.write_text(json.dumps(document, indent=2) + "\n")
     print()
     print(format_table(runs))
-    print(f"\nEvery ESTEL run equals STL within the {settings.dtype} parity tolerances.")
+    checked = [case for case in selected if not case.tensor_prod]
+    if checked:
+        print(f"\nEvery ESTEL run equals STL within the {settings.dtype} parity tolerances.")
+    if len(checked) < len(selected):
+        print(f"Tensor products: {ESTEL_ONLY}.")
     compared = [run for run in runs if "check_main" in run]
     if compared and main_commit is not None:
         print(
