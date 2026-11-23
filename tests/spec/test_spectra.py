@@ -9,8 +9,10 @@ same shape, NaN at the same positions, values within the float64 tolerances of P
 (for ``mean``, atol = 0.1 x rtol x sqrt(max(var))). The fixtures hold STL's frequencies in
 cycles per pixel, the oracle's are in mode units: a frequency k is k / (2 N_max) there.
 
-The oracle's Bessel function J₀ is checked against ``torch.special.bessel_j0`` in float64 and
-against its power series evaluated exactly, with Python's ``decimal``.
+The oracle's Bessel function J₀ is checked against its power series summed exactly, with
+Python's ``decimal``, not against ``torch.special.bessel_j0``, which is off by up to 3.8e-7 in
+float64 (decision of the maintainer on #149); the borders that depend on it are compared with
+STL's in ``spectrum_2d``.
 
 Every test runs in the fast tier.
 
@@ -39,9 +41,14 @@ FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4", "PS")
 SPECTRUM_OPTIONS = ("J", "Jmin", "n_bins")
 BESSEL_TOLERANCE = 1e-12
 """The accuracy that maths §1.9 requires of J₀: an absolute error of at most 1e-12."""
-TORCH_BESSEL_ERROR = 4e-7
-"""The error of ``torch.special.bessel_j0`` in float64 (PyTorch 2.15.0), measured against the
-exact series: up to 3.8e-7 on [2.76, 14.37], at most 1.6e-12 elsewhere on [0, 256 π]."""
+BESSEL_ZEROS = (
+    2.404825557695773,
+    5.520078110286311,
+    8.653727912911013,
+    11.791534439014281,
+    14.930917708487787,
+)
+"""The first five zeros of J₀."""
 
 
 @cache
@@ -200,33 +207,15 @@ def _exact_j0(x: float) -> float:
         return float(total)
 
 
-@pytest.mark.parametrize("size", [16, 64, 512])
-def test_bessel_j0_equals_torch(size: int) -> None:
-    """The oracle's J₀ against ``torch.special.bessel_j0`` in float64, at the arguments the
-    borders of an image of ``size`` x ``size`` pixels need, π rho k / N_max for every radius rho and
-    radial frequency k up to N_max = size / 2, the range [0, π N_max] (maths §1.9). The tolerance
-    is torch's own error, ``TORCH_BESSEL_ERROR``; the 1e-12 of §1.9 is checked against the exact
-    series (``test_bessel_j0_equals_its_series``)."""
-    torch = pytest.importorskip("torch")
-    n_max = size // 2
-    grid = np.arange(n_max + 1, dtype=np.float64)
-    x = (math.pi * grid[:, None] * grid[None, :] / n_max).ravel()
-    expected = torch.special.bessel_j0(torch.from_numpy(x)).numpy()
-    np.testing.assert_allclose(spec.spec_bessel_j0(x), expected, rtol=0, atol=TORCH_BESSEL_ERROR)
-    outside = (x < 2.7) | (x > 14.4)  # where torch itself is accurate to 1e-12
-    np.testing.assert_allclose(
-        spec.spec_bessel_j0(x[outside]), expected[outside], rtol=0, atol=2 * BESSEL_TOLERANCE
-    )
-
-
 def test_bessel_j0_equals_its_series() -> None:
     """The oracle's J₀ against its power series summed exactly, to the 1e-12 of maths §1.9, on
-    [0, 256 π] (images up to 512 pixels): the small arguments, the zeros, and points spread over
-    the range."""
+    [0, 256 π] (images up to 512 pixels): the small arguments, the first zeros, the
+    neighbourhood of x = 5, and points spread over the range."""
     rng = np.random.default_rng(149)
     x = np.concatenate(
         [
-            [0.0, 1e-6, 0.5, 2.404825557695773, 5.0, 5.0001, 14.0, 30.0],
+            [0.0, 1e-6, 0.5, 4.99, 5.0, 5.0001, 5.01, 14.0, 30.0],
+            BESSEL_ZEROS,
             rng.uniform(0.0, 20.0, 12),
             rng.uniform(20.0, 256 * math.pi, 12),
             [256 * math.pi],
