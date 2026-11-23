@@ -43,7 +43,7 @@ _TO_REAL = {torch.complex64: torch.float32, torch.complex128: torch.float64}
 _KIND_RANK = {"b": 0, "u": 1, "i": 1, "f": 2, "c": 3}
 _PAD_MODES = ("circular", "replicate", "zeros")
 _CONV = {1: F.conv1d, 2: F.conv2d, 3: F.conv3d}
-_BATCH_AS_SPATIAL = {1}
+_BATCH_AS_SPATIAL = {1, 2}
 
 
 _NO_TORCH_PYTREE = (
