@@ -190,7 +190,7 @@ class STStatistics:
         statistics with ``to_vector``, or ``select`` a family and channels first.
         """
         grid = self._grid(family)
-        if self._plan._block_axes:
+        if self._plan.geometry._geometry == "tensor_prod":
             n_batch = int(self._buffer.shape[0])
             itemsize = int(np.dtype(dtype_name(self._buffer)).itemsize)
             size = compact.full_grid_bytes(self._layout, grid.name, n_batch, itemsize)
@@ -219,7 +219,7 @@ class STStatistics:
         """
         names = self._family_names(family)
         index = _expand_channel(index)
-        tensor_prod = self._plan._block_axes
+        tensor_prod = self._plan.geometry._geometry == "tensor_prod"
         if tensor_prod:
             others = sorted(a for a in index if a not in _TENSOR_PROD_SELECT)
             if others:
@@ -362,7 +362,7 @@ class STStatistics:
         Reduce once, with every reduction wanted: reduced statistics are not reduced again.
         The reductions are not defined on the statistics of a tensor product: they raise.
         """
-        if self._plan._block_axes:
+        if self._plan.geometry._geometry == "tensor_prod":
             raise ValueError(
                 "reduce(): the reductions iso, angular_fourier and scale_cosine are written for "
                 "one scale and one orientation axis per layer, and are not defined on the "

@@ -214,9 +214,9 @@ class STPlan:
     **Hooks** (Part I, §2.3; Part II, §12.6; issue #144). What depends on the geometry goes
     through a small, fixed set of internal hooks, declared here and implemented by each
     subclass, so that the operator, ``estel.functional.scattering`` and ``STStatistics`` make
-    one call where they would branch on the class of the plan: :attr:`_operator` and
-    :attr:`_block_axes`, two constants of the class; :meth:`_check_data`,
-    :meth:`_build_filters` and :meth:`_values`, for the computation; :meth:`_layout`,
+    one call where they would branch on the class of the plan: :attr:`_operator_name`, a
+    constant of the class; :meth:`_check_data`, :meth:`_build_filters` and :meth:`_values`,
+    for the computation; :meth:`_layout`,
     :meth:`_check_reference` and :meth:`_self_reference`, for the normalisation;
     :meth:`_content`, for the files. Each implementation calls the function of its geometry.
     """
@@ -224,13 +224,9 @@ class STPlan:
     __slots__ = ()
     _key: tuple[Any, ...]
 
-    _operator: ClassVar[str]
+    _operator_name: ClassVar[str]
     """The name of the operator of this geometry, for the messages: ``"STOperator"`` or
     ``"STOperatorTensorProd"``."""
-    _block_axes: ClassVar[bool]
-    """Whether the statistics have one scale and one orientation axis per block, those of a
-    tensor product (maths.md M-S-TP): ``select`` names their channels only (LF44), the
-    reductions are not defined on them (LF26), and their full grid has a size limit (LF65)."""
 
     def __hash__(self) -> int:
         return hash(self._key)
@@ -359,8 +355,7 @@ class PlanarPlan(_PlanFields, STPlan):
     """The :class:`STPlan` of 1D and 2D planar data (``STOperator.plan``), built by
     :func:`build_plan`; its fields are those of ``_PlanFields``."""
 
-    _operator: ClassVar[str] = "STOperator"
-    _block_axes: ClassVar[bool] = False
+    _operator_name: ClassVar[str] = "STOperator"
 
     def _check_data(self, data: Data, filters: STFilters) -> None:
         if not isinstance(filters, PlanarFilters):
@@ -559,6 +554,8 @@ class TensorProdPlan(STPlan):
     table the size of the full grid.
     """
 
+    _operator_name: ClassVar[str] = "STOperatorTensorProd"
+
     geometry: type[Data]
     """``DataTensorProd``."""
     wavelets: TensorProdWaveletPlan
@@ -619,9 +616,6 @@ class TensorProdPlan(STPlan):
         """The orientation shape of the chunks of S1 and S2 at the multi-index ``scale``
         (``statistics._grid.orientations_at``)."""
         return orientations_at(scale, self.J, self.L)
-
-    _operator: ClassVar[str] = "STOperatorTensorProd"
-    _block_axes: ClassVar[bool] = True
 
     def _check_data(self, data: Data, filters: STFilters) -> None:
         if not isinstance(filters, TensorProdFilters):

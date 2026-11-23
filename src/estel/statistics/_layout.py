@@ -48,15 +48,12 @@ from numpy.typing import NDArray
 
 from ..backend._protocol import Backend
 from ..io._schema import SCHEMA_VERSION
+from ..wavelets._tensor_prod import Level
 from ._arrays import constant, dtype_name
 from ._grid import FamilyGrid, base_grids, tensor_prod_grids
 
 if TYPE_CHECKING:
     from ..scattering._plan import PlanarPlan, TensorProdPlan
-
-Level = tuple[int, ...]
-"""The level of a segment: ``(d,)`` for 1D and 2D data, a multi-index in tensor products (T3.6);
-``()`` when the entries of a segment come from several levels (after ``scale_cosine``)."""
 
 
 @dataclass(frozen=True, eq=False)
@@ -67,7 +64,8 @@ class Segment:
     family: str
     """``"mean"``, ``"var"``, ``"S1"`` … ``"S4"``."""
     level: Level
-    """The output level of its entries (:data:`Level`)."""
+    """The output level of its entries: ``(d,)`` for 1D and 2D data, a multi-index in tensor
+    products (T3.6); ``()`` when they come from several levels (after ``scale_cosine``)."""
     index_names: tuple[str, ...]
     """The axes of the family's full grid: the columns of :attr:`chunks`, then the
     orientations."""

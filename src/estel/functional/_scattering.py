@@ -123,7 +123,7 @@ def check_data(
         raise ValueError(
             f"the data have {data.n_channels} channel(s), but the operator was built for "
             f"{plan.n_channels}: the number of channels is fixed at construction. Build a new "
-            f"{plan._operator} for these data."
+            f"{plan._operator_name} for these data."
         )
     dtype = filters._smoothing.dtype
     if data.array.dtype != dtype:

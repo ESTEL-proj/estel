@@ -25,7 +25,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 BoolMap = NDArray[np.bool_]
-FloatMap = NDArray[np.float64]
+RealMap = NDArray[np.float64]
 
 
 @dataclass(frozen=True, eq=False)
@@ -44,13 +44,13 @@ class MaskMaps:
     smooth_invalid: Mapping[int, BoolMap]
     """For ``d`` in 1 … max(scale_levels): the invalid pixels of the field downsampled to
     level ``d`` (layer 0 of M-MASK)."""
-    smooth_reweight: Mapping[int, FloatMap]
+    smooth_reweight: Mapping[int, RealMap]
     """For ``d`` in 1 … max(scale_levels): the reweighting 1 / (1 - f) of the last step down
     to level ``d`` of the field (M-DOWN-MASK), 0 at invalid pixels."""
     wav_invalid: Mapping[tuple[int, int], BoolMap]
     """For ``(d, j)``, ``d`` above the level of scale ``j``: the invalid pixels of first-layer
     data convolved at scale ``j``, then downsampled to level ``d``."""
-    wav_reweight: Mapping[tuple[int, int], FloatMap]
+    wav_reweight: Mapping[tuple[int, int], RealMap]
     """For ``(d, j)``, ``d`` above the level of scale ``j``: the reweighting of the last step
     down to level ``d`` of first-layer data convolved at scale ``j``, 0 at invalid pixels."""
     layer1: Mapping[int, BoolMap]
@@ -61,7 +61,7 @@ class MaskMaps:
     brought to the level of scale ``j3`` and convolved again at ``j3`` (layer 2 of M-MASK)."""
 
 
-def _pad(a: FloatMap, widths: Sequence[tuple[int, int]], pbc: bool) -> FloatMap:
+def _pad(a: RealMap, widths: Sequence[tuple[int, int]], pbc: bool) -> RealMap:
     """Pad every axis of ``a``: circular if ``pbc``, replicate otherwise (M-CONV-2D)."""
     if pbc:
         for (before, after), n in zip(widths, a.shape, strict=True):
@@ -74,7 +74,7 @@ def _pad(a: FloatMap, widths: Sequence[tuple[int, int]], pbc: bool) -> FloatMap:
     return np.pad(a, list(widths), mode="wrap" if pbc else "edge")
 
 
-def _correlate(a: FloatMap, kernel: FloatMap, stride: int) -> FloatMap:
+def _correlate(a: RealMap, kernel: RealMap, stride: int) -> RealMap:
     """Valid correlation of ``a`` with ``kernel`` on every axis, at ``stride`` (M-CONV-2D)."""
     windows = np.lib.stride_tricks.sliding_window_view(a, kernel.shape)
     windows = windows[tuple(slice(None, None, stride) for _ in range(a.ndim))]
@@ -82,7 +82,7 @@ def _correlate(a: FloatMap, kernel: FloatMap, stride: int) -> FloatMap:
     return np.tensordot(windows, kernel, axes=(axes, tuple(range(a.ndim))))
 
 
-def downsample_step(a: FloatMap, s: FloatMap, pbc: bool) -> FloatMap:
+def downsample_step(a: RealMap, s: RealMap, pbc: bool) -> RealMap:
     """One downsampling step (M-DOWN): pad by ``(K-1)//2`` before and ``K//2`` after each axis,
     correlate with ``s``, keep one pixel in two. ``s`` has one axis per axis of ``a``."""
     if s.ndim != a.ndim:
@@ -113,7 +113,7 @@ def propagate_mask_conv(mask: BoolMap, footprint: Sequence[int], pbc: bool) -> B
     return _correlate(_pad(mask.astype(np.float64), widths, pbc), box, stride=1) > 0.0
 
 
-def _threshold(fraction: FloatMap, threshold: float) -> tuple[BoolMap, FloatMap]:
+def _threshold(fraction: RealMap, threshold: float) -> tuple[BoolMap, RealMap]:
     """The invalid pixels (f > τ, as STL's ``f <= τ`` test fails) and the reweighting
     1 / (1 - f), 0 at invalid pixels (M-DOWN-MASK)."""
     invalid = ~(fraction <= threshold)
@@ -124,7 +124,7 @@ def _threshold(fraction: FloatMap, threshold: float) -> tuple[BoolMap, FloatMap]
 def build_mask_maps(
     mask: BoolMap,
     scale_levels: Sequence[int],
-    s: FloatMap,
+    s: RealMap,
     kernel_size: int,
     threshold: float,
     pbc: bool,
@@ -168,7 +168,7 @@ def build_mask_maps(
     }
 
     # First-layer data convolved at j, downsampled step by step to every coarser level.
-    wav: dict[tuple[int, int], tuple[BoolMap, FloatMap]] = {}
+    wav: dict[tuple[int, int], tuple[BoolMap, RealMap]] = {}
     for j, level in enumerate(scale_levels):
         chain = [layer1[j]]
         for d in range(level + 1, n_levels):

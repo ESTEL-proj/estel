@@ -65,7 +65,7 @@ from ._operator import (
 
 Level = tuple[int, ...]
 """A multi-index level d = (d₀, …, d_{B-1}): the field downsampled d_a times along block a
-(maths.md M-NOT-TP)."""
+(maths.md M-NOT-TP); ``(d,)`` for a single geometry (the segments of ``statistics._layout``)."""
 
 
 # ---------------------------------------------------------------------- defaults

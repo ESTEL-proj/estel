@@ -248,10 +248,10 @@ def build_tensor_prod_loop(
                 arms=arms,
                 arm_crops=tuple(arm_crops),
                 band_crops=tuple(band_crops),
-                s3_rows=_read_only(np.array(s3_rows, dtype=np.int64)),
-                s3_denominators=_read_only(np.array(s3_den, dtype=np.float64)),
-                s4_rows=_read_only(np.array(s4_rows, dtype=np.int64)),
-                s4_denominators=_read_only(np.array(s4_den, dtype=np.float64)),
+                s3_rows=_read_only(s3_rows, np.int64),
+                s3_denominators=_read_only(s3_den, np.float64),
+                s4_rows=_read_only(s4_rows, np.int64),
+                s4_denominators=_read_only(s4_den, np.float64),
             )
         )
     return TensorProdLoop(

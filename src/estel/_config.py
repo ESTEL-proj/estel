@@ -11,10 +11,11 @@ from __future__ import annotations
 from typing import Literal, TypeAlias
 
 from .backend import _registry
+from .backend._registry import default_device as default_device  # read when an operator is built
 
 FloatDType: TypeAlias = Literal["float32", "float64"]
 
-DTYPES: tuple[FloatDType, ...] = ("float32", "float64")
+DTYPES: frozenset[FloatDType] = frozenset({"float32", "float64"})
 DEFAULT_DTYPE: FloatDType = "float32"
 
 _dtype: FloatDType = DEFAULT_DTYPE
@@ -56,8 +57,3 @@ def set_default_device(device: str) -> None:
 def default_dtype() -> FloatDType:
     """The default floating dtype, read when an operator is built."""
     return _dtype
-
-
-def default_device() -> str:
-    """The default device, read when an operator is built (see :func:`set_default_device`)."""
-    return _registry.default_device()

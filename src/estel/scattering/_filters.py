@@ -64,8 +64,7 @@ class _FilterFields(NamedTuple):
     """The integer arrays of the static gather from the divided sums of the loop, in the order
     of ``statistics._layout.loop_sums``, to the compact buffer of the statistics: for each kind
     of chunk the loop computes complex and the buffer stores with real entries, the floats kept
-    (int32;
-    ``statistics._layout.loop_gather``; Part III, §19.3, §19.9; task T3.7)."""
+    (int32; ``statistics._layout.loop_gather``; Part III, §19.3, §19.9; task T3.7)."""
 
 
 class STFilters:
