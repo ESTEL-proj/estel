@@ -11,7 +11,7 @@ These rules apply to L1 and L2 from the first commit of step 1. From phase P1, E
 3. **No decisions on array values in traced code.** No `if x.isnan().any()`, `.item()`, `float(x)`, `print(x)`. NaN detection and estimator selection happen at construction; their masks and maps are static plan data.
 4. **Large constants are arguments**, not closures: kernels, masks and stencils are passed in `arrays`.
 5. **Explicit randomness.** Every random function takes a key or a seed (`make_key(seed)`).
-6. **Complex convolutions are two real convolutions**; kernels are stored as real pairs.
+6. **Complex convolutions are real convolutions**: real arithmetic, kernels stored as real pairs; the rule does not fix the number of calls.
 7. **float32 by default, float64 on request.** No hard-coded float64 constant, no silent dtype change; plan arrays are cast to the operator's dtype at construction; tests run in both dtypes.
 8. **Short Python loops.** JAX unrolls them. Loops run over scales and levels, never over coefficients. Before 1.0.0, a reorganisation of STL's loop is allowed only if every value stays within the parity tolerance and the benchmark shows its gain (Part I, §3.1, rule 8); one that changes values is step 2 work.
 9. **Data and statistics are pytrees** (arrays as leaves, metadata static).

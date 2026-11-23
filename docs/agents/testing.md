@@ -11,7 +11,7 @@ Summary of [Part I, §5 — Tests, reference values, tolerances](../transfer/par
 | Reference values | seeded inputs and stored outputs in `tests/reference/*.npz`, including normalisation references; every backend and dtype |
 | Invariances | time reversal, scaling, constant shift, batch/channel/block permutations, all-valid mask = no mask, single-block tensor product = plain geometry; rotations come with the joint design of the filters (Part III, §20.10) |
 | Differentiation | the table of [differentiation.md](differentiation.md), float64 |
-| Synthesis | step 1: the API only (runs, checkpoints, resumes) |
+| Synthesis | step 1: the API (runs, checkpoints, resumes), and one comparison with STL over the first iterations (T6.1, full tier) |
 | maths ↔ spec ↔ tests | every `M-` ID has a `_spec` function and a test, and vice versa (`tools/check_maths_ids.py`) |
 | API | manifest up to date, public vs internal, actionable error messages |
 | Reserved interfaces | each step-2 interface exercised through its trivial implementation |
