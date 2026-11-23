@@ -42,7 +42,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from ..scattering._plan import STPlan, TensorProdPlan
+from ..scattering._plan import PlanarPlan, TensorProdPlan
 
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
 """The families of ESTEL 1.0.0, in STL's order (``to_flatten``); PS joins them in T4.1."""
@@ -335,7 +335,7 @@ def _family(
     )
 
 
-def base_grids(plan: STPlan) -> tuple[FamilyGrid, ...]:
+def base_grids(plan: PlanarPlan) -> tuple[FamilyGrid, ...]:
     """The layout of the statistics without normalisation (maths.md M-MOM, M-S1 to M-S4,
     M-CHAN, OP-3): what the scattering loop computes, from the plan alone, by chunks. Real
     entries are mean, var, the auto S1 and S2, and the diagonal of S4 (c1 = c2, j1 = j2,
@@ -400,7 +400,7 @@ def base_grids(plan: STPlan) -> tuple[FamilyGrid, ...]:
     )
 
 
-def auto_scales(plan: STPlan) -> NDArray[np.bool_]:
+def auto_scales(plan: PlanarPlan) -> NDArray[np.bool_]:
     """``(Nc, J)``: where the auto S2 exists, so where the normalisation scale sigma_c(j, l) of
     M-NORM is defined: the channels with auto statistics, at the scales with valid pixels."""
     present = np.array(

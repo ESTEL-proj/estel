@@ -25,10 +25,10 @@ import numpy as np
 
 from ..backend import _registry
 from ..data._base import Data
-from ..scattering._filters import STFilters, TensorProdFilters
+from ..scattering._filters import PlanarFilters, STFilters, TensorProdFilters
 from ..scattering._loop import ScatteringValues, scattering_values
 from ..scattering._loop_tp import tensor_prod_values
-from ..scattering._plan import STPlan, TensorProdPlan
+from ..scattering._plan import PlanarPlan, STPlan, TensorProdPlan
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics, check_reference_of, statistics_of
 
@@ -41,7 +41,7 @@ def _loop(backend_name: str) -> Callable[..., ScatteringValues]:
     ``_loop.cache_clear()`` drops them, for a test that replaces a hook of the loop."""
     backend = _registry.backend_named(backend_name)
 
-    def loop(data: Data, plan: STPlan, filters: STFilters) -> ScatteringValues:
+    def loop(data: Data, plan: PlanarPlan, filters: PlanarFilters) -> ScatteringValues:
         return scattering_values(data, plan, filters)
 
     return backend.jit(loop, static_argnames=("plan",))
@@ -70,19 +70,34 @@ def scattering(
     ``plan`` and ``filters`` are those of an operator, ``op.plan`` and ``op.filters``; ``data`` has
     the geometry, spatial shape, ``pbc``, mask and number of channels the plan was built for
     (for a tensor product, its blocks, their sizes and their ``pbc``), and the backend and dtype
-    of the filters. The annotations name the planar plan and filters, as the manifest of the
-    public API records them (a wider annotation is reported as a major change by
-    ``tools/api_manifest.py``); the plan and filters of an ``STOperatorTensorProd`` are taken
-    the same way (task T3.2). The normalisation is the plan's: with ``"none"``
+    of the filters. ``STPlan`` and ``STFilters`` are the types of the plan and filters of
+    either operator: those of a tensor product are their subclasses (task T3.2). The
+    normalisation is the plan's: with ``"none"``
     and ``"self"`` pass no ``ref``; with ``"ref"``, ``ref`` is required: statistics
     computed with ``norm="self"``, whose reference normalises these (M-NORM). With
     ``"self"`` the reference is part of the computation and gradients flow through it;
     with ``"ref"`` it is a constant.
     """
-    return compute(data, plan, filters, reference_of(ref, plan))
+    found, _ = _parts(plan, filters)
+    return compute(data, plan, filters, reference_of(ref, found))
 
 
-def reference_of(ref: object, plan: STPlan | TensorProdPlan) -> _NormReference | None:
+def _parts(
+    plan: STPlan, filters: STFilters
+) -> tuple[PlanarPlan | TensorProdPlan, PlanarFilters | TensorProdFilters]:
+    """The plan and the filters as the subclasses of one geometry, or a clear error."""
+    if not (
+        isinstance(plan, PlanarPlan | TensorProdPlan)
+        and isinstance(filters, PlanarFilters | TensorProdFilters)
+    ):
+        raise TypeError(
+            f"expected the plan and the filters of an operator, op.plan and op.filters; got "
+            f"{type(plan).__name__} and {type(filters).__name__}."
+        )
+    return plan, filters
+
+
+def reference_of(ref: object, plan: PlanarPlan | TensorProdPlan) -> _NormReference | None:
     """The reference held by ``ref``, checked against the normalisation of ``plan``; its J,
     L and channels are checked against the plan by :func:`compute`, before the loop."""
     if ref is None:
@@ -110,7 +125,7 @@ def reference_of(ref: object, plan: STPlan | TensorProdPlan) -> _NormReference |
 
 
 def check_data(
-    data: object, plan: STPlan | TensorProdPlan, filters: STFilters | TensorProdFilters
+    data: object, plan: PlanarPlan | TensorProdPlan, filters: PlanarFilters | TensorProdFilters
 ) -> None:
     """Raise unless ``data`` is data the plan was built for, on the filters' backend and dtype."""
     if not isinstance(data, Data):
@@ -158,7 +173,7 @@ def _check_tensor_prod_data(data: Data, plan: TensorProdPlan) -> None:
         )
 
 
-def _check_planar_data(data: Data, plan: STPlan) -> None:
+def _check_planar_data(data: Data, plan: PlanarPlan) -> None:
     if data.mask is None or plan.mask is None:
         same_mask = data.mask is None and plan.mask is None
     else:
@@ -180,13 +195,15 @@ def _check_planar_data(data: Data, plan: STPlan) -> None:
 
 def compute(
     data: Data,
-    plan: STPlan | TensorProdPlan,
-    filters: STFilters | TensorProdFilters,
+    plan: STPlan,
+    filters: STFilters,
     reference: _NormReference | None,
 ) -> STStatistics:
-    """:func:`scattering` with the reference already extracted: the loop of the geometry,
-    then the one path after the loop (``statistics_of``). A ``norm="ref"`` reference is
-    checked before the loop, on planar data and on tensor products alike."""
+    """:func:`scattering` with the reference already extracted: the loop of the geometry of
+    the plan, a subclass of ``STPlan``, then the one path after the loop (``statistics_of``). A
+    ``norm="ref"`` reference is checked before the loop, on planar data and on tensor products
+    alike."""
+    plan, filters = _parts(plan, filters)
     check_data(data, plan, filters)
     if plan.norm == "ref":
         if reference is None:
@@ -204,7 +221,7 @@ def compute(
     return statistics_of(found.buffer, plan, reference, standardization)
 
 
-def _smoothing(filters: STFilters | TensorProdFilters) -> Any:
+def _smoothing(filters: PlanarFilters | TensorProdFilters) -> Any:
     """An array of the filters, for their backend and dtype: the smoothing kernel (of the
     first block of a tensor product)."""
     if isinstance(filters, TensorProdFilters):
@@ -212,5 +229,5 @@ def _smoothing(filters: STFilters | TensorProdFilters) -> Any:
     return filters.wavelets.smoothing
 
 
-def _dtype(filters: STFilters | TensorProdFilters) -> Any:
+def _dtype(filters: PlanarFilters | TensorProdFilters) -> Any:
     return _smoothing(filters).dtype

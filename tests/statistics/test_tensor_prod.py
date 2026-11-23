@@ -27,7 +27,7 @@ import estel
 from estel import Data1D, Data2D, DataTensorProd, STStatistics
 from estel._spec import tensor_prod as spec
 from estel.backend import _registry
-from estel.scattering._plan import TensorProdPlan, build_tensor_prod_statistics_plan
+from estel.scattering._plan import PlanarPlan, TensorProdPlan, build_tensor_prod_statistics_plan
 from estel.statistics import _grid, _layout, _normalization, _statistics
 from estel.statistics._arrays import constant
 from estel.statistics._statistics import statistics_of as tensor_prod_statistics
@@ -385,7 +385,7 @@ def test_reference_of_another_tensor_product_is_accepted() -> None:
     assert planar._reference is not None
     with pytest.raises(ValueError, match="planar"):
         tensor_prod_statistics(buffer, other, planar._reference)
-    assert isinstance(planar._plan, estel.STPlan)
+    assert isinstance(planar._plan, PlanarPlan)
     with pytest.raises(ValueError, match="tensor product"):
         _normalization.check_reference(reference, planar._plan, 2, reference.var.dtype)
 

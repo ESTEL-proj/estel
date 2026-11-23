@@ -37,7 +37,7 @@ from ..backend._protocol import Backend
 from ..data._base import geometry_class
 from ..io import _schema
 from ..scattering._plan import (
-    STPlan,
+    PlanarPlan,
     TensorProdPlan,
     build_plan,
     build_tensor_prod_statistics_plan,
@@ -115,7 +115,7 @@ class STStatistics:
     _backend: str
     _buffer: Any
     _layout: Layout
-    _plan: STPlan | TensorProdPlan
+    _plan: PlanarPlan | TensorProdPlan
     _reductions: _Reductions
     _reference: _NormReference | None
     _standardization: tuple[Any, Any] | None
@@ -131,7 +131,7 @@ class STStatistics:
         cls,
         buffer: Any,
         layout: Layout,
-        plan: STPlan | TensorProdPlan,
+        plan: PlanarPlan | TensorProdPlan,
         backend: str,
         *,
         reductions: _Reductions = _NO_REDUCTION,
@@ -522,7 +522,7 @@ class STStatistics:
             **{f"layout__{k}": v for k, v in layout_arrays.items()},
             "plan__cross_matrix": np.asarray(plan.cross_matrix),
         }
-        if isinstance(plan, STPlan) and plan.mask is not None:
+        if isinstance(plan, PlanarPlan) and plan.mask is not None:
             arrays = {**arrays, "plan__mask": np.asarray(plan.mask)}
         if self._reference is not None:
             ref = self._reference
@@ -960,7 +960,7 @@ def _tensor_prod_plan(spec: dict[str, Any], cross_matrix: NDArray[np.bool_]) -> 
 def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> STStatistics:
     spec = content["plan"]
     cls = geometry_class(spec["geometry"])
-    plan: STPlan | TensorProdPlan
+    plan: PlanarPlan | TensorProdPlan
     if "blocks" in spec:
         plan = _tensor_prod_plan(spec, arrays["plan__cross_matrix"].astype(bool))
     else:
@@ -1046,7 +1046,7 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
 
 
 def check_reference_of(
-    reference: _NormReference, plan: STPlan | TensorProdPlan, n_batch: int, dtype: Any
+    reference: _NormReference, plan: PlanarPlan | TensorProdPlan, n_batch: int, dtype: Any
 ) -> None:
     """Raise unless ``reference`` can normalise the statistics of ``plan`` (M-NORM,
     M-NORM-TP): one check for both geometries, made before the loop and again by
@@ -1057,7 +1057,7 @@ def check_reference_of(
         check_reference(reference, plan, n_batch, dtype)
 
 
-def layout_of(plan: STPlan | TensorProdPlan) -> Layout:
+def layout_of(plan: PlanarPlan | TensorProdPlan) -> Layout:
     """The layout of the raw buffer of the loop of ``plan`` (``base_layout`` or
     ``tensor_prod_layout``)."""
     if isinstance(plan, TensorProdPlan):
@@ -1067,7 +1067,7 @@ def layout_of(plan: STPlan | TensorProdPlan) -> Layout:
 
 def statistics_of(
     buffer: Any,
-    plan: STPlan | TensorProdPlan,
+    plan: PlanarPlan | TensorProdPlan,
     reference: _NormReference | None = None,
     standardization: tuple[Any, Any] | None = None,
 ) -> STStatistics:

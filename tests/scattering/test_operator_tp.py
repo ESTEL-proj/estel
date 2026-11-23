@@ -86,7 +86,7 @@ def test_functional_scattering_is_apply() -> None:
     data = _space_time((2, 2, 8, 8, 8))
     operator = STOperatorTensorProd(data, norm="self")
     stats = operator.apply(data)
-    found = estel.functional.scattering(data, operator.plan, operator.filters)  # type: ignore[arg-type]
+    found = estel.functional.scattering(data, operator.plan, operator.filters)
     np.testing.assert_array_equal(_numpy(found.to_vector()), _numpy(stats.to_vector()))
 
 

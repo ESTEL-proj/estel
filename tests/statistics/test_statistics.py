@@ -23,6 +23,7 @@ import estel
 from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
 from estel.backend._protocol import Backend, DType
 from estel.io import _schema
+from estel.scattering._plan import PlanarPlan
 from tests._backends import backend_name
 
 pytestmark = pytest.mark.maths("M-NORM", "M-RED-ISO", "M-RED-ANG", "M-RED-SCALE", "M-FLAT")
@@ -83,7 +84,7 @@ def test_layout_predicts_every_nan() -> None:
     matrix = np.array([[True, False, True], [False, False, True], [False, False, True]])
     for norm in ("none", "self"):
         stats = _operator(data, 4, norm=norm, cross_matrix=matrix).apply(data)
-        assert isinstance(stats._plan, estel.STPlan)
+        assert isinstance(stats._plan, PlanarPlan)
         assert stats._plan.empty_s3_pairs
         for reduced in (
             stats,

@@ -37,8 +37,8 @@ from ..functional._scattering import check_data, compute, reference_of
 from ..statistics._arrays import dtype_name
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
-from ._filters import STFilters, TensorProdFilters, build_filters, build_tensor_prod_filters
-from ._plan import STPlan, TensorProdPlan, build_plan, build_tensor_prod_statistics_plan
+from ._filters import PlanarFilters, TensorProdFilters, build_filters, build_tensor_prod_filters
+from ._plan import PlanarPlan, TensorProdPlan, build_plan, build_tensor_prod_statistics_plan
 from ._tensor_prod import tensor_prod_loop
 
 _WIDE = ("float64", "complex128")
@@ -82,8 +82,8 @@ class STOperator:
         1.0.0.
     """
 
-    _plan: STPlan
-    _filters: STFilters
+    _plan: PlanarPlan
+    _filters: PlanarFilters
     _backend: str
     _dtype: FloatDType
     _device: Any
@@ -132,7 +132,7 @@ class STOperator:
                 f"STOperator.from_statistics takes STStatistics, got {type(stats).__name__}."
             )
         plan = stats._plan
-        if not isinstance(plan, STPlan):
+        if not isinstance(plan, PlanarPlan):
             raise ValueError(
                 "STOperator.from_statistics: these are the statistics of a tensor product, which "
                 "STOperator does not compute: use STOperatorTensorProd.from_statistics(stats)."
@@ -145,7 +145,7 @@ class STOperator:
 
     def _setup(
         self,
-        plan: STPlan,
+        plan: PlanarPlan,
         backend: str,
         dtype: FloatDType,
         device: Any,
@@ -157,12 +157,12 @@ class STOperator:
     # ------------------------------------------------------------------ accessors
 
     @property
-    def plan(self) -> STPlan:
+    def plan(self) -> PlanarPlan:
         """The static plan of the transform, for ``estel.functional.scattering``."""
         return self._plan
 
     @property
-    def filters(self) -> STFilters:
+    def filters(self) -> PlanarFilters:
         """The filters and the arrays derived to apply them, for
         ``estel.functional.scattering``."""
         return self._filters
@@ -405,7 +405,7 @@ class STOperatorTensorProd:
 
 def _setup(
     operator: Any,
-    plan: STPlan | TensorProdPlan,
+    plan: PlanarPlan | TensorProdPlan,
     backend: str,
     dtype: FloatDType,
     device: Any,
@@ -468,7 +468,7 @@ def _as_numpy(matrix: Any) -> Any:
     return matrix if name is None else _registry.backend_named(name).to_numpy(matrix)
 
 
-def _warn_channels_without_auto(plan: STPlan | TensorProdPlan) -> None:
+def _warn_channels_without_auto(plan: PlanarPlan | TensorProdPlan) -> None:
     """STL's warning of ``norm="self"`` (maths.md M-CHAN, OP-30), given once, at construction."""
     missing = [c for c in range(plan.n_channels) if c not in plan.pairs.auto]
     if missing:

@@ -4,8 +4,10 @@
 # They judge the optimisations of step 1 (T2.12 to T2.15) before and after: changing a case makes
 # the earlier results of bench/results/ incomparable, so cases are added, not edited.
 #
-# Every case is 2D, one batch element, without power spectrum, norm="none", and measures the
-# forward pass, the forward pass with the gradient of a loss, and the peak resident memory.
+# Every case has one batch element, no power spectrum and norm="none", and measures the forward
+# pass, the forward pass with the gradient of a loss, and the peak resident memory. The planar
+# cases are 2D and measured against STL; a case with `blocks` is a tensor product, with one J, L
+# and pbc per block, measured on ESTEL only (task T3.2).
 
 [settings]
 dtype = "float32"   # the default of ESTEL; STL follows the dtype of its input
@@ -56,3 +58,18 @@ L = 4
 pbc = false
 seed = 3
 target_seed = 4
+
+[cases.tensor-prod-2d1d]
+# Added with task T3.2 (issue #23): 2D+1D, space and time, periodic, one channel, L = (4, 2), the
+# smallest size whose forward pass with the gradient takes at least 1 s on CPU with the code of
+# T3.2 (1.15 s on PyTorch, Apple M3, 4 threads). ESTEL only. Most of that time is the slow path
+# of `conv_axes` along a 1D block, the first trial of T3.5 (#128), which then replaces this case
+# by 64 x 64 x 32, J = (4, 3) (decision of the maintainer on #23, 23 November 2026).
+blocks = ["2D", "1D"]
+shape = [32, 32, 16]
+channels = 1
+J = [3, 2]
+L = [4, 2]
+pbc = [true, true]
+seed = 8
+target_seed = 9

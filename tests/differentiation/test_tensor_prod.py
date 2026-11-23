@@ -38,8 +38,8 @@ def _function(backend: Backend) -> tuple[Any, Any]:
     def function(array: Any) -> Any:
         return estel.functional.scattering(
             data.with_array(array),
-            operator.plan,  # type: ignore[arg-type]
-            operator.filters,  # type: ignore[arg-type]
+            operator.plan,
+            operator.filters,
         ).to_vector()
 
     return data.array, function

@@ -46,7 +46,7 @@ from ._layout import (
 )
 
 if TYPE_CHECKING:
-    from ..scattering._plan import STPlan, TensorProdPlan
+    from ..scattering._plan import PlanarPlan, TensorProdPlan
 
 
 class TensorProdBlocks(NamedTuple):
@@ -600,7 +600,7 @@ def _divide_tp(
     return apply(backend, buffer, tables.transform, scale, chunks)
 
 
-def check_reference(reference: _NormReference, plan: STPlan, n_batch: int, dtype: Any) -> None:
+def check_reference(reference: _NormReference, plan: PlanarPlan, n_batch: int, dtype: Any) -> None:
     """Raise unless ``reference`` can normalise the statistics of ``plan``, before they are
     computed (maths.md M-NORM).
 

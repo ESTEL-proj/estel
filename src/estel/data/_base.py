@@ -189,6 +189,11 @@ class Data:
         Data objects are never updated in place. ``new_array`` must be an array of the same
         backend with the shape of :attr:`shape`; it is used as it is, without a copy and
         without looking at its values, so this works inside traced and differentiated code.
+
+        For a ``DataTensorProd``, the new array must hold no NaN: tensor products have no
+        missing values in ESTEL 1.0.0 (LF8), and their constructor, which refuses a NaN, is the
+        only place where values are looked at; a NaN given here makes every statistic NaN
+        (maths.md OP-80).
         """
         _registry.check_backend(self._backend, new_array, owner=f"this {type(self).__name__}")
         if _registry.backend_of(new_array) is None:

@@ -17,6 +17,7 @@ power spectrum, `norm="none"`; the planar ones are 2D:
 | `planar-masked` | 512 × 512, one channel | 7, 4 | non-periodic | 10.1 %, five square holes of sides 112 to 24 |
 | `planar-cross` | 256 × 256, two channels with their cross terms | 6, 4 | periodic | none |
 | `planar-open` | 512 × 512, one channel | 7, 4 | non-periodic | none |
+| `tensor-prod-2d1d` | 2D+1D, 32 × 32 × 16, one channel (ESTEL only) | (3, 2), (4, 2) | periodic | none |
 
 **Tensor products** (task T3.2, issue #23). A case with `blocks` (for example
 `blocks = ["2D", "1D"]`, `shape = [N, N, T]`) is a tensor product, with one `J`, `L` and `pbc` per

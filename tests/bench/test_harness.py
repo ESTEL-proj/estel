@@ -37,11 +37,22 @@ TINY = Case(
 )  # fmt: skip
 
 
-def test_cases_file_holds_the_four_cases() -> None:
+def test_cases_file_holds_the_five_cases() -> None:
     settings, cases = load_cases()
     assert (settings.dtype, settings.device) == ("float32", "cpu")
     assert (settings.warmup, settings.repeats) == (1, 5)
-    assert sorted(cases) == ["planar-cross", "planar-masked", "planar-open", "planar-periodic"]
+    assert sorted(cases) == [
+        "planar-cross",
+        "planar-masked",
+        "planar-open",
+        "planar-periodic",
+        "tensor-prod-2d1d",
+    ]
+    space_time = cases["tensor-prod-2d1d"]  # T3.2: ESTEL only, one J, L and pbc per block
+    assert space_time.tensor_prod
+    assert space_time.blocks == ("2D", "1D")
+    assert (space_time.shape, space_time.J, space_time.L) == ((32, 32, 16), (3, 2), (4, 2))
+    assert input_mask(space_time) is None
     masked = cases["planar-masked"]
     assert not masked.pbc
     assert len(set(masked.mask_holes)) >= 3  # a few holes of different sizes

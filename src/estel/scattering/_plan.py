@@ -73,8 +73,10 @@ normalisation (``norm``, ``ref_batch_mean``; M-NORM) and the standardisation of 
 the data, the plan, the filters and an optional reference.
 
 **Public and opaque.** ``STPlan`` is public as a name only (Part II, §12.6): users get it
-from ``STOperator.plan`` and pass it to ``estel.functional.scattering``, and it has no public
-field. Its fields are those of the private base class ``_PlanFields``, read by ESTEL only.
+from an operator's ``plan`` and pass it to ``estel.functional.scattering``, and it has no public
+field. It is the base class of the plan of each geometry: :class:`PlanarPlan`, whose fields are
+those of the private base class ``_PlanFields``, and :class:`TensorProdPlan` (task T3.2), both
+read by ESTEL only.
 
 A mean with no pixel left is where STL divides by zero, and its coefficient is NaN (M-MEAN,
 OP-3). The plan knows these means statically: it leaves them out of ``first_layer``, ``s3``
@@ -176,6 +178,31 @@ class SecondLayerWindows:
     operand of S3; ``None`` when :attr:`windows` is empty or j3 has no S3."""
 
 
+class STPlan:
+    """The static description of a scattering transform: an opaque object (Part II, §12.6).
+
+    Get it from ``STOperator.plan`` or ``STOperatorTensorProd.plan`` and pass it, with the
+    operator's filters, to ``estel.functional.scattering``. It is immutable and hashable, so
+    that JAX can take it as a static argument; it has no public field. The plan of each
+    geometry is a subclass, internal to ESTEL: :class:`PlanarPlan` for 1D and 2D data,
+    :class:`TensorProdPlan` for tensor products (task T3.2). Two plans are equal, and hash
+    equal, when they are of one class and were built from the same parameters and the same
+    static metadata of the data (geometry, spatial shape, ``pbc``, mask, number of channels;
+    for a tensor product, its blocks), so that they hold the same values.
+    """
+
+    __slots__ = ()
+    _key: tuple[Any, ...]
+
+    def __hash__(self) -> int:
+        return hash(self._key)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, STPlan):
+            return NotImplemented
+        return type(self) is type(other) and self._key == other._key
+
+
 @dataclass(frozen=True, eq=False)
 class _PlanFields:
     """The fields of :class:`STPlan`, internal to ESTEL (the plan is public and
@@ -252,23 +279,9 @@ class _PlanFields:
     _key: tuple[Any, ...] = field(repr=False)
 
 
-class STPlan(_PlanFields):
-    """The static description of a scattering transform: an opaque object (Part II, §12.6).
-
-    Get it from ``STOperator.plan`` and pass it, with ``STOperator.filters``, to
-    ``estel.functional.scattering``. It is immutable and hashable, so that JAX can take it as a
-    static argument; it has no public field. Two plans are equal, and hash equal, when they
-    were built from the same parameters and the same static metadata of the data (geometry,
-    spatial shape, ``pbc``, mask, number of channels), so that they hold the same values.
-    """
-
-    def __hash__(self) -> int:
-        return hash(self._key)
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, STPlan):
-            return NotImplemented
-        return self._key == other._key
+class PlanarPlan(_PlanFields, STPlan):
+    """The :class:`STPlan` of 1D and 2D planar data (``STOperator.plan``), built by
+    :func:`build_plan`; its fields are those of ``_PlanFields``."""
 
 
 def build_plan(
@@ -281,8 +294,8 @@ def build_plan(
     norm: str = "none",
     ref_batch_mean: bool = False,
     standardize: bool = False,
-) -> STPlan:
-    """The ``STPlan`` of a scattering transform with ``J`` scales and ``L``
+) -> PlanarPlan:
+    """The :class:`PlanarPlan` of a scattering transform with ``J`` scales and ``L``
     orientations on data with the geometry, spatial shape, ``pbc``, mask and number of channels
     of ``data``; by default J and L are those of the geometry (M-DEF, M-DEF-1D) and the kernel
     size that of the wavelets.
@@ -337,7 +350,7 @@ def build_plan(
     s3 = {(j2, j3): weights[("S3", j2, j3)] for j2, j3 in s3_pairs if ("S3", j2, j3) in weights}
     s4 = {t: weights[("S4", *t)] for t in s4_triples if ("S4", *t) in weights}
 
-    return STPlan(
+    return PlanarPlan(
         geometry=wavelets.geometry,
         J=wavelets.J,
         L=wavelets.L,
@@ -389,7 +402,7 @@ spectrum, so STL's ``"PS"`` and ``("ST", "PS")`` are not taken."""
 
 
 @dataclass(frozen=True, eq=False)
-class TensorProdPlan:
+class TensorProdPlan(STPlan):
     """The static description of the statistics of a tensor product (maths.md M-NOT-TP, M-LP,
     M-IDX-TP, M-CHAN; Part II, §12.6; task T3.6): what the compact layout, the normalisation and
     the files need; the loop of task T3.2 reads it with ``_tensor_prod.tensor_prod_loop``.
@@ -442,14 +455,6 @@ class TensorProdPlan:
     s4: tuple[tuple[tuple[int, int, int], ...], ...]
     """For each block, its triples ``(j1, j2, j3)`` of S4, j1 ≤ j2 ≤ j3 < J_a (M-IDX-TP)."""
     _key: tuple[Any, ...] = field(repr=False)
-
-    def __hash__(self) -> int:
-        return hash(self._key)
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, TensorProdPlan):
-            return NotImplemented
-        return self._key == other._key
 
     @property
     def n_blocks(self) -> int:
@@ -570,7 +575,7 @@ class LoopSum(NamedTuple):
     """Whether the loop computes it complex: the cross S1 and S2, S3 and S4."""
 
 
-def loop_sums(plan: STPlan) -> tuple[LoopSum, ...]:
+def loop_sums(plan: PlanarPlan) -> tuple[LoopSum, ...]:
     """The sums of the scattering loop, in the order the loop takes them (``_loop.py``): mean
     and var, then for each level and each scale j3 computed there, S1 (auto channels, then
     cross pairs) and S2 alike, then for each scale j2 of the second layer, S3 at (j2, j3) and

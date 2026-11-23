@@ -48,7 +48,7 @@ from numpy.typing import NDArray
 
 from ..backend._protocol import Backend
 from ..io._schema import SCHEMA_VERSION
-from ..scattering._plan import STPlan, TensorProdPlan, loop_sums
+from ..scattering._plan import PlanarPlan, TensorProdPlan, loop_sums
 from ._arrays import constant, dtype_name
 from ._grid import FamilyGrid, base_grids, tensor_prod_grids
 
@@ -444,7 +444,7 @@ def build_layout(
 
 
 @functools.lru_cache(maxsize=64)
-def base_layout(plan: STPlan) -> Layout:
+def base_layout(plan: PlanarPlan) -> Layout:
     """The layout of the statistics the scattering loop computes, from the plan alone
     (``_grid.base_grids``): every chunk is at the level of the scale of its last convolution
     (the level of j, or of j3)."""
@@ -503,7 +503,7 @@ class LoopGather(NamedTuple):
     """The number of sums the loop produces."""
 
 
-def _carried_shape(plan: STPlan, family: str) -> tuple[int, ...]:
+def _carried_shape(plan: PlanarPlan, family: str) -> tuple[int, ...]:
     """The axes a sum of the loop carries after the batch axis (``loop_sums``)."""
     if family in ("mean", "var"):
         return (plan.n_channels,)
@@ -511,7 +511,7 @@ def _carried_shape(plan: STPlan, family: str) -> tuple[int, ...]:
 
 
 @functools.lru_cache(maxsize=64)
-def loop_gather(plan: STPlan) -> LoopGather:
+def loop_gather(plan: PlanarPlan) -> LoopGather:
     """The :class:`LoopGather` of ``plan``.
 
     The loop divides its sums level by level, each as real floats: a complex sum as (re, im)
