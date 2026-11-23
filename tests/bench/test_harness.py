@@ -46,12 +46,12 @@ def test_cases_file_holds_the_five_cases() -> None:
         "planar-masked",
         "planar-open",
         "planar-periodic",
-        "tensor-prod-2d1d",
+        "tensor-prod-2d1d-64",
     ]
-    space_time = cases["tensor-prod-2d1d"]  # T3.2: ESTEL only, one J, L and pbc per block
+    space_time = cases["tensor-prod-2d1d-64"]  # T3.5: ESTEL only, one J, L and pbc per block
     assert space_time.tensor_prod
     assert space_time.blocks == ("2D", "1D")
-    assert (space_time.shape, space_time.J, space_time.L) == ((32, 32, 16), (3, 2), (4, 2))
+    assert (space_time.shape, space_time.J, space_time.L) == ((64, 64, 32), (4, 3), (4, 2))
     assert input_mask(space_time) is None
     masked = cases["planar-masked"]
     assert not masked.pbc
