@@ -1,0 +1,573 @@
+{
+  "schema": 3,
+  "date": "2026-11-23",
+  "machine": "apple-m3",
+  "comparison": {
+    "a": {
+      "ref": "c00f77d",
+      "commit": "c00f77d91d3949026311e200bd36875979b8287d"
+    },
+    "b": {
+      "ref": "c00f77d",
+      "commit": "c00f77d91d3949026311e200bd36875979b8287d"
+    },
+    "rounds": 5,
+    "ratios": {
+      "tensor-prod-2d1d": {
+        "forward": {
+          "ratios": [
+            0.990891745379406,
+            0.9791157657934172,
+            0.9957687415064899,
+            0.9929107981009879,
+            0.9915979662141798
+          ],
+          "median": 0.9915979662141798,
+          "min": 0.9791157657934172,
+          "max": 0.9957687415064899
+        },
+        "gradient": {
+          "ratios": [
+            0.9990379241962781,
+            0.9897245394575659,
+            0.9972139935023554,
+            0.997790949993788,
+            0.9939878986129488
+          ],
+          "median": 0.9972139935023554,
+          "min": 0.9897245394575659,
+          "max": 0.9990379241962781
+        },
+        "memory": {
+          "ratios": [
+            1.0036787891528274,
+            0.999404156881988,
+            1.004379050621825,
+            1.0009820082067828,
+            0.9996845094121358
+          ],
+          "median": 1.0009820082067828,
+          "min": 0.999404156881988,
+          "max": 1.004379050621825
+        },
+        "peak": {
+          "ratios": [
+            1.0020984081041968,
+            0.999589649512407,
+            1.0029681467181468,
+            1.0005311828476229,
+            0.9995896693217475
+          ],
+          "median": 1.0005311828476229,
+          "min": 0.999589649512407,
+          "max": 1.0029681467181468
+        }
+      }
+    },
+    "first_calls": {
+      "tensor-prod-2d1d": {
+        "a_first_apply_seconds": 0.6713418331928551,
+        "a_forward_first_seconds": 0.6629305421374738,
+        "a_forward_seconds": 0.6571008749306202,
+        "a_gradient_first_seconds": 1.5808291668072343,
+        "a_gradient_seconds": 1.1584764174185693,
+        "b_first_apply_seconds": 0.6651510000228882,
+        "b_forward_first_seconds": 0.6504711671732366,
+        "b_forward_seconds": 0.6473318748176098,
+        "b_gradient_first_seconds": 1.569727832917124,
+        "b_gradient_seconds": 1.149686582852155
+      }
+    },
+    "verdict": {
+      "below_1_in_every_round": [
+        "tensor-prod-2d1d: forward",
+        "tensor-prod-2d1d: gradient"
+      ],
+      "above_1.05_in_a_round": []
+    }
+  },
+  "backend": "torch",
+  "settings": {
+    "dtype": "float32",
+    "device": "cpu",
+    "threads": 4,
+    "warmup": 1,
+    "repeats": 5
+  },
+  "cases": {
+    "tensor-prod-2d1d": {
+      "name": "tensor-prod-2d1d",
+      "shape": [
+        32,
+        32,
+        16
+      ],
+      "channels": 1,
+      "J": [
+        3,
+        2
+      ],
+      "L": [
+        4,
+        2
+      ],
+      "pbc": [
+        true,
+        true
+      ],
+      "seed": 8,
+      "target_seed": 9,
+      "mask_seed": null,
+      "mask_holes": [],
+      "blocks": [
+        "2D",
+        "1D"
+      ]
+    }
+  },
+  "environments": {
+    "native": {
+      "cpu": "Apple M3",
+      "architecture": "arm64",
+      "cores": 8,
+      "memory_bytes": 25769803776,
+      "os": "macOS-26.6.2-arm64-arm-64bit",
+      "python": "3.11.18",
+      "power": {
+        "source": "AC Power",
+        "low_power_mode": false
+      },
+      "versions": {
+        "numpy": "2.4.6",
+        "torch": "2.15.0"
+      }
+    }
+  },
+  "runs": [
+    {
+      "case": "tensor-prod-2d1d",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "cc51ed8df44cfbc4b0a0b56c42f192ef723aef67c015943882e1ab26d98f2f58",
+      "forward_seconds": 0.6571008749306202,
+      "forward_runs": [
+        0.6577045833691955,
+        0.6535704582929611,
+        0.6571008749306202,
+        0.6574168340303004,
+        0.655192875303328
+      ],
+      "forward_first_seconds": 0.6620084582827985,
+      "first_apply_seconds": 0.6708963746204972,
+      "gradient_seconds": 1.1584764174185693,
+      "gradient_runs": [
+        1.1764014577493072,
+        1.175641749985516,
+        1.1584764174185693,
+        1.1584240002557635,
+        1.1565751247107983
+      ],
+      "gradient_first_seconds": 1.573821249883622,
+      "peak_rss_bytes": 679280640,
+      "baseline_rss_bytes": 211648512,
+      "coefficients": 43396,
+      "loss": 0.0007391379913315177,
+      "side": "a",
+      "round": 1,
+      "check": "ESTEL only: STL is not measured on tensor products here (Part II, \u00a715.2, T3.2)"
+    },
+    {
+      "case": "tensor-prod-2d1d",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "cc51ed8df44cfbc4b0a0b56c42f192ef723aef67c015943882e1ab26d98f2f58",
+      "forward_seconds": 0.651115832850337,
+      "forward_runs": [
+        0.649986291769892,
+        0.6587011660449207,
+        0.651115832850337,
+        0.6660692086443305,
+        0.6498071253299713
+      ],
+      "forward_first_seconds": 0.6504711671732366,
+      "first_apply_seconds": 0.6607272503897548,
+      "gradient_seconds": 1.1573618752881885,
+      "gradient_runs": [
+        1.1583994580432773,
+        1.1501554171554744,
+        1.1535861250013113,
+        1.1654242919757962,
+        1.1573618752881885
+      ],
+      "gradient_first_seconds": 1.569727832917124,
+      "peak_rss_bytes": 680706048,
+      "baseline_rss_bytes": 211353600,
+      "coefficients": 43396,
+      "loss": 0.0007391379913315177,
+      "side": "b",
+      "round": 1,
+      "check": "ESTEL only: STL is not measured on tensor products here (Part II, \u00a715.2, T3.2)",
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "tensor-prod-2d1d",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "cc51ed8df44cfbc4b0a0b56c42f192ef723aef67c015943882e1ab26d98f2f58",
+      "forward_seconds": 0.6611007498577237,
+      "forward_runs": [
+        0.6727157910354435,
+        0.661343582905829,
+        0.6577805420383811,
+        0.6600337917916477,
+        0.6611007498577237
+      ],
+      "forward_first_seconds": 0.6757761668413877,
+      "first_apply_seconds": 0.6810699161142111,
+      "gradient_seconds": 1.1616227920167148,
+      "gradient_runs": [
+        1.1618881248869002,
+        1.1597789591178298,
+        1.157996665686369,
+        1.1616227920167148,
+        1.1634412086568773
+      ],
+      "gradient_first_seconds": 1.581003749743104,
+      "peak_rss_bytes": 678756352,
+      "baseline_rss_bytes": 211304448,
+      "coefficients": 43396,
+      "loss": 0.0007391379913315177,
+      "side": "a",
+      "round": 2,
+      "check": "ESTEL only: STL is not measured on tensor products here (Part II, \u00a715.2, T3.2)"
+    },
+    {
+      "case": "tensor-prod-2d1d",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "cc51ed8df44cfbc4b0a0b56c42f192ef723aef67c015943882e1ab26d98f2f58",
+      "forward_seconds": 0.6472941669635475,
+      "forward_runs": [
+        0.6455243327654898,
+        0.6472941669635475,
+        0.6475501246750355,
+        0.6448171250522137,
+        0.7139619584195316
+      ],
+      "forward_first_seconds": 0.6449816250242293,
+      "first_apply_seconds": 0.6651510000228882,
+      "gradient_seconds": 1.149686582852155,
+      "gradient_runs": [
+        1.1414635828696191,
+        1.1620480827987194,
+        1.1513152923434973,
+        1.1450485000386834,
+        1.149686582852155
+      ],
+      "gradient_first_seconds": 1.597780582960695,
+      "peak_rss_bytes": 678477824,
+      "baseline_rss_bytes": 211304448,
+      "coefficients": 43396,
+      "loss": 0.0007391379913315177,
+      "side": "b",
+      "round": 2,
+      "check": "ESTEL only: STL is not measured on tensor products here (Part II, \u00a715.2, T3.2)",
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "tensor-prod-2d1d",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "cc51ed8df44cfbc4b0a0b56c42f192ef723aef67c015943882e1ab26d98f2f58",
+      "forward_seconds": 0.6500825420953333,
+      "forward_runs": [
+        0.6500825420953333,
+        0.6545046670362353,
+        0.6613573329523206,
+        0.6498106252402067,
+        0.6492643337696791
+      ],
+      "forward_first_seconds": 0.6629305421374738,
+      "first_apply_seconds": 0.6680869166739285,
+      "gradient_seconds": 1.150915791746229,
+      "gradient_runs": [
+        1.1695846249349415,
+        1.1487579173408449,
+        1.150915791746229,
+        1.1508717918768525,
+        1.157447749748826
+      ],
+      "gradient_first_seconds": 1.560301374644041,
+      "peak_rss_bytes": 678952960,
+      "baseline_rss_bytes": 211271680,
+      "coefficients": 43396,
+      "loss": 0.0007391379913315177,
+      "side": "a",
+      "round": 3,
+      "check": "ESTEL only: STL is not measured on tensor products here (Part II, \u00a715.2, T3.2)"
+    },
+    {
+      "case": "tensor-prod-2d1d",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "cc51ed8df44cfbc4b0a0b56c42f192ef723aef67c015943882e1ab26d98f2f58",
+      "forward_seconds": 0.6473318748176098,
+      "forward_runs": [
+        0.6472324579954147,
+        0.6473318748176098,
+        0.6455837092362344,
+        0.6600197907537222,
+        0.6484248749911785
+      ],
+      "forward_first_seconds": 0.6577835828065872,
+      "first_apply_seconds": 0.6680347085930407,
+      "gradient_seconds": 1.1477093328721821,
+      "gradient_runs": [
+        1.1487454161979258,
+        1.1569352499209344,
+        1.1458624168299139,
+        1.14306370774284,
+        1.1477093328721821
+      ],
+      "gradient_first_seconds": 1.563601499889046,
+      "peak_rss_bytes": 680968192,
+      "baseline_rss_bytes": 211238912,
+      "coefficients": 43396,
+      "loss": 0.0007391379913315177,
+      "side": "b",
+      "round": 3,
+      "check": "ESTEL only: STL is not measured on tensor products here (Part II, \u00a715.2, T3.2)",
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "tensor-prod-2d1d",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "cc51ed8df44cfbc4b0a0b56c42f192ef723aef67c015943882e1ab26d98f2f58",
+      "forward_seconds": 0.6627744580619037,
+      "forward_runs": [
+        0.6681445417925715,
+        0.6627744580619037,
+        0.6722267908044159,
+        0.6592697910964489,
+        0.6613994166254997
+      ],
+      "forward_first_seconds": 0.6669192919507623,
+      "first_apply_seconds": 0.6771398331038654,
+      "gradient_seconds": 1.160359499976039,
+      "gradient_runs": [
+        1.160359499976039,
+        1.1621444998309016,
+        1.1608653753064573,
+        1.159260124899447,
+        1.1589707918465137
+      ],
+      "gradient_first_seconds": 1.5831628749147058,
+      "peak_rss_bytes": 678576128,
+      "baseline_rss_bytes": 211419136,
+      "coefficients": 43396,
+      "loss": 0.0007391379913315177,
+      "side": "a",
+      "round": 4,
+      "check": "ESTEL only: STL is not measured on tensor products here (Part II, \u00a715.2, T3.2)"
+    },
+    {
+      "case": "tensor-prod-2d1d",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "cc51ed8df44cfbc4b0a0b56c42f192ef723aef67c015943882e1ab26d98f2f58",
+      "forward_seconds": 0.6580759161151946,
+      "forward_runs": [
+        0.6616880837827921,
+        0.658654916100204,
+        0.6551525420509279,
+        0.6546409577131271,
+        0.6580759161151946
+      ],
+      "forward_first_seconds": 0.6563082919456065,
+      "first_apply_seconds": 0.7244100826792419,
+      "gradient_seconds": 1.1577962078154087,
+      "gradient_runs": [
+        1.1556105827912688,
+        1.1577962078154087,
+        1.157393875066191,
+        1.1597025827504694,
+        1.1591264167800546
+      ],
+      "gradient_first_seconds": 1.5823097079992294,
+      "peak_rss_bytes": 678936576,
+      "baseline_rss_bytes": 211320832,
+      "coefficients": 43396,
+      "loss": 0.0007391379913315177,
+      "side": "b",
+      "round": 4,
+      "check": "ESTEL only: STL is not measured on tensor products here (Part II, \u00a715.2, T3.2)",
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "tensor-prod-2d1d",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "cc51ed8df44cfbc4b0a0b56c42f192ef723aef67c015943882e1ab26d98f2f58",
+      "forward_seconds": 0.6495698327198625,
+      "forward_runs": [
+        0.6494084168225527,
+        0.6493826657533646,
+        0.6508410419337451,
+        0.6495698327198625,
+        0.6497647077776492
+      ],
+      "forward_first_seconds": 0.6555614583194256,
+      "first_apply_seconds": 0.6713418331928551,
+      "gradient_seconds": 1.152806791011244,
+      "gradient_runs": [
+        1.152806791011244,
+        1.1494641248136759,
+        1.1548000001348555,
+        1.1566445417702198,
+        1.1523549580015242
+      ],
+      "gradient_first_seconds": 1.5808291668072343,
+      "peak_rss_bytes": 678789120,
+      "baseline_rss_bytes": 211402752,
+      "coefficients": 43396,
+      "loss": 0.0007391379913315177,
+      "side": "a",
+      "round": 5,
+      "check": "ESTEL only: STL is not measured on tensor products here (Part II, \u00a715.2, T3.2)"
+    },
+    {
+      "case": "tensor-prod-2d1d",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "cc51ed8df44cfbc4b0a0b56c42f192ef723aef67c015943882e1ab26d98f2f58",
+      "forward_seconds": 0.6441121250391006,
+      "forward_runs": [
+        0.6440806249156594,
+        0.6441121250391006,
+        0.646641124971211,
+        0.6425608340650797,
+        0.6468916251324117
+      ],
+      "forward_first_seconds": 0.6485798330977559,
+      "first_apply_seconds": 0.6644646669737995,
+      "gradient_seconds": 1.1458759997040033,
+      "gradient_runs": [
+        1.1595879578962922,
+        1.1458759997040033,
+        1.1509717921726406,
+        1.1427828329615295,
+        1.1435431251302361
+      ],
+      "gradient_first_seconds": 1.5654608332552016,
+      "peak_rss_bytes": 678510592,
+      "baseline_rss_bytes": 211271680,
+      "coefficients": 43396,
+      "loss": 0.0007391379913315177,
+      "side": "b",
+      "round": 5,
+      "check": "ESTEL only: STL is not measured on tensor products here (Part II, \u00a715.2, T3.2)",
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 0.0,
+          "S2": 0.0,
+          "S3": 0.0,
+          "S4": 0.0
+        },
+        "gradient_relative_difference": 0.0,
+        "gradient_rtol": 0.0001
+      }
+    }
+  ]
+}

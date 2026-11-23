@@ -69,7 +69,8 @@ def _planar_conv_along(
     padded and correlated along these axes only, every other axis carried through, none moved
     (maths.md M-CONV-2D; M-NOT-TP, the block convolution ⋆_a).
 
-    A complex kernel on a real array is two real correlations; on a complex array, four.
+    A complex kernel on a real array is one real correlation, with the real and imaginary
+    kernels stacked; on a complex array, four (Part I, §3.1, rule 6; T3.5).
     The orientation axis, which the correlation inserts before ``axes[0]``, is read right after
     the batch axis, ``(Nb, L, Nc, ...)``, when the complex result is assembled: no further copy.
     """
@@ -84,22 +85,34 @@ def _planar_conv_along(
         )
     widths = [(int(k) // 2, int(k) // 2) for k in kernels.shape[1:]]
     padded = array_backend.pad(x, widths, axes, _padding_mode(pbc))
-    k_re, k_im = xp.real(kernels), xp.imag(kernels)
-
-    def correlate(a: Any, k: Any) -> Any:
-        return array_backend.conv_axes(a, k, axes)
-
+    first = axes[0]
+    n_l = int(kernels.shape[0])
     if _is_complex(xp, padded):
+        # Four real calls on both backends, by the maintainer's decision (T3.5, #128): one call
+        # on the real and imaginary parts stacked raises the peak memory on PyTorch by 23 % at
+        # 64 x 64 x 32, though it gains on JAX. One call for the complex intermediate maps is
+        # deferred to step 2a (LF62).
+        k_re, k_im = xp.real(kernels), xp.imag(kernels)
         x_re, x_im = xp.real(padded), xp.imag(padded)
+
+        def correlate(a: Any, k: Any) -> Any:
+            return array_backend.conv_axes(a, k, axes)
+
         real = correlate(x_re, k_re) - correlate(x_im, k_im)
         imag = correlate(x_re, k_im) + correlate(x_im, k_re)
-    else:
-        real, imag = correlate(padded, k_re), correlate(padded, k_im)
-    # (Nb, Nc, ..., L, *block, ...) -> (Nb, L, Nc, ..., *block, ...)
-    first = axes[0]
-    order = (0, first, *(i for i in range(1, len(real.shape)) if i != first))
-    real, imag = xp.permute_dims(real, order), xp.permute_dims(imag, order)
-    return array_backend.real_pairs_to_complex(xp.stack([real, imag], axis=-1))
+        # (Nb, Nc, ..., L, *block, ...) -> (Nb, L, Nc, ..., *block, ...)
+        order = (0, first, *(i for i in range(1, len(real.shape)) if i != first))
+        real, imag = xp.permute_dims(real, order), xp.permute_dims(imag, order)
+        return array_backend.real_pairs_to_complex(xp.stack([real, imag], axis=-1))
+    # A real array: one real call with the real and imaginary kernels stacked, (2L, K...).
+    both_k = xp.concat([xp.real(kernels), xp.imag(kernels)], axis=0)
+    y = array_backend.conv_axes(padded, both_k, axes)
+    # (Nb, Nc, ..., 2L, *block, ...) -> (Nb, Nc, ..., 2, L, *block, ...) -> (Nb, L, Nc, ...,
+    # *block, ..., 2): the real and imaginary parts become the pairs, with no copy before them.
+    shape = tuple(int(n) for n in y.shape)
+    y = xp.reshape(y, (*shape[:first], 2, n_l, *shape[first + 1 :]))
+    rest = (i for i in range(1, len(y.shape)) if i not in (first, first + 1))
+    return array_backend.real_pairs_to_complex(xp.permute_dims(y, (0, first + 1, *rest, first)))
 
 
 def _planar_downsample(self: Data, x: Any, weights: DownsampleWeights, level: int) -> Any:

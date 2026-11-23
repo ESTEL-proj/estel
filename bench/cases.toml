@@ -59,16 +59,16 @@ pbc = false
 seed = 3
 target_seed = 4
 
-[cases.tensor-prod-2d1d]
-# Added with task T3.2 (issue #23): 2D+1D, space and time, periodic, one channel, L = (4, 2), the
-# smallest size whose forward pass with the gradient takes at least 1 s on CPU with the code of
-# T3.2 (1.15 s on PyTorch, Apple M3, 4 threads). ESTEL only. Most of that time is the slow path
-# of `conv_axes` along a 1D block, the first trial of T3.5 (#128), which then replaces this case
-# by 64 x 64 x 32, J = (4, 3) (decision of the maintainer on #23, 23 November 2026).
+[cases.tensor-prod-2d1d-64]
+# Added with task T3.5 (issue #128), replacing `tensor-prod-2d1d` (32 x 32 x 16, J = (3, 2)),
+# whose results stay in bench/results/: 2D+1D, space and time, periodic, one channel,
+# L = (4, 2), the size the maintainer chose on #23 and #128 once the slow path of `conv_axes`
+# along a 1D block is gone (T3.5, P1), where the forward pass with the gradient takes over 1 s
+# on CPU (Apple M3: 1.66 s on PyTorch with P1, 4 threads; 1.48 s on JAX). ESTEL only.
 blocks = ["2D", "1D"]
-shape = [32, 32, 16]
+shape = [64, 64, 32]
 channels = 1
-J = [3, 2]
+J = [4, 3]
 L = [4, 2]
 pbc = [true, true]
 seed = 8

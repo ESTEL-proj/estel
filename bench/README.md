@@ -17,7 +17,7 @@ power spectrum, `norm="none"`; the planar ones are 2D:
 | `planar-masked` | 512 × 512, one channel | 7, 4 | non-periodic | 10.1 %, five square holes of sides 112 to 24 |
 | `planar-cross` | 256 × 256, two channels with their cross terms | 6, 4 | periodic | none |
 | `planar-open` | 512 × 512, one channel | 7, 4 | non-periodic | none |
-| `tensor-prod-2d1d` | 2D+1D, 32 × 32 × 16, one channel (ESTEL only) | (3, 2), (4, 2) | periodic | none |
+| `tensor-prod-2d1d-64` | 2D+1D, 64 × 64 × 32, one channel (ESTEL only) | (4, 3), (4, 2) | periodic | none |
 
 **Tensor products** (task T3.2, issue #23). A case with `blocks` (for example
 `blocks = ["2D", "1D"]`, `shape = [N, N, T]`) is a tensor product, with one `J`, `L` and `pbc` per
@@ -25,7 +25,10 @@ block, run through `STOperatorTensorProd`. It is measured on **ESTEL only**: STL
 neither in the container nor as a reference, so its check against STL is replaced by the parity
 tests of `tests/parity/test_tensor_prod.py`, and its results say so (`check`). It is compared
 with `main` (and, with `--compare`, B with A) only when that commit has `STOperatorTensorProd`;
-`--compare` with a commit before T3.2 stops with an error naming the case.
+`--compare` with a commit before T3.2 stops with an error naming the case. The first case,
+`tensor-prod-2d1d` (32 × 32 × 16, J = (3, 2)), was replaced by `tensor-prod-2d1d-64` with task
+T3.5 (issue #128), once the slow path of `conv_axes` along a 1D block was gone; its results stay
+in `results/`.
 
 The fields are seeded: the exponential of a Gaussian field with a power-law spectrum
 ([`_cases.py`](_cases.py)), over every axis for a tensor product. The process that runs the benchmark writes the inputs of a case once,

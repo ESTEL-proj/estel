@@ -226,14 +226,18 @@ class TorchBackend:
                 zeros_b = torch.zeros(shape_b, dtype=y.dtype, device=y.device)
                 zeros_a = torch.zeros(shape_a, dtype=y.dtype, device=y.device)
                 y = torch.cat((zeros_b, y, zeros_a), dim=axis)
+            elif mode == "circular":
+                # Slices and one concatenation: an index_select with the wrapped positions is
+                # slower, and its backward an index_add (T3.5, P2).
+                parts = [y.narrow(axis, n - before, before)] if before else []
+                parts = [*parts, y, *([y.narrow(axis, 0, after)] if after else [])]
+                y = torch.cat(parts, dim=axis)
             else:
-                positions = np.arange(-before, n + after)
-                if mode == "circular":
-                    positions = np.mod(positions, n)
-                else:
-                    positions = np.clip(positions, 0, n - 1)
-                index = torch.from_numpy(positions).to(device=y.device)
-                y = torch.index_select(y, axis, index)
+                shape_b = (*y.shape[:axis], before, *y.shape[axis + 1 :])
+                shape_a = (*y.shape[:axis], after, *y.shape[axis + 1 :])
+                parts = [y.narrow(axis, 0, 1).expand(shape_b)] if before else []
+                parts = [*parts, y, *([y.narrow(axis, n - 1, 1).expand(shape_a)] if after else [])]
+                y = torch.cat(parts, dim=axis)
         return y
 
     def conv_axes(
@@ -274,13 +278,24 @@ class TorchBackend:
         pre = x.shape[:first]
         post = x.shape[first + d :]
         if d in _CONV:
-            # Batch every other axis: (pre, N, post) -> (pre, post, N) -> (B, 1, N).
+            # Batch every other axis: (pre, N, post) -> (pre, post, N), B = pre x post.
             moved = torch.movedim(
                 x, tuple(range(first + d, x.ndim)), tuple(range(first, first + len(post)))
             )
-            batched = moved.reshape(-1, 1, *sizes)
-            kernels = k.reshape(-1, 1, *support)
-            y = _CONV[d](batched, kernels, stride=strides)
+            if d == 1 and math.prod(pre) * math.prod(post) > 0:
+                # One axis: the batch as a second spatial axis, with a kernel of size 1 along
+                # it, (1, 1, B, N) against (O, 1, 1, K): conv1d of (B, 1, N) is a slow path of
+                # PyTorch on CPU (T3.5). An empty batch keeps conv1d, which accepts it.
+                batched = moved.reshape(1, 1, -1, *sizes)
+                kernels = k.reshape(-1, 1, 1, *support)
+                y = _CONV[2](batched, kernels, stride=[1, *strides])  # (1, O, B, M)
+                n_o = int(kernels.shape[0])
+                y = y.reshape(n_o, -1, *out).transpose(0, 1)  # (B, O, M)
+            else:
+                # (B, 1, *N) against (O, 1, *K).
+                batched = moved.reshape(-1, 1, *sizes)
+                kernels = k.reshape(-1, 1, *support)
+                y = _CONV[d](batched, kernels, stride=strides)
             y = y.reshape(*pre, *post, *out_axes, *out)
             n_lead = len(pre) + len(post)
             return torch.movedim(
