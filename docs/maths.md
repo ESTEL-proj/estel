@@ -2,7 +2,7 @@
 
 [Back to the overview](transfer/overview.md)
 
-**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it, and checked numerically by the oracle `estel._spec`, which agrees with ESTEL to the parity tolerance (task T2.6); ESTEL itself agrees with STL's fixtures. Section 3 (tensor products) is checked against STL's code (task T3.0), and numerically by the oracle, which agrees with STL's parity fixtures to the parity tolerance (tasks T3.3 and T3.4). Section 4 (HEALPix) is checked against STL's code, and numerically where it says so (task T5.0). Section 5 (syntheses) is checked against STL's code for periodic syntheses, and numerically where it says so (task T6.0); its non-periodic and masked parts come after 1.0.0 (Part III, §16, LF47). It has no oracle: the syntheses are validated against STL's trajectory and by their own tests (task T6.1; Part IV, §22).
+**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it, and checked numerically by the oracle `estel._spec`, which agrees with ESTEL to the parity tolerance (task T2.6); ESTEL itself agrees with STL's fixtures. Section 3 (tensor products) is checked against STL's code (task T3.0), and numerically by the oracle, which agrees with STL's parity fixtures to the parity tolerance (tasks T3.3 and T3.4). Section 4 (HEALPix) is checked against STL's code, and numerically where it says so (task T5.0). Section 1.9 (the power spectrum) is checked against STL's code, entry by entry, and numerically in the parity container (task T4.0). Section 5 (syntheses) is checked against STL's code for periodic syntheses, and numerically where it says so (task T6.0); its non-periodic and masked parts come after 1.0.0 (Part III, §16, LF47). It has no oracle: the syntheses are validated against STL's trajectory and by their own tests (task T6.1; Part IV, §22).
 
 **Role of this file.** This file is the reference version of the mathematics of step 1; it changes only through pull requests that a maintainer requests and merges.
 
@@ -334,6 +334,7 @@ S_4[c_1,c_2,j_1,j_2,j_3,\ell_1,\ell_2,\ell_3] = \Big\langle \big(\psi_{\ell_3} \
 - **S3 and S4:** both (c₁, c₂) and (c₂, c₁) are computed and stored.
 - Conjugate duplicates at j₁ = j₂ inside S4 are also stored. This is the canonical-set question, LF20. **⚠ OP-14**
 - **Storage type.** S1 to S4 are stored as complex numbers, including the auto S1 and S2, which are real; `mean` and `var` are real.
+- **Spectrum.** PS is stored as S1 and S2: c₁ ≤ c₂ only, (c₂, c₁) NaN, complex numbers with a null imaginary part; inside the scattering operator it has the pairs of the statistics, and STL's spectrum operator alone defaults to the auto spectra only (§1.9). **⚠ OP-94**
 - **Channels without auto-statistics.** A channel whose diagonal entry of `cross_matrix` is False, but which appears in a cross pair, has no auto S1 or S2; with `norm="self"` (STL's `store_ref`), its normalisation then gives NaN, and STL only warns. A channel in no pair at all is an error. **⚠ OP-30**
 - **Default pairs.** When `cross_matrix` (STL's `compute_cross_matrix`) is not given, STL's code uses the upper triangle of the Nc × Nc matrix: every pair c₁ ≤ c₂, so all auto and all cross terms. STL's docstring says "auto-statistics only"; ESTEL follows the code. **⚠ OP-38**
 - **Source:** `_compute_and_store_cross_cov` (`redundant_channels`), `ST_Operator.apply`.
@@ -372,7 +373,7 @@ With `norm="self"` (STL's `store_ref`; the default), the reference is the statis
 | S2\[c₁, c₂, j, ℓ\] | σ\_{c₁}(j, ℓ) · σ\_{c₂}(j, ℓ) |
 | S3\[c₁, c₂, j₂, j₃, ℓ₂, ℓ₃\] | σ\_{c₁}(j₂, ℓ₂) · σ\_{c₂}(j₃, ℓ₃) |
 | S4\[c₁, c₂, j₁, j₂, j₃, ℓ₁, ℓ₂, ℓ₃\] | σ\_{c₁}(j₁, ℓ₁) · σ\_{c₂}(j₂, ℓ₂) |
-| PS\[c₁, c₂, b\] | σᴾˢ\_{c₁}(b) · σᴾˢ\_{c₂}(b), with σᴾˢ\_c(b) = √PS\_ref\[c, c, b\] |
+| PS\[c₁, c₂, b\] | σᴾˢ\_{c₁}(b) · σᴾˢ\_{c₂}(b), with σᴾˢ\_c(b) = √PS\_ref\[c, c, b\] (checked, §1.9) |
 
 **Other values of `norm`.** `norm="none"` (STL's `vanilla`) computes the statistics without any normalisation. `norm` must be given: `None` in both the constructor and `apply` is an error. With `norm="self"`, passing a reference to `apply` is an error.
 
@@ -416,7 +417,7 @@ Missing entries are set to 0 for the transform; afterwards, a harmonic is NaN wh
 
 Flattening builds one vector from the statistics.
 
-- **Order:** `mean`, `var`, S1, S2, S3, S4, then PS if it was computed; within each family, the order of the stored tensor (row-major).
+- **Order:** `mean`, `var`, S1, S2, S3, S4, then PS if it was computed (checked, §1.9); within each family, the order of the stored tensor (row-major).
 - **Missing entries:** the NaN entries are removed (`keepnans=False`, the default): the structural NaN, and the means with no valid pixel.
 - **Batch:** by default the batch axis is flattened with the rest. With `keep_batch_dim=True`, the result is `(Nb, n)`, and the NaN must be at the same positions for every batch element. With `mean_along_batch=True`, every family is first averaged over the batch.
 - **Complex values:** two forms. With `flatten_complex=False`, the default, a complex vector, with `mean` and `var` cast to complex. With `flatten_complex=True`, a real vector: each complex coefficient becomes two reals (real part, imaginary part), except in S1, S2 and PS, of which only the real part is kept. That part is null only for the auto terms: the imaginary part of the cross-channel terms is dropped too. **⚠ OP-37**
@@ -427,43 +428,69 @@ Flattening builds one vector from the statistics.
 
 ### 1.9 Power spectrum — M-PS-2D (from master, v1.6.0)
 
+**Status:** checked against STL's code, entry by entry, and numerically in the parity container where an entry says so (task T4.0, 23 November 2026). ESTEL's oracle comes with T4.2, the spectrum as a family of `STStatistics` with T4.4, the operator with T4.1.
+
+**Numerical checks.** They ran in the parity container (environment `master`, PyTorch 2.15.0, float64). The reference evaluates the formulas of this section in NumPy, apart from STL's code: it uses the full complex FFT rather than STL's half-plane layout, SciPy's J₀ and `quad`, and builds every window, border and mask itself. It is compared with `CS_operator_2D_Kernel_Torch.apply` on five sizes, 16 × 16, 32 × 32, 32 × 16, 16 × 32 and 64 × 32 (default J), with two maps of one channel and two maps of two correlated channels (every pair c₁ ≤ c₂), fields of non-zero mean; for the estimators with missing data, the maps miss a block of 12 pixels and one isolated pixel. Every estimator runs with the log-Gaussian bins, and with the legacy bins at 16 × 16 and 32 × 16; the non-periodic ones with each mask and each crop mode. In every case the spectrum differs from the reference by at most 1.2e-15 of the largest value of its channel pair. "Checked" below names what a check adds to this comparison.
+
 #### Frequencies and bins
 
-- **Radial frequencies** k ∈ {0, 1/N, …, 0.5} in cycles per pixel, with N\_max = min(N₁, N₂)/2. Each FFT mode (k₁, k₂), in mode units, is assigned to the radial index round(√(k₁² + k₂²)); modes beyond N\_max are dropped. For a rectangular image this mixes mode numbers of two different lengths, so the binning is not isotropic. **⚠ OP-6**
-- **Range.** J\_PS = log₂ N\_max − 1 by default (equal to the ST default J = log₂ N − 2 for square images), J\_min = 0. When the scattering operator is given an explicit J, its spectrum uses that J as J\_PS; the default applies only when J is not given:
+- **Radial frequencies.** N\_max = ⌊min(N₁, N₂)/2⌋, and the radial grid is k\_i = i / (2 N\_max), i = 0 … N\_max, in cycles per pixel: k ∈ {0, 1/N, …, 0.5} with N = min(N₁, N₂) for even sizes. A Fourier mode κ = (κ₁, κ₂), in mode units (κ₁ ∈ {−⌊N₁/2⌋, …, ⌈N₁/2⌉ − 1}, κ₂ ∈ {0, …, ⌊N₂/2⌋}, the half plane of the real FFT along the last axis), has the radial index r(κ) = round(√(κ₁² + κ₂²)) (never a tie: a sum of two squares of integers is never the square of a half-integer); modes with r(κ) > N\_max are dropped. A mode enters every formula below through k\_{r(κ)}, the frequency of its radial index, not through its exact modulus. For a rectangular image this mixes mode numbers of two different lengths, so the binning is not isotropic: a mode (κ₁, 0) of the longer axis counts as the frequency κ₁ / min(N₁, N₂). **⚠ OP-6**
+- **Range.** J\_PS = ⌊log₂ N\_max⌋ − 1 by default (equal to the ST default J = ⌊log₂ min(N₁, N₂)⌋ − 2, M-DEF), and J\_min = 0. When the scattering operator is given an explicit J, its spectrum uses that J as J\_PS; the default applies only when J is not given. STL requires 0 ≤ J\_min ≤ J\_PS − 2 (a `ValueError` at construction), so J\_PS ≥ 2. **⚠ OP-93**
 
 ```latex
 k_{\min} = \frac{0.5/\sqrt2}{2^{J_{PS}-1}}, \qquad k_{\max} = \frac{0.5/\sqrt2}{2^{J_{\min}}}
 ```
 
-- **Number of bins:** n\_b = max(4, round(3 log₂(k\_max / k\_min))) by default, about 3 per octave.
-- **Log-Gaussian windows** (`gaussian_rings`, the default): edges evenly spaced in log k between k\_min and k\_max; centre c\_b the middle of each log interval, width σ\_b the log interval itself, and W\_b(0) = 0:
+- **Number of bins:** n\_b = max(4, round(3 log₂(k\_max / k\_min))) = max(4, round(3 (J\_PS − 1 − J\_min))) by default, about 3 per octave.
+- **Checked:** for a 64 × 64 field, the scattering operator with J not given, 3, 4 and 5 builds its spectrum with J\_PS = 4, 3, 4, 5 and n\_b = 9, 6, 9, 12; with J\_min = 1, n\_b = 6, k\_min = 0.0442 and k\_max = 0.1768; with n\_b given (7), it is used. A scattering operator with J = 1 fails (OP-93).
+- **Log-Gaussian windows** (`gaussian_rings`, the default). The edges e\_0 … e\_{n\_b} are evenly spaced in ln k from ln k\_min to ln k\_max; the centre of bin b is ln c\_b = (e\_b + e\_{b+1}) / 2, its width σ\_b = e\_{b+1} − e\_b, the same for every bin. On the radial grid, for i ≥ 1:
 
 ```latex
-W_b(k) = \exp\Big(-\frac{(\ln k - \ln c_b)^2}{2\sigma_b^2}\Big)
+W_b(k_i) = \exp\Big(-\frac{(\ln k_i - \ln c_b)^2}{2\sigma_b^2}\Big), \qquad W_b(k_0) = 0
 ```
 
-A "legacy" binning, built from smooth bump functions, also exists.
+  The windows have no compact support: every bin has a positive weight at every non-zero frequency.
+- **Legacy windows** (`binning_type="legacy"`, the Littlewood-Paley windows of STL v1.x). With λ = (k\_max / k\_min)^{1/(n\_b + 1)} and centres c\_b = k\_min λ^b, b = 1 … n\_b:
 
-- **Bin normalisation:** Z\_b = Σ\_k N\_k W\_b(k), where N\_k is the number of FFT modes at radial index k (rFFT modes counted twice, except the zero and Nyquist columns).
+```latex
+s(t) = e^{-1/(1-t^2)}\ \text{on}\ (-1, 1),\ 0\ \text{elsewhere}, \qquad
+s_\lambda(t) = s\Big(\frac{2\lambda}{\lambda-1}\big(t - \tfrac1\lambda\big) - 1\Big),
+```
+
+```latex
+k_\lambda(t) = \begin{cases} 1 & t \le 1/\lambda \\ \dfrac{\int_t^1 s_\lambda(u)^2\, du/u}{\int_{1/\lambda}^1 s_\lambda(u)^2\, du/u} & 1/\lambda < t < 1 \\ 0 & t \ge 1 \end{cases}, \qquad
+W_b(k) = \sqrt{\max\big(k_\lambda(k/(\lambda c_b)) - k_\lambda(k/c_b),\ 0\big)}
+```
+
+  The integrals are computed by numerical quadrature (`scipy.integrate.quad`), once per bin and radial frequency. The squares of these windows, not the windows, sum to 1 between λ k\_min and k\_max / λ; STL uses W\_b itself as the weight of the power, as for the log-Gaussian windows. Each window vanishes outside (c\_b / λ, λ c\_b), so a bin can hold no Fourier mode. **⚠ OP-95**
+- **Checked:** the log-Gaussian windows and centres equal the reference to 1.2e-15, the legacy ones to 3.3e-16.
+- **Bin normalisation:** Z\_b = Σ\_i N\_i W\_b(k\_i), where N\_i is the number of Fourier modes of radial index i: in STL's half-plane layout, every column counted twice except the zero column and, when N₂ is even, the Nyquist column, which is the number of modes of index i in the full plane. **Checked:** N\_i equals the count of the full plane exactly.
 
 #### Estimators
 
-All use the orthonormal 2D FFT, x̂ = rFFT2(x) / √(N₁N₂). **Only the real part** of cross-spectra is kept. **⚠ OP-19**
+All use the orthonormal 2D FFT, x̂ = FFT2(x) / √(N₁N₂), on the half plane of the last axis (`rfft2`). **Only the real part** of cross-spectra is computed. **⚠ OP-19**
 
-**`fft`** (periodic, no missing data): the radial spectrum is
+**`fft`** (periodic, no missing data): the radial spectrum is, with w\_κ the half-plane weight of the mode (2, or 1 for the zero and Nyquist columns),
 
 ```latex
-P(k) = \frac{1}{N_k} \sum_{\kappa \to k} w_\kappa\, \mathrm{Re}\big(\hat x_{c_1}(\kappa)\, \overline{\hat x_{c_2}(\kappa)}\big)
+P(k_i) = \frac{1}{N_i} \sum_{\kappa:\ r(\kappa) = i} w_\kappa\, \mathrm{Re}\big(\hat x_{c_1}(\kappa)\, \overline{\hat x_{c_2}(\kappa)}\big)
 ```
 
 then binned:
 
 ```latex
-PS_b = \frac{\sum_k N_k W_b(k)\, P(k)}{Z_b}
+PS_b = \frac{\sum_i N_i W_b(k_i)\, P(k_i)}{Z_b}
 ```
 
-**Band maps**, used by the next three estimators: f\_b = irFFT2(x̂ · √W\_b(|κ|)). The inverse transform uses the width 2(K\_x − 1), which is wrong for odd sizes; ESTEL requires even sizes. **⚠ OP-20**
+- **Checked:** to 6.9e-16 with the log-Gaussian windows and 4.1e-16 with the legacy ones. It also runs on odd sizes, and agrees with the reference there (31 × 32, 32 × 31, 33 × 33: 3.3e-16).
+
+**Band maps**, used by the next three estimators:
+
+```latex
+f_b = \mathrm{FFT2}^{-1}_{\text{ortho}}\Big(\hat x(\kappa)\, \sqrt{W_b(k_{r(\kappa)})}\Big), \qquad \sqrt{W_b} = 0\ \text{for}\ r(\kappa) > N_{\max}
+```
+
+computed with the inverse real FFT (`irfft2`) of width 2(K\_x − 1), where K\_x = ⌊N₂/2⌋ + 1 is the length of the half-plane axis. That width is N₂ only for even N₂: for an odd last size the band maps have N₂ − 1 columns and the three estimators fail with a `RuntimeError` (a shape mismatch); an odd N₁ runs. ESTEL requires even sizes. **⚠ OP-20** **Checked:** the band maps computed on the full plane are real to 1.2e-15; (32, 31) and (33, 33) fail as written, (31, 32) runs.
 
 **`pbc_mask`** (non-periodic):
 
@@ -471,27 +498,40 @@ PS_b = \frac{\sum_k N_k W_b(k)\, P(k)}{Z_b}
 PS_b = \frac{N_{\text{pix}}}{\sum_n M_b[n]}\ \frac{1}{Z_b} \sum_n M_b[n]\, f_{b,c_1}[n]\, f_{b,c_2}[n]
 ```
 
-- M\_b is a border mask per bin, "hard" by default ("smooth" is available).
-- Its width is the radius containing **60 %** of the energy of the bin's point-spread function, computed from a Hankel transform of W\_b (`energy_fraction=0.60`), per bin by default (`flexible_crop`) or the largest one (`largest_crop`). **⚠ OP-21**
+- **The border mask** M\_b, of border β\_b pixels, at n = (n₁, n₂):
+  - `"hard"` (the default): M\_b[n] = 1 if β\_b ≤ n₁ < N₁ − β\_b and β\_b ≤ n₂ < N₂ − β\_b, else 0;
+  - `"smooth"`: M\_b[n] = t(n₁, N₁) t(n₂, N₂), with d(n, N) = min(n, N − 1 − n) and t(n, N) = ½ − ½ cos(π min(d(n, N)/β\_b, 1)): a raised cosine, null on the outermost pixels; M\_b = 1 if β\_b = 0.
+- **The border** β\_b is the radius that holds **60 %** of the energy of the point-spread function of W\_b. That function is the 2D inverse Fourier transform of the radial window, a Hankel transform, evaluated at the integer radii r = 0 … N\_max by a Riemann sum on the radial grid (Δk = 1 / (2 N\_max)):
+
+```latex
+h_b(r) = \sum_{i=0}^{N_{\max}} W_b(k_i)\, 2\pi k_i\, J_0(2\pi r k_i)\, \Delta k, \qquad
+E_b(r) = \int_0^r 2\pi \rho\, h_b(\rho)^2\, d\rho
+```
+
+  E\_b is the cumulative trapezoidal rule on the integer radii, E\_b(0) = 0; β\_b is the smallest r with E\_b(r) ≥ 0.60 E\_b(N\_max), and 0 for a bin whose window is null on the grid (E\_b = 0). The fraction is that of the energy within r ≤ N\_max, not of the total, and it is computed from W\_b, whereas each band map carries √W\_b. **⚠ OP-96** STL computes J₀ with `torch.special.bessel_j0`; NumPy has no J₀ (SciPy's `scipy.special.j0` gives the same borders, and SciPy is not a dependency of ESTEL). The fraction 0.60 (`energy_fraction`) is not reachable from the constructor. **⚠ OP-21**
+- **Crop modes:** `flexible_crop` (the default) uses β\_b for bin b, `largest_crop` uses max\_b β\_b for every bin.
+- **Checked:** the borders equal the reference in 229 configurations: sizes 16 to 512, every J\_PS from 2 to log₂ N + 1 and every J\_min, both kinds of windows. In none of them does E\_b(r) / E\_b(N\_max) come closer to 0.60 than 3.2e-5, at any radius: the borders do not depend on the last digits of J₀. The borders are not monotone in b: [4, 3, 3, 3] at 16 × 16, [5, 4, 3, 3, 2, 3] at 32 × 32 (default J); [13, 13, 10, 17, 16, 7, 10, 8, 6, 5, 4, 3, 3, 2, 3] at 64 × 64 with J\_PS = 6. Their largest value is about 0.3 N\_max at the default J (10, 19, 38 and 75 pixels at 64, 128, 256 and 512), and up to 0.75 N\_max at 16 × 16 (legacy windows: [5, 5, 5, 6]). The spectrum equals the reference to 8.6e-16 for each mask and each crop mode.
 
 **`nan_mask`** (periodic, missing data):
 
-- missing pixels are first filled with the map's mean, then band-filtered;
-- the estimate sums over observed pixels only:
+- each map (each batch element and channel) has its missing pixels filled with the mean of its own observed pixels, then is band-filtered;
+- a pixel is observed only if it is valid in every batch element and channel; the estimate sums over these pixels only:
 
 ```latex
 PS_b = \frac{N_{\text{pix}}}{N_{\text{obs}}}\ \frac{1}{Z_b} \sum_{n\ \text{observed}} f_{b,c_1}[n]\, f_{b,c_2}[n]
 ```
 
-- a pixel counts as observed only if it is valid in every batch element and channel.
+- no observed pixel raises a `ValueError`.
 
-The filling leaks into neighbouring pixels through the filtering. **⚠ OP-7**
+The filling leaks into neighbouring pixels through the filtering. **⚠ OP-7** **Checked:** to 9.5e-16; on data without missing pixels it equals `fft` to 6.4e-16.
 
-**`pbc_nan_mask`** (non-periodic, missing data): as `pbc_mask`, with M\_b multiplied by the observed mask.
+**`pbc_nan_mask`** (non-periodic, missing data): as `pbc_mask`, with M\_b multiplied by the observed mask O (as in `nan_mask`) in the sum and in its prefactor, N\_pix / Σ\_n M\_b[n] O[n]; a bin whose product is null everywhere raises a `ValueError`. **Checked:** to 1.1e-15, for each mask and each crop mode.
+
+**Data with missing pixels** given to `fft` or `pbc_mask` raise a `ValueError` at `apply`. **Checked:** a scattering operator built on data without NaN fails so on data with NaN.
 
 #### Choice of estimator
 
-Automatic, when the operator is built, from the example data. `pbc=None` counts as periodic (compare OP-4).
+Automatic, when the operator is built, from the example data. `pbc=None` counts as periodic (compare OP-4). The scattering operator's `spectrum_method` overrides it.
 
 | Data | Estimator |
 | --- | --- |
@@ -500,7 +540,24 @@ Automatic, when the operator is built, from the example data. `pbc=None` counts 
 | no NaN, `pbc=False` | `pbc_mask` |
 | no NaN, otherwise | `fft` |
 
-- **Source (master, `8eaf769`):** `CS_operator_2D_Kernel_Torch` (`_build_fft_index`, `_cross_pk`, `_bin_pk`, `_build_log_gaussian_bin_masks`, `estimate_pbc_border_crop`, `_apply_fft`, `_apply_pbc_mask`, `_apply_nan_mask`, `_apply_pbc_nan_mask`); `STL_2D_Kernel_Torch.get_CS_op`.
+- **Checked:** the four rows, with `pbc` True, None and False; `spectrum_method="pbc_mask"` on periodic data gives `pbc_mask`.
+
+#### Channel pairs and layout
+
+- **Shape** (Nb, Nc, Nc, n\_b), stored as complex numbers (complex128 in float64) whose imaginary part is exactly 0, as S1 and S2 (M-CHAN).
+- **Pairs.** Only c₁ ≤ c₂ is computed, for the pairs that `cross_matrix` holds; the other entries, (c₂, c₁) included, are NaN. The spectrum is real and symmetric in the two channels: PS\[c₂, c₁\] would equal PS\[c₁, c₂\].
+- **Default pairs.** Inside the scattering operator, the spectrum has the pairs of the scattering statistics (M-CHAN; default: every pair c₁ ≤ c₂). STL's spectrum operator alone defaults to the auto spectra only. **⚠ OP-94**
+- **Checked:** NaN exactly at c₁ > c₂, auto spectra only by default; the scattering operator's spectrum equals, bit for bit, that of the spectrum operator with the upper triangle, for the four estimators (32 × 32 periodic and not, with and without missing pixels; 32 × 16 non-periodic).
+
+#### In the scattering operator
+
+- **Construction.** STL's scattering operator always builds its spectrum operator, even with `compute_PS=False`, passing it J when J is given, and `n_bins`, `spectrum_method` and `Jmin` when they are given. **⚠ OP-93**
+- **Field.** The spectrum is computed on the field at full resolution, after the standardisation when `standardize` is set (M-STD). **Checked:** with `standardize=True` it equals the spectrum of the standardised field to 2.5e-16, and differs from that of the raw field by 93 % of its largest value.
+- **Normalisation** (M-NORM): σᴾˢ\_c(b) = √PS\_ref\[c, c, b\], per batch element, or of the batch mean of PS\_ref\[c, c, b\] with `ref_batch_mean=True`. A channel without auto spectrum gives NaN normalised cross spectra (OP-30). **Checked:** `norm="self"`, `norm="self"` with the batch mean and `norm="ref"` on another field give the formula bit for bit; the stored reference has shape (Nb, Nc, n\_b), and (1, Nc, n\_b) with the batch mean.
+- **Reductions.** `iso`, `angular_fourier` and `scale_cosine` leave the spectrum as it is (read in `to_iso`, `to_angular_ft`, `to_scale_ft`).
+- **Flattening** (M-FLAT): the spectrum comes last, after S4. **Checked:** for the five cases above, the complex vector ends with the finite entries of PS in row-major order, and the real vector with their real parts (one real number each).
+
+- **Source (master, `8eaf769`):** `CS_operator_2D_Kernel_Torch` (`__init__`, `_build_fft_index`, `_build_bin_windows`, `_build_log_gaussian_bin_masks`, `_build_legacy_bin_masks`, `s`, `s_lambda`, `k_lambda`, `kappa_lambda`, `estimate_pbc_border_crop`, `build_pbc_mask`, `_build_hard_pbc_mask`, `_build_smooth_pbc_mask`, `apply`, `_cross_pk`, `_bin_pk`, `_apply_fft`, `_apply_pbc_mask`, `_apply_nan_mask`, `_apply_pbc_nan_mask`); `STL_2D_Kernel_Torch.get_CS_op`; `ST_Operator.__init__`, `ST_Operator.apply`; `ST_Statistics.to_norm`, `_get_sqrt_chan_diag`, `to_flatten`.
 
 ### 1.10 Defaults — M-DEF
 
@@ -517,7 +574,9 @@ Automatic, when the operator is built, from the example data. `pbc=None` counts 
 | `cross_matrix` (STL's `compute_cross_matrix`) | upper triangle (all pairs c₁ ≤ c₂) |
 | `standardize` | False |
 | `replace_nan_value` | NaN |
-| PS binning | log-Gaussian, about 3 bins per octave |
+| PS estimator | automatic, from `pbc` and the missing pixels of the example data (§1.9) |
+| PS range | J\_PS = the J of the operator, J\_min = 0 |
+| PS binning | log-Gaussian, n\_b = max(4, round(3 (J\_PS − 1 − J\_min))), about 3 bins per octave |
 
 ### 1.11 Open points found in the 2D code
 
@@ -546,6 +605,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-60 | With missing data and J ≥ 2, the gradient of STL's statistics with respect to the field is NaN at the valid pixels, although every statistic is finite: at every valid pixel of the benchmark case `planar-masked` (512 × 512, J = 7, non-periodic, 10.1 % missing: 235 584 pixels of 235 584), and 0 at the missing ones. The cause is the default `replace_nan_value=NaN` of `ST_Operator` (OP-27): after each downsampling, `downsample` writes NaN in the coarse pixels declared invalid (M-DOWN-MASK). These pixels go through the wavelet convolution, the modulus (`modulus`, `data.array.abs()`) and the products of `cov`, and `maskmean` then removes them from the mean with `torch.where(~mask, x, 0.0)`. In the backward pass that `where` sends them a zero gradient, which the modulus and the products multiply by a NaN local derivative (the sign of a NaN, or the NaN factor): 0 × NaN = NaN, first in the backward pass of `abs`, and the transposed convolutions and downsamplings spread it to the valid pixels. The values are not concerned. With `replace_nan_value=None`, which STL's syntheses pass, or 0, STL's statistics are the same bit for bit and its gradient is finite, equal to ESTEL's to 4e-16 of its largest value on that case (T2.16) | ESTEL keeps a finite gradient: it uses weights, never NaN values (OP-27, M-MEAN); where STL's gradient is NaN, ESTEL's is compared with STL run with `replace_nan_value=None` | differs |
 | OP-61 | A reduced border (OP-13) biases the coarsest non-periodic means. On a 64 × 64 field with J = 5 the level of scale 4 has 4 × 4 pixels: the border of M-BORDER (2 pixels for S1 and S2, more for S3 and S4) is too large and is reduced to 1 pixel, so the mean runs over 2 × 2 pixels that the padding still reaches. Measured on a stationary log-normal process, the same periodic fields read with `pbc=False` and with `pbc=True` (512 seeded draws, raw statistics, L = 4): at j = 4 the non-periodic S2 is 18.8 to 24.7 % below the periodic one according to the orientation (7.5 to 11.5 standard errors of the paired difference), and S1 10.2 to 13.7 % below; 446 of the 2 064 real numbers of S3 and S4 whose mean is at scale 4 are beyond 6.1 standard errors as well, the threshold of the test, and no coefficient of the finer scales is (largest 2.8). STL gives the same values on the same fields (`master`, parity container: equal to ESTEL to 5e-16 of the largest coefficient), so the gap is a property of STL's estimator. At 128 × 128 and 256 × 256 with J = 5, the means with a reduced border keep less than a quarter of the pixels of their level, and no gap is seen on the others (64 draws; at 128 × 128 the non-periodic means of scale 4, with a full border of 2 pixels on an 8 × 8 level, stay within 2.1 standard errors with 256 draws, on six seeds). `tests/consistency/` keeps the case as its positive control (T2.16) | reproduce in step 1. For step 2: a mean whose border cannot be cropped in full is not computed (a NaN coefficient with one warning, as a mean with no valid pixel, OP-3), or J is limited so that every level holds its border. A less conservative border crop, tuned so that no mean is too small or empty, is to test too (LF57) | reproduced |
 | OP-62 | Two formulas take a scale for the level at which it is computed, which is exact in 1.0.0, where d = j: the border of M-BORDER, β = ⌈ 2^(j−d) · ⌊K/2⌋ ⌉ after one convolution, β₁ = ⌈ 2^(j₂−j₃) · ⌊K/2⌋ ⌉ and β = ⌈ 2^(j₃−d) · (β₁ + ⌊K/2⌋) ⌉ after two, whose exponents are differences of levels written with scales; and the size condition of M-DATA-2D, divisible by 2^(J−1), the level of the last scale. When a scale is no longer computed at its own level (voices, LF41), both read the level of the scale from the plan, where T2.18 put it (issue #115) | keep in 1.0.0, where d = j; write them with the level of the scale when it differs | later (LF41) |
+| OP-95 | The legacy windows of the spectrum (§1.9) have compact support, (c\_b / λ, λ c\_b): when J\_PS is large or J\_min > 0, a bin holds no Fourier mode, Z\_b = 0 and its coefficient is NaN (0 / 0), with a border of 0. Checked: 44 of 229 configurations (16 to 128 pixels, every J\_PS and J\_min), for example 32 × 32 with J\_PS = 5 or 64 × 64 with J\_PS = 6 (one bin each); never at the default J with J\_min = 0. Their squares form a partition of unity, but STL uses the windows themselves as the weight of the power | not transferred if the legacy windows are not kept; reproduced otherwise (decision on #148) | open |
 
 #### B. Conventions to document
 
@@ -562,7 +622,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-17 | `angular_fourier` (STL's `to_angular_ft`) keeps all L harmonics by default, contrary to a code comment | reproduce, document | reproduced |
 | OP-18 | Gradients through the normalisation reference: decided, they follow from the mode (LF21, closed): with `norm="self"` the reference is part of the computation and gradients flow through it; with `norm="ref"` it is a constant | decided: nothing else to design | closed |
 | OP-19 | Only the real part of cross-spectra is kept | reproduce, document; LF53 | reproduced |
-| OP-20 | The spectrum code requires even sizes (inverse FFT width) | reproduce, document; LF61 | reproduced |
+| OP-20 | The spectrum code requires even sizes (inverse FFT width): the three band-map estimators fail when the last size is odd; `fft` runs on any size (§1.9) | reproduce, document; LF61 | reproduced |
 | OP-21 | Spectrum border mask at 60 % of the point-spread energy, hard by default | reproduce; LF7 | reproduced |
 | OP-22 | Orientation convention: θ\_ℓ = πℓ/L + π/2 from axis 1 | reproduce, document | reproduced |
 | OP-30 | A channel with cross statistics but no auto statistics gets NaN after `norm="self"` normalisation (STL's `store_ref`); STL only warns | reproduce, document | reproduced |
@@ -573,6 +633,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-37 | When flattening to a real vector, STL keeps only the real part of S1, S2 and PS, assuming they are real; this holds for the auto terms, but the imaginary part of the cross-channel terms is dropped, with the information it carries | reproduce, document; LF53 | reproduced |
 | OP-38 | Default of `cross_matrix` (STL's `compute_cross_matrix`): STL's code computes every pair c₁ ≤ c₂; its docstring says auto statistics only. ESTEL follows the code | follow STL's code | reproduced |
 | OP-39 | The real flattening drops the imaginary part of the cross-channel S1 and S2; STL's syntheses use the complex flattening, which keeps it, so `to_vector` and the synthesis loss do not see the same coefficients | reproduce: the synthesis loss keeps the complex form and `to_vector` stays as it is (Part IV, §22, "The vector of the synthesis loss") | reproduced |
+| OP-96 | The border of the non-periodic spectrum (§1.9) is computed from the point-spread function of W\_b, whereas each band map carries √W\_b; its 60 % are of the energy within r ≤ N\_max, not of the total; the borders are not monotone in the bin (64 × 64, J\_PS = 6: 13, 13, 10, 17, 16, 7, …) | reproduce, document; LF7 | reproduced |
 
 #### C. Transfer and API
 
@@ -583,6 +644,8 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-25 | `sigma_smooth` has no effect: drop it from the API | dropped from the API | differs |
 | OP-26 | A missing-data mask must be one 2D map, shared by all batch elements and channels; auto-detection fails on batched examples | reproduce, document; LF54 | reproduced |
 | OP-27 | Missing pixels are filled with NaN during downsampling by default, which breaks gradients; ESTEL uses weights, with identical values, verified by parity cases with masks from phase P2 | ESTEL uses weights | differs |
+| OP-93 | STL's scattering operator always builds its spectrum operator, even with `compute_PS=False`, and that operator requires 0 ≤ J\_min ≤ J\_PS − 2: every 2D scattering operator with J = 1 fails at construction (`ValueError`), the default one of an 8 × 8 image included. ESTEL's `STOperator` accepts J = 1 with `compute_PS=False` | proposed: ESTEL builds the spectrum only when it computes it, and raises a clear error at construction when `compute_PS=True` and J < 2 + J\_min; STL gives no value there, so parity is not concerned (decision on #148) | open |
+| OP-94 | The default channel pairs of the spectrum: inside STL's scattering operator, those of the statistics (every pair c₁ ≤ c₂, M-CHAN); STL's spectrum operator alone, the auto spectra only | to decide on #148 for `CrossSpectrumOperator`: auto spectra only, as STL, or every pair c₁ ≤ c₂, as `STOperator` | open |
 
 ## 2. 1D
 
