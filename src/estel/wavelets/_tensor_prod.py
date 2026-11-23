@@ -65,7 +65,7 @@ from ._operator import (
 
 Level = tuple[int, ...]
 """A multi-index level d = (d₀, …, d_{B-1}): the field downsampled d_a times along block a
-(maths.md M-NOT-TP)."""
+(maths.md M-NOT-TP); ``(d,)`` for a single geometry (the segments of ``statistics._layout``)."""
 
 
 # ---------------------------------------------------------------------- defaults
@@ -156,7 +156,7 @@ class TensorProdWaveletPlan:
                 )
 
 
-def build_tensor_prod_plan(
+def build_tensor_prod_wavelet_plan(
     data: DataTensorProd,
     J: Sequence[int | None] | None = None,  # noqa: N803 (maths.md notation)
     L: Sequence[int | None] | None = None,  # noqa: N803
@@ -269,7 +269,7 @@ def _check_block_orientations(value: object, geometry: type[Data], what: str, a:
 # ---------------------------------------------------------------------- the arrays
 
 
-def build_tensor_prod_filters(
+def build_tensor_prod_wavelet_filters(
     plan: TensorProdWaveletPlan, backend_name: str, dtype: FloatDType, device: Any
 ) -> tuple[WaveletFilters, ...]:
     """The arrays of each block of ``plan``: its wavelet bank and its smoothing kernel, on the
@@ -320,10 +320,12 @@ class TensorProdWaveletOperator:
         kernel_size: int = KERNEL_SIZE,
         lowpass: str | None = None,
     ) -> None:
-        plan = build_tensor_prod_plan(
+        plan = build_tensor_prod_wavelet_plan(
             data, J, L, wavelet, kernel_size=kernel_size, lowpass=lowpass, stacklevel=2
         )
-        filters = build_tensor_prod_filters(plan, data.backend, default_dtype(), default_device())
+        filters = build_tensor_prod_wavelet_filters(
+            plan, data.backend, default_dtype(), default_device()
+        )
         self._bind(data, plan, filters)
 
     def _bind(
@@ -342,13 +344,20 @@ class TensorProdWaveletOperator:
     @classmethod
     def from_parts(
         cls,
-        data: DataTensorProd,
+        data: Data,
         plan: TensorProdWaveletPlan,
         filters: tuple[WaveletFilters, ...] | None = None,
     ) -> TensorProdWaveletOperator:
-        """The operator of a static part and its arrays, bound to ``data``, which must have
-        the static metadata ``plan`` was built from: no validation and no conversion, so that
-        it works inside traced code. Without ``filters``, the static rules only."""
+        """The operator of a static part and its arrays, bound to ``data``, a
+        ``DataTensorProd`` with the static metadata ``plan`` was built from: its class checked
+        (the loop, in L2, knows the mother class only; Part I, §2.4), no other validation and no
+        conversion, so that it works inside traced code. Without ``filters``, the static rules
+        only."""
+        if not isinstance(data, DataTensorProd):
+            raise TypeError(
+                f"TensorProdWaveletOperator takes a DataTensorProd, got {type(data).__name__}; "
+                "for 1D and 2D data, use WaveletOperator."
+            )
         new = cls.__new__(cls)
         new._bind(data, plan, filters)
         return new
@@ -522,7 +531,8 @@ class TensorProdWaveletOperator:
             raise ValueError(
                 f"TensorProdWaveletOperator.{function}: this operator holds its static part "
                 "only. Bind the arrays too: TensorProdWaveletOperator.from_parts(data, plan, "
-                "filters), with filters = build_tensor_prod_filters(plan, backend, dtype, device)."
+                "filters), with filters = build_tensor_prod_wavelet_filters(plan, backend, "
+                "dtype, device)."
             )
         return self._filters
 

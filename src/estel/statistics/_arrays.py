@@ -12,7 +12,7 @@ from ..backend import _registry
 from ..backend._protocol import Backend, DType
 
 
-def backend_of(x: Any) -> Backend:
+def backend_object_of(x: Any) -> Backend:
     """The backend of the array ``x``."""
     name = _registry.backend_of(x)
     if name is None:

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import warnings
 from numbers import Integral
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -19,6 +19,7 @@ from numpy.typing import NDArray
 from ..backend import _registry
 from ..backend._protocol import PadMode
 from ._base import Data, DownsampleWeights
+from ._moments import _is_complex
 
 
 def _check_array(data: Data, x: Any, hook: str) -> None:
@@ -29,10 +30,6 @@ def _check_array(data: Data, x: Any, hook: str) -> None:
             f"{type(data).__name__}.{hook}: the array has shape {tuple(x.shape)}; pass "
             f"(Nb, Nc, *spatial), with {data.ndim} spatial axis(es)."
         )
-
-
-def _is_complex(xp: Any, x: Any) -> bool:
-    return bool(xp.isdtype(x.dtype, "complex floating"))
 
 
 def _padding_mode(pbc: bool) -> PadMode:
@@ -51,7 +48,7 @@ def _planar_conv(self: Data, x: Any, tables: Any, level: int) -> Any:
         x,
         tables,
         axes=self._spatial_axes(),
-        pbc=self.pbc,
+        pbc=cast(bool, self.pbc),  # planar data: one boolean
         backend=self.backend,
         owner=f"{type(self).__name__}._conv",
     )
@@ -115,7 +112,7 @@ def _planar_downsample(self: Data, x: Any, weights: DownsampleWeights, level: in
         x,
         weights,
         axes=self._spatial_axes(),
-        pbc=self.pbc,
+        pbc=cast(bool, self.pbc),  # planar data: one boolean
         backend=self.backend,
         owner=f"{type(self).__name__}._downsample",
     )

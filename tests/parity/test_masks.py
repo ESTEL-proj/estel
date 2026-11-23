@@ -24,7 +24,7 @@ from estel.data._planar import Data1D, Data2D
 from estel.wavelets._banks import smoothing_kernel
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
-CASES = {"masks_2d": Data2D, "masks_1d": Data1D}
+CASES: dict[str, type[Data2D] | type[Data1D]] = {"masks_2d": Data2D, "masks_1d": Data1D}
 MODES = {"replicate": False, "circular": True}
 
 

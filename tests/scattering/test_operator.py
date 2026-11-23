@@ -66,7 +66,7 @@ def _numpy(stats: STStatistics) -> dict[str, NDArray[Any]]:
 @pytest.mark.dtype
 @pytest.mark.parametrize(("cls", "n", "L"), [(Data2D, 16, 4), (Data1D, 32, 1), (Data1D, 32, 2)])
 def test_full_grids_have_stls_shapes_dtypes_and_nan(
-    cls: type[Data],
+    cls: type[Data2D] | type[Data1D],
     n: int,
     L: int,  # noqa: N803 (maths.md notation)
     dtype: str,
@@ -150,7 +150,7 @@ def test_channel_pairs_follow_stls_order() -> None:
 
 @pytest.mark.parametrize(("cls", "n"), [(Data2D, 32), (Data1D, 64)])
 @pytest.mark.parametrize("pbc", [True, False])
-def test_missing_values_are_never_read(cls: type[Data], n: int, pbc: bool) -> None:
+def test_missing_values_are_never_read(cls: type[Data2D] | type[Data1D], n: int, pbc: bool) -> None:
     """NaN, 0 or a huge value at the missing pixels give the same statistics (OP-27)."""
     mask = _hole(n, cls.ndim)
     field = _field((2, 2) + (n,) * cls.ndim)
@@ -200,7 +200,7 @@ def test_standardize_returns_the_moments_removed(dtype: str) -> None:
 @pytest.mark.slow
 @pytest.mark.parametrize(("cls", "n"), [(Data2D, 16), (Data1D, 32)])
 def test_gradients_are_finite_with_missing_values(
-    cls: type[Data], n: int, backend: Backend, dtype: DType
+    cls: type[Data2D] | type[Data1D], n: int, backend: Backend, dtype: DType
 ) -> None:
     """First and second order through the whole loop, with exact zeros (the missing pixels,
     filled with 0) and NaN in the input there (Part I, §3.2.3): finite, and zero at the missing

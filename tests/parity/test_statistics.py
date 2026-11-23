@@ -28,11 +28,11 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
+from estel import Data1D, Data2D, STOperator, STStatistics, _config
 from estel.backend._protocol import DType
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
-CASES: dict[str, type[Data]] = {"statistics_2d": Data2D, "statistics_1d": Data1D}
+CASES: dict[str, type[Data2D] | type[Data1D]] = {"statistics_2d": Data2D, "statistics_1d": Data1D}
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
 REDUCED = {
     "iso": ("S1", "S2", "S3", "S4"),

@@ -47,7 +47,7 @@ import warnings
 from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass, field
 from numbers import Integral
-from typing import Any, Literal, NamedTuple, TypeVar
+from typing import Any, Literal, NamedTuple, TypeVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -56,7 +56,7 @@ from .._config import FloatDType, default_device, default_dtype
 from ..backend import _registry
 from ..backend._protocol import DType
 from ..data._base import Data, DownsampleWeights, _StaticMask
-from ..data._masks import BoolMap, FloatMap, MaskMaps, build_mask_maps
+from ..data._masks import BoolMap, MaskMaps, RealMap, build_mask_maps
 from ..data._tensor_prod import DataTensorProd
 from ._banks import KERNEL_SIZE as KERNEL_SIZE  # the default K, for the plan (re-exported)
 from ._banks import (
@@ -177,7 +177,7 @@ class MeanWeights:
     border: int
     """The border width β of M-BORDER, in pixels at ``level``, before the reduction of a
     border too large for the grid (OP-13); the reduction, if any, is in ``weights``."""
-    weights: FloatMap
+    weights: RealMap
     """1 on the pixels that enter the mean, 0 on the border crop and on invalid pixels; a
     read-only float64 array of the spatial shape at ``level``. The means of one call to
     ``WaveletOperator.mean_weights`` with the same level, border and invalid pixels share one
@@ -327,7 +327,7 @@ class WaveletPlan:
                 f"{before}."
             )
 
-    def downsample_maps(self, level: int, history: History = ()) -> tuple[BoolMap, FloatMap] | None:
+    def downsample_maps(self, level: int, history: History = ()) -> tuple[BoolMap, RealMap] | None:
         """The static maps of one downsampling step, from ``level`` to ``level + 1``
         (maths.md M-DOWN-MASK; STL ``downsample``), or ``None`` when no value is missing.
 
@@ -386,7 +386,7 @@ def build_wavelet_plan(
     return _wavelet_plan(
         type(data),
         data.shape[2:],
-        data.pbc,
+        cast(bool, data.pbc),  # one boolean: a tensor product raised above
         data.mask,
         n_scales,
         n_orientations,
@@ -422,7 +422,7 @@ def _wavelet_plan(
     With ``lowpass``, the plan goes down to the level of the low-pass filter too, one level
     below that of its last wavelet scale (maths.md M-LP): the blocks of a tensor product that
     have a low-pass filter (task T3.2). The planar statistics of 1.0.0 have none."""
-    ndim = geometry.ndim
+    ndim = cast(int, geometry.ndim)  # the class constant of a planar geometry
     # The level of each scale: in 1.0.0, scale j at level d = j (maths.md M-NOT).
     scale_levels = tuple(range(n_scales))
     # The low-pass filter φ_J is read one level below the last wavelet scale: in 1.0.0, the
@@ -650,7 +650,7 @@ class WaveletOperator:
 
     @staticmethod
     def _mean_weights(
-        level: int, border: int, crop: FloatMap, invalid: BoolMap | None
+        level: int, border: int, crop: RealMap, invalid: BoolMap | None
     ) -> MeanWeights | None:
         """The crop of ``border`` times the valid pixels, those outside ``invalid``, the union
         of the operands' masks; ``None`` when no pixel is left (OP-3)."""
@@ -757,7 +757,7 @@ class WaveletOperator:
 # ---------------------------------------------------------------------- helpers
 
 
-def window_box(weights: FloatMap) -> Box | None:
+def window_box(weights: RealMap) -> Box | None:
     """The rectangle a 0/1 window is, as its bounds on each axis, or ``None`` when the window
     is not a rectangle (or is empty): the smallest rectangle that holds its pixels, when it
     holds nothing else."""
@@ -798,8 +798,9 @@ def _invalid(
     return masks.layer2[(j3, j2)]
 
 
-def _read_only(array: Any) -> NDArray[Any]:
-    copy = np.array(array)
+def _read_only(array: Any, dtype: Any = None) -> NDArray[Any]:
+    """A read-only copy of ``array``, in ``dtype`` when one is given."""
+    copy = np.array(array, dtype=dtype)
     copy.flags.writeable = False
     return copy
 

@@ -27,8 +27,8 @@ from estel.wavelets._operator import WaveletOperator, default_scales_of, wavelet
 from estel.wavelets._tensor_prod import (
     TensorProdWaveletOperator,
     TensorProdWaveletPlan,
-    build_tensor_prod_filters,
-    build_tensor_prod_plan,
+    build_tensor_prod_wavelet_filters,
+    build_tensor_prod_wavelet_plan,
 )
 from tests._backends import backend_name
 
@@ -51,7 +51,7 @@ def _assert_close(backend: Backend, actual: Any, expected: Any, dtype: str) -> N
     np.testing.assert_allclose(got, want, rtol=rtol, atol=atol * scale)
 
 
-def _bank(backend: Backend, geometry: type[Data], dtype: str) -> Any:
+def _bank(backend: Backend, geometry: type[Data2D] | type[Data1D], dtype: str) -> Any:
     return backend.asarray(
         wavelet_bank(geometry.ndim, 4 if geometry is Data2D else 2), COMPLEX[dtype]
     )
@@ -63,13 +63,15 @@ def _operator(
     J: list[int] | None = None,  # noqa: N803
 ) -> TensorProdWaveletOperator:
     """The wavelet operator of ``product`` with its arrays in ``dtype``."""
-    plan = build_tensor_prod_plan(product, J)
+    plan = build_tensor_prod_wavelet_plan(product, J)
     real: FloatDType = "float64" if dtype == "float64" else "float32"
-    filters = build_tensor_prod_filters(plan, product.backend, real, default_device())
+    filters = build_tensor_prod_wavelet_filters(plan, product.backend, real, default_device())
     return TensorProdWaveletOperator.from_parts(product, plan, filters)
 
 
-def _smoothing(backend: Backend, geometry: type[Data], dtype: DType) -> DownsampleWeights:
+def _smoothing(
+    backend: Backend, geometry: type[Data2D] | type[Data1D], dtype: DType
+) -> DownsampleWeights:
     return DownsampleWeights(backend.asarray(smoothing_kernel(geometry.ndim), dtype))
 
 
@@ -80,7 +82,7 @@ def _smoothing(backend: Backend, geometry: type[Data], dtype: DType) -> Downsamp
 @pytest.mark.parametrize("pbc", [True, False])
 @pytest.mark.parametrize("geometry", [Data2D, Data1D])
 def test_one_block_hooks_equal_the_plain_geometry(
-    backend: Backend, dtype: DType, geometry: type[Data], pbc: bool
+    backend: Backend, dtype: DType, geometry: type[Data2D] | type[Data1D], pbc: bool
 ) -> None:
     """A tensor product of one block filters, downsamples and crops as its plain geometry,
     bit for bit (OP-82)."""

@@ -17,6 +17,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal, NamedTuple, Protocol, TypeAlias
 
+from .._config import DTYPES as DTYPES  # one definition, with FloatDType, in estel._config
+from .._config import FloatDType
+
 Statistics: TypeAlias = Any
 """What the forward pass returns: the statistics, ``STStatistics`` (T2.5)."""
 
@@ -29,12 +32,9 @@ Residual: TypeAlias = Any
 Geometry = Literal["1d", "2d", "healpix", "tensor_prod"]
 """The geometries of ESTEL 1.0.0 (Part II, §9.3)."""
 
-FloatDType = Literal["float32", "float64"]
-
 DeviceKind = Literal["cpu", "gpu"]
 
 GEOMETRIES: frozenset[Geometry] = frozenset({"1d", "2d", "healpix", "tensor_prod"})
-DTYPES: frozenset[FloatDType] = frozenset({"float32", "float64"})
 DEVICE_KINDS: frozenset[DeviceKind] = frozenset({"cpu", "gpu"})
 
 

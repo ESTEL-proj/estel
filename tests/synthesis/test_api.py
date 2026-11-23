@@ -23,7 +23,7 @@ from estel import Data2D, STOperator, _config
 from estel.backend._protocol import Backend
 from estel.statistics._arrays import device_of
 from estel.synthesis._api import _running_data, _start
-from estel.synthesis._init import nyquist_filter, standardize
+from estel.synthesis._init import nyquist_filter, standardize_target
 
 pytestmark = pytest.mark.maths(
     "M-SYN-TARGET", "M-SYN-INIT", "M-SYN-NYQ", "M-SYN-LOSS", "M-SYN-LBFGS", "M-SYN-OUT"
@@ -188,7 +188,9 @@ def test_converged_run_stops_and_stays_stopped(backend: Backend, tmp_path: Path)
     if _unavailable(backend):
         return
     maps = _maps()
-    target = standardize(backend, nyquist_filter(backend, backend.asarray(maps, "float64")), True)
+    target = standardize_target(
+        backend, nyquist_filter(backend, backend.asarray(maps, "float64")), True
+    )
     noise = np.random.default_rng(5).standard_normal(maps.shape)
     init = np.asarray(backend.to_numpy(target.x)) + 1e-7 * noise
     options: dict[str, Any] = {**SMALL, "init": init, "max_iter": 30}

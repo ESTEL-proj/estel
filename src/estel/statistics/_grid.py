@@ -37,12 +37,13 @@ import hashlib
 import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.typing import NDArray
 
-from ..scattering._plan import PlanarPlan, TensorProdPlan
+if TYPE_CHECKING:
+    from ..scattering._plan import PlanarPlan, TensorProdPlan
 
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
 """The families of ESTEL 1.0.0, in STL's order (``to_flatten``); PS joins them in T4.1."""
@@ -52,6 +53,18 @@ REAL_PART_ONLY = ("S1", "S2", "PS")
 OP-37)."""
 
 
+def orientations_at(
+    scale: tuple[int, ...],
+    J: tuple[int, ...],  # noqa: N803 (maths.md notation)
+    L: tuple[int, ...],  # noqa: N803
+) -> tuple[int, ...]:
+    """The orientation shape of a tensor product at the multi-index ``scale``, for the blocks
+    of ``J`` wavelet scales and ``L`` orientations: L_a, or 1 along a block taken at its
+    low-pass scale J_a, which has orientation 0 only (maths.md M-LP). The chunks of S1 and S2
+    and the rows of the normalisation scales sigma have this shape."""
+    return tuple(1 if j == n else size for j, n, size in zip(scale, J, L, strict=True))
+
+
 def _digest(array: NDArray[Any]) -> tuple[Any, ...]:
     """A short key of a static array, for hashing and equality: its shape, dtype and a digest
     of its bytes, so that a key holds no copy of the array."""
@@ -59,7 +72,7 @@ def _digest(array: NDArray[Any]) -> tuple[Any, ...]:
     return (data.shape, str(data.dtype), hashlib.blake2b(data.tobytes(), digest_size=16).digest())
 
 
-def _read_only(array: Any, dtype: Any) -> NDArray[Any]:
+def _read_only_as(array: Any, dtype: Any) -> NDArray[Any]:
     found = np.asarray(array, dtype=dtype)
     if found.flags.writeable or found.base is not None:
         found = np.array(found, dtype=dtype)
@@ -117,9 +130,9 @@ class FamilyGrid:
             raise ValueError(f"{self.name}: {len(self.axes)} axes, {len(self.coords)} coords.")
         if not 0 <= self.n_chunk_axes <= len(self.axes):
             raise ValueError(f"{self.name}: {self.n_chunk_axes} chunk axes of {len(self.axes)}.")
-        kinds = _read_only(self.kinds, np.int32).reshape(-1)
-        chunks = _read_only(self.chunks, np.int32).reshape(kinds.shape[0], self.n_chunk_axes)
-        real = _read_only(self.real, bool).reshape(-1, self.n_orientations)
+        kinds = _read_only_as(self.kinds, np.int32).reshape(-1)
+        chunks = _read_only_as(self.chunks, np.int32).reshape(kinds.shape[0], self.n_chunk_axes)
+        real = _read_only_as(self.real, bool).reshape(-1, self.n_orientations)
         if kinds.shape[0] != chunks.shape[0]:
             raise ValueError(f"{self.name}: {chunks.shape[0]} chunks, {kinds.shape[0]} kinds.")
         if kinds.shape[0] and (kinds.min() < 0 or kinds.max() >= real.shape[0]):
@@ -129,7 +142,7 @@ class FamilyGrid:
         shapes = None
         if self.shapes is not None:
             full = np.array(self.orientations, dtype=np.int32)
-            shapes = _read_only(self.shapes, np.int32).reshape(real.shape[0], full.shape[0])
+            shapes = _read_only_as(self.shapes, np.int32).reshape(real.shape[0], full.shape[0])
             if ((shapes < 1) | (shapes > full)).any():
                 raise ValueError(f"{self.name}: a kind has orientations outside the family's.")
             if (shapes == full).all():
@@ -137,7 +150,7 @@ class FamilyGrid:
             else:
                 outside = real & ~_corners(shapes, self.orientations)
                 if outside.any():
-                    real = _read_only(real & ~outside, bool)
+                    real = _read_only_as(real & ~outside, bool)
         object.__setattr__(self, "chunks", chunks)
         object.__setattr__(self, "kinds", kinds)
         object.__setattr__(self, "real", real)

@@ -39,7 +39,10 @@ def _field(shape: tuple[int, ...], seed: int = 0) -> np.ndarray:
     ],
 )
 def test_arrays_are_promoted_to_batch_channel_spatial(
-    cls: type[Data], shape: tuple[int, ...], promoted: tuple[int, ...], backend: Backend
+    cls: type[Data2D] | type[Data1D],
+    shape: tuple[int, ...],
+    promoted: tuple[int, ...],
+    backend: Backend,
 ) -> None:
     field = _field(shape)
     data = cls(field, pbc=True)

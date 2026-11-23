@@ -23,7 +23,7 @@ and ``jax.vmap`` accept a ``Data`` object and return one.
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, NamedTuple
+from typing import Any, ClassVar, NamedTuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -38,8 +38,8 @@ class Data:
     """Data plus static metadata: the mother class of every geometry.
 
     Build a geometry instead: ``Data1D`` or ``Data2D``. The mother class holds the shared
-    logic; a subclass sets ``ndim``, the number of spatial axes, and overrides only the
-    geometry hooks.
+    logic; a subclass sets ``ndim``, the number of spatial axes (a class constant of a single
+    geometry), and overrides only the geometry hooks.
 
     Parameters
     ----------
@@ -57,8 +57,11 @@ class Data:
         Periodic boundary conditions, ``True`` or ``False``: required, with no default.
     """
 
-    ndim: ClassVar[int]
-    """The number of spatial axes of the geometry."""
+    @property
+    def ndim(self) -> int:
+        """The number of spatial axes: a class constant of a single geometry (``Data1D.ndim``,
+        ``Data2D.ndim``), those of every block for a tensor product (``DataTensorProd.ndim``)."""
+        raise NotImplementedError
 
     _nan_threshold: ClassVar[float]
     """τ of maths.md M-DOWN-MASK: a downsampled pixel is invalid when its fraction of invalid
@@ -75,7 +78,7 @@ class Data:
     _array: Any
     _backend: str
     _mask: NDArray[np.bool_] | None
-    _pbc: bool
+    _pbc: bool | tuple[bool, ...]
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Register every geometry as a pytree on every backend (task T2.9): registration is
@@ -87,7 +90,7 @@ class Data:
 
     def __init__(self, array: Any, mask: Any = None, *, pbc: bool) -> None:
         cls = type(self)
-        if not hasattr(cls, "ndim"):
+        if not hasattr(cls, "_geometry"):
             raise TypeError(
                 f"{cls.__name__} is the mother class and has no geometry: build a geometry "
                 "instead, estel.Data1D or estel.Data2D."
@@ -108,12 +111,15 @@ class Data:
     @classmethod
     def _accepted_shapes(cls) -> str:
         """The shapes the constructor accepts, for error messages."""
-        spatial = ", ".join(f"N{i + 1}" for i in range(cls.ndim)) if cls.ndim > 1 else "N"
+        ndim = cast(int, cls.ndim)  # the class constant of a single geometry
+        spatial = ", ".join(f"N{i + 1}" for i in range(ndim)) if ndim > 1 else "N"
         return f"({spatial}), (Nc, {spatial}) or (Nb, Nc, {spatial})"
 
     # ------------------------------------------------------------------ construction
 
-    def _set(self, array: Any, mask: NDArray[np.bool_] | None, pbc: bool, backend: str) -> None:
+    def _set(
+        self, array: Any, mask: NDArray[np.bool_] | None, pbc: bool | tuple[bool, ...], backend: str
+    ) -> None:
         object.__setattr__(self, "_array", array)
         object.__setattr__(self, "_mask", mask)
         object.__setattr__(self, "_pbc", pbc)
@@ -121,7 +127,7 @@ class Data:
 
     @classmethod
     def _from_parts(
-        cls, array: Any, mask: NDArray[np.bool_] | None, pbc: bool, backend: str
+        cls, array: Any, mask: NDArray[np.bool_] | None, pbc: bool | tuple[bool, ...], backend: str
     ) -> Data:
         """A new object from parts already validated: no conversion, no check of values, so
         that it works inside traced code."""
@@ -157,8 +163,9 @@ class Data:
         return self._mask
 
     @property
-    def pbc(self) -> bool:
-        """Whether the boundary conditions are periodic."""
+    def pbc(self) -> bool | tuple[bool, ...]:
+        """Whether the boundary conditions are periodic: one boolean for a single geometry, one
+        per block for a tensor product (``DataTensorProd.pbc``)."""
         return self._pbc
 
     @property
@@ -486,7 +493,8 @@ def _to_backend(array: Any, backend_name: str, cls: type[Data]) -> Any:
 
 def _promote(array: Any, cls: type[Data]) -> Any:
     """Promote ``array`` to ``(Nb, Nc, *spatial)`` (maths.md M-DATA-2D, M-DATA-1D, OP-29)."""
-    return _promote_spatial(array, cls.ndim, cls.__name__, cls._accepted_shapes())
+    ndim = cast(int, cls.ndim)  # the class constant of a single geometry
+    return _promote_spatial(array, ndim, cls.__name__, cls._accepted_shapes())
 
 
 def _promote_spatial(array: Any, ndim: int, owner: str, accepted: str) -> Any:

@@ -27,7 +27,7 @@ from estel.scattering._plan import PlanarPlan, build_plan
 from estel.wavelets._operator import MeanWeights, border_width
 from tests.parity._compare import load_fixture, read_manifest
 
-CASES: dict[str, type[Data]] = {"plan_2d": Data2D, "plan_1d": Data1D}
+CASES: dict[str, type[Data2D] | type[Data1D]] = {"plan_2d": Data2D, "plan_1d": Data1D}
 pytestmark = pytest.mark.maths("M-BORDER", "M-MASK", "M-MEAN")
 
 
@@ -87,8 +87,10 @@ def test_borders_equal_stl(case: str, name: str) -> None:
     data, n_scales = _data(case, name, fixture)
     kernel_size = _parameters(case)["K"]
     expected = fixture[f"{name}_border"]
+    pbc = data.pbc
+    assert isinstance(pbc, bool)  # planar data: one boolean
     got = [
-        max(border_width(h, level, kernel_size, data.pbc) for h in histories)
+        max(border_width(h, level, kernel_size, pbc) for h in histories)
         for _, histories, level, _ in _stl_order(n_scales)
     ]
     np.testing.assert_array_equal(np.asarray(got, dtype=np.float64), expected)

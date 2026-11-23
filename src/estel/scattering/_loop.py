@@ -30,10 +30,10 @@ STL does not compute (j1 > j2, about half of it): they are not read. Every value
 to the order of the sums. The convolutions and the downsamplings are those of the wavelet operator
 (``WaveletOperator.apply``, ``downsample``; Part I, §2.3): the loop sees levels, maps and
 weights, and does not depend on the geometry. Nothing is written in place (Part I, §3.1,
-rule 1): every step returns a new array, the
-divided sums of each level are collected in a list, in the order of ``_plan.loop_sums``, and one
-static gather, built in NumPy with the plan (``statistics._layout.loop_gather``), concatenates
-them, chunk by chunk, into the compact buffer at the end (Part III, §19.3, §19.9): no full-grid
+rule 1): every step returns a new array, the divided sums of each level are collected in a
+list, in the order of ``statistics._layout.loop_sums``, and one static gather, built in NumPy
+with the plan (``statistics._layout.loop_gather``), concatenates them, chunk by chunk, into
+the compact buffer at the end (Part III, §19.3, §19.9): no full-grid
 tensor is written in the computation (review rule X5). The loops run over scales, levels and
 channel pairs, as STL's, never over pixels or orientations.
 
@@ -53,7 +53,7 @@ like the structural NaN (M-CHAN).
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ..backend import _registry
 from ..backend._protocol import Backend
@@ -63,7 +63,9 @@ from ..data._moments import cov_sum_valid, divide, gram_sum, modulus, standardiz
 from ..statistics._layout import gather_loop, loop_gather
 from ..wavelets._operator import WaveletOperator
 from ._filters import PlanarFilters, window
-from ._plan import ChannelPairs, PlanarPlan
+
+if TYPE_CHECKING:
+    from ._plan import ChannelPairs, PlanarPlan
 
 S1_EPSILON = 1e-8
 """ε of the cross S1 terms, ``z / (|z| + ε)^(1/2)`` (maths.md M-S1, OP-16)."""
@@ -247,7 +249,7 @@ def scattering_values(data: Data, plan: PlanarPlan, filters: PlanarFilters) -> S
     if len(divided) != gather.n_sums:
         raise RuntimeError(
             f"the loop produced {len(divided)} sums where the plan expects {gather.n_sums}: "
-            "scattering._plan.loop_sums no longer follows the loop; make them agree."
+            "statistics._layout.loop_sums no longer follows the loop; make them agree."
         )
     return ScatteringValues(
         buffer=gather_loop(backend, divided, gather, filters.gather),

@@ -189,14 +189,16 @@ def _identity(x: Any) -> Any:
 
 
 class Standardized(NamedTuple):
-    """What :func:`standardize` returns."""
+    """What :func:`standardize` returns, and the standardisation of the target of a synthesis
+    (``synthesis._init.standardize_target``)."""
 
     x: Any
     """The standardised data, ``(x - mean) / std``."""
     mean: Any
-    """The mean removed, ``(Nb, Nc)``."""
+    """The mean removed, ``(Nb, Nc)``; ``(1, Nc)`` for a batch mean (a synthesis with
+    ``mean_field``)."""
     std: Any
-    """The standard deviation divided by, ``(Nb, Nc)``."""
+    """The standard deviation divided by, of the shape of ``mean``."""
 
 
 def standardize(

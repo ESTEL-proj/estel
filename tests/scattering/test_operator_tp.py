@@ -25,6 +25,7 @@ from estel.backend import _registry
 from estel.functional import _scattering
 from estel.scattering._plan import TensorProdPlan
 from estel.statistics._layout import tensor_prod_gather, tensor_prod_layout
+from estel.wavelets._tensor_prod import TensorProdWaveletOperator
 from tests.parity._compare import assert_parity
 
 pytestmark = [
@@ -123,13 +124,41 @@ def test_a_wrong_reference_is_refused_before_the_loop(monkeypatch: pytest.Monkey
     def no_loop(name: str) -> Any:
         raise AssertionError("the loop ran before the reference was checked")
 
-    monkeypatch.setattr(_scattering, "_tensor_prod_loop", no_loop)
+    monkeypatch.setattr(_scattering, "_loop", no_loop)
     with pytest.raises(ValueError, match=r"J = \[1, 1\] \(the operator has \[2, 1\]\)"):
         operator.apply(data, ref=other)
     with pytest.raises(ValueError, match=r"comes from planar statistics"):
         operator.apply(data, ref=planar_stats)
     with pytest.raises(ValueError, match=r'norm="ref" needs a reference'):
         operator.apply(data)
+
+
+@pytest.mark.parametrize(
+    "case", ["planar plan, filters of a product", "plan of a product, planar filters", "wavelets"]
+)
+def test_parts_of_another_geometry_are_refused(case: str) -> None:
+    """The plan and the filters of two operators, one planar and one of a tensor product, are
+    refused with a ``TypeError`` (``STPlan._check_data``), and so is planar data given to the
+    wavelet operator of a tensor product (``TensorProdWaveletOperator.from_parts``; #144)."""
+    product = _space_time()
+    planar = Data2D(_field((1, 1, 8, 8)), pbc=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)  # OP-34 on these small blocks
+        of_product = STOperatorTensorProd(product, [1, 1], norm="none")
+    of_planar = STOperator(planar, 1, norm="none", compute_PS=False)
+    if case == "wavelets":
+        plan = of_product.plan
+        assert isinstance(plan, TensorProdPlan)
+        with pytest.raises(TypeError, match=r"TensorProdWaveletOperator takes a DataTensorProd"):
+            TensorProdWaveletOperator.from_parts(planar, plan.wavelets)
+        return
+    data, plan, filters = (
+        (planar, of_planar.plan, of_product.filters)
+        if case.startswith("planar")
+        else (product, of_product.plan, of_planar.filters)
+    )
+    with pytest.raises(TypeError, match=r"the plan and the filters come from different operators"):
+        estel.functional.scattering(data, plan, filters)
 
 
 def test_arguments_are_checked_at_construction() -> None:

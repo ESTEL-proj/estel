@@ -44,7 +44,7 @@ Nothing is written in place, and nothing depends on array values.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..backend import _registry
 from ..backend._protocol import Backend
@@ -61,8 +61,10 @@ from ._loop import (
     first_layer_sums,
     gram_sums,
 )
-from ._plan import TensorProdPlan
 from ._tensor_prod import FirstLayerScale, Scale, SecondLayerScale, TensorProdLoop
+
+if TYPE_CHECKING:
+    from ._plan import TensorProdPlan
 
 # ---------------------------------------------------------------------- the loop
 
@@ -76,11 +78,7 @@ def tensor_prod_values(
     backend = _registry.backend_named(data.backend)
     xp = backend.xp
     loop = plan.loop
-    wavelets = TensorProdWaveletOperator.from_parts(
-        data,  # type: ignore[arg-type]
-        plan.wavelets,
-        filters.wavelets,
-    )
+    wavelets = TensorProdWaveletOperator.from_parts(data, plan.wavelets, filters.wavelets)
     n_spatial = len(plan.spatial_shape)
     axes = tuple(range(-n_spatial, 0))
 
@@ -114,7 +112,7 @@ def tensor_prod_values(
     # The second layer, every wavelet scale j3 in lexicographic order.
     s3: list[Any] = []
     s4: list[Any] = []
-    for j3, cross, gram in _second_layer(backend, wavelets, plan, moduli, band, filters):
+    for j3, cross, gram in _second_layer_grams(backend, wavelets, plan, moduli, band, filters):
         second = loop.second(j3)
         three, four = _second_layer_means(backend, plan, second, filters, cross, gram)
         s3, s4 = [*s3, three], [*s4, four]
@@ -226,7 +224,7 @@ def _first_layer_means(
 # ---------------------------------------------------------------------- second layer
 
 
-def _second_layer(
+def _second_layer_grams(
     backend: Backend,
     wavelets: TensorProdWaveletOperator,
     plan: TensorProdPlan,

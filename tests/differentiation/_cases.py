@@ -36,7 +36,7 @@ class Case:
     """One configuration: the data (batch, channels and spatial shape), and the operator."""
 
     name: str
-    cls: type[Data]
+    cls: type[Data2D] | type[Data1D]
     shape: tuple[int, ...]
     pbc: bool
     masked: bool = False

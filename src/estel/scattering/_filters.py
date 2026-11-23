@@ -21,7 +21,7 @@ takes it as a pytree whose leaves are the arrays.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -30,9 +30,11 @@ from .._config import FloatDType
 from ..backend import _registry
 from ..statistics._layout import ChunkTables, loop_gather, tensor_prod_gather
 from ..wavelets._operator import MeanWeights, WaveletFilters, build_wavelet_filters
-from ..wavelets._tensor_prod import build_tensor_prod_filters as build_block_filters
-from ._plan import PlanarPlan, TensorProdPlan
+from ..wavelets._tensor_prod import build_tensor_prod_wavelet_filters
 from ._tensor_prod import Scale
+
+if TYPE_CHECKING:
+    from ._plan import PlanarPlan, TensorProdPlan
 
 
 class _FilterFields(NamedTuple):
@@ -60,9 +62,9 @@ class _FilterFields(NamedTuple):
     of the plan."""
     gather: tuple[Any, ...]
     """The integer arrays of the static gather from the divided sums of the loop, in the order
-    of ``_plan.loop_sums``, to the compact buffer of the statistics: for each kind of chunk the
-    loop computes complex and the buffer stores with real entries, the floats kept (int32;
-    ``statistics._layout.loop_gather``; Part III, §19.3, §19.9; task T3.7)."""
+    of ``statistics._layout.loop_sums``, to the compact buffer of the statistics: for each kind
+    of chunk the loop computes complex and the buffer stores with real entries, the floats kept
+    (int32; ``statistics._layout.loop_gather``; Part III, §19.3, §19.9; task T3.7)."""
 
 
 class STFilters:
@@ -73,10 +75,17 @@ class STFilters:
     operator's plan, to ``estel.functional.scattering``. Its arrays are on the operator's
     backend, dtype and device; it has no public field. The filters of each geometry are a
     subclass, internal to ESTEL, and a named tuple: :class:`PlanarFilters` for 1D and 2D data,
-    :class:`TensorProdFilters` for tensor products.
+    :class:`TensorProdFilters` for tensor products. Its one hook, :attr:`_smoothing`, gives
+    their backend and dtype; the plan builds them (``STPlan._build_filters``; issue #144).
     """
 
     __slots__ = ()
+
+    @property
+    def _smoothing(self) -> Any:
+        """An array of the filters, which gives their backend and dtype: the smoothing kernel
+        (of the first block of a tensor product)."""
+        raise NotImplementedError
 
 
 class PlanarFilters(_FilterFields, STFilters):
@@ -84,6 +93,10 @@ class PlanarFilters(_FilterFields, STFilters):
     :func:`build_filters`; its fields are those of ``_FilterFields``."""
 
     __slots__ = ()
+
+    @property
+    def _smoothing(self) -> Any:
+        return self.wavelets.smoothing
 
 
 # ---------------------------------------------------------------------- windows
@@ -167,6 +180,10 @@ class TensorProdFilters(_TensorProdFilterFields, STFilters):
 
     __slots__ = ()
 
+    @property
+    def _smoothing(self) -> Any:
+        return self.wavelets[0].smoothing
+
 
 def build_tensor_prod_filters(
     plan: TensorProdPlan, backend_name: str, dtype: FloatDType, device: Any
@@ -187,7 +204,7 @@ def build_tensor_prod_filters(
     second = loop.second_layer
     pack = tensor_prod_gather(plan)
     return TensorProdFilters(
-        wavelets=build_block_filters(plan.wavelets, backend_name, dtype, device),
+        wavelets=build_tensor_prod_wavelet_filters(plan.wavelets, backend_name, dtype, device),
         arm_crops={s.j3: tuple(real(c) for c in s.arm_crops) for s in second},
         band_crops={s.j3: tuple(real(c) for c in s.band_crops) for s in second},
         s3_rows={s.j3: index(s.s3_rows) for s in second},
@@ -196,12 +213,3 @@ def build_tensor_prod_filters(
         s4_denominators={s.j3: real(s.s4_denominators) for s in second},
         s4_pack=(index(pack.within), index(pack.kinds), index(pack.starts)),
     )
-
-
-def filters_of(
-    plan: PlanarPlan | TensorProdPlan, backend_name: str, dtype: FloatDType, device: Any
-) -> PlanarFilters | TensorProdFilters:
-    """The filters of ``plan``, of either geometry (``STOperator._setup``)."""
-    if isinstance(plan, TensorProdPlan):
-        return build_tensor_prod_filters(plan, backend_name, dtype, device)
-    return build_filters(plan, backend_name, dtype, device)
