@@ -48,7 +48,11 @@ CASES = [
 
 @pytest.mark.parametrize(("cls", "shape", "missing"), CASES)
 def test_jit_takes_a_dataclass_and_returns_one(
-    backend: Backend, dtype: DType, cls: type[Data], shape: tuple[int, ...], missing: Any
+    backend: Backend,
+    dtype: DType,
+    cls: type[Data2D] | type[Data1D],
+    shape: tuple[int, ...],
+    missing: Any,
 ) -> None:
     values = _field(shape)
     spatial = shape[-cls.ndim :]
@@ -152,7 +156,11 @@ def test_jax_compiles_once_per_mask(dtype: DType) -> None:
 @jax_only
 @pytest.mark.parametrize(("cls", "shape", "missing"), CASES)
 def test_vmap_takes_a_dataclass_and_returns_one(
-    backend: Backend, dtype: DType, cls: type[Data], shape: tuple[int, ...], missing: Any
+    backend: Backend,
+    dtype: DType,
+    cls: type[Data2D] | type[Data1D],
+    shape: tuple[int, ...],
+    missing: Any,
 ) -> None:
     import jax
 

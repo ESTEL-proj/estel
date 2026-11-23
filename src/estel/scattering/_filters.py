@@ -77,7 +77,7 @@ class STFilters:
     backend, dtype and device; it has no public field. The filters of each geometry are a
     subclass, internal to ESTEL, and a named tuple: :class:`PlanarFilters` for 1D and 2D data,
     :class:`TensorProdFilters` for tensor products. Its one hook, :attr:`_smoothing`, gives
-    their backend and dtype; the plan builds them (``STPlan._build_filters``).
+    their backend and dtype; the plan builds them (``STPlan._build_filters``; issue #144).
     """
 
     __slots__ = ()

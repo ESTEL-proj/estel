@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..statistics._arrays import backend_of
+from ..statistics._arrays import backend_object_of
 
 
 def loss(values: Any, target_values: Any) -> Any:
@@ -20,7 +20,7 @@ def loss(values: Any, target_values: Any) -> Any:
     STL's ``(s - t).abs() ** 2`` summed, and its gradient is 0 where z = 0, as PyTorch's
     gradient of STL's form.
     """
-    backend = backend_of(values)
+    backend = backend_object_of(values)
     xp = backend.xp
     pairs = backend.complex_to_real_pairs(values - target_values)
     return xp.sum(pairs * pairs)

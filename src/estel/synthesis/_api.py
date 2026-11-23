@@ -227,7 +227,7 @@ def synthesize_from_maps(
     data, ndim = _target_data(target)
     backend = _check_backend(data.backend)
     _check_periodic(data, "target")
-    _check_compute_ps(compute_PS)
+    _check_loss_compute_ps(compute_PS)
     options = _st_options(st_kwargs)
     n_batch = _positive_int("n_batch", n_batch)
     _check_flag("mean_field", mean_field)
@@ -593,7 +593,7 @@ def _check_periodic(data: Data, what: str) -> None:
         )
 
 
-def _check_compute_ps(compute_ps: object) -> None:
+def _check_loss_compute_ps(compute_ps: object) -> None:
     if compute_ps is not None and not isinstance(compute_ps, bool | np.bool_):
         raise TypeError(f"compute_PS={compute_ps!r}: pass True, False or None (the default).")
     if compute_ps is None or compute_ps:

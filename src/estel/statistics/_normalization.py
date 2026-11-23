@@ -29,7 +29,7 @@ from numpy.typing import NDArray
 
 from ..backend import _registry
 from ..backend._protocol import Backend
-from ._arrays import backend_of, constant
+from ._arrays import backend_object_of, constant
 from ._grid import orientations_at
 from ._layout import (
     Chunked,
@@ -119,7 +119,7 @@ class _NormReference:
     def s2_sqrt(self) -> Any:
         """STL's ``S2_ref_sqrt_chan_diag``: ``(Nr, Nc, J, L)``, complex, NaN where sigma does
         not exist. A view, built on demand; the normalisation reads :attr:`sigma`."""
-        backend = backend_of(self.sigma)
+        backend = backend_object_of(self.sigma)
         xp = backend.xp
         if self.blocks is not None:
             return self._s2_sqrt_tensor_prod(backend)

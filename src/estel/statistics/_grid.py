@@ -72,7 +72,7 @@ def _digest(array: NDArray[Any]) -> tuple[Any, ...]:
     return (data.shape, str(data.dtype), hashlib.blake2b(data.tobytes(), digest_size=16).digest())
 
 
-def _read_only(array: Any, dtype: Any) -> NDArray[Any]:
+def _read_only_as(array: Any, dtype: Any) -> NDArray[Any]:
     found = np.asarray(array, dtype=dtype)
     if found.flags.writeable or found.base is not None:
         found = np.array(found, dtype=dtype)
@@ -130,9 +130,9 @@ class FamilyGrid:
             raise ValueError(f"{self.name}: {len(self.axes)} axes, {len(self.coords)} coords.")
         if not 0 <= self.n_chunk_axes <= len(self.axes):
             raise ValueError(f"{self.name}: {self.n_chunk_axes} chunk axes of {len(self.axes)}.")
-        kinds = _read_only(self.kinds, np.int32).reshape(-1)
-        chunks = _read_only(self.chunks, np.int32).reshape(kinds.shape[0], self.n_chunk_axes)
-        real = _read_only(self.real, bool).reshape(-1, self.n_orientations)
+        kinds = _read_only_as(self.kinds, np.int32).reshape(-1)
+        chunks = _read_only_as(self.chunks, np.int32).reshape(kinds.shape[0], self.n_chunk_axes)
+        real = _read_only_as(self.real, bool).reshape(-1, self.n_orientations)
         if kinds.shape[0] != chunks.shape[0]:
             raise ValueError(f"{self.name}: {chunks.shape[0]} chunks, {kinds.shape[0]} kinds.")
         if kinds.shape[0] and (kinds.min() < 0 or kinds.max() >= real.shape[0]):
@@ -142,7 +142,7 @@ class FamilyGrid:
         shapes = None
         if self.shapes is not None:
             full = np.array(self.orientations, dtype=np.int32)
-            shapes = _read_only(self.shapes, np.int32).reshape(real.shape[0], full.shape[0])
+            shapes = _read_only_as(self.shapes, np.int32).reshape(real.shape[0], full.shape[0])
             if ((shapes < 1) | (shapes > full)).any():
                 raise ValueError(f"{self.name}: a kind has orientations outside the family's.")
             if (shapes == full).all():
@@ -150,7 +150,7 @@ class FamilyGrid:
             else:
                 outside = real & ~_corners(shapes, self.orientations)
                 if outside.any():
-                    real = _read_only(real & ~outside, bool)
+                    real = _read_only_as(real & ~outside, bool)
         object.__setattr__(self, "chunks", chunks)
         object.__setattr__(self, "kinds", kinds)
         object.__setattr__(self, "real", real)

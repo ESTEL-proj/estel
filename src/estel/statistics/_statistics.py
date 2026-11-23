@@ -606,11 +606,11 @@ def _reduced(backend: Backend, buffer: Any, transform: compact.FloatMap) -> tupl
     compiled function. The tables of its chunks are arguments, not constants: the index the
     size of the coefficients is built inside the computation."""
     tables = compact.map_tables(backend, transform, buffer)
-    return _compiled(backend.name, transform)(buffer, tables), transform.layout
+    return _compiled_map(backend.name, transform)(buffer, tables), transform.layout
 
 
 @functools.lru_cache(maxsize=64)
-def _compiled(backend_name: str, transform: compact.FloatMap) -> Any:
+def _compiled_map(backend_name: str, transform: compact.FloatMap) -> Any:
     backend = _registry.backend_named(backend_name)
 
     def mapped(buffer: Any, tables: compact.MapTables) -> Any:

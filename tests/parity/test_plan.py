@@ -27,7 +27,7 @@ from estel.scattering._plan import PlanarPlan, build_plan
 from estel.wavelets._operator import MeanWeights, border_width
 from tests.parity._compare import load_fixture, read_manifest
 
-CASES: dict[str, type[Data]] = {"plan_2d": Data2D, "plan_1d": Data1D}
+CASES: dict[str, type[Data2D] | type[Data1D]] = {"plan_2d": Data2D, "plan_1d": Data1D}
 pytestmark = pytest.mark.maths("M-BORDER", "M-MASK", "M-MEAN")
 
 

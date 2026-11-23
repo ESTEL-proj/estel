@@ -29,7 +29,7 @@
       "kind": "property"
     },
     "estel.Data.ndim": {
-      "kind": "constant"
+      "kind": "property"
     },
     "estel.Data.pbc": {
       "kind": "property"

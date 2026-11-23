@@ -38,7 +38,7 @@ class BlockSpec(NamedTuple):
     """The static description of one block of a tensor product: hashable, compared by value,
     so that it is pytree metadata (Part I, §2.3)."""
 
-    geometry: type[Data]
+    geometry: type[Data2D] | type[Data1D]
     """The geometry of the block, ``Data2D`` or ``Data1D``."""
     axes: tuple[int, ...]
     """The axes of the block in the array ``(Nb, Nc, *spatial)``, contiguous and increasing."""
@@ -136,7 +136,7 @@ class DataTensorProd(Data):
     # ------------------------------------------------------------------ accessors
 
     @property
-    def ndim(self) -> int:  # type: ignore[override]
+    def ndim(self) -> int:
         """The number of spatial axes, those of every block."""
         return sum(len(b.axes) for b in self._blocks)
 
@@ -268,7 +268,7 @@ class DataTensorProd(Data):
 # ---------------------------------------------------------------------- validation
 
 
-def _check_blocks(blocks: object) -> tuple[type[Data], ...]:
+def _check_blocks(blocks: object) -> tuple[type[Data2D] | type[Data1D], ...]:
     """The geometries of the blocks: a non-empty list of ``Data2D`` and ``Data1D``."""
     example = "for example blocks=[estel.Data2D, estel.Data1D] for space and time"
     if isinstance(blocks, str) or not isinstance(blocks, Sequence):
@@ -309,7 +309,7 @@ def _check_pbc(pbc: object, n_blocks: int) -> tuple[bool, ...]:
     return tuple(bool(flag) for flag in pbc)
 
 
-def _accepted_shapes(geometries: tuple[type[Data], ...]) -> str:
+def _accepted_shapes(geometries: tuple[type[Data2D] | type[Data1D], ...]) -> str:
     """The shapes the constructor accepts, for error messages."""
     names: list[str] = []
     for index, geometry in enumerate(geometries):

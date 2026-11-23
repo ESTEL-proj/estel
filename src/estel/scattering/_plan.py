@@ -211,7 +211,7 @@ class STPlan:
     static metadata of the data (geometry, spatial shape, ``pbc``, mask, number of channels;
     for a tensor product, its blocks), so that they hold the same values.
 
-    **Hooks** (Part I, §2.3; Part II, §12.6). What depends on the geometry goes
+    **Hooks** (Part I, §2.3; Part II, §12.6; issue #144). What depends on the geometry goes
     through a small, fixed set of internal hooks, declared here and implemented by each
     subclass, so that the operator, ``estel.functional.scattering`` and ``STStatistics`` make
     one call where they would branch on the class of the plan: :attr:`_operator` and
@@ -866,7 +866,7 @@ def _check_options(norm: object, ref_batch_mean: object, standardize: object) ->
 _FAMILIES = {"moments": "mean and var", "S1": "S1 and S2", "S3": "S3", "S4": "S4"}
 
 
-def _family(key: Any) -> str:
+def _mean_family(key: Any) -> str:
     return "moments" if key == "moments" else str(key[0])
 
 
@@ -883,7 +883,7 @@ def _check_empty(
         "(the mask grows by the wavelet footprint at each layer, and the border crop with depth)."
     )
     for family, name in _FAMILIES.items():
-        members = [key for key in means if _family(key) == family]
+        members = [key for key in means if _mean_family(key) == family]
         if members and all(key not in weights for key in members):
             raise ValueError(
                 f"no {name} coefficient can be computed: the missing values and the border crops "

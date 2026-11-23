@@ -39,12 +39,12 @@ import functools
 import itertools
 import math
 from dataclasses import dataclass
-from typing import NamedTuple, TypeVar
+from typing import NamedTuple
 
 import numpy as np
 from numpy.typing import NDArray
 
-from ..wavelets._operator import Box, window_box
+from ..wavelets._operator import Box, _read_only, window_box
 from ..wavelets._tensor_prod import TensorProdWaveletPlan
 
 Scale = tuple[int, ...]
@@ -259,11 +259,3 @@ def build_tensor_prod_loop(
         second_layer=tuple(second),
         moments_denominator=float(math.prod(wavelets.spatial_shape)),
     )
-
-
-_A = TypeVar("_A", bound=np.ndarray)
-
-
-def _read_only(array: _A) -> _A:
-    array.flags.writeable = False
-    return array

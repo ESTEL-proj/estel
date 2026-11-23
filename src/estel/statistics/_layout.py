@@ -1079,7 +1079,7 @@ def _grouped(
     return _Grouped(name, groups)
 
 
-def _on_orientations(
+def _apply_on_orientations(
     backend: Backend, dense: Any, step: OnOrientations, shape: tuple[int, ...]
 ) -> Any:
     """``step`` applied to ``dense`` ``(Nb, n, *shape, 2)``."""
@@ -1225,7 +1225,7 @@ def _apply_steps(
             else:
                 shape = (*shape[: step.axis], int(step.positions.shape[0]), *shape[step.axis + 1 :])
         else:
-            x = _on_orientations(backend, x, step, shape)
+            x = _apply_on_orientations(backend, x, step, shape)
             shape = (*shape[: step.axis], *step.shape, *shape[step.axis + step.n_axes :])
     return x
 

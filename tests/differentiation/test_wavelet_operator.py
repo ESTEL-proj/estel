@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data, Data1D, Data2D, DataTensorProd
+from estel import Data1D, Data2D, DataTensorProd
 from estel.backend._protocol import Backend
 from estel.data._moments import modulus
 from estel.wavelets._operator import WaveletOperator
@@ -29,7 +29,9 @@ STEP = 1e-6
 RTOL, ATOL = 1e-6, 1e-8
 
 
-def _two_layers(backend: Backend, cls: type[Data]) -> tuple[Any, Callable[[Any], Any]]:
+def _two_layers(
+    backend: Backend, cls: type[Data2D] | type[Data1D]
+) -> tuple[Any, Callable[[Any], Any]]:
     shape = (1, 2, *(8,) * cls.ndim)
     mask = np.zeros(shape[2:], dtype=bool)
     mask[(slice(3, 5),) * cls.ndim] = True
@@ -58,7 +60,7 @@ def _central_difference(
 @pytest.mark.maths("M-W1", "M-DOWN", "M-DOWN-MASK")
 @pytest.mark.parametrize("cls", [Data1D, pytest.param(Data2D, marks=pytest.mark.slow)])
 def test_jvp_and_hvp_of_apply_and_downsample_match_finite_differences(
-    backend: Backend, cls: type[Data]
+    backend: Backend, cls: type[Data2D] | type[Data1D]
 ) -> None:
     """``Backend.jvp`` of every output, and ``Backend.hvp`` of a random linear combination of
     them, against central differences of the function and of its gradient.

@@ -422,7 +422,7 @@ def _wavelet_plan(
     With ``lowpass``, the plan goes down to the level of the low-pass filter too, one level
     below that of its last wavelet scale (maths.md M-LP): the blocks of a tensor product that
     have a low-pass filter (task T3.2). The planar statistics of 1.0.0 have none."""
-    ndim = geometry.ndim
+    ndim = cast(int, geometry.ndim)  # the class constant of a planar geometry
     # The level of each scale: in 1.0.0, scale j at level d = j (maths.md M-NOT).
     scale_levels = tuple(range(n_scales))
     # The low-pass filter φ_J is read one level below the last wavelet scale: in 1.0.0, the
