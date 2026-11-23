@@ -4879,6 +4879,1033 @@
     },
     "sha256": "f99cc2f1090e2d1c7c75f88aa0616c02b4bc247899018e186cf2a1199f7c98ab"
   },
+  "spectrum_2d.npz": {
+    "case": "tools/stl_parity/cases/spectrum_2d.py",
+    "stl_branch": "master",
+    "stl_commit": "8eaf7691d55f3c3441cde9b95f1f80eb17aa8014",
+    "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
+    "parameters": {
+      "methods": [
+        "fft",
+        "pbc_mask",
+        "nan_mask",
+        "pbc_nan_mask"
+      ],
+      "spectral_index": 2.0,
+      "offset": 0.3,
+      "masks": {
+        "scatter_hole": {
+          "seed": 1,
+          "scatter_fraction": 0.03,
+          "hole": [
+            [
+              10,
+              17
+            ],
+            [
+              4,
+              13
+            ]
+          ]
+        },
+        "per_map": {
+          "seed": 2,
+          "scatter_fraction": 0.05,
+          "hole": [
+            [
+              20,
+              26
+            ],
+            [
+              18,
+              22
+            ]
+          ]
+        }
+      },
+      "configs": {
+        "periodic": {
+          "shape": [
+            32,
+            32
+          ],
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": true,
+          "seed": 70,
+          "auto": "fft"
+        },
+        "open": {
+          "shape": [
+            32,
+            32
+          ],
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": false,
+          "seed": 71,
+          "auto": "pbc_mask"
+        },
+        "periodic_nan": {
+          "shape": [
+            32,
+            32
+          ],
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": true,
+          "seed": 72,
+          "mask": "scatter_hole",
+          "auto": "nan_mask"
+        },
+        "open_nan": {
+          "shape": [
+            32,
+            32
+          ],
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": false,
+          "seed": 73,
+          "mask": "scatter_hole",
+          "auto": "pbc_nan_mask"
+        },
+        "nan_per_map": {
+          "shape": [
+            32,
+            32
+          ],
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": true,
+          "seed": 74,
+          "mask": "per_map",
+          "mask_per_map": true,
+          "auto": "nan_mask"
+        },
+        "rect_wide": {
+          "shape": [
+            32,
+            48
+          ],
+          "Nb": 1,
+          "Nc": 2,
+          "pbc": true,
+          "seed": 75,
+          "auto": "fft"
+        },
+        "rect_tall": {
+          "shape": [
+            48,
+            32
+          ],
+          "Nb": 1,
+          "Nc": 2,
+          "pbc": false,
+          "seed": 76,
+          "auto": "pbc_mask"
+        },
+        "periodic_J2": {
+          "shape": [
+            32,
+            32
+          ],
+          "Nb": 1,
+          "Nc": 2,
+          "pbc": true,
+          "seed": 77,
+          "J": 2,
+          "auto": "fft"
+        }
+      }
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "nan_per_map_auto": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "nan_per_map_auto_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "nan_per_map_bin_centers": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "nan_per_map_bin_norm": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "nan_per_map_bin_scalars": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "nan_per_map_bin_windows": {
+        "dtype": "float64",
+        "shape": [
+          6,
+          17
+        ]
+      },
+      "nan_per_map_crop_borders": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "nan_per_map_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "nan_per_map_n_modes_radial": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "nan_per_map_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "nan_per_map_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "nan_per_map_radial_bin_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          17
+        ]
+      },
+      "nan_per_map_radial_k": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "nan_per_map_weight_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          17
+        ]
+      },
+      "open_auto": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "open_auto_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "open_bin_centers": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "open_bin_norm": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "open_bin_scalars": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "open_bin_windows": {
+        "dtype": "float64",
+        "shape": [
+          6,
+          17
+        ]
+      },
+      "open_crop_borders": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "open_fft": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "open_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "open_n_modes_radial": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "open_nan_auto": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "open_nan_auto_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "open_nan_bin_centers": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "open_nan_bin_norm": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "open_nan_bin_scalars": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "open_nan_bin_windows": {
+        "dtype": "float64",
+        "shape": [
+          6,
+          17
+        ]
+      },
+      "open_nan_crop_borders": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "open_nan_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "open_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "open_nan_n_modes_radial": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "open_nan_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "open_nan_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "open_nan_radial_bin_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          17
+        ]
+      },
+      "open_nan_radial_k": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "open_nan_weight_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          17
+        ]
+      },
+      "open_pbc_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "open_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "open_radial_bin_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          17
+        ]
+      },
+      "open_radial_k": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "open_weight_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          17
+        ]
+      },
+      "periodic_J2_auto": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          4
+        ]
+      },
+      "periodic_J2_auto_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "periodic_J2_bin_centers": {
+        "dtype": "float64",
+        "shape": [
+          4
+        ]
+      },
+      "periodic_J2_bin_norm": {
+        "dtype": "float64",
+        "shape": [
+          4
+        ]
+      },
+      "periodic_J2_bin_scalars": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "periodic_J2_bin_windows": {
+        "dtype": "float64",
+        "shape": [
+          4,
+          17
+        ]
+      },
+      "periodic_J2_crop_borders": {
+        "dtype": "float64",
+        "shape": [
+          4
+        ]
+      },
+      "periodic_J2_fft": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          4
+        ]
+      },
+      "periodic_J2_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2,
+          32,
+          32
+        ]
+      },
+      "periodic_J2_n_modes_radial": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "periodic_J2_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          4
+        ]
+      },
+      "periodic_J2_pbc_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          4
+        ]
+      },
+      "periodic_J2_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          4
+        ]
+      },
+      "periodic_J2_radial_bin_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          17
+        ]
+      },
+      "periodic_J2_radial_k": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "periodic_J2_weight_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          17
+        ]
+      },
+      "periodic_auto": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_auto_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "periodic_bin_centers": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "periodic_bin_norm": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "periodic_bin_scalars": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "periodic_bin_windows": {
+        "dtype": "float64",
+        "shape": [
+          6,
+          17
+        ]
+      },
+      "periodic_crop_borders": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "periodic_fft": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "periodic_n_modes_radial": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "periodic_nan_auto": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_nan_auto_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "periodic_nan_bin_centers": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "periodic_nan_bin_norm": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "periodic_nan_bin_scalars": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "periodic_nan_bin_windows": {
+        "dtype": "float64",
+        "shape": [
+          6,
+          17
+        ]
+      },
+      "periodic_nan_crop_borders": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "periodic_nan_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "periodic_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_nan_n_modes_radial": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "periodic_nan_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_nan_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_nan_radial_bin_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          17
+        ]
+      },
+      "periodic_nan_radial_k": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "periodic_nan_weight_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          17
+        ]
+      },
+      "periodic_pbc_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_radial_bin_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          17
+        ]
+      },
+      "periodic_radial_k": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "periodic_weight_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          17
+        ]
+      },
+      "rect_tall_auto": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_tall_auto_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "rect_tall_bin_centers": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "rect_tall_bin_norm": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "rect_tall_bin_scalars": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "rect_tall_bin_windows": {
+        "dtype": "float64",
+        "shape": [
+          6,
+          17
+        ]
+      },
+      "rect_tall_crop_borders": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "rect_tall_fft": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_tall_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2,
+          48,
+          32
+        ]
+      },
+      "rect_tall_n_modes_radial": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "rect_tall_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_tall_pbc_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_tall_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_tall_radial_bin_of_k": {
+        "dtype": "float64",
+        "shape": [
+          48,
+          17
+        ]
+      },
+      "rect_tall_radial_k": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "rect_tall_weight_of_k": {
+        "dtype": "float64",
+        "shape": [
+          48,
+          17
+        ]
+      },
+      "rect_wide_auto": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_wide_auto_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "rect_wide_bin_centers": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "rect_wide_bin_norm": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "rect_wide_bin_scalars": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "rect_wide_bin_windows": {
+        "dtype": "float64",
+        "shape": [
+          6,
+          17
+        ]
+      },
+      "rect_wide_crop_borders": {
+        "dtype": "float64",
+        "shape": [
+          6
+        ]
+      },
+      "rect_wide_fft": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_wide_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2,
+          32,
+          48
+        ]
+      },
+      "rect_wide_n_modes_radial": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "rect_wide_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_wide_pbc_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_wide_pbc_nan_mask": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "rect_wide_radial_bin_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          25
+        ]
+      },
+      "rect_wide_radial_k": {
+        "dtype": "float64",
+        "shape": [
+          17
+        ]
+      },
+      "rect_wide_weight_of_k": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          25
+        ]
+      }
+    },
+    "sha256": "4b08f21aec4af61614198a2bb60d41e4ebcb180e27ede5357082d3b5926b1c5b"
+  },
   "statistics_1d.npz": {
     "case": "tools/stl_parity/cases/statistics_1d.py",
     "stl_branch": "2D+1D",
@@ -7878,6 +8905,934 @@
     },
     "sha256": "06e747371cbc9139d5bdd92edfbab9aaaf2eb943348f78872987d150653c29bd"
   },
+  "statistics_ps_2d.npz": {
+    "case": "tools/stl_parity/cases/statistics_ps_2d.py",
+    "stl_branch": "master",
+    "stl_commit": "8eaf7691d55f3c3441cde9b95f1f80eb17aa8014",
+    "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
+    "parameters": {
+      "L": 4,
+      "threshold": 0.33,
+      "methods": [
+        "fft",
+        "pbc_mask",
+        "nan_mask",
+        "pbc_nan_mask"
+      ],
+      "masks": {
+        "scatter_hole": {
+          "seed": 1,
+          "scatter_fraction": 0.03,
+          "hole": [
+            [
+              10,
+              17
+            ],
+            [
+              4,
+              13
+            ]
+          ]
+        }
+      },
+      "configs": {
+        "periodic": {
+          "N": 32,
+          "J": null,
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": true,
+          "seed": 80,
+          "ref_seed": 90,
+          "norm_batch_mean": false,
+          "auto": "fft"
+        },
+        "periodic_J2": {
+          "N": 32,
+          "J": 2,
+          "Nb": 2,
+          "Nc": 1,
+          "pbc": true,
+          "seed": 81,
+          "ref_seed": 91,
+          "norm_batch_mean": true,
+          "auto": "fft"
+        },
+        "open": {
+          "N": 32,
+          "J": null,
+          "Nb": 1,
+          "Nc": 1,
+          "pbc": false,
+          "seed": 82,
+          "ref_seed": 92,
+          "norm_batch_mean": false,
+          "auto": "pbc_mask"
+        },
+        "open_masked": {
+          "N": 32,
+          "J": null,
+          "Nb": 2,
+          "Nc": 2,
+          "pbc": false,
+          "seed": 83,
+          "ref_seed": 93,
+          "mask": "scatter_hole",
+          "norm_batch_mean": true,
+          "auto": "pbc_nan_mask"
+        },
+        "periodic_masked": {
+          "N": 32,
+          "J": null,
+          "Nb": 1,
+          "Nc": 2,
+          "pbc": true,
+          "seed": 84,
+          "ref_seed": 94,
+          "mask": "scatter_hole",
+          "norm_batch_mean": false,
+          "auto": "nan_mask"
+        },
+        "cross_matrix": {
+          "N": 32,
+          "J": null,
+          "Nb": 1,
+          "Nc": 2,
+          "pbc": true,
+          "seed": 85,
+          "ref_seed": 95,
+          "cross_matrix": [
+            [
+              false,
+              true
+            ],
+            [
+              false,
+              true
+            ]
+          ],
+          "norm_batch_mean": false,
+          "auto": "fft"
+        }
+      }
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "cross_matrix_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2,
+          32,
+          32
+        ]
+      },
+      "cross_matrix_load_PS": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "cross_matrix_load_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "cross_matrix_load_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "cross_matrix_load_vector": {
+        "dtype": "complex128",
+        "shape": [
+          770
+        ]
+      },
+      "cross_matrix_ps_bins": {
+        "dtype": "float64",
+        "shape": [
+          3
+        ]
+      },
+      "cross_matrix_ps_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "cross_matrix_ps_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          6
+        ]
+      },
+      "cross_matrix_raw_PS": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "cross_matrix_ref_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2,
+          32,
+          32
+        ]
+      },
+      "cross_matrix_s2_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "cross_matrix_store_PS": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "cross_matrix_store_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "cross_matrix_store_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "cross_matrix_var_ref": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "cross_matrix_vector": {
+        "dtype": "complex128",
+        "shape": [
+          770
+        ]
+      },
+      "cross_matrix_vector_batch_mean": {
+        "dtype": "complex128",
+        "shape": [
+          770
+        ]
+      },
+      "cross_matrix_vector_real": {
+        "dtype": "float64",
+        "shape": [
+          1506
+        ]
+      },
+      "open_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          32,
+          32
+        ]
+      },
+      "open_load_PS": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          6
+        ]
+      },
+      "open_load_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "open_load_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "open_load_vector": {
+        "dtype": "complex128",
+        "shape": [
+          768
+        ]
+      },
+      "open_masked_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "open_masked_load_PS": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "open_masked_load_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "open_masked_load_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "open_masked_load_vector": {
+        "dtype": "complex128",
+        "shape": [
+          1420
+        ]
+      },
+      "open_masked_mask": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          32
+        ]
+      },
+      "open_masked_ps_bins": {
+        "dtype": "float64",
+        "shape": [
+          3
+        ]
+      },
+      "open_masked_ps_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "open_masked_ps_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          6
+        ]
+      },
+      "open_masked_raw_PS": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "open_masked_ref_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "open_masked_s2_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "open_masked_store_PS": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "open_masked_store_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "open_masked_store_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "open_masked_var_ref": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "open_masked_vector": {
+        "dtype": "complex128",
+        "shape": [
+          1420
+        ]
+      },
+      "open_masked_vector_batch_mean": {
+        "dtype": "complex128",
+        "shape": [
+          710
+        ]
+      },
+      "open_masked_vector_real": {
+        "dtype": "float64",
+        "shape": [
+          2700
+        ]
+      },
+      "open_ps_bins": {
+        "dtype": "float64",
+        "shape": [
+          3
+        ]
+      },
+      "open_ps_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "open_ps_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          6
+        ]
+      },
+      "open_raw_PS": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          6
+        ]
+      },
+      "open_ref_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          32,
+          32
+        ]
+      },
+      "open_s2_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "open_store_PS": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          6
+        ]
+      },
+      "open_store_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "open_store_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "open_var_ref": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "open_vector": {
+        "dtype": "complex128",
+        "shape": [
+          768
+        ]
+      },
+      "open_vector_batch_mean": {
+        "dtype": "complex128",
+        "shape": [
+          768
+        ]
+      },
+      "open_vector_real": {
+        "dtype": "float64",
+        "shape": [
+          1504
+        ]
+      },
+      "periodic_J2_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1,
+          32,
+          32
+        ]
+      },
+      "periodic_J2_load_PS": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          4
+        ]
+      },
+      "periodic_J2_load_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "periodic_J2_load_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "periodic_J2_load_vector": {
+        "dtype": "complex128",
+        "shape": [
+          652
+        ]
+      },
+      "periodic_J2_ps_bins": {
+        "dtype": "float64",
+        "shape": [
+          3
+        ]
+      },
+      "periodic_J2_ps_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "periodic_J2_ps_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          4
+        ]
+      },
+      "periodic_J2_raw_PS": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          4
+        ]
+      },
+      "periodic_J2_ref_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1,
+          32,
+          32
+        ]
+      },
+      "periodic_J2_s2_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          2,
+          4
+        ]
+      },
+      "periodic_J2_store_PS": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          4
+        ]
+      },
+      "periodic_J2_store_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "periodic_J2_store_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "periodic_J2_var_ref": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "periodic_J2_vector": {
+        "dtype": "complex128",
+        "shape": [
+          652
+        ]
+      },
+      "periodic_J2_vector_batch_mean": {
+        "dtype": "complex128",
+        "shape": [
+          326
+        ]
+      },
+      "periodic_J2_vector_real": {
+        "dtype": "float64",
+        "shape": [
+          1260
+        ]
+      },
+      "periodic_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "periodic_load_PS": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_load_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "periodic_load_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "periodic_load_vector": {
+        "dtype": "complex128",
+        "shape": [
+          6076
+        ]
+      },
+      "periodic_masked_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2,
+          32,
+          32
+        ]
+      },
+      "periodic_masked_load_PS": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_masked_load_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "periodic_masked_load_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "periodic_masked_load_vector": {
+        "dtype": "complex128",
+        "shape": [
+          734
+        ]
+      },
+      "periodic_masked_mask": {
+        "dtype": "float64",
+        "shape": [
+          32,
+          32
+        ]
+      },
+      "periodic_masked_ps_bins": {
+        "dtype": "float64",
+        "shape": [
+          3
+        ]
+      },
+      "periodic_masked_ps_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "periodic_masked_ps_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          6
+        ]
+      },
+      "periodic_masked_raw_PS": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_masked_ref_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2,
+          32,
+          32
+        ]
+      },
+      "periodic_masked_s2_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "periodic_masked_store_PS": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_masked_store_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "periodic_masked_store_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "periodic_masked_var_ref": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "periodic_masked_vector": {
+        "dtype": "complex128",
+        "shape": [
+          734
+        ]
+      },
+      "periodic_masked_vector_batch_mean": {
+        "dtype": "complex128",
+        "shape": [
+          734
+        ]
+      },
+      "periodic_masked_vector_real": {
+        "dtype": "float64",
+        "shape": [
+          1374
+        ]
+      },
+      "periodic_ps_bins": {
+        "dtype": "float64",
+        "shape": [
+          3
+        ]
+      },
+      "periodic_ps_method": {
+        "dtype": "float64",
+        "shape": [
+          1
+        ]
+      },
+      "periodic_ps_ref": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_raw_PS": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_ref_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2,
+          32,
+          32
+        ]
+      },
+      "periodic_s2_ref": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "periodic_store_PS": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          2,
+          2,
+          6
+        ]
+      },
+      "periodic_store_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "periodic_store_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "periodic_var_ref": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "periodic_vector": {
+        "dtype": "complex128",
+        "shape": [
+          6076
+        ]
+      },
+      "periodic_vector_batch_mean": {
+        "dtype": "complex128",
+        "shape": [
+          3038
+        ]
+      },
+      "periodic_vector_real": {
+        "dtype": "float64",
+        "shape": [
+          11964
+        ]
+      }
+    },
+    "sha256": "1c3138b7bf0b711af9821a90cdb1c07d944b1eee537656ce191823ccc323ce5c"
+  },
   "statistics_tp.npz": {
     "case": "tools/stl_parity/cases/statistics_tp.py",
     "stl_branch": "2D+1D",
@@ -8318,5 +10273,101 @@
       }
     },
     "sha256": "099d17b51f41e08c3e400c5d8167996b7e01b938b4a8371bc80799a164bd47c0"
+  },
+  "synthesis_ps_2d.npz": {
+    "case": "tools/stl_parity/cases/synthesis_ps_2d.py",
+    "stl_branch": "master",
+    "stl_commit": "8eaf7691d55f3c3441cde9b95f1f80eb17aa8014",
+    "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
+    "parameters": {
+      "N": 64,
+      "J": 4,
+      "L": 4,
+      "n_bins": 9,
+      "target_seed": 61,
+      "spectral_index": 3.0,
+      "lognormal_scale": 0.8,
+      "seed": 26,
+      "max_iter": 20,
+      "history_size": 50,
+      "lr": 1.0,
+      "mean_field": true,
+      "compute_PS": true
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "counts": {
+        "dtype": "float64",
+        "shape": [
+          2
+        ]
+      },
+      "evaluations": {
+        "dtype": "float64",
+        "shape": [
+          24
+        ]
+      },
+      "field": {
+        "dtype": "float64",
+        "shape": [
+          64,
+          64
+        ]
+      },
+      "losses": {
+        "dtype": "float64",
+        "shape": [
+          20
+        ]
+      },
+      "ps_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          9
+        ]
+      },
+      "s2_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          4,
+          4
+        ]
+      },
+      "settings": {
+        "dtype": "float64",
+        "shape": [
+          4
+        ]
+      },
+      "start": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          64,
+          64
+        ]
+      },
+      "target": {
+        "dtype": "float64",
+        "shape": [
+          64,
+          64
+        ]
+      },
+      "var_ref": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      }
+    },
+    "sha256": "22f521ad8d258834a4bac6b6e272da674015f9bcc707c70936d07cce147ba939"
   }
 }
