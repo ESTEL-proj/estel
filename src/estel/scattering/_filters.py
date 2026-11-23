@@ -196,3 +196,12 @@ def build_tensor_prod_filters(
         s4_denominators={s.j3: real(s.s4_denominators) for s in second},
         s4_pack=(index(pack.within), index(pack.kinds), index(pack.starts)),
     )
+
+
+def filters_of(
+    plan: PlanarPlan | TensorProdPlan, backend_name: str, dtype: FloatDType, device: Any
+) -> PlanarFilters | TensorProdFilters:
+    """The filters of ``plan``, of either geometry (``STOperator._setup``)."""
+    if isinstance(plan, TensorProdPlan):
+        return build_tensor_prod_filters(plan, backend_name, dtype, device)
+    return build_filters(plan, backend_name, dtype, device)

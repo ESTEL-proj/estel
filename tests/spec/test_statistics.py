@@ -32,6 +32,7 @@ from numpy.typing import NDArray
 
 from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
 from estel._spec import planar as spec
+from estel.scattering._plan import PlanarPlan
 from tests.parity._compare import assert_parity
 
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
@@ -268,6 +269,7 @@ def test_defaults_equal_the_oracle(ndim: int) -> None:
     data = GEOMETRIES[ndim](target, pbc=True)
     operator = STOperator(data, compute_PS=False if ndim == 2 else None)
     plan = operator.plan
+    assert isinstance(plan, PlanarPlan)
     defaults = spec.spec_defaults(target.shape[2:])
     assert defaults["cross_matrix"] == "upper triangle"
     found = {

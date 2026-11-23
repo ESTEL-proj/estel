@@ -141,7 +141,9 @@ def test_harness_measures_a_tiny_tensor_product(
     assert (inputs.case, inputs.digest) == (case, digest)
     assert inputs.field.shape == (1, 1, 8, 8, 8)
     measurements, arrays = measure("estel", inputs, warmup=1, repeats=1)
-    assert 0 < measurements["forward_seconds"] < measurements["gradient_seconds"]
+    # Both measured; on a field this small their order is noise, so it is not compared.
+    assert measurements["forward_seconds"] > 0
+    assert measurements["gradient_seconds"] > 0
     assert arrays["gradient"].shape == inputs.field.shape
     assert arrays["S4"].shape[3:] == (1, 1, 1, 1, 1, 1, 4, 2, 4, 2, 4, 2)
 

@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 
@@ -37,8 +37,8 @@ from ..functional._scattering import check_data, compute, reference_of
 from ..statistics._arrays import dtype_name
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
-from ._filters import PlanarFilters, TensorProdFilters, build_filters, build_tensor_prod_filters
-from ._plan import PlanarPlan, TensorProdPlan, build_plan, build_tensor_prod_statistics_plan
+from ._filters import PlanarFilters, STFilters, TensorProdFilters, filters_of
+from ._plan import PlanarPlan, STPlan, TensorProdPlan, build_plan, build_tensor_prod_statistics_plan
 
 _WIDE = ("float64", "complex128")
 
@@ -81,13 +81,19 @@ class STOperator:
         1.0.0.
     """
 
-    _plan: PlanarPlan
-    _filters: PlanarFilters
+    _plan: PlanarPlan | TensorProdPlan
+    _filters: PlanarFilters | TensorProdFilters
     _backend: str
     _dtype: FloatDType
     _device: Any
     _engine: str
     _reference: _NormReference | None
+    _plan_type: ClassVar[type[PlanarPlan] | type[TensorProdPlan]] = PlanarPlan
+    """The plan of the operator's geometry, which :meth:`from_statistics` takes."""
+    _other_statistics: ClassVar[str] = (
+        "these are the statistics of a tensor product, which STOperator does not compute: use "
+        "STOperatorTensorProd.from_statistics(stats)."
+    )
 
     def __init__(
         self,
@@ -123,57 +129,69 @@ class STOperator:
 
     @classmethod
     def from_statistics(cls, stats: STStatistics) -> STOperator:
-        """The operator that computed ``stats``: the same plan (geometry, mask, J, L, channels,
-        normalisation, standardisation), on the current backend and default device, in the
-        dtype of ``stats``, holding the reference ``stats`` were normalised with."""
+        """The operator that computed ``stats``: the same plan (geometry, mask or blocks, J, L,
+        channels, normalisation, standardisation), on the current backend and default device,
+        in the dtype of ``stats``, holding the reference ``stats`` were normalised with. Called
+        on ``STOperatorTensorProd``, it takes the statistics of a tensor product."""
+        name = cls.__name__
         if not isinstance(stats, STStatistics):
             raise TypeError(
-                f"STOperator.from_statistics takes STStatistics, got {type(stats).__name__}."
+                f"{name}.from_statistics takes STStatistics, got {type(stats).__name__}."
             )
         plan = stats._plan
-        if not isinstance(plan, PlanarPlan):
-            raise ValueError(
-                "STOperator.from_statistics: these are the statistics of a tensor product, which "
-                "STOperator does not compute: use STOperatorTensorProd.from_statistics(stats)."
-            )
+        if not isinstance(plan, cls._plan_type):
+            raise ValueError(f"{name}.from_statistics: {cls._other_statistics}")
         operator = cls.__new__(cls)
-        operator._setup(
-            plan, stats._backend, _dtype_of(stats), default_device(), "python", stats._reference
-        )
+        wide = dtype_name(stats._buffer) in _WIDE
+        dtype: FloatDType = "float64" if wide else "float32"
+        operator._setup(plan, stats._backend, dtype, default_device(), "python", stats._reference)
         return operator
 
     def _setup(
         self,
-        plan: PlanarPlan,
+        plan: PlanarPlan | TensorProdPlan,
         backend: str,
         dtype: FloatDType,
         device: Any,
         engine: str,
         reference: _NormReference | None,
     ) -> None:
-        _setup(self, plan, backend, dtype, device, engine, reference, build_filters)
+        """The state of an operator: its plan, its filters built once on ``backend`` in
+        ``dtype`` (``filters_of``, for the geometry of the plan), its engine checked in the
+        registry (Part II, §9.4), and its reference."""
+        capabilities = _engines.resolve(engine)
+        capabilities.check(geometry=plan.geometry._geometry, dtype=dtype)
+        self._plan = plan
+        self._backend = backend
+        self._dtype = dtype
+        self._device = device
+        self._engine = engine
+        self._filters = filters_of(plan, backend, dtype, device)
+        self._reference = reference
 
     # ------------------------------------------------------------------ accessors
 
     @property
-    def plan(self) -> PlanarPlan:
+    def plan(self) -> STPlan:
         """The static plan of the transform, for ``estel.functional.scattering``."""
         return self._plan
 
     @property
-    def filters(self) -> PlanarFilters:
+    def filters(self) -> STFilters:
         """The filters and the arrays derived to apply them, for
         ``estel.functional.scattering``."""
         return self._filters
 
     @property
-    def J(self) -> int:  # noqa: N802 (maths.md notation)
-        """The number of scales."""
+    def J(self) -> int | tuple[int, ...]:  # noqa: N802 (maths.md notation)
+        """The number of scales: an int for a single geometry, one per block for a tensor
+        product."""
         return self._plan.J
 
     @property
-    def L(self) -> int:  # noqa: N802
-        """The number of orientations."""
+    def L(self) -> int | tuple[int, ...]:  # noqa: N802
+        """The number of orientations: an int for a single geometry, one per block for a
+        tensor product."""
         return self._plan.L
 
     @property
@@ -190,20 +208,43 @@ class STOperator:
     # ------------------------------------------------------------------ apply
 
     def apply(self, data: Data, ref: STStatistics | None = None) -> STStatistics:
-        """The statistics of ``data`` (maths.md §1.6 to 1.8), as ``STStatistics``.
+        """The statistics of ``data`` (maths.md §1.6 to 1.8, §3), as ``STStatistics``.
 
         ``data`` must have the geometry, spatial shape, ``pbc``, mask and number of channels of
-        the example the operator was built from, its backend, and its dtype; the batch size may
-        differ. ``ref`` is for ``norm="ref"`` only: statistics computed with
-        ``norm="self"``, whose reference normalises these; without it, the operator uses
-        the reference it holds (from :meth:`from_statistics`). With ``norm="self"`` the
-        operator keeps the reference of the result, replacing the one it held, with a
-        ``UserWarning``.
+        the example the operator was built from (for a tensor product, its blocks, their sizes
+        and ``pbc``), its backend, and its dtype; the batch size may differ. ``ref`` is for
+        ``norm="ref"`` only: statistics of the same geometry computed with ``norm="self"``,
+        whose reference normalises these; without it, the operator uses the reference it holds
+        (from :meth:`from_statistics`). With ``norm="self"`` the operator keeps the reference of
+        the result, replacing the one it held, with a ``UserWarning``.
         """
-        return _apply(self, data, ref, "STOperator")
+        name = type(self).__name__
+        plan = self._plan
+        check_data(data, plan, self._filters)
+        reference = reference_of(ref, plan) if ref is not None else None
+        if reference is None and plan.norm == "ref":
+            reference = self._reference
+            if reference is None:
+                raise ValueError(
+                    f'{name}.apply: norm="ref" needs a reference, and this operator '
+                    'holds none. Pass ref=, statistics computed with norm="self", or build '
+                    f"the operator with {name}.from_statistics (maths.md M-NORM)."
+                )
+        stats = compute(data, plan, self._filters, reference)
+        if plan.norm == "self":
+            if self._reference is not None:
+                warnings.warn(
+                    f'{name}.apply: norm="self" replaces the reference this operator '
+                    "held by that of the new statistics (maths.md M-NORM).",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            self._reference = stats._reference
+        return stats
 
     def __repr__(self) -> str:
         plan = self._plan
+        assert isinstance(plan, PlanarPlan)
         return (
             f"STOperator(J={plan.J}, L={plan.L}, norm={plan.norm!r}, "
             f"ref_batch_mean={plan.ref_batch_mean}, standardize={plan.standardize}, "
@@ -212,14 +253,17 @@ class STOperator:
         )
 
 
-class STOperatorTensorProd:
+class STOperatorTensorProd(STOperator):
     """The scattering operator of a tensor product of planar geometries: the scattering
     statistics mean, var and S1 to S4 with multi-index scales (maths.md §3; Part II, §12.6;
     task T3.2), STL's ``ST_Operator_TensorProd``.
 
-    It shares the code path of :class:`STOperator`, the plan, the filters, the normalisation
-    and the gather into the compact buffer, and differs by the index sets, the levels and the
-    two layers of its loop (Part II, §12.6). Its statistics are stored in the compact layout of
+    A subclass of :class:`STOperator` (Part I, §2.3; Part II, §12.6): it redefines its
+    construction (J and L per block, ``lowpass``), ``lowpass``, ``__repr__`` and the plan that
+    :meth:`from_statistics` takes, and inherits the rest, ``apply``, ``from_statistics``,
+    ``plan``, ``filters``, ``J``, ``L``, ``norm`` and ``standardize``. Its plan and filters,
+    subclasses of ``STPlan`` and ``STFilters``, carry the hooks of its loop: the index sets,
+    the levels and the two layers (``_loop_tp``). Its statistics are stored in the compact layout of
     tensor products; their full grid is a view built on demand, for small cases only.
 
     Parameters
@@ -250,13 +294,10 @@ class STOperatorTensorProd:
         1.0.0.
     """
 
-    _plan: TensorProdPlan
-    _filters: TensorProdFilters
-    _backend: str
-    _dtype: FloatDType
-    _device: Any
-    _engine: str
-    _reference: _NormReference | None
+    _plan_type = TensorProdPlan
+    _other_statistics = (
+        "these are the statistics of planar data: use STOperator.from_statistics(stats)."
+    )
 
     def __init__(
         self,
@@ -301,91 +342,16 @@ class STOperatorTensorProd:
             _warn_channels_without_auto(plan)
         self._setup(plan, data.backend, default_dtype(), default_device(), engine, None)
 
-    @classmethod
-    def from_statistics(cls, stats: STStatistics) -> STOperatorTensorProd:
-        """The operator that computed ``stats``, statistics of a tensor product: the same
-        plan (blocks, sizes, J, L, low-pass filters, channels, normalisation,
-        standardisation), on the current backend and default device, in the dtype of
-        ``stats``, holding the reference ``stats`` were normalised with."""
-        if not isinstance(stats, STStatistics):
-            raise TypeError(
-                "STOperatorTensorProd.from_statistics takes STStatistics, got "
-                f"{type(stats).__name__}."
-            )
-        plan = stats._plan
-        if not isinstance(plan, TensorProdPlan):
-            raise ValueError(
-                "STOperatorTensorProd.from_statistics: these are the statistics of planar data: "
-                "use STOperator.from_statistics(stats)."
-            )
-        operator = cls.__new__(cls)
-        operator._setup(
-            plan, stats._backend, _dtype_of(stats), default_device(), "python", stats._reference
-        )
-        return operator
-
-    def _setup(
-        self,
-        plan: TensorProdPlan,
-        backend: str,
-        dtype: FloatDType,
-        device: Any,
-        engine: str,
-        reference: _NormReference | None,
-    ) -> None:
-        _setup(self, plan, backend, dtype, device, engine, reference, build_tensor_prod_filters)
-
-    # ------------------------------------------------------------------ accessors
-
-    @property
-    def plan(self) -> TensorProdPlan:
-        """The static plan of the transform, for ``estel.functional.scattering``."""
-        return self._plan
-
-    @property
-    def filters(self) -> TensorProdFilters:
-        """The filters and the arrays derived to apply them, for
-        ``estel.functional.scattering``."""
-        return self._filters
-
-    @property
-    def J(self) -> tuple[int, ...]:  # noqa: N802 (maths.md notation)
-        """The number of scales of each block."""
-        return self.plan.J
-
-    @property
-    def L(self) -> tuple[int, ...]:  # noqa: N802
-        """The number of orientations of each block."""
-        return self.plan.L
-
     @property
     def lowpass(self) -> str | None:
         """``"ST"`` or ``None`` (maths.md M-LP)."""
-        return self.plan.lowpass
-
-    @property
-    def norm(self) -> str:
-        """The normalisation of the statistics: ``"self"``, ``"ref"`` or ``"none"``."""
-        return self.plan.norm
-
-    @property
-    def standardize(self) -> bool:
-        """Whether each map is standardised before the transform."""
-        return self.plan.standardize
-
-    # ------------------------------------------------------------------ apply
-
-    def apply(self, data: Data, ref: STStatistics | None = None) -> STStatistics:
-        """The statistics of ``data`` (maths.md §3), as ``STStatistics``, as
-        :meth:`STOperator.apply`: ``data`` must have the blocks, sizes, ``pbc`` and number of
-        channels of the example the operator was built from, its backend and its dtype; the
-        batch size may differ. ``ref`` is for ``norm="ref"`` only, statistics of a tensor
-        product with the same blocks, J, L and low-pass filters computed with
-        ``norm="self"``."""
-        return _apply(self, data, ref, "STOperatorTensorProd")
+        plan = self._plan
+        assert isinstance(plan, TensorProdPlan)
+        return plan.lowpass
 
     def __repr__(self) -> str:
-        plan = self.plan
+        plan = self._plan
+        assert isinstance(plan, TensorProdPlan)
         names = ", ".join(g.__name__ for g in plan.block_geometries)
         return (
             f"STOperatorTensorProd(J={list(plan.J)}, L={list(plan.L)}, "
@@ -395,65 +361,6 @@ class STOperatorTensorProd:
             f"n_channels={plan.n_channels}, pbc={list(plan.pbc)}, backend={self._backend!r}, "
             f"dtype={self._dtype!r})"
         )
-
-
-# ---------------------------------------------------------------------- shared by both operators
-
-
-def _setup(
-    operator: Any,
-    plan: PlanarPlan | TensorProdPlan,
-    backend: str,
-    dtype: FloatDType,
-    device: Any,
-    engine: str,
-    reference: _NormReference | None,
-    filters_of: Any,
-) -> None:
-    """The state of an operator: its plan, its filters built once on ``backend`` in
-    ``dtype``, its engine checked in the registry (Part II, §9.4), and its reference."""
-    capabilities = _engines.resolve(engine)
-    geometry = plan.geometry._geometry
-    capabilities.check(geometry=geometry, dtype=dtype)
-    operator._plan = plan
-    operator._backend = backend
-    operator._dtype = dtype
-    operator._device = device
-    operator._engine = engine
-    operator._filters = filters_of(plan, backend, dtype, device)
-    operator._reference = reference
-
-
-def _apply(operator: Any, data: Data, ref: STStatistics | None, name: str) -> STStatistics:
-    """``apply`` of both operators: the reference of ``norm="ref"`` (given, or held), the pure
-    function, and, with ``norm="self"``, the reference kept, replacing the one held with a
-    ``UserWarning`` (maths.md M-NORM)."""
-    plan = operator._plan
-    check_data(data, plan, operator._filters)
-    reference = reference_of(ref, plan) if ref is not None else None
-    if reference is None and plan.norm == "ref":
-        reference = operator._reference
-        if reference is None:
-            raise ValueError(
-                f'{name}.apply: norm="ref" needs a reference, and this operator '
-                'holds none. Pass ref=, statistics computed with norm="self", or build '
-                f"the operator with {name}.from_statistics (maths.md M-NORM)."
-            )
-    stats = compute(data, plan, operator._filters, reference)
-    if plan.norm == "self":
-        if operator._reference is not None:
-            warnings.warn(
-                f'{name}.apply: norm="self" replaces the reference this operator '
-                "held by that of the new statistics (maths.md M-NORM).",
-                UserWarning,
-                stacklevel=3,
-            )
-        operator._reference = stats._reference
-    return stats
-
-
-def _dtype_of(stats: STStatistics) -> FloatDType:
-    return "float64" if dtype_name(stats._buffer) in _WIDE else "float32"
 
 
 # ---------------------------------------------------------------------- validation

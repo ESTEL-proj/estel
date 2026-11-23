@@ -109,33 +109,7 @@
       "kind": "class",
       "signature": "(self, data: Data, J: Sequence[int | None] | None=None, L: Sequence[int | None] | None=None, *, lowpass: str | None='ST', norm: str='self', ref_batch_mean: bool=False, standardize: bool=False, cross_matrix: Any=None, compute_PS: bool | None=None, engine: str='python') -> None"
     },
-    "estel.STOperatorTensorProd.J": {
-      "kind": "property"
-    },
-    "estel.STOperatorTensorProd.L": {
-      "kind": "property"
-    },
-    "estel.STOperatorTensorProd.apply": {
-      "kind": "method",
-      "signature": "(self, data: Data, ref: STStatistics | None=None) -> STStatistics"
-    },
-    "estel.STOperatorTensorProd.filters": {
-      "kind": "property"
-    },
-    "estel.STOperatorTensorProd.from_statistics": {
-      "kind": "method",
-      "signature": "(cls, stats: STStatistics) -> STOperatorTensorProd"
-    },
     "estel.STOperatorTensorProd.lowpass": {
-      "kind": "property"
-    },
-    "estel.STOperatorTensorProd.norm": {
-      "kind": "property"
-    },
-    "estel.STOperatorTensorProd.plan": {
-      "kind": "property"
-    },
-    "estel.STOperatorTensorProd.standardize": {
       "kind": "property"
     },
     "estel.STPlan": {

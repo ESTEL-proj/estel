@@ -67,7 +67,9 @@ def test_global_sum_is_called_once_per_level(
 
     replace_global_sum(counting)
     np.testing.assert_array_equal(_vector(data, operator), baseline)
-    assert len(calls) == operator.J + extra
+    n_scales = operator.J
+    assert isinstance(n_scales, int)  # planar data
+    assert len(calls) == n_scales + extra
     assert all(len(shape) == 2 and shape[0] == 2 for shape in calls)  # (Nb, n), stacked
 
 

@@ -15,8 +15,8 @@ from typing import Any
 from ..data._base import Data
 from ..functional._loss import loss
 from ..functional._scattering import compute
-from ..scattering._filters import PlanarFilters
-from ..scattering._plan import PlanarPlan
+from ..scattering._filters import STFilters
+from ..scattering._plan import STPlan
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
 
@@ -38,9 +38,9 @@ class Objective:
 
     template: Data
     """The running data: ``u`` replaces its array (``Data.with_array``)."""
-    plan: PlanarPlan
+    plan: STPlan
     """The plan of the running operator, with ``norm="ref"``."""
-    filters: PlanarFilters
+    filters: STFilters
     reference: _NormReference
     """The target's reference (``var_ref``, ``S2_ref_sqrt_chan_diag``), a constant."""
     target: Any

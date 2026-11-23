@@ -23,6 +23,7 @@ import estel
 from estel import Data1D, Data2D, DataTensorProd, STOperator, STOperatorTensorProd, _config
 from estel.backend import _registry
 from estel.functional import _scattering
+from estel.scattering._plan import TensorProdPlan
 from estel.statistics._layout import tensor_prod_gather, tensor_prod_layout
 from tests.parity._compare import assert_parity
 
@@ -172,7 +173,9 @@ def test_warnings_of_the_lowpass_filter_and_of_the_borders() -> None:
     with pytest.warns(UserWarning, match=r"block 1 .* has no low-pass filter") as record:
         operator = STOperatorTensorProd(data, [2, 3])
     assert record[0].filename == __file__
-    assert operator.plan.lowpass_blocks == (True, False)
+    plan = operator.plan
+    assert isinstance(plan, TensorProdPlan)
+    assert plan.lowpass_blocks == (True, False)
     assert tuple(operator.apply(data).full_grid("S1").shape[3:]) == (3, 3, 4, 2)
     open_data = DataTensorProd(_field((1, 1, 8, 8, 8)), [Data2D, Data1D], pbc=[False, False])
     with warnings.catch_warnings(record=True) as caught:
@@ -197,14 +200,16 @@ def test_tables_of_the_loop_grow_with_the_chunks() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         operator = STOperatorTensorProd(data, [2, 2, 2], norm="none")
-    loop = operator.plan.loop
+    plan = operator.plan
+    assert isinstance(plan, TensorProdPlan)
+    loop = plan.loop
     n_chunks = sum(
         s.s3_rows.size + s.s4_rows.size + s.s3_denominators.size + s.s4_denominators.size
         for s in loop.second_layer
     )
-    pack = tensor_prod_gather(operator.plan)
+    pack = tensor_prod_gather(plan)
     tables = n_chunks + pack.within.size + pack.kinds.size + pack.starts.size
-    n_floats = tensor_prod_layout(operator.plan).n_floats  # 531,652
+    n_floats = tensor_prod_layout(plan).n_floats  # 531,652
     # 16,694 here: 310 chunks of S3 and S4 (rows and denominators), and the pack of S4, whose
     # table of the floats within a chunk is one row of L³ = 4,096 orientations per kind.
     assert tables < n_floats / 20
@@ -212,4 +217,4 @@ def test_tables_of_the_loop_grow_with_the_chunks() -> None:
         for a, crops in enumerate(second.arm_crops):
             if crops is not None:
                 assert crops.shape[0] == len(second.arms)
-                assert crops.ndim == 1 + len(operator.plan.wavelets.axes[a])
+                assert crops.ndim == 1 + len(plan.wavelets.axes[a])

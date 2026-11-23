@@ -130,6 +130,7 @@ import pytest
 from numpy.typing import NDArray
 
 from estel import Data2D, STOperator
+from estel.scattering._plan import PlanarPlan
 
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
 SEED = 0
@@ -227,6 +228,7 @@ def _estimate(fields: NDArray[np.float64], mask: NDArray[np.bool_] | None, pbc: 
         grid = np.asarray(statistics.full_grid(family))
         values[family] = grid[:, 0] if family in ("mean", "var") else grid[:, 0, 0]
     plan = operator.plan
+    assert isinstance(plan, PlanarPlan)
     first, s3, s4 = np.zeros(J), np.zeros((J, J)), np.zeros((J, J, J))
     for j, weights in plan.first_layer.items():
         first[j] = weights.denominator / (n >> weights.level) ** 2

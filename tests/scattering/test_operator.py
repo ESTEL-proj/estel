@@ -21,7 +21,7 @@ from numpy.typing import NDArray
 
 from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
 from estel.backend._protocol import Backend, DType
-from estel.scattering._plan import channel_pairs
+from estel.scattering._plan import PlanarPlan, channel_pairs
 
 pytestmark = pytest.mark.maths("M-S1", "M-S2", "M-S3", "M-S4", "M-CHAN", "M-MEAN")
 FAMILIES = ("S1", "S2", "S3", "S4")
@@ -111,6 +111,7 @@ def test_empty_means_are_nan_and_the_rest_finite() -> None:
     data = Data2D(_field((n, n)), mask=mask, pbc=False)
     operator = _operator(data, 4)
     plan = operator.plan
+    assert isinstance(plan, PlanarPlan)
     assert plan.empty_s3_pairs
     assert plan.empty_s4_triples
     values = _numpy(operator.apply(data))
