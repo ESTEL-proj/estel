@@ -43,6 +43,7 @@ _TO_REAL = {torch.complex64: torch.float32, torch.complex128: torch.float64}
 _KIND_RANK = {"b": 0, "u": 1, "i": 1, "f": 2, "c": 3}
 _PAD_MODES = ("circular", "replicate", "zeros")
 _CONV = {1: F.conv1d, 2: F.conv2d, 3: F.conv3d}
+_BATCH_AS_SPATIAL = {1}
 
 
 _NO_TORCH_PYTREE = (
@@ -278,9 +279,18 @@ class TorchBackend:
             moved = torch.movedim(
                 x, tuple(range(first + d, x.ndim)), tuple(range(first, first + len(post)))
             )
-            batched = moved.reshape(-1, 1, *sizes)
-            kernels = k.reshape(-1, 1, *support)
-            y = _CONV[d](batched, kernels, stride=strides)
+            if d in _BATCH_AS_SPATIAL and d + 1 in _CONV:
+                # The batch as one more spatial axis, with a kernel of size 1 along it:
+                # (1, 1, B, *N) against (O, 1, 1, *K).
+                batched = moved.reshape(1, 1, -1, *sizes)
+                kernels = k.reshape(-1, 1, 1, *support)
+                y = _CONV[d + 1](batched, kernels, stride=[1, *strides])  # (1, O, B, *M)
+                n_o = int(kernels.shape[0])
+                y = y.reshape(n_o, -1, *out).transpose(0, 1)  # (B, O, *M)
+            else:
+                batched = moved.reshape(-1, 1, *sizes)
+                kernels = k.reshape(-1, 1, *support)
+                y = _CONV[d](batched, kernels, stride=strides)
             y = y.reshape(*pre, *post, *out_axes, *out)
             n_lead = len(pre) + len(post)
             return torch.movedim(
