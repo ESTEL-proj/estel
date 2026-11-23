@@ -1072,25 +1072,47 @@ def statistics_of(
     standardization: tuple[Any, Any] | None = None,
 ) -> STStatistics:
     """The statistics of a raw buffer, ``(Nb, n_floats)`` in the layout of the loop of ``plan``,
-    normalised as the plan says (maths.md M-NORM, M-NORM-TP): the one path after the loop, for
-    planar data and for tensor products (issue #23, "Decisions of the maintainer for T3.2",
-    point 4), what ``estel.functional.scattering`` returns through. ``reference`` is the
-    reference of ``norm="ref"``, from statistics of the same geometry computed with
-    ``norm="self"``, checked against the plan; with ``norm="self"`` the reference is computed
-    from the buffer, and gradients flow through it; with ``norm="ref"`` it is a constant."""
+    normalised as the plan says (maths.md M-NORM, M-NORM-TP), from a buffer made outside the
+    loop: its arguments checked, the ``norm="ref"`` reference among them
+    (:func:`check_reference_of`), then :func:`finish`. ``estel.functional.scattering`` checks
+    the reference before its loop and calls :func:`finish` itself."""
     backend_name = _registry.backend_of(buffer)
     if backend_name is None:
         raise TypeError("statistics_of takes a buffer of a backend, not a NumPy array.")
-    backend = _registry.backend_named(backend_name)
     layout = layout_of(plan)
     if tuple(buffer.shape[1:]) != (layout.n_floats,):
         raise ValueError(
             f"the buffer has shape {tuple(buffer.shape)}, and the layout of these statistics "
             f"holds {layout.n_floats} floats per batch element."
         )
+    if plan.norm == "ref":
+        if reference is None:
+            raise ValueError(
+                'norm="ref" needs a reference: pass ref=, statistics computed with '
+                'norm="self" (maths.md M-NORM).'
+            )
+        check_reference_of(reference, plan, int(buffer.shape[0]), buffer.dtype)
+    elif reference is not None:
+        raise ValueError(f'norm="{plan.norm}" takes no reference (maths.md M-NORM).')
+    return finish(buffer, plan, reference, standardization)
+
+
+def finish(
+    buffer: Any,
+    plan: PlanarPlan | TensorProdPlan,
+    reference: _NormReference | None,
+    standardization: tuple[Any, Any] | None,
+) -> STStatistics:
+    """The one path after the loop, for planar data and for tensor products (issue #23,
+    "Decisions of the maintainer for T3.2", point 4): the statistics of the raw buffer of the
+    loop of ``plan``, normalised as the plan says (M-NORM, M-NORM-TP). With ``norm="self"`` the
+    reference is computed from the buffer, and gradients flow through it; with ``norm="ref"``,
+    ``reference``, already checked against the plan (:func:`check_reference_of`), is made a
+    constant. Nothing is checked here: the caller has."""
+    backend_name = _registry.backend_of(buffer) or ""
+    backend = _registry.backend_named(backend_name)
+    layout = layout_of(plan)
     if plan.norm == "self":
-        if reference is not None:
-            raise ValueError('norm="self" takes no reference (maths.md M-NORM).')
         if isinstance(plan, TensorProdPlan):
             reference = self_reference(
                 backend,
@@ -1105,16 +1127,10 @@ def statistics_of(
             reference = self_reference(
                 backend, buffer, layout, auto_scales(plan), plan.L, plan.ref_batch_mean
             )
-    elif plan.norm == "ref":
-        if reference is None:
-            raise ValueError(
-                'norm="ref" needs a reference: pass ref=, statistics computed with '
-                'norm="self" (maths.md M-NORM).'
-            )
-        check_reference_of(reference, plan, int(buffer.shape[0]), buffer.dtype)
+    elif plan.norm == "ref" and reference is not None:
         reference = as_constant(backend, reference)
-    elif reference is not None:
-        raise ValueError('norm="none" takes no reference (maths.md M-NORM).')
+    else:
+        reference = None
     if reference is not None:
         buffer, layout = normalize(backend, buffer, layout, reference)
     return STStatistics._create(

@@ -23,8 +23,7 @@ import estel
 from estel import Data1D, Data2D, DataTensorProd, STOperator, STOperatorTensorProd, _config
 from estel.backend import _registry
 from estel.functional import _scattering
-from estel.scattering import _tensor_prod
-from estel.statistics._layout import tensor_prod_layout
+from estel.statistics._layout import tensor_prod_gather, tensor_prod_layout
 from tests.parity._compare import assert_parity
 
 pytestmark = [
@@ -170,21 +169,24 @@ def test_warnings_of_the_lowpass_filter_and_of_the_borders() -> None:
     (OP-34); a border too large for a block is reduced with one warning for the operator
     (OP-13)."""
     data = DataTensorProd(_field((1, 1, 8, 8, 12)), [Data2D, Data1D], pbc=[True, True])
-    with pytest.warns(UserWarning, match=r"block 1 .* has no low-pass filter"):
+    with pytest.warns(UserWarning, match=r"block 1 .* has no low-pass filter") as record:
         operator = STOperatorTensorProd(data, [2, 3])
+    assert record[0].filename == __file__
     assert operator.plan.lowpass_blocks == (True, False)
     assert tuple(operator.apply(data).full_grid("S1").shape[3:]) == (3, 3, 4, 2)
     open_data = DataTensorProd(_field((1, 1, 8, 8, 8)), [Data2D, Data1D], pbc=[False, False])
-    _tensor_prod.tensor_prod_loop.cache_clear()
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         STOperatorTensorProd(open_data, [2, 2])
     reduced = [w for w in caught if "too small for a border crop" in str(w.message)]
     assert len(reduced) == 1
+    # Both warnings point at the line that builds the operator.
+    assert reduced[0].filename == __file__
 
 
 def test_tables_of_the_loop_grow_with_the_chunks() -> None:
-    """The index and denominator tables of the loop and of its gather (``tensor_prod_loop``)
+    """The index and denominator tables of the loop, in the plan (``TensorProdPlan.loop``), and
+    of its gather (``tensor_prod_gather``)
     hold one entry per chunk of a segment, and the pack of S4 one row per kind of chunk, never
     one per coefficient (issue #23, decisions, point 4): here 2D + 1D + 1D, 16⁴, J = (2, 2, 2),
     269,508 coefficients. The crops are the only pixel arrays, of the shape of one block. The
@@ -195,12 +197,12 @@ def test_tables_of_the_loop_grow_with_the_chunks() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         operator = STOperatorTensorProd(data, [2, 2, 2], norm="none")
-    loop = _tensor_prod.tensor_prod_loop(operator.plan)
+    loop = operator.plan.loop
     n_chunks = sum(
         s.s3_rows.size + s.s4_rows.size + s.s3_denominators.size + s.s4_denominators.size
         for s in loop.second_layer
     )
-    pack = loop.s4_pack
+    pack = tensor_prod_gather(operator.plan)
     tables = n_chunks + pack.within.size + pack.kinds.size + pack.starts.size
     n_floats = tensor_prod_layout(operator.plan).n_floats  # 531,652
     # 16,694 here: 310 chunks of S3 and S4 (rows and denominators), and the pack of S4, whose

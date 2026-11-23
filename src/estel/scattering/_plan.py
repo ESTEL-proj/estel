@@ -109,6 +109,7 @@ from ..wavelets._operator import (
     build_wavelet_plan,
 )
 from ..wavelets._tensor_prod import TensorProdWaveletPlan, build_tensor_prod_plan
+from ._tensor_prod import TensorProdLoop, build_tensor_prod_loop
 
 NORMS = ("none", "self", "ref")
 """The values of ``norm`` (maths.md M-NORM)."""
@@ -405,7 +406,7 @@ spectrum, so STL's ``"PS"`` and ``("ST", "PS")`` are not taken."""
 class TensorProdPlan(STPlan):
     """The static description of the statistics of a tensor product (maths.md M-NOT-TP, M-LP,
     M-IDX-TP, M-CHAN; Part II, §12.6; task T3.6): what the compact layout, the normalisation and
-    the files need; the loop of task T3.2 reads it with ``_tensor_prod.tensor_prod_loop``.
+    the files need, and the static description of the loop of task T3.2 (:attr:`loop`).
 
     Built by :func:`build_tensor_prod_statistics_plan` from the plan of the wavelet operator of
     the tensor product (``TensorProdWaveletPlan``, task T3.1); NumPy only, immutable and
@@ -447,6 +448,11 @@ class TensorProdPlan(STPlan):
     """Whether the ``norm="self"`` reference is averaged over the batch (M-NORM)."""
     standardize: bool
     """Whether each map is standardised before the transform (M-MOM, M-STD)."""
+    loop: TensorProdLoop
+    """The static description of the loop (``_tensor_prod``; task T3.2): per scale, the
+    windows and denominators of S1 and S2; per wavelet scale j3, the arms, the crops of the
+    blocks, and the rows and denominators of the chunks of S3 and S4. Determined by the other
+    fields, so not part of the identity of the plan."""
     first_layer: tuple[tuple[int, ...], ...]
     """For each block, its scales of S1 and S2: 0 … J'_a - 1, with J'_a = J_a + 1 when the
     block has a low-pass filter, whose scale is J_a (M-IDX-TP, M-LP)."""
@@ -494,13 +500,19 @@ def build_tensor_prod_statistics_plan(
     norm: str = "none",
     ref_batch_mean: bool = False,
     standardize: bool = False,
+    stacklevel: int = 1,
 ) -> TensorProdPlan:
     """The :class:`TensorProdPlan` of a ``DataTensorProd``, with one J and one L per block
     (M-DATA-TP, M-DEF-TP: a list, an entry ``None`` giving the default of the block). The values
     of ``data`` are not read. ``lowpass`` is ``"ST"`` (STL's default) or ``None`` (M-LP);
     ``cross_matrix``, ``norm``, ``ref_batch_mean`` and ``standardize`` are those of
-    :func:`build_plan`. Warns once, as STL does, for each block whose sizes are not divisible
-    by 2^J_a: it has no low-pass filter (M-LP, OP-34)."""
+    :func:`build_plan`. The static description of the loop, its index tables, crop widths and
+    mean denominators, is built here too (:attr:`TensorProdPlan.loop`).
+
+    Warns once, as STL does, for each block whose sizes are not divisible by 2^J_a: it has no
+    low-pass filter (M-LP, OP-34); and once for the plan when a border is too large for a block
+    and is reduced (M-BORDER-TP, OP-13). ``stacklevel`` places the warnings, as for
+    ``warnings.warn``, from the caller of this function: 1 for that caller, 2 for its caller."""
     if not isinstance(data, Data) or data._geometry != "tensor_prod":
         raise TypeError(
             f"the statistics of a tensor product take a DataTensorProd, got "
@@ -515,9 +527,22 @@ def build_tensor_prod_statistics_plan(
     _check_options(norm, ref_batch_mean, standardize)
     # The low-pass flags (M-LP, OP-34), with STL's warning, come with the plans of the blocks.
     wavelets = build_tensor_prod_plan(
-        cast(Any, data), J, L, kernel_size=kernel_size, lowpass=lowpass
+        cast(Any, data), J, L, kernel_size=kernel_size, lowpass=lowpass, stacklevel=stacklevel + 1
     )
     matrix = _cross_matrix(cross_matrix, data.n_channels)
+    pairs = channel_pairs(matrix)
+    # The crops of the blocks warn for each border too large for a block (OP-13): the plan
+    # gives the first of these warnings, once, as the planar plan does (mean_weights).
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        loop = build_tensor_prod_loop(
+            wavelets,
+            tuple({(c, c) for c in pairs.auto} | set(pairs.cross)),
+            pairs.ordered,
+            data.n_channels,
+        )
+    if caught:
+        warnings.warn(caught[0].message, stacklevel=stacklevel + 1)
     flags = list(wavelets.lowpass_blocks)
     scales = tuple(range(block.J) for block in wavelets.blocks)
     return TensorProdPlan(
@@ -533,10 +558,11 @@ def build_tensor_prod_statistics_plan(
         lowpass_blocks=tuple(flags),
         n_channels=data.n_channels,
         cross_matrix=matrix,
-        pairs=channel_pairs(matrix),
+        pairs=pairs,
         norm=norm,
         ref_batch_mean=bool(ref_batch_mean),
         standardize=bool(standardize),
+        loop=loop,
         first_layer=tuple(
             tuple(range(block.J + int(flag)))
             for block, flag in zip(wavelets.blocks, flags, strict=True)

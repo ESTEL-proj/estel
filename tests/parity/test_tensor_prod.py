@@ -129,18 +129,17 @@ def test_statistics_equal_stl(name: str, lowpass: str | None) -> None:
 
 
 def test_normalised_statistics_equal_stl() -> None:
-    """``statistics_tp``: the three runs, the references the operator keeps (``var_ref`` and
-    ``S2_ref_sqrt_chan_diag``) and the real and complex flat vectors equal STL's (maths.md
-    M-NORM-TP, M-FLAT). The second run uses the reference the first operator holds, as STL's
-    ``load_ref``."""
+    """``statistics_tp``: the three runs, the references of the two ``norm="self"`` runs
+    (``var_ref`` and ``S2_ref_sqrt_chan_diag``) and the real and complex flat vectors equal
+    STL's (maths.md M-NORM-TP, M-FLAT). The second run, STL's ``load_ref``, is an operator built
+    with ``norm="ref"``, applied to the other field with ``ref=`` the statistics of the first
+    run, whose reference normalises it."""
     parameters = _parameters("statistics_tp")
     arrays = _arrays("statistics_tp")
     blocks, pbc, J = parameters["blocks"], parameters["pbc"], parameters["J"]  # noqa: N806
     field, other = (_data(arrays[k], blocks, pbc) for k in ("field", "other_field"))
     storing = _operator(field, J, norm="self")
     runs: dict[str, STStatistics] = {"store": storing.apply(field)}
-    loading = STOperatorTensorProd.from_statistics(runs["store"])
-    assert loading.norm == "self"
     runs["load"] = _operator(field, J, norm="ref").apply(other, ref=runs["store"])
     runs["store_batch_mean"] = _operator(field, J, norm="self", ref_batch_mean=True).apply(field)
     for run, stats in runs.items():

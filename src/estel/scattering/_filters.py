@@ -28,11 +28,11 @@ from numpy.typing import NDArray
 
 from .._config import FloatDType
 from ..backend import _registry
-from ..statistics._layout import ChunkTables, loop_gather
+from ..statistics._layout import ChunkTables, loop_gather, tensor_prod_gather
 from ..wavelets._operator import MeanWeights, WaveletFilters, build_wavelet_filters
 from ..wavelets._tensor_prod import build_tensor_prod_filters as build_block_filters
 from ._plan import PlanarPlan, TensorProdPlan
-from ._tensor_prod import Scale, tensor_prod_loop
+from ._tensor_prod import Scale
 
 
 class _FilterFields(NamedTuple):
@@ -174,7 +174,7 @@ def build_tensor_prod_filters(
     """The filters of the tensor-product plan ``plan`` on the backend ``backend_name``, cast
     once to ``dtype`` on ``device`` (Part I, §3.1, rules 4 and 7)."""
     backend = _registry.backend_named(backend_name)
-    loop = tensor_prod_loop(plan)
+    loop = plan.loop
 
     def real(a: NDArray[Any] | None) -> Any:
         if a is None:
@@ -185,7 +185,7 @@ def build_tensor_prod_filters(
         return backend.asarray(np.asarray(a).astype(np.int32), "int32", device)
 
     second = loop.second_layer
-    pack = loop.s4_pack
+    pack = tensor_prod_gather(plan)
     return TensorProdFilters(
         wavelets=build_block_filters(plan.wavelets, backend_name, dtype, device),
         arm_crops={s.j3: tuple(real(c) for c in s.arm_crops) for s in second},

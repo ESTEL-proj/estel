@@ -30,7 +30,7 @@ from ..scattering._loop import ScatteringValues, scattering_values
 from ..scattering._loop_tp import tensor_prod_values
 from ..scattering._plan import PlanarPlan, STPlan, TensorProdPlan
 from ..statistics._normalization import _NormReference
-from ..statistics._statistics import STStatistics, check_reference_of, statistics_of
+from ..statistics._statistics import STStatistics, check_reference_of, finish
 
 
 @functools.cache
@@ -200,9 +200,9 @@ def compute(
     reference: _NormReference | None,
 ) -> STStatistics:
     """:func:`scattering` with the reference already extracted: the loop of the geometry of
-    the plan, a subclass of ``STPlan``, then the one path after the loop (``statistics_of``). A
-    ``norm="ref"`` reference is checked before the loop, on planar data and on tensor products
-    alike."""
+    the plan, a subclass of ``STPlan``, then the one path after the loop
+    (``statistics._statistics.finish``). A ``norm="ref"`` reference is checked once, before the
+    loop, on planar data and on tensor products alike."""
     plan, filters = _parts(plan, filters)
     check_data(data, plan, filters)
     if plan.norm == "ref":
@@ -218,7 +218,7 @@ def compute(
     else:
         found = _loop(backend.name)(data, plan=plan, filters=filters)
     standardization = (found.mean_pre_std, found.std_pre_std) if plan.standardize else None
-    return statistics_of(found.buffer, plan, reference, standardization)
+    return finish(found.buffer, plan, reference, standardization)
 
 
 def _smoothing(filters: PlanarFilters | TensorProdFilters) -> Any:

@@ -1,9 +1,10 @@
 """The static description of the scattering loop of a tensor product (Part II, §12.6; maths.md
 M-W1-TP, M-LP, M-IDX-TP, M-S-TP, M-BORDER-TP; maths_step2.md M-GRAM; task T3.2).
 
-Built once, in NumPy, from a :class:`~estel.scattering._plan.TensorProdPlan` alone
-(:func:`tensor_prod_loop`, cached per plan), never traced. It holds what the loop of
-``_loop_tp.py`` reads besides the plan of each block:
+Built once, in NumPy, with the plan (:func:`build_tensor_prod_loop`, called by
+``_plan.build_tensor_prod_statistics_plan``) and held by it (``TensorProdPlan.loop``): the index
+sets, crop widths and mean denominators live in the plan (AGENTS.md). Never traced. It holds
+what the loop of ``_loop_tp.py`` reads besides the plan of each block:
 
 * **the first layer**, one :class:`FirstLayerScale` per scale j of S1 and S2, in lexicographic
   order (the last block fastest), the order in which the loop reaches them: the orientation
@@ -16,8 +17,8 @@ Built once, in NumPy, from a :class:`~estel.scattering._plan.TensorProdPlan` alo
   and, for the Gram products of the level, which of their rows are the chunks of the segments
   of S3 and S4 at j3 in the compact layout of T3.6 (``tensor_prod_layout``), with their
   denominators, each the product of per-block counts of pixels (M-BORDER-TP);
-* **the gather**: the order of the channel pairs of the S1 and S2 segments, and how the S4
-  chunks are packed (``statistics._layout.pack_spec``).
+* **the gather**: the order of the channel pairs of the S1 and S2 segments; how the S4 chunks
+  are packed comes from the layout, with the filters (``_filters.build_tensor_prod_filters``).
 
 Every table grows with the number of chunks of a segment and of orientations, never with the
 number of coefficients, and nothing has the size of the full grid (decision 3 of T3.7; issue
@@ -37,16 +38,14 @@ from __future__ import annotations
 import functools
 import itertools
 import math
-import warnings
 from dataclasses import dataclass
 from typing import NamedTuple, TypeVar
 
 import numpy as np
 from numpy.typing import NDArray
 
-from ..statistics._layout import Pack, pack_spec, tensor_prod_layout
 from ..wavelets._operator import Box, window_box
-from ._plan import TensorProdPlan
+from ..wavelets._tensor_prod import TensorProdWaveletPlan
 
 Scale = tuple[int, ...]
 """A multi-index scale j = (j₀, …, j_{B-1}) (maths.md M-NOT-TP)."""
@@ -110,10 +109,13 @@ class TensorProdLoop:
     """Every wavelet scale j3, in lexicographic order."""
     moments_denominator: float
     """The number of pixels of the field, the denominator of mean and var (no border)."""
-    s4_pack: Pack
-    """How the S4 chunks, in the order of the buffer, are packed into its floats."""
-    reduced_border: str | None
-    """The warning of a border too large for a block (OP-13), given once by the operator."""
+
+    def second(self, j3: Scale) -> SecondLayerScale:
+        """The :class:`SecondLayerScale` of the wavelet scale ``j3``."""
+        for found in self.second_layer:
+            if found.j3 == j3:
+                return found
+        raise KeyError(f"no wavelet scale {j3} in this plan.")
 
 
 def lexicographic(sizes: tuple[int, ...]) -> list[Scale]:
@@ -128,30 +130,28 @@ def arm_order(j3: Scale) -> tuple[Scale, ...]:
     return tuple(sorted(lexicographic(tuple(j + 1 for j in j3)), key=lambda j: j[::-1]))
 
 
-@functools.lru_cache(maxsize=32)
-def tensor_prod_loop(plan: TensorProdPlan) -> TensorProdLoop:
-    """The :class:`TensorProdLoop` of ``plan``."""
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        loop = _build(plan)
-    message = str(caught[0].message) if caught else None
-    return TensorProdLoop(
-        first_layer=loop.first_layer,
-        second_layer=loop.second_layer,
-        moments_denominator=loop.moments_denominator,
-        s4_pack=loop.s4_pack,
-        reduced_border=message,
-    )
+def build_tensor_prod_loop(
+    wavelets: TensorProdWaveletPlan,
+    pairs_12: tuple[tuple[int, int], ...],
+    pairs_34: tuple[tuple[int, int], ...],
+    n_channels: int,
+) -> TensorProdLoop:
+    """The :class:`TensorProdLoop` of the blocks ``wavelets`` (their low-pass flags included),
+    with the channel pairs of S1 and S2 and of S3 and S4 (M-CHAN): built once, with the plan
+    (``_plan.build_tensor_prod_statistics_plan``). A border too large for a block warns, from
+    the crops of the blocks (OP-13); the caller gives that warning once.
 
-
-def _build(plan: TensorProdPlan) -> TensorProdLoop:
-    blocks = plan.wavelets.blocks
-    n_blocks, nc = plan.n_blocks, plan.n_channels
-    layout = tensor_prod_layout(plan)
+    The chunks of a segment follow the order of the compact layout of T3.6
+    (``tensor_prod_layout``): the channel pairs, then the scales, in lexicographic order. The
+    filters check it against the layout when they are built (``build_tensor_prod_filters``)."""
+    blocks = wavelets.blocks
+    n_blocks, nc = len(blocks), n_channels
+    J = wavelets.J  # noqa: N806 (maths.md notation)
+    n_scales = tuple(b.J + int(b.has_lowpass) for b in blocks)
 
     @functools.cache
     def crop(a: int, level: int, border: int) -> NDArray[np.float64]:
-        found = np.asarray(plan.wavelets.block_crop(a, level, border), dtype=np.float64)
+        found = np.asarray(wavelets.block_crop(a, level, border), dtype=np.float64)
         found.flags.writeable = False
         return found
 
@@ -162,14 +162,16 @@ def _build(plan: TensorProdPlan) -> TensorProdLoop:
     def border(a: int, history: tuple[int, ...], level: int) -> int:
         return blocks[a].border(history, level)
 
-    def segments(name: str) -> dict[Scale, NDArray[np.int32]]:
-        return {s.level: s.chunks for s in layout.segments if s.family == name}
+    def precedes(j: Scale, k: Scale) -> bool:
+        return all(x <= y for x, y in zip(j, k, strict=True))
+
+    ordered_12 = tuple(sorted(pairs_12))
+    ordered_34 = tuple(sorted(pairs_34))
 
     # ---- first layer
-    rows_12 = segments("S1")
     first = []
-    for scale in lexicographic(plan.n_scales):
-        lowpass = tuple(j == n for j, n in zip(scale, plan.J, strict=True))
+    for scale in lexicographic(n_scales):
+        lowpass = tuple(j == n for j, n in zip(scale, J, strict=True))
         level = tuple(
             b.lowpass_level if lp else b.scale_levels[j]
             for b, j, lp in zip(blocks, scale, lowpass, strict=True)
@@ -183,22 +185,22 @@ def _build(plan: TensorProdPlan) -> TensorProdLoop:
             FirstLayerScale(
                 scale=scale,
                 level=level,
-                orientations=plan.orientations_at(scale),
+                orientations=tuple(1 if lp else b.L for b, lp in zip(blocks, lowpass, strict=True)),
                 window=None if full else box,
                 denominator=math.prod(count(a, level[a], widths[a]) for a in range(n_blocks)),
                 centred=all(lowpass),
-                pairs=tuple((int(r[0]), int(r[1])) for r in rows_12[scale]),
+                pairs=ordered_12,
             )
         )
 
     # ---- second layer
-    rows_3, rows_4 = segments("S3"), segments("S4")
     second = []
-    for j3 in lexicographic(plan.J):
+    for j3 in lexicographic(J):
         level = tuple(b.scale_levels[j] for b, j in zip(blocks, j3, strict=True))
         arms = arm_order(j3)
         position = {j2: i for i, j2 in enumerate(arms)}
         n_arms = len(arms)
+        heads = lexicographic(tuple(j + 1 for j in j3))  # j ≤ j3, in the order of the layout
 
         def arm_border(a: int, j2: int, level: Scale = level, j3: Scale = j3) -> int:
             return border(a, (j2, j3[a]), level[a])
@@ -219,28 +221,26 @@ def _build(plan: TensorProdPlan) -> TensorProdLoop:
             band_crops.append(crop(a, level[a], band_border(a)) if band_border(a) else None)
 
         s3_rows, s3_den = [], []
-        for row in rows_3[j3]:
-            c1, c2 = int(row[0]), int(row[1])
-            j2 = tuple(int(j) for j in row[2 : 2 + n_blocks])
-            s3_rows.append((position[j2] * nc + c1) * nc + c2)
-            s3_den.append(
-                math.prod(
-                    count(a, level[a], max(arm_border(a, j2[a]), band_border(a)))
-                    for a in range(n_blocks)
+        for c1, c2 in ordered_34:
+            for j2 in heads:
+                s3_rows.append((position[j2] * nc + c1) * nc + c2)
+                s3_den.append(
+                    math.prod(
+                        count(a, level[a], max(arm_border(a, j2[a]), band_border(a)))
+                        for a in range(n_blocks)
+                    )
                 )
-            )
         s4_rows, s4_den = [], []
-        for row in rows_4[j3]:
-            c1, c2 = int(row[0]), int(row[1])
-            j1 = tuple(int(j) for j in row[2 : 2 + n_blocks])
-            j2 = tuple(int(j) for j in row[2 + n_blocks : 2 + 2 * n_blocks])
-            s4_rows.append(((position[j1] * nc + c1) * n_arms + position[j2]) * nc + c2)
-            s4_den.append(
-                math.prod(
-                    count(a, level[a], max(arm_border(a, j1[a]), arm_border(a, j2[a])))
-                    for a in range(n_blocks)
-                )
-            )
+        for c1, c2 in ordered_34:
+            for j1 in heads:
+                for j2 in (j for j in heads if precedes(j1, j)):
+                    s4_rows.append(((position[j1] * nc + c1) * n_arms + position[j2]) * nc + c2)
+                    s4_den.append(
+                        math.prod(
+                            count(a, level[a], max(arm_border(a, j1[a]), arm_border(a, j2[a])))
+                            for a in range(n_blocks)
+                        )
+                    )
         second.append(
             SecondLayerScale(
                 j3=j3,
@@ -257,9 +257,7 @@ def _build(plan: TensorProdPlan) -> TensorProdLoop:
     return TensorProdLoop(
         first_layer=tuple(first),
         second_layer=tuple(second),
-        moments_denominator=float(math.prod(plan.spatial_shape)),
-        s4_pack=pack_spec(layout, "S4"),
-        reduced_border=None,
+        moments_denominator=float(math.prod(wavelets.spatial_shape)),
     )
 
 

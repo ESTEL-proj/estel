@@ -164,6 +164,7 @@ def build_tensor_prod_plan(
     *,
     kernel_size: int = KERNEL_SIZE,
     lowpass: str | None = None,
+    stacklevel: int = 1,
 ) -> TensorProdWaveletPlan:
     """The :class:`TensorProdWaveletPlan` of ``data``, with the J and L of each block; the values
     of ``data`` are not read. The defaults are those of M-DEF-TP; the arguments are validated
@@ -171,7 +172,9 @@ def build_tensor_prod_plan(
 
     With ``lowpass="ST"``, each block whose sizes are divisible by 2^J_a has a low-pass filter,
     and its plan goes down to level J_a (maths.md M-LP); each other block warns once, as STL
-    does, and has none (OP-34). With ``None`` (the default here), no block has one."""
+    does, and has none (OP-34). With ``None`` (the default here), no block has one.
+    ``stacklevel`` places that warning, as for ``warnings.warn``, from the caller of this
+    function: 1 for that caller, 2 for its caller."""
     if not isinstance(data, DataTensorProd):
         raise TypeError(
             f"TensorProdWaveletOperator takes a DataTensorProd, got {type(data).__name__}; for "
@@ -202,7 +205,7 @@ def build_tensor_prod_plan(
                 f"Its S1 and S2 have the wavelet scales only; use a size divisible by "
                 f"{2**n_scales}, or J_{a} = {n_scales - 1}, to keep it.",
                 UserWarning,
-                stacklevel=3,
+                stacklevel=stacklevel + 1,
             )
         plans.append(
             _wavelet_plan(
@@ -317,7 +320,9 @@ class TensorProdWaveletOperator:
         kernel_size: int = KERNEL_SIZE,
         lowpass: str | None = None,
     ) -> None:
-        plan = build_tensor_prod_plan(data, J, L, wavelet, kernel_size=kernel_size, lowpass=lowpass)
+        plan = build_tensor_prod_plan(
+            data, J, L, wavelet, kernel_size=kernel_size, lowpass=lowpass, stacklevel=2
+        )
         filters = build_tensor_prod_filters(plan, data.backend, default_dtype(), default_device())
         self._bind(data, plan, filters)
 

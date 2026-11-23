@@ -49,13 +49,20 @@ from typing import Any
 from ..backend import _registry
 from ..backend._protocol import Backend
 from ..data._base import Data
-from ..data._moments import cov_sum_valid, modulus, standardize, sum_valid
-from ..statistics._layout import pack
+from ..data._moments import modulus
+from ..statistics._layout import pack, tensor_prod_gather
 from ..wavelets._tensor_prod import TensorProdWaveletOperator
 from ._filters import TensorProdFilters
-from ._loop import ScatteringValues, _divide_level, _global_sum, _Sum, first_layer_sums, gram_sums
+from ._loop import (
+    ScatteringValues,
+    _divide_level,
+    _global_sum,
+    field_moments,
+    first_layer_sums,
+    gram_sums,
+)
 from ._plan import TensorProdPlan
-from ._tensor_prod import FirstLayerScale, Scale, SecondLayerScale, tensor_prod_loop
+from ._tensor_prod import FirstLayerScale, Scale, SecondLayerScale, TensorProdLoop
 
 # ---------------------------------------------------------------------- the loop
 
@@ -68,7 +75,7 @@ def tensor_prod_values(
     the compact buffer of ``tensor_prod_layout(plan)``. Pure."""
     backend = _registry.backend_named(data.backend)
     xp = backend.xp
-    loop = tensor_prod_loop(plan)
+    loop = plan.loop
     wavelets = TensorProdWaveletOperator.from_parts(
         data,  # type: ignore[arg-type]
         plan.wavelets,
@@ -77,20 +84,11 @@ def tensor_prod_values(
     n_spatial = len(plan.spatial_shape)
     axes = tuple(range(-n_spatial, 0))
 
-    x = data.array
-    mean_pre_std = std_pre_std = None
-    if plan.standardize:
-        x, mean_pre_std, std_pre_std = standardize(
-            x, None, loop.moments_denominator, axes, global_sum=_global_sum
-        )
-    moments = _divide_level(
-        backend,
-        [
-            _Sum("mean", sum_valid(x, None, axes), loop.moments_denominator),
-            _Sum("var", cov_sum_valid(x, x, None, axes), loop.moments_denominator),
-        ],
-        _global_sum,
+    # Tensor products have no missing values and no border on the field: every pixel.
+    x, sums, mean_pre_std, std_pre_std = field_moments(
+        data.array, None, loop.moments_denominator, axes, plan.standardize
     )
+    moments = _divide_level(backend, sums, _global_sum)
 
     # The first layer, every scale of S1 and S2 in lexicographic order: W_j x, (Nb, L'_{B-1},
     # …, L'_0, Nc, *spatial at level j), the orientations in reverse block order.
@@ -102,7 +100,9 @@ def tensor_prod_values(
     for scale, w in maps:
         info = scales[scale]
         if info.centred:  # X - ⟨X⟩ over every pixel of X (M-LP, OP-42), complex like the others
-            centred = w - xp.sum(w, axis=axes, keepdims=True) / info.denominator
+            # A mean of the loop: its sum goes through the hook of distributed runs too.
+            mean = _global_sum(xp.sum(w, axis=axes)) / info.denominator
+            centred = w - xp.reshape(mean, (*tuple(mean.shape), *(1,) * len(axes)))
             w = xp.astype(centred, _complex_of(backend, w))
         u = modulus(w)
         floats = _first_layer_means(backend, plan, info, w, u, axes)
@@ -115,13 +115,13 @@ def tensor_prod_values(
     s3: list[Any] = []
     s4: list[Any] = []
     for j3, cross, gram in _second_layer(backend, wavelets, plan, moduli, band, filters):
-        second = loop.second_layer[_position(loop.second_layer, j3)]
+        second = loop.second(j3)
         three, four = _second_layer_means(backend, plan, second, filters, cross, gram)
         s3, s4 = [*s3, three], [*s4, four]
 
     n_batch = int(x.shape[0])
     s4_dense = xp.concat(s4, axis=1)
-    s4_floats = pack(backend, s4_dense, loop.s4_pack, filters.s4_pack)
+    s4_floats = pack(backend, s4_dense, tensor_prod_gather(plan), filters.s4_pack)
     buffer = xp.concat(
         [
             *moments,
@@ -133,13 +133,6 @@ def tensor_prod_values(
         axis=1,
     )
     return ScatteringValues(buffer=buffer, mean_pre_std=mean_pre_std, std_pre_std=std_pre_std)
-
-
-def _position(second: tuple[SecondLayerScale, ...], j3: Scale) -> int:
-    for i, info in enumerate(second):
-        if info.j3 == j3:
-            return i
-    raise KeyError(j3)  # pragma: no cover (the loop and the plan enumerate the same scales)
 
 
 def _complex_of(backend: Backend, x: Any) -> Any:
@@ -254,7 +247,7 @@ def _second_layer(
     xp = backend.xp
     blocks = plan.wavelets.blocks
     n_blocks = len(blocks)
-    loop = tensor_prod_loop(plan)
+    loop = plan.loop
     n_rows = int(_prod(plan.L)) * plan.n_channels
 
     def as_arm(u: Any) -> Any:
@@ -304,7 +297,7 @@ def _second_layer(
 def _leaf(
     backend: Backend,
     plan: TensorProdPlan,
-    loop: Any,
+    loop: TensorProdLoop,
     filters: TensorProdFilters,
     j3: Scale,
     stack: Any,
@@ -314,7 +307,7 @@ def _leaf(
     block, then :func:`~estel.scattering._loop.gram_sums`."""
     xp = backend.xp
     n_blocks = plan.n_blocks
-    info = loop.second_layer[_position(loop.second_layer, j3)]
+    info = loop.second(j3)
     n_spatial = len(plan.spatial_shape)
     spatial = tuple(int(n) for n in stack.shape[len(stack.shape) - n_spatial :])
     n_batch, n_arms = int(stack.shape[0]), len(info.arms)

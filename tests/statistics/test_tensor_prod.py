@@ -30,7 +30,7 @@ from estel.backend import _registry
 from estel.scattering._plan import PlanarPlan, TensorProdPlan, build_tensor_prod_statistics_plan
 from estel.statistics import _grid, _layout, _normalization, _statistics
 from estel.statistics._arrays import constant
-from estel.statistics._statistics import statistics_of as tensor_prod_statistics
+from estel.statistics._statistics import statistics_of
 from tests.parity._compare import assert_parity, full_grid, load_fixture, read_manifest
 from tests.statistics.test_layout import _static_elements
 
@@ -121,7 +121,7 @@ def test_positions_equal_the_fixture(name: str, lowpass: str | None) -> None:
         **{f: full_grid(arrays, f"{prefix}_{f}") for f in ("S1", "S2")},
         **{f: full_grid(arrays, f"{name}_st_{f}") for f in ("S3", "S4")},
     }
-    stats = tensor_prod_statistics(_buffer(_layout.tensor_prod_layout(plan), grids), plan)
+    stats = statistics_of(_buffer(_layout.tensor_prod_layout(plan), grids), plan)
     for family in FAMILIES:
         assert_parity(_numpy(stats.full_grid(family)), grids[family])
 
@@ -140,7 +140,7 @@ def _statistics_tp() -> dict[str, Any]:
             arrays[key], [AXES[b] for b in blocks], pbc, J, lowpass="ST", norm="none"
         )
         plan = _plan(arrays[key], blocks, pbc, J, norm=norm, ref_batch_mean=batch_mean)
-        return tensor_prod_statistics(_buffer(_layout.tensor_prod_layout(plan), raw), plan, ref)
+        return statistics_of(_buffer(_layout.tensor_prod_layout(plan), raw), plan, ref)
 
     store = run("field", "self")
     return {
@@ -234,7 +234,7 @@ def test_three_block_layout_allocates_no_full_grid(monkeypatch: pytest.MonkeyPat
     buffer = _registry.current_backend().asarray(
         np.random.default_rng(0).random((1, layout.n_floats)) + 0.5, "float64", None
     )
-    stats = tensor_prod_statistics(buffer, plan)
+    stats = statistics_of(buffer, plan)
     stats.to_vector()
     stats.select(("S1", "S3"), channel=(0, 0)).to_vector()
     assert sizes
@@ -377,14 +377,14 @@ def test_reference_of_another_tensor_product_is_accepted() -> None:
     buffer = _registry.current_backend().asarray(
         rng.random((2, _layout.tensor_prod_layout(other).n_floats)) + 0.5, "float64", None
     )
-    stats = tensor_prod_statistics(buffer, other, reference)
+    stats = statistics_of(buffer, other, reference)
     assert stats._reference is not None
     planar = estel.STOperator(
         Data2D(rng.standard_normal((2, 2, 16, 16)), pbc=True), 2, compute_PS=False
     ).apply(Data2D(rng.standard_normal((2, 2, 16, 16)), pbc=True))
     assert planar._reference is not None
     with pytest.raises(ValueError, match="planar"):
-        tensor_prod_statistics(buffer, other, planar._reference)
+        statistics_of(buffer, other, planar._reference)
     assert isinstance(planar._plan, PlanarPlan)
     with pytest.raises(ValueError, match="tensor product"):
         _normalization.check_reference(reference, planar._plan, 2, reference.var.dtype)
@@ -413,7 +413,7 @@ def test_reference_of_another_tensor_product_is_refused(
     n_floats = _layout.tensor_prod_layout(plan).n_floats
     data = _registry.current_backend().asarray(np.ones((2, n_floats)), "float64", None)
     with pytest.raises(ValueError, match=what):
-        tensor_prod_statistics(data, plan, reference)
+        statistics_of(data, plan, reference)
 
 
 def test_layout_refuses_a_segment_of_another_orientation_shape() -> None:

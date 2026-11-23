@@ -39,7 +39,6 @@ from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
 from ._filters import PlanarFilters, TensorProdFilters, build_filters, build_tensor_prod_filters
 from ._plan import PlanarPlan, TensorProdPlan, build_plan, build_tensor_prod_statistics_plan
-from ._tensor_prod import tensor_prod_loop
 
 _WIDE = ("float64", "complex128")
 
@@ -294,14 +293,12 @@ class STOperatorTensorProd:
             norm=norm,
             ref_batch_mean=ref_batch_mean,
             standardize=standardize,
+            stacklevel=2,  # OP-34 and OP-13 at the line that builds the operator
         )
         for block in plan.wavelets.blocks:
             block.bank()  # validates L for the geometry of the block (M-WAV-1D)
         if norm != "none":
             _warn_channels_without_auto(plan)
-        reduced = tensor_prod_loop(plan).reduced_border
-        if reduced is not None:
-            warnings.warn(reduced, UserWarning, stacklevel=2)  # OP-13, once for the operator
         self._setup(plan, data.backend, default_dtype(), default_device(), engine, None)
 
     @classmethod

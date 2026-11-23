@@ -109,6 +109,36 @@ class _Sum(NamedTuple):
     denominator: float
 
 
+class FieldMoments(NamedTuple):
+    """The field after its standardisation, and the sums of its mean and var
+    (:func:`field_moments`)."""
+
+    x: Any
+    sums: list[_Sum]
+    mean_pre_std: Any
+    std_pre_std: Any
+
+
+def field_moments(
+    x: Any, weights: Any, denominator: float, axes: tuple[int, ...], standardized: bool
+) -> FieldMoments:
+    """The field standardised when ``standardized`` (STL's ``apply(standardize=True)``, M-MOM,
+    M-STD), with the mean and the standard deviation removed, and the sums of its ``mean`` and
+    ``var`` over the window ``weights`` (``window``), waiting for their division (M-MOM). Shared
+    by the loops of planar data and of tensor products; every sum goes through
+    :func:`_global_sum`."""
+    mean_pre_std = std_pre_std = None
+    if standardized:
+        x, mean_pre_std, std_pre_std = standardize(
+            x, weights, denominator, axes, global_sum=_global_sum
+        )
+    sums = [
+        _Sum("mean", sum_valid(x, weights, axes), denominator),
+        _Sum("var", cov_sum_valid(x, x, weights, axes), denominator),
+    ]
+    return FieldMoments(x, sums, mean_pre_std, std_pre_std)
+
+
 def first_layer_sums(
     w: Any, u: Any, weights: Any, denominator: float, pairs: ChannelPairs, axes: tuple[int, ...]
 ) -> list[_Sum]:
@@ -182,16 +212,9 @@ def scattering_values(data: Data, plan: PlanarPlan, filters: PlanarFilters) -> S
     if filters.valid is not None:
         x = xp.where(filters.valid, x, xp.zeros_like(x))
     moments = plan.moments
-    weights = window(moments, filters.moments)
-    mean_pre_std = std_pre_std = None
-    if plan.standardize:
-        x, mean_pre_std, std_pre_std = standardize(
-            x, weights, moments.denominator, axes, global_sum=total
-        )
-    pending: list[_Sum] = [
-        _Sum("mean", sum_valid(x, weights, axes), moments.denominator),
-        _Sum("var", cov_sum_valid(x, x, weights, axes), moments.denominator),
-    ]
+    x, pending, mean_pre_std, std_pre_std = field_moments(
+        x, window(moments, filters.moments), moments.denominator, axes, plan.standardize
+    )
     divided: list[Any] = []  # the divided sums of each level, as real (Nb, n) arrays
 
     moduli: dict[int, Any] = {}  # U_{j2} x of every scale computed so far, at the current level

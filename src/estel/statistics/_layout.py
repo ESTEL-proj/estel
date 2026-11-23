@@ -576,6 +576,51 @@ def loop_gather(plan: PlanarPlan) -> LoopGather:
     )
 
 
+@functools.lru_cache(maxsize=64)
+def tensor_prod_gather(plan: TensorProdPlan) -> Pack:
+    """The counterpart of :func:`loop_gather` for a tensor product (task T3.2): how the dense
+    S4 chunks of the loop, ``(Nb, n, L³, 2)`` in the order of the buffer, are packed into the
+    floats of S4 (:func:`pack`). S1, S2 and S3 need no table: their chunks are concatenated in
+    the order of the buffer.
+
+    Checks that the chunks the plan's loop computes (``TensorProdPlan.loop``: the channel pairs
+    of S1 and S2, the rows of S3 and S4 per segment) are those of :func:`tensor_prod_layout`, in
+    its order, and raises otherwise: the two are built apart, from the same index sets."""
+    layout = tensor_prod_layout(plan)
+    loop = plan.loop
+    n_blocks, nc = plan.n_blocks, plan.n_channels
+
+    def s3_chunk(arms: tuple[Level, ...], j3: Level, row: int) -> tuple[int, ...]:
+        arm, c1, c2 = row // (nc * nc), (row // nc) % nc, row % nc
+        return (c1, c2, *arms[arm], *j3)
+
+    def s4_chunk(arms: tuple[Level, ...], j3: Level, row: int) -> tuple[int, ...]:
+        c2, rest = row % nc, row // nc
+        arm2, rest = rest % len(arms), rest // len(arms)
+        c1, arm1 = rest % nc, rest // nc
+        return (c1, c2, *arms[arm1], *arms[arm2], *j3)
+
+    found = {
+        "S1": [(c1, c2, *f.scale) for f in loop.first_layer for c1, c2 in f.pairs],
+        "S3": [
+            s3_chunk(s.arms, s.j3, row) for s in loop.second_layer for row in s.s3_rows.tolist()
+        ],
+        "S4": [
+            s4_chunk(s.arms, s.j3, row) for s in loop.second_layer for row in s.s4_rows.tolist()
+        ],
+    }
+    for name, rows in found.items():
+        expected = [tuple(int(v) for v in r) for r in layout.grid(name).chunks.tolist()]
+        if rows != expected:
+            raise RuntimeError(
+                f"{name}: the chunks of the loop of this tensor product ({len(rows)}) are not "
+                f"those of its layout ({len(expected)}), in its order; "
+                "scattering._tensor_prod.build_tensor_prod_loop and tensor_prod_layout disagree "
+                f"({n_blocks} block(s)): make them agree."
+            )
+    return pack_spec(layout, "S4")
+
+
 def gather_loop(backend: Backend, sums: Sequence[Any], gather: LoopGather, takes: Any) -> Any:
     """The buffer ``(Nb, n_floats)`` from the divided sums of the loop, each a real ``(Nb, m)``
     array in the order of ``loop_sums``: their chunks concatenated in the order of the buffer.
