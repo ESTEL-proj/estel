@@ -43,7 +43,6 @@ _TO_REAL = {torch.complex64: torch.float32, torch.complex128: torch.float64}
 _KIND_RANK = {"b": 0, "u": 1, "i": 1, "f": 2, "c": 3}
 _PAD_MODES = ("circular", "replicate", "zeros")
 _CONV = {1: F.conv1d, 2: F.conv2d, 3: F.conv3d}
-_BATCH_AS_SPATIAL = {1}
 
 
 _NO_TORCH_PYTREE = (
@@ -279,19 +278,21 @@ class TorchBackend:
         pre = x.shape[:first]
         post = x.shape[first + d :]
         if d in _CONV:
-            # Batch every other axis: (pre, N, post) -> (pre, post, N) -> (B, 1, N).
+            # Batch every other axis: (pre, N, post) -> (pre, post, N), B = pre x post.
             moved = torch.movedim(
                 x, tuple(range(first + d, x.ndim)), tuple(range(first, first + len(post)))
             )
-            if d in _BATCH_AS_SPATIAL and d + 1 in _CONV:
-                # The batch as one more spatial axis, with a kernel of size 1 along it:
-                # (1, 1, B, *N) against (O, 1, 1, *K).
+            if d == 1 and math.prod(pre) * math.prod(post) > 0:
+                # One axis: the batch as a second spatial axis, with a kernel of size 1 along
+                # it, (1, 1, B, N) against (O, 1, 1, K): conv1d of (B, 1, N) is a slow path of
+                # PyTorch on CPU (T3.5). An empty batch keeps conv1d, which accepts it.
                 batched = moved.reshape(1, 1, -1, *sizes)
                 kernels = k.reshape(-1, 1, 1, *support)
-                y = _CONV[d + 1](batched, kernels, stride=[1, *strides])  # (1, O, B, *M)
+                y = _CONV[2](batched, kernels, stride=[1, *strides])  # (1, O, B, M)
                 n_o = int(kernels.shape[0])
-                y = y.reshape(n_o, -1, *out).transpose(0, 1)  # (B, O, *M)
+                y = y.reshape(n_o, -1, *out).transpose(0, 1)  # (B, O, M)
             else:
+                # (B, 1, *N) against (O, 1, *K).
                 batched = moved.reshape(-1, 1, *sizes)
                 kernels = k.reshape(-1, 1, *support)
                 y = _CONV[d](batched, kernels, stride=strides)

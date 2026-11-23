@@ -532,6 +532,15 @@ class TestPad:
         y = backend.pad(backend.asarray(a, dtype), [(3, 3)], [1], "circular")
         assert_close(backend, y, np_pad(a, [(3, 3)], [1], "circular"), dtype)
 
+    @pytest.mark.parametrize("mode", ["circular", "replicate"])
+    @pytest.mark.parametrize("width", [(0, 2), (2, 0)])
+    def test_one_side_only(
+        self, backend: Backend, dtype: DType, mode: Any, width: tuple[int, int]
+    ) -> None:
+        a = draw((2, 5), dtype, 9)
+        y = backend.pad(backend.asarray(a, dtype), [width], [1], mode)
+        assert_close(backend, y, np_pad(a, [width], [1], mode), dtype)
+
     def test_zeros_on_an_empty_axis(self, backend: Backend, dtype: DType) -> None:
         y = backend.pad(backend.asarray(np.zeros((2, 0)), dtype), [(1, 2)], [1], "zeros")
         assert_close(backend, y, np.zeros((2, 3)), dtype)
@@ -589,6 +598,22 @@ class TestConvAxes:
         assert backend.to_numpy(backend.conv_axes(x, k, [2, 3])).shape == (2, 3, 4, 6, 5)
         k2 = backend.asarray(np.ones((2, 4, 3, 3)), dtype)
         assert backend.to_numpy(backend.conv_axes(x, k2, [2, 3], 2)).shape == (2, 3, 2, 4, 3, 3)
+
+    @pytest.mark.parametrize(
+        ("x_shape", "axes", "expected"), [((0, 9), [1], (0, 2, 7)), ((2, 0, 9), [2], (2, 0, 2, 7))]
+    )
+    def test_empty_batch(
+        self,
+        backend: Backend,
+        dtype: DType,
+        x_shape: tuple[int, ...],
+        axes: list[int],
+        expected: tuple[int, ...],
+    ) -> None:
+        """No element along the other axes: an empty result, batched over them."""
+        x = backend.asarray(np.ones(x_shape), dtype)
+        y = backend.conv_axes(x, backend.asarray(K_1D(dtype), dtype), axes)
+        assert_close(backend, y, np.zeros(expected), dtype)
 
     def test_rejects_complex(self, backend: Backend, dtype: DType) -> None:
         z = backend.asarray(np.ones((5, 5), dtype=complex), COMPLEX_OF[dtype])

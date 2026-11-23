@@ -88,8 +88,10 @@ def _planar_conv_along(
     first = axes[0]
     n_l = int(kernels.shape[0])
     if _is_complex(xp, padded):
-        # Four real calls: one call on the real and imaginary parts stacked raises the peak
-        # memory on PyTorch by 23 % at 64 x 64 x 32 (T3.5, #128).
+        # Four real calls on both backends, by the maintainer's decision (T3.5, #128): one call
+        # on the real and imaginary parts stacked raises the peak memory on PyTorch by 23 % at
+        # 64 x 64 x 32, though it gains on JAX. One call for the complex intermediate maps is
+        # deferred to step 2a (LF62).
         k_re, k_im = xp.real(kernels), xp.imag(kernels)
         x_re, x_im = xp.real(padded), xp.imag(padded)
 
