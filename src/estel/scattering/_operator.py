@@ -121,12 +121,17 @@ class STOperator:
             raise TypeError(
                 f"STOperator.from_statistics takes STStatistics, got {type(stats).__name__}."
             )
+        plan = stats._plan
+        if not isinstance(plan, STPlan):
+            raise ValueError(
+                "STOperator.from_statistics: these are the statistics of a tensor product, which "
+                "STOperator does not compute; the operator of tensor products comes later "
+                "(task T3.2)."
+            )
         operator = cls.__new__(cls)
         wide = dtype_name(stats._buffer) in _WIDE
         dtype: FloatDType = "float64" if wide else "float32"
-        operator._setup(
-            stats._plan, stats._backend, dtype, default_device(), "python", stats._reference
-        )
+        operator._setup(plan, stats._backend, dtype, default_device(), "python", stats._reference)
         return operator
 
     def _setup(

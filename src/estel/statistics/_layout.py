@@ -48,12 +48,12 @@ from numpy.typing import NDArray
 
 from ..backend._protocol import Backend
 from ..io._schema import SCHEMA_VERSION
-from ..scattering._plan import STPlan, loop_sums
+from ..scattering._plan import STPlan, TensorProdPlan, loop_sums
 from ._arrays import constant, dtype_name
-from ._grid import FamilyGrid, base_grids
+from ._grid import FamilyGrid, base_grids, tensor_prod_grids
 
 Level = tuple[int, ...]
-"""The level of a segment: ``(d,)`` for 1D and 2D data, a multi-index in tensor products (T3.2);
+"""The level of a segment: ``(d,)`` for 1D and 2D data, a multi-index in tensor products (T3.6);
 ``()`` when the entries of a segment come from several levels (after ``scale_cosine``)."""
 
 
@@ -221,9 +221,14 @@ class Layout:
             for segment in (s for s in self.segments if s.family == grid.name):
                 if segment.offset != offset or segment.first_chunk != chunk:
                     raise ValueError(f"{grid.name}: segments must be contiguous from float 0.")
-                if segment.orientations != grid.orientations:
-                    raise ValueError(f"{grid.name}: the orientations of a segment differ.")
                 stop = chunk + segment.n_chunks
+                shapes = {grid.kind_shape(int(k)) for k in np.unique(grid.kinds[chunk:stop])}
+                if shapes - {segment.orientations} or (
+                    len(segment.orientations) != len(grid.orientations)
+                ):
+                    raise ValueError(
+                        f"{grid.name}: the orientations of a segment are not those of its chunks."
+                    )
                 if segment.n_floats != int(floats[chunk:stop].sum()):
                     raise ValueError(f"{grid.name}: n_floats does not count the chunks.")
                 offset += segment.n_floats
@@ -309,16 +314,31 @@ class Layout:
         """The entries of family ``name``, in the order of the buffer, computed on demand from
         its chunks: for the tests and the plots, not for the maps."""
         grid = self.grid(name)
-        n_o = grid.n_orientations
-        tail = orientation_positions(grid.orientations)
-        positions = np.concatenate(
-            [
-                np.repeat(grid.chunks.astype(np.int64), n_o, axis=0),
-                np.tile(tail, (grid.n_chunks, 1)),
-            ],
-            axis=1,
-        )
-        is_complex = ~grid.real[grid.kinds].reshape(-1)
+        if grid.shapes is None:
+            n_o = grid.n_orientations
+            tail = orientation_positions(grid.orientations)
+            positions = np.concatenate(
+                [
+                    np.repeat(grid.chunks.astype(np.int64), n_o, axis=0),
+                    np.tile(tail, (grid.n_chunks, 1)),
+                ],
+                axis=1,
+            )
+            is_complex = ~grid.real[grid.kinds].reshape(-1)
+        else:
+            kinds = [int(k) for k in grid.kinds]
+            shapes = [grid.kind_shape(k) for k in range(grid.real.shape[0])]
+            tails = [orientation_positions(shape) for shape in shapes]
+            sizes = np.array([tails[k].shape[0] for k in kinds], dtype=np.int64)
+            positions = np.concatenate(
+                [
+                    np.repeat(grid.chunks.astype(np.int64), sizes, axis=0),
+                    np.concatenate([tails[k] for k in kinds]).reshape(-1, len(grid.orientations)),
+                ],
+                axis=1,
+            )
+            reals = [grid.real_in(shape)[k] for k, shape in enumerate(shapes)]
+            is_complex = ~np.concatenate([reals[k] for k in kinds]).astype(bool)
         sizes = 1 + is_complex.astype(np.int64)
         start, stop = self.span(name)
         first = start + np.cumsum(sizes) - sizes
@@ -326,18 +346,47 @@ class Layout:
 
 
 def _canonical_kinds(
-    kinds: NDArray[np.int32], real: NDArray[np.bool_]
-) -> tuple[NDArray[np.int32], NDArray[np.bool_]]:
-    """The kinds renumbered in the order of their first chunk, equal rows of ``real`` merged
-    and unused rows dropped, so that equal families have equal tables."""
+    kinds: NDArray[np.int32], real: NDArray[np.bool_], shapes: NDArray[np.int32] | None = None
+) -> tuple[NDArray[np.int32], NDArray[np.bool_], NDArray[np.int32] | None]:
+    """The kinds renumbered in the order of their first chunk, equal rows of ``real`` (and of
+    ``shapes``) merged and unused rows dropped, so that equal families have equal tables."""
     if kinds.shape[0] == 0:
-        return kinds.astype(np.int32), np.zeros((0, real.shape[1]), dtype=bool)
-    rows, row_of_kind = np.unique(real, axis=0, return_inverse=True)
-    merged = row_of_kind.reshape(-1)[kinds]
+        empty = None if shapes is None else np.zeros((0, shapes.shape[1]), dtype=np.int32)
+        return kinds.astype(np.int32), np.zeros((0, real.shape[1]), dtype=bool), empty
+    n_o = real.shape[1]
+    table: NDArray[Any] = real
+    if shapes is not None:
+        table = np.concatenate([real.astype(np.int64), shapes.astype(np.int64)], axis=1)
+    rows, row_of_kind = _unique_rows(table)
+    merged = row_of_kind[kinds]
     used, first = np.unique(merged, return_index=True)
     rank = np.argsort(np.argsort(first))
     renumbered = rank[np.searchsorted(used, merged)]
-    return renumbered.astype(np.int32), rows[used[np.argsort(first)]]
+    kept = rows[used[np.argsort(first)]]
+    if shapes is None:
+        return renumbered.astype(np.int32), kept.astype(bool), None
+    return renumbered.astype(np.int32), kept[:, :n_o].astype(bool), kept[:, n_o:].astype(np.int32)
+
+
+def _unique_rows(table: NDArray[Any]) -> tuple[NDArray[Any], NDArray[np.int64]]:
+    """The distinct rows of ``table``, in the order of their first appearance, and the row of
+    each row of ``table`` among them: ``np.unique(table, axis=0)`` up to the order of the rows,
+    without its structured dtype of one field per column (a few hundred bytes per column, which
+    a row of the orientations of S4 of a tensor product makes megabytes)."""
+    found: dict[bytes, int] = {}
+    ids = np.array(
+        [found.setdefault(row.tobytes(), len(found)) for row in np.ascontiguousarray(table)],
+        dtype=np.int64,
+    )
+    return table[_first_positions(ids, len(found))], ids
+
+
+def _first_positions(ids: NDArray[np.int64], n: int) -> NDArray[np.int64]:
+    """For each id 0 … n-1, the position of its first appearance in ``ids``."""
+    order = np.argsort(ids, kind="stable")
+    starts = np.searchsorted(ids[order], np.arange(n))
+    found: NDArray[np.int64] = order[starts].astype(np.int64)
+    return found
 
 
 def build_layout(
@@ -359,20 +408,27 @@ def build_layout(
         rank = np.array([used.index(lv) if lv in used else -1 for lv in family.levels])
         chunk_rank = rank[family.level_ids] if flat.shape[0] else np.zeros(0, dtype=np.int64)
         order = np.lexsort((flat, chunk_rank)).astype(np.int64)
-        kinds, real = _canonical_kinds(grid.kinds[order], grid.real)
-        built = grid.replace(chunks=grid.chunks[order], kinds=kinds, real=real)
+        kinds, real, shapes = _canonical_kinds(grid.kinds[order], grid.real, grid.shapes)
+        built = grid.replace(chunks=grid.chunks[order], kinds=kinds, real=real, shapes=shapes)
         sizes = built.floats_per_kind[built.kinds]
         ranks = chunk_rank[order]
         for r, level in enumerate(used):
             a, b = (int(i) for i in np.searchsorted(ranks, [r, r + 1]))
             n_floats = int(sizes[a:b].sum())
+            shapes_in = {built.kind_shape(int(k)) for k in np.unique(built.kinds[a:b])}
+            if len(shapes_in) > 1:
+                raise ValueError(
+                    f"{grid.name}: the chunks of the segment at level {level} have several "
+                    "orientation shapes; a segment keeps one (task T3.6)."
+                )
+            orientations = shapes_in.pop() if shapes_in else built.orientations
             segments.append(
                 Segment(
                     family=grid.name,
                     level=tuple(int(d) for d in level),
                     index_names=grid.axes,
                     chunks=built.chunks[a:b],
-                    orientations=built.orientations,
+                    orientations=orientations,
                     offset=offset,
                     n_floats=n_floats,
                     first_chunk=a,
@@ -403,6 +459,29 @@ def base_layout(plan: STPlan) -> Layout:
         else:
             level_ids = np.full(grid.n_chunks, level_of[int(plan.levels[0])])
         families.append(FamilyChunks(grid, levels, np.asarray(level_ids, dtype=np.int64)))
+    layout, _ = build_layout(families)
+    return layout
+
+
+@functools.lru_cache(maxsize=64)
+def tensor_prod_layout(plan: TensorProdPlan) -> Layout:
+    """The layout of the statistics of a tensor product without normalisation, from the plan
+    alone (``_grid.tensor_prod_grids``; task T3.6): one segment per family and multi-index
+    level, S1 and S2 at the level of their scale (the low-pass scale J_a of a block is its
+    level J_a), S3 and S4 at the level of j3 (M-LP, M-S-TP), mean and var at level 0. Every
+    table grows with the number of chunks, never with the full grid."""
+    n_blocks = plan.n_blocks
+    origin = (0,) * n_blocks
+    families: list[FamilyChunks] = []
+    for grid in tensor_prod_grids(plan):
+        if grid.name in ("mean", "var"):
+            families.append(FamilyChunks(grid, (origin,), np.zeros(grid.n_chunks, dtype=np.int64)))
+            continue
+        first = {"S1": 2, "S2": 2, "S3": 2 + n_blocks, "S4": 2 + 2 * n_blocks}[grid.name]
+        scales = grid.chunks[:, first : first + n_blocks]
+        distinct, ids = np.unique(scales, axis=0, return_inverse=True)
+        levels = tuple(tuple(int(d) for d in row) for row in distinct)
+        families.append(FamilyChunks(grid, levels, ids.reshape(-1).astype(np.int64)))
     layout, _ = build_layout(families)
     return layout
 
@@ -517,10 +596,24 @@ def gather_loop(backend: Backend, sums: Sequence[Any], gather: LoopGather, takes
 # ---------------------------------------------------------------------- dense chunks
 
 
+def _shape_of(grid: FamilyGrid, chunks: NDArray[np.int64]) -> tuple[int, ...]:
+    """The orientation shape shared by the chunks ``chunks`` of ``grid``; raises when they
+    have several (a map acts on one shape at a time; task T3.6)."""
+    if grid.shapes is None:
+        return grid.orientations
+    shapes = {grid.kind_shape(int(k)) for k in np.unique(grid.kinds[np.asarray(chunks)])}
+    if len(shapes) > 1:
+        raise ValueError(
+            f"{grid.name}: these chunks have several orientation shapes; group them by shape "
+            "(FamilyGrid.shape_groups)."
+        )
+    return shapes.pop() if shapes else grid.orientations
+
+
 def _single(grid: FamilyGrid) -> NDArray[np.bool_] | None:
     """The row of real entries of the chunks of ``grid`` when they are all of one kind, else
     ``None``."""
-    if grid.real.shape[0] == 1:
+    if grid.real.shape[0] == 1 and grid.shapes is None:
         row: NDArray[np.bool_] = grid.real[0]
         return row
     return None
@@ -543,9 +636,11 @@ class Unpack(NamedTuple):
 
 def unpack_spec(layout: Layout, name: str, chunks: NDArray[np.int64], parts: int = 2) -> Unpack:
     """The :class:`Unpack` of the chunks ``chunks`` (positions among the chunks of ``name``,
-    in the order wanted) of ``layout``; ``parts`` is 2 for (re, im), 1 for the real part."""
+    in the order wanted) of ``layout``; ``parts`` is 2 for (re, im), 1 for the real part. The
+    chunks share one orientation shape (``FamilyGrid.shape_groups``)."""
     grid = layout.grid(name)
-    within = within_chunk(grid.real)[:, :, :parts]
+    shape = _shape_of(grid, chunks)
+    within = within_chunk(grid.real_in(shape))[:, :, :parts]
     starts = layout.chunk_starts(name)[chunks]
     kinds = grid.kinds[chunks].astype(np.int64)
     view = None
@@ -631,25 +726,37 @@ class Pack(NamedTuple):
     """``(n,)``: the first float of each chunk, from the first float of the family."""
     n_floats: int
     """The floats of the family."""
+    whole: bool = True
+    """Whether the chunks are every chunk of the family, in the order of the buffer; otherwise
+    (one orientation shape of a family that has several), the floats of the others are 0."""
 
 
-def pack_spec(layout: Layout, name: str) -> Pack:
+def pack_spec(layout: Layout, name: str, rows: NDArray[np.int64] | None = None) -> Pack:
     """The :class:`Pack` of family ``name`` of ``layout``, its chunks in the order of the
-    buffer."""
+    buffer, or of its chunks ``rows`` only, which share one orientation shape."""
     grid = layout.grid(name)
     start, stop = layout.span(name)
+    if rows is None:
+        return Pack(
+            kinds=grid.kinds.astype(np.int64),
+            within=within_chunk(grid.real),
+            starts=layout.chunk_starts(name) - start,
+            n_floats=stop - start,
+        )
     return Pack(
-        kinds=grid.kinds.astype(np.int64),
-        within=within_chunk(grid.real),
-        starts=layout.chunk_starts(name) - start,
+        kinds=grid.kinds[rows].astype(np.int64),
+        within=within_chunk(grid.real_in(_shape_of(grid, rows))),
+        starts=layout.chunk_starts(name)[rows] - start,
         n_floats=stop - start,
+        whole=False,
     )
 
 
 def _single_kind(spec: Pack) -> int | None:
-    """The kind of every chunk of ``spec`` when they share one, else ``None``."""
+    """The kind of every chunk of ``spec`` when they share one and are the whole family, else
+    ``None``."""
     kinds = np.unique(spec.kinds)
-    return int(kinds[0]) if kinds.shape[0] == 1 else None
+    return int(kinds[0]) if kinds.shape[0] == 1 and spec.whole else None
 
 
 def pack(backend: Backend, dense: Any, spec: Pack, tables: ChunkTables | None = None) -> Any:
@@ -678,7 +785,7 @@ def pack(backend: Backend, dense: Any, spec: Pack, tables: ChunkTables | None = 
     if tables is None:
         tables = chunk_tables(backend, spec.within, spec.kinds, spec.starts, dense)
     summed = backend.segment_sum(
-        xp.reshape(dense, (n_batch, n * n_o * 2)),
+        xp.reshape(dense, (n_batch, n * n_o * int(dense.shape[3]))),
         1,
         _floats(backend, tables, spec.n_floats),
         spec.n_floats + 1,
@@ -769,13 +876,44 @@ class _Part(NamedTuple):
         return on[0].real if on else None
 
 
+class _Group(NamedTuple):
+    """The chunks of one orientation shape of a family with several (tensor products; task
+    T3.6): unpacked, then packed into the floats of the family, those of the other shapes
+    left 0."""
+
+    rows: NDArray[np.int64]
+    """The positions of these chunks among the chunks of the output family."""
+    orientations: tuple[int, ...]
+    """Their orientation shape."""
+    unpack: Unpack
+    pack: Pack
+
+
+class _Grouped(NamedTuple):
+    """A family of the output of a :class:`FloatMap` whose chunks have several orientation
+    shapes, gathered from the chunks of the input family one shape at a time (task T3.6): the
+    sum of the packed groups, each float receiving one value."""
+
+    name: str
+    groups: tuple[_Group, ...]
+
+    @property
+    def columns(self) -> None:
+        """No map on the orientations."""
+        return None
+
+    @property
+    def weights(self) -> None:
+        return None
+
+
 @dataclass(frozen=True, eq=False)
 class FloatMap:
     """A static linear map from a buffer of one layout to a buffer of :attr:`layout` (Part
     III, §19.6), one part per output family."""
 
     layout: Layout
-    parts: tuple[_Slice | _Part, ...]
+    parts: tuple[_Slice | _Part | _Grouped, ...]
 
 
 class Copy(NamedTuple):
@@ -805,7 +943,7 @@ def make_map(layout: Layout, specs: Sequence[Copy | Chunked]) -> FloatMap:
         layout.chunked(spec.name) if isinstance(spec, Copy) else spec.chunks for spec in specs
     ]
     out_layout, orders = build_layout(families)
-    parts: list[_Slice | _Part] = []
+    parts: list[_Slice | _Part | _Grouped] = []
     for spec, order in zip(specs, orders, strict=True):
         if isinstance(spec, Copy):
             if not np.array_equal(order, np.arange(order.shape[0])):
@@ -814,6 +952,9 @@ def make_map(layout: Layout, specs: Sequence[Copy | Chunked]) -> FloatMap:
             continue
         name = spec.chunks.grid.name
         sources = spec.sources[order]
+        if layout.grid(name).shapes is not None:
+            parts.append(_grouped(layout, out_layout, name, spec, sources))
+            continue
         if spec.weights is None:
             read = unpack_spec(layout, name, sources[:, 0])
             mix = None
@@ -823,6 +964,30 @@ def make_map(layout: Layout, specs: Sequence[Copy | Chunked]) -> FloatMap:
         orientations = layout.grid(name).orientations
         parts.append(_Part(name, read, mix, spec.steps, orientations, pack_spec(out_layout, name)))
     return FloatMap(layout=out_layout, parts=tuple(parts))
+
+
+def _grouped(
+    layout: Layout, out_layout: Layout, name: str, spec: Chunked, sources: NDArray[np.int64]
+) -> _Grouped:
+    """The :class:`_Grouped` part of a family with several orientation shapes: a plain gather
+    of chunks, one shape at a time (``select`` by family and channels, the normalisation)."""
+    if spec.weights is not None or spec.steps:
+        raise ValueError(
+            f"{name}: its chunks have several orientation shapes (a tensor product); only a "
+            "gather of whole chunks acts on it, not a combination of chunks or a map on their "
+            "orientations (maths.md OP-44, LF26, LF44)."
+        )
+    grid = layout.grid(name)
+    groups = tuple(
+        _Group(
+            rows=rows,
+            orientations=shape,
+            unpack=unpack_spec(layout, name, sources[rows, 0]),
+            pack=pack_spec(out_layout, name, rows),
+        )
+        for shape, rows in grid.shape_groups(sources[:, 0])
+    )
+    return _Grouped(name, groups)
 
 
 def _on_orientations(
@@ -852,9 +1017,17 @@ def _on_orientations(
     return xp.reshape(a, (n_batch, n, *new, 2))
 
 
-MapTables = tuple[tuple[ChunkTables, ChunkTables] | None, ...]
+MapTables = tuple[Any, ...]
 """For each part of a :class:`FloatMap`, the :data:`ChunkTables` of its unpacking and of its
-packing (``None`` for a slice): the arguments of a compiled map (:func:`map_tables`)."""
+packing (``None`` for a slice; one such pair per group for a family with several orientation
+shapes): the arguments of a compiled map (:func:`map_tables`)."""
+
+
+def _pair(backend: Backend, read: Unpack, write: Pack, like: Any) -> tuple[Any, Any]:
+    return (
+        chunk_tables(backend, read.within, read.kinds, read.starts, like),
+        chunk_tables(backend, write.within, write.kinds, write.starts, like),
+    )
 
 
 def map_tables(backend: Backend, transform: FloatMap, like: Any) -> MapTables:
@@ -863,10 +1036,9 @@ def map_tables(backend: Backend, transform: FloatMap, like: Any) -> MapTables:
     return tuple(
         None
         if isinstance(part, _Slice)
-        else (
-            chunk_tables(backend, part.unpack.within, part.unpack.kinds, part.unpack.starts, like),
-            chunk_tables(backend, part.pack.within, part.pack.kinds, part.pack.starts, like),
-        )
+        else tuple(_pair(backend, g.unpack, g.pack, like) for g in part.groups)
+        if isinstance(part, _Grouped)
+        else _pair(backend, part.unpack, part.pack, like)
         for part in transform.parts
     )
 
@@ -875,13 +1047,15 @@ def apply(
     backend: Backend,
     buffer: Any,
     transform: FloatMap,
-    scale: Mapping[str, Callable[[Any], Any]] | None = None,
+    scale: Mapping[str, Callable[..., Any]] | None = None,
     tables: MapTables | None = None,
 ) -> Any:
     """The buffer ``(Nb, n)`` mapped by ``transform``: ``(Nb, transform.layout.n_floats)``.
     ``scale`` may give, for a family made from chunks, a function applied to its dense array
-    ``(Nb, n, n_orientations, 2)`` before it is packed (the divisors of the normalisation).
-    ``tables`` are the :func:`map_tables` of ``transform``, made here when not given."""
+    ``(Nb, n, n_orientations, 2)`` before it is packed (the divisors of the normalisation),
+    called with that array and the position of its group of chunks (0 for a family of one
+    orientation shape; ``_Grouped``). ``tables`` are the
+    :func:`map_tables` of ``transform``, made here when not given."""
     xp = backend.xp
     scale = {} if scale is None else scale
     found = map_tables(backend, transform, buffer) if tables is None else tables
@@ -892,6 +1066,9 @@ def apply(
             continue
         if part_tables is None:
             raise ValueError(f"{part.name}: the tables of a map made from chunks are missing.")
+        if isinstance(part, _Grouped):
+            pieces.append(_apply_groups(backend, buffer, transform, part, scale, part_tables))
+            continue
         read_tables, write_tables = part_tables
         dense = unpack(backend, buffer, part.unpack, read_tables)
         grid = transform.layout.grid(part.name)
@@ -911,11 +1088,35 @@ def apply(
         if part.steps:
             dense = _apply_steps(backend, dense, part.steps, part.orientations)
         if part.name in scale:
-            dense = scale[part.name](dense)
+            dense = scale[part.name](dense, 0)
         n_batch, n = int(dense.shape[0]), int(dense.shape[1])
         reshaped = xp.reshape(dense, (n_batch, n, grid.n_orientations, 2))
         pieces.append(pack(backend, reshaped, part.pack, write_tables))
     return pieces[0] if len(pieces) == 1 else xp.concat(pieces, axis=1)
+
+
+def _apply_groups(
+    backend: Backend,
+    buffer: Any,
+    transform: FloatMap,
+    part: _Grouped,
+    scale: Mapping[str, Callable[..., Any]],
+    tables: Any,
+) -> Any:
+    """The floats of a family with several orientation shapes: each group unpacked, scaled,
+    packed into the floats of the family (0 at those of the other groups), and summed."""
+    xp = backend.xp
+    start, stop = transform.layout.span(part.name)
+    total = None
+    for i, (group, (read_tables, write_tables)) in enumerate(zip(part.groups, tables, strict=True)):
+        dense = unpack(backend, buffer, group.unpack, read_tables)
+        if part.name in scale:
+            dense = scale[part.name](dense, i)
+        packed = pack(backend, dense, group.pack, write_tables)
+        total = packed if total is None else total + packed
+    if total is None:
+        return xp.zeros((int(buffer.shape[0]), stop - start), dtype=buffer.dtype)
+    return total
 
 
 def _apply_steps(
@@ -970,8 +1171,25 @@ def full_grid(backend: Backend, buffer: Any, layout: Layout, name: str) -> Any:
     if grid.n_chunks == 0:
         nan = xp.full((n_batch, *grid.shape, parts), float("nan"), dtype=buffer.dtype)
         return backend.real_pairs_to_complex(nan) if grid.is_complex else nan[..., 0]
-    dense = unpack(backend, buffer, unpack_spec(layout, name, np.arange(grid.n_chunks), parts))
     k, n_axes = grid.n_chunk_axes, len(grid.orientations)
+    chunks = grid.chunks
+    if grid.shapes is None:
+        dense = unpack(backend, buffer, unpack_spec(layout, name, np.arange(grid.n_chunks), parts))
+    else:
+        # One orientation shape at a time, padded with NaN to the orientations of the family.
+        groups = grid.shape_groups(np.arange(grid.n_chunks))
+        pieces = []
+        for shape, rows in groups:
+            found = unpack(backend, buffer, unpack_spec(layout, name, rows, parts))
+            found = xp.reshape(found, (n_batch, int(rows.shape[0]), *shape, parts))
+            pieces.append(
+                xp.reshape(
+                    _pad_nan(backend, found, grid.orientations),
+                    (n_batch, int(rows.shape[0]), grid.n_orientations, parts),
+                )
+            )
+        dense = xp.concat(pieces, axis=1)
+        chunks = grid.chunks[np.concatenate([rows for _, rows in groups])]
     if k == 0:
         placed = xp.reshape(dense, (n_batch, *grid.orientations, parts))
     else:
@@ -980,11 +1198,32 @@ def full_grid(backend: Backend, buffer: Any, layout: Layout, name: str) -> Any:
             xp.permute_dims(dense, (0, 2, 3, 1)),
             (n_batch, *grid.orientations, parts, grid.n_chunks),
         )
-        index = [constant(backend, column, buffer, "int32") for column in grid.chunks.T]
+        index = [constant(backend, column, buffer, "int32") for column in chunks.T]
         scattered = backend.scatter_to_grid(carried, index, grid.chunk_shape)
         order = (0, *range(2 + n_axes, 2 + n_axes + k), *range(1, 1 + n_axes), 1 + n_axes)
         placed = xp.permute_dims(scattered, order)
     return backend.real_pairs_to_complex(placed) if grid.is_complex else placed[..., 0]
+
+
+def _pad_nan(backend: Backend, x: Any, orientations: tuple[int, ...]) -> Any:
+    """``x`` ``(Nb, n, *shape, parts)``, ``shape`` a corner of ``orientations``, padded with NaN
+    to ``(Nb, n, *orientations, parts)``."""
+    xp = backend.xp
+    for axis, size in enumerate(orientations):
+        found = int(x.shape[2 + axis])
+        if found < size:
+            pad_shape = (*x.shape[: 2 + axis], size - found, *x.shape[3 + axis :])
+            x = xp.concat([x, xp.full(pad_shape, float("nan"), dtype=x.dtype)], axis=2 + axis)
+    return x
+
+
+def full_grid_bytes(layout: Layout, name: str, n_batch: int, itemsize: int) -> int:
+    """The bytes of the full-grid view of family ``name`` for ``n_batch`` batch elements, in a
+    real dtype of ``itemsize`` bytes (twice that for a complex family): what ``full_grid``
+    would allocate, computed from the shape alone."""
+    grid = layout.grid(name)
+    size = n_batch * int(np.prod(grid.shape, dtype=np.int64)) * itemsize
+    return size * (2 if grid.is_complex else 1)
 
 
 # ---------------------------------------------------------------------- storage
@@ -999,6 +1238,7 @@ def payload(layout: Layout) -> tuple[dict[str, NDArray[Any]], dict[str, Any]]:
             f"family__{i}__chunks": np.asarray(grid.chunks),
             f"family__{i}__kinds": np.asarray(grid.kinds),
             f"family__{i}__real": np.asarray(grid.real),
+            **({} if grid.shapes is None else {f"family__{i}__shapes": np.asarray(grid.shapes)}),
         }
     content = {
         "families": [
@@ -1041,6 +1281,7 @@ def from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> La
             chunks=arrays[f"family__{i}__chunks"],
             kinds=arrays[f"family__{i}__kinds"],
             real=arrays[f"family__{i}__real"].astype(bool),
+            shapes=arrays.get(f"family__{i}__shapes"),
         )
         for i, family in enumerate(content["families"])
     )

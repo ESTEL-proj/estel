@@ -44,7 +44,37 @@ from ._layout import (
 )
 
 if TYPE_CHECKING:
-    from ..scattering._plan import STPlan
+    from ..scattering._plan import STPlan, TensorProdPlan
+
+
+class TensorProdBlocks(NamedTuple):
+    """What a normalisation reference of a tensor product must share with the statistics it
+    normalises (maths.md M-NORM-TP; task T3.6): the blocks, J, L and the low-pass flags; the
+    sizes and the periodicity of the blocks are free, as in M-NORM."""
+
+    geometries: tuple[str, ...]
+    """The geometry of each block, by class name (``"Data2D"``, ``"Data1D"``)."""
+    J: tuple[int, ...]
+    L: tuple[int, ...]
+    lowpass: tuple[bool, ...]
+    """Whether each block has a low-pass filter (M-LP)."""
+
+    def row_shape(self, scale: tuple[int, ...]) -> tuple[int, ...]:
+        """The orientations of sigma at the multi-index ``scale``: L_a, or 1 along a block at
+        its low-pass scale (M-LP)."""
+        return tuple(
+            1 if j == n else size for j, n, size in zip(scale, self.J, self.L, strict=True)
+        )
+
+
+def tensor_prod_blocks(plan: TensorProdPlan) -> TensorProdBlocks:
+    """The :class:`TensorProdBlocks` of ``plan``."""
+    return TensorProdBlocks(
+        geometries=tuple(g.__name__ for g in plan.block_geometries),
+        J=plan.J,
+        L=plan.L,
+        lowpass=plan.lowpass_blocks,
+    )
 
 
 @dataclass(frozen=True, eq=False)
@@ -61,13 +91,25 @@ class _NormReference:
     """``var_ref``, ``(Nr, Nc)``, real; Nr = 1 with ``ref_batch_mean``, else the batch size."""
     sigma: Any
     """``(Nr, n)``, real: sigma_c(j, l) for every ``(c, j)`` of :attr:`present`, in order, and
-    every orientation l inside."""
+    every orientation l inside (in a tensor product, those of :meth:`TensorProdBlocks.row_shape`,
+    in C order)."""
     present: NDArray[np.bool_]
-    """``(Nc, J)``, static: where sigma exists (``_grid.auto_scales``)."""
+    """``(Nc, J)``, static: where sigma exists (``_grid.auto_scales``); ``(Nc, J'_0, …)`` in a
+    tensor product (``_grid.tensor_prod_auto_scales``)."""
     n_orientations: int
-    """L."""
+    """L; in a tensor product, the product of the L_a."""
     ref_batch_mean: bool
     """Whether the reference was averaged over the batch."""
+    blocks: TensorProdBlocks | None = None
+    """The blocks of a tensor product, or ``None`` for planar statistics."""
+
+    def rows(self) -> tuple[NDArray[np.int64], tuple[tuple[int, ...], ...], NDArray[np.int64]]:
+        """The ``(c, j)`` of each row of :attr:`sigma` ``(n_rows, 1 + n_scale_axes)``, the
+        orientation shape of each row, and the first float of each row: one entry per row,
+        never per coefficient."""
+        return _sigma_rows(
+            self.present.shape, self.present.tobytes(), self.blocks, self.n_orientations
+        )
 
     @property
     def n_batch(self) -> int:
@@ -79,6 +121,8 @@ class _NormReference:
         not exist. A view, built on demand; the normalisation reads :attr:`sigma`."""
         backend = backend_of(self.sigma)
         xp = backend.xp
+        if self.blocks is not None:
+            return self._s2_sqrt_tensor_prod(backend)
         nc, n_scales = (int(n) for n in self.present.shape)
         shape = (nc, n_scales, self.n_orientations)
         positions = np.argwhere(np.broadcast_to(self.present[:, :, None], shape))
@@ -92,6 +136,45 @@ class _NormReference:
         ]
         return backend.real_pairs_to_complex(xp.stack(parts, axis=-1))
 
+    def _s2_sqrt_tensor_prod(self, backend: Backend) -> Any:
+        """:attr:`s2_sqrt` of a tensor product, ``(Nr, Nc, *J', *L)``: the rows of sigma, one
+        orientation shape at a time, padded with NaN to the orientations of the blocks and
+        placed in the grid of the channels and the scales."""
+        xp = backend.xp
+        assert self.blocks is not None
+        full = self.blocks.L
+        positions, shapes, starts = self.rows()
+        n_ref = int(self.sigma.shape[0])
+        grid_shape = tuple(int(n) for n in self.present.shape)
+        if positions.shape[0] == 0:
+            nan = xp.full((n_ref, *grid_shape, *full), float("nan"), dtype=self.sigma.dtype)
+            return backend.real_pairs_to_complex(xp.stack([nan, nan], axis=-1))
+        pieces, order = [], []
+        for shape in dict.fromkeys(shapes):
+            rows = np.array([i for i, s in enumerate(shapes) if s == shape], dtype=np.int64)
+            size = int(np.prod(shape, dtype=np.int64))
+            index = (starts[rows][:, None] + np.arange(size)).reshape(-1)
+            values = xp.take(self.sigma, constant(backend, index, self.sigma, "int32"), axis=1)
+            values = xp.reshape(values, (n_ref, int(rows.shape[0]), *shape))
+            parts = xp.stack([values, xp.zeros_like(values)], axis=-1)
+            padded = _pad(backend, parts, full)
+            pieces.append(xp.reshape(padded, (n_ref, int(rows.shape[0]), -1)))
+            order.append(rows)
+        found = xp.permute_dims(xp.concat(pieces, axis=1), (0, 2, 1))
+        located = positions[np.concatenate(order)]
+        coordinates = [constant(backend, column, self.sigma, "int32") for column in located.T]
+        placed = backend.scatter_to_grid(found, coordinates, grid_shape)  # (Nr, n_o * 2, *grid)
+        moved = xp.permute_dims(
+            xp.reshape(placed, (n_ref, *full, 2, *grid_shape)),
+            (
+                0,
+                *range(2 + len(full), 2 + len(full) + len(grid_shape)),
+                *range(1, 1 + len(full)),
+                1 + len(full),
+            ),
+        )
+        return backend.real_pairs_to_complex(moved)
+
     def static(self) -> tuple[Any, ...]:
         """The static part, hashable: for the pytree of ``STStatistics`` and for ``save``."""
         return (
@@ -99,11 +182,12 @@ class _NormReference:
             self.present.tobytes(),
             self.ref_batch_mean,
             self.n_orientations,
+            self.blocks,
         )
 
     @classmethod
     def from_static(cls, static: tuple[Any, ...], var: Any, sigma: Any) -> _NormReference:
-        shape, data, ref_batch_mean, n_orientations = static
+        shape, data, ref_batch_mean, n_orientations, blocks = static
         present = np.frombuffer(data, dtype=bool).reshape(shape).copy()
         present.flags.writeable = False
         return cls(
@@ -112,7 +196,42 @@ class _NormReference:
             present=present,
             n_orientations=n_orientations,
             ref_batch_mean=ref_batch_mean,
+            blocks=blocks,
         )
+
+
+def _pad(backend: Backend, x: Any, orientations: tuple[int, ...]) -> Any:
+    """``x`` ``(Nr, n, *shape, 2)``, ``shape`` a corner of ``orientations``, padded with NaN to
+    ``(Nr, n, *orientations, 2)``."""
+    xp = backend.xp
+    for axis, size in enumerate(orientations):
+        found = int(x.shape[2 + axis])
+        if found < size:
+            pad_shape = (*x.shape[: 2 + axis], size - found, *x.shape[3 + axis :])
+            x = xp.concat([x, xp.full(pad_shape, float("nan"), dtype=x.dtype)], axis=2 + axis)
+    return x
+
+
+@functools.lru_cache(maxsize=64)
+def _sigma_rows(
+    shape: tuple[int, ...],
+    data: bytes,
+    blocks: TensorProdBlocks | None,
+    n_orientations: int,
+) -> tuple[NDArray[np.int64], tuple[tuple[int, ...], ...], NDArray[np.int64]]:
+    """:meth:`_NormReference.rows` of the ``present`` given by ``shape`` and ``data``."""
+    present = np.frombuffer(data, dtype=bool).reshape(shape)
+    positions = np.argwhere(present).astype(np.int64)
+    shapes: tuple[tuple[int, ...], ...]
+    if blocks is None:
+        shapes = tuple((n_orientations,) for _ in range(positions.shape[0]))
+    else:
+        shapes = tuple(blocks.row_shape(tuple(int(j) for j in row[1:])) for row in positions)
+    sizes = np.array([int(np.prod(s, dtype=np.int64)) for s in shapes], dtype=np.int64)
+    starts = (np.cumsum(sizes) - sizes).astype(np.int64)
+    for array in (positions, starts):
+        array.flags.writeable = False
+    return positions, shapes, starts
 
 
 def _chunks_at(layout: Layout, name: str, rows: NDArray[np.int64]) -> NDArray[np.int64]:
@@ -125,22 +244,37 @@ def _chunks_at(layout: Layout, name: str, rows: NDArray[np.int64]) -> NDArray[np
 
 @functools.lru_cache(maxsize=64)
 def _reference_tables(
-    layout: Layout, shape: tuple[int, ...], data: bytes, n_orientations: int
+    layout: Layout,
+    shape: tuple[int, ...],
+    data: bytes,
+    n_orientations: int,
+    blocks: TensorProdBlocks | None = None,
 ) -> tuple[NDArray[np.int64], NDArray[np.int64]]:
     """The floats of var and of the auto S2 at every sigma of the ``present`` given by
     ``shape`` and ``data``, in a buffer of ``layout``, a layout of the loop
-    (``_layout.base_layout``): one real chunk of S2, of L floats, per sigma row."""
-    present = np.frombuffer(data, dtype=bool).reshape(shape)
+    (``_layout.base_layout``, ``_layout.tensor_prod_layout``): one real chunk of S2 per sigma
+    row, of L floats (of the orientations of its row in a tensor product)."""
+    positions, shapes, _ = _sigma_rows(shape, data, blocks, n_orientations)
     channels = np.arange(int(shape[0]), dtype=np.int64)[:, None]
     var = _chunks_at(layout, "var", channels)
-    c, j = np.nonzero(present)
-    s2 = _chunks_at(layout, "S2", np.stack([c, c, j], axis=1).astype(np.int64))
+    c = positions[:, :1]
+    s2 = _chunks_at(layout, "S2", np.concatenate([c, c, positions[:, 1:]], axis=1))
     grid = layout.grid("S2")
-    if (var < 0).any() or (s2 < 0).any() or not grid.real[grid.kinds[s2]].all():
+    real = grid.real | ~grid.exists
+    if (var < 0).any() or (s2 < 0).any() or not real[grid.kinds[s2]].all():
         raise ValueError("the reference reads a real auto S2 at every sigma it holds.")
     starts = layout.chunk_starts("S2")[s2]
-    s2_floats = (starts[:, None] + np.arange(n_orientations)).reshape(-1)
-    return layout.chunk_starts("var")[var], s2_floats
+    if blocks is None:
+        s2_floats = (starts[:, None] + np.arange(n_orientations)).reshape(-1)
+    else:
+        sizes = [int(np.prod(s, dtype=np.int64)) for s in shapes]
+        if [int(grid.floats_per_kind[k]) for k in grid.kinds[s2]] != sizes:
+            raise ValueError("the reference reads a whole auto S2 chunk at every sigma it holds.")
+        s2_floats = np.concatenate(
+            [np.zeros(0, dtype=np.int64)]
+            + [start + np.arange(size) for start, size in zip(starts.tolist(), sizes, strict=True)]
+        )
+    return layout.chunk_starts("var")[var], s2_floats.astype(np.int64)
 
 
 def self_reference(
@@ -150,13 +284,15 @@ def self_reference(
     present: NDArray[np.bool_],
     n_orientations: int,
     ref_batch_mean: bool,
+    blocks: TensorProdBlocks | None = None,
 ) -> _NormReference:
-    """The reference of ``norm="self"``, from the statistics being normalised (M-NORM; STL
-    ``to_norm(norm_type="self")``, ``_get_sqrt_chan_diag``): ``buffer`` in ``layout``, the
-    layout of the loop. ``present`` is where sigma exists."""
+    """The reference of ``norm="self"``, from the statistics being normalised (M-NORM,
+    M-NORM-TP; STL ``to_norm(norm_type="self")``, ``_get_sqrt_chan_diag``): ``buffer`` in
+    ``layout``, the layout of the loop. ``present`` is where sigma exists; ``blocks`` those of
+    a tensor product, or ``None``."""
     xp = backend.xp
     var_floats, s2_floats = _reference_tables(
-        layout, present.shape, present.tobytes(), n_orientations
+        layout, present.shape, present.tobytes(), n_orientations, blocks
     )
     var = xp.take(buffer, constant(backend, var_floats, buffer, "int32"), axis=1)
     diagonal = xp.take(buffer, constant(backend, s2_floats, buffer, "int32"), axis=1)
@@ -169,6 +305,7 @@ def self_reference(
         present=present,
         n_orientations=n_orientations,
         ref_batch_mean=ref_batch_mean,
+        blocks=blocks,
     )
 
 
@@ -180,21 +317,22 @@ def as_constant(backend: Backend, reference: _NormReference) -> _NormReference:
         present=reference.present,
         n_orientations=reference.n_orientations,
         ref_batch_mean=reference.ref_batch_mean,
+        blocks=reference.blocks,
     )
 
 
-_SIGMA_AXES = {
-    "S1": ((0, 2), (1, 2)),
-    "S2": ((0, 2), (1, 2)),
-    "S3": ((0, 2), (1, 3)),
-    "S4": ((0, 2), (1, 3)),
-}
-"""For each normalised family, the (channel, scale) chunk axes of the two sigma of its divisor
-(M-NORM): sigma_{c1}(j, l) sigma_{c2}(j, l) for S1 and S2, sigma_{c1}(j2, l2) sigma_{c2}(j3, l3)
-for S3, sigma_{c1}(j1, l1) sigma_{c2}(j2, l2) for S4."""
+def _sigma_columns(name: str, k: int) -> tuple[tuple[int, int], tuple[int, int]]:
+    """For a normalised family, the chunk column of the channel and the first chunk column of
+    the ``k`` scale axes of each of the two sigma of its divisor (M-NORM, M-NORM-TP):
+    sigma_{c1}(j, l) sigma_{c2}(j, l) for S1 and S2, sigma_{c1}(j2, l2) sigma_{c2}(j3, l3) for
+    S3, sigma_{c1}(j1, l1) sigma_{c2}(j2, l2) for S4; ``k`` is 1, or the number of blocks."""
+    second = 2 if name in ("S1", "S2") else 2 + k
+    return (0, 2), (1, second)
+
 
 _SIGMA_ORIENTATIONS = {"S1": (0, 0), "S2": (0, 0), "S3": (0, 1), "S4": (0, 1)}
-"""The orientation axis of each of the two sigma: l, l; l2, l3; l1, l2."""
+"""The orientation group of each of the two sigma: l, l; l2, l3; l1, l2 (one axis per block
+in a tensor product)."""
 
 
 class _NormTables(NamedTuple):
@@ -211,11 +349,16 @@ class _NormTables(NamedTuple):
 
 @functools.lru_cache(maxsize=64)
 def _norm_tables(
-    layout: Layout, shape: tuple[int, ...], data: bytes, n_orientations: int
+    layout: Layout,
+    shape: tuple[int, ...],
+    data: bytes,
+    n_orientations: int,
+    blocks: TensorProdBlocks | None = None,
 ) -> _NormTables:
     """:class:`_NormTables` of ``layout``, a layout of the loop, whose chunk positions are the
     channels and scales themselves, and of the ``present`` given by ``shape`` and ``data``."""
     present = np.frombuffer(data, dtype=bool).reshape(shape)
+    k = len(shape) - 1
     rank = np.where(present, np.cumsum(present.ravel()).reshape(present.shape) - 1, -1)
     specs: list[Copy | Chunked] = []
     factors: dict[str, tuple[NDArray[np.int64], NDArray[np.int64]]] = {}
@@ -227,12 +370,16 @@ def _norm_tables(
             specs.append(Chunked(layout.chunked("var"), every[:, None], None))
             factors = {**factors, "var": (chunks[:, 0], chunks[:, 0])}
             continue
-        if grid.name not in _SIGMA_AXES:
+        if grid.name not in _SIGMA_ORIENTATIONS:
             specs.append(Copy(grid.name))
             continue
-        first, second = _SIGMA_AXES[grid.name]
-        a = rank[chunks[:, first[0]], chunks[:, first[1]]]
-        b = rank[chunks[:, second[0]], chunks[:, second[1]]]
+
+        def row(columns: tuple[int, int], found: NDArray[np.int64] = chunks) -> NDArray[np.int64]:
+            c, first = columns
+            return rank[(found[:, c], *found[:, first : first + k].T)]  # type: ignore[no-any-return]
+
+        first, second = _sigma_columns(grid.name, k)
+        a, b = row(first), row(second)
         kept = np.flatnonzero((a >= 0) & (b >= 0))
         family = FamilyChunks(
             grid.replace(chunks=chunks[kept], kinds=grid.kinds[kept]), levels, level_ids[kept]
@@ -261,9 +408,21 @@ def normalize(
     √(sigma_{c1} sigma_{c2}) and S2 by sigma_{c1} sigma_{c2} at (j, l); S3 by
     sigma_{c1}(j2, l2) sigma_{c2}(j3, l3); S4 by sigma_{c1}(j1, l1) sigma_{c2}(j2, l2). The
     reference broadcasts over the batch (Nr = 1) or matches it. ``layout`` is a layout of the
-    loop (``_layout.base_layout``).
+    loop (``_layout.base_layout``, ``_layout.tensor_prod_layout``). In a tensor product the
+    scales and orientations are multi-indices, and S3 and S4 read the wavelet scales of the
+    reference only (M-NORM-TP).
     """
     present = reference.present
+    if reference.blocks is not None:
+        key_tp = (layout, present.shape, present.tobytes(), reference.n_orientations)
+        tables_tp = _norm_tables(*key_tp, reference.blocks)
+        divide_tp = _compiled_tp(backend.name, *key_tp, reference.blocks)
+        chunks = map_tables(backend, tables_tp.transform, buffer)
+        found = _factor_tables(backend, tables_tp, reference, buffer)
+        return (
+            divide_tp(buffer, reference.var, reference.sigma, chunks, found),
+            tables_tp.transform.layout,
+        )
     key = (layout, present.shape, present.tobytes(), reference.n_orientations)
     divide = _compiled(backend.name, *key)
     transform = _norm_tables(*key).transform
@@ -304,7 +463,7 @@ def _divide(
         n = int(a.shape[0])
         if name == "var":
             divisor = xp.take(var, constant(backend, a, var, "int32"), axis=1)
-            return lambda dense: dense / xp.reshape(divisor, (n_ref, n, 1, 1))
+            return lambda dense, *_: dense / xp.reshape(divisor, (n_ref, n, 1, 1))
         first = xp.take(sigma, constant(backend, a, var, "int32"), axis=1)  # (Nr, n, L)
         second = xp.take(sigma, constant(backend, b, var, "int32"), axis=1)
         shape = layout.grid(name).orientations
@@ -319,7 +478,134 @@ def _divide(
         if name == "S1":
             product = xp.sqrt(product)
         divisor = xp.reshape(xp.broadcast_to(product, (n_ref, n, *shape)), (n_ref, n, -1, 1))
-        return lambda dense: dense / divisor
+        return lambda dense, *_: dense / divisor
+
+    scale = {name: divided(name) for name in tables.rows}
+    return apply(backend, buffer, tables.transform, scale, chunks)
+
+
+# ---------------------------------------------------------------------- tensor products
+
+
+def _groups(
+    tables: _NormTables, name: str
+) -> tuple[tuple[NDArray[np.int64] | None, tuple[int, ...]], ...]:
+    """The groups of chunks the map of the normalisation passes to the divisor of ``name``, in
+    the order it passes them: the positions of their chunks (``None`` for all) and their
+    orientation shape."""
+    part = next(p for p in tables.transform.parts if p.name == name)
+    groups = getattr(part, "groups", None)
+    if groups is None:
+        return ((None, tables.transform.layout.grid(name).orientations),)
+    return tuple((g.rows, g.orientations) for g in groups)
+
+
+def _factor_tables(
+    backend: Backend, tables: _NormTables, reference: _NormReference, like: Any
+) -> dict[str, Any]:
+    """The first float in sigma of the two factors of the divisor of every chunk, group by
+    group, as integer arrays of the backend (for var, the channel of every chunk): tables of
+    one entry per chunk, arguments of the compiled division, never constants."""
+    _, _, starts = reference.rows()
+    found: dict[str, Any] = {}
+    for name, (a, b) in tables.rows.items():
+        if name == "var":
+            found = {**found, name: (constant(backend, a, like, "int32"),)}
+            continue
+        found = {
+            **found,
+            name: tuple(
+                (
+                    constant(backend, starts[a if rows is None else a[rows]], like, "int32"),
+                    constant(backend, starts[b if rows is None else b[rows]], like, "int32"),
+                )
+                for rows, _ in _groups(tables, name)
+            ),
+        }
+    return found
+
+
+@functools.lru_cache(maxsize=64)
+def _compiled_tp(
+    backend_name: str,
+    layout: Layout,
+    shape: tuple[int, ...],
+    data: bytes,
+    n_orientations: int,
+    blocks: TensorProdBlocks,
+) -> Any:
+    """The division of :func:`normalize` on a tensor product, a function of the buffer,
+    ``var_ref``, sigma, the tables of the chunks and those of the factors, compiled once where
+    the backend compiles (``Backend.jit``; the identity on PyTorch)."""
+    backend = _registry.backend_named(backend_name)
+    tables = _norm_tables(layout, shape, data, n_orientations, blocks)
+    return backend.jit(functools.partial(_divide_tp, backend, tables, blocks))
+
+
+def _divide_tp(
+    backend: Backend,
+    tables: _NormTables,
+    blocks: TensorProdBlocks,
+    buffer: Any,
+    var: Any,
+    sigma: Any,
+    chunks: MapTables,
+    factors: dict[str, Any],
+) -> Any:
+    """The buffer of the kept chunks of a tensor product divided by their divisors
+    (:func:`normalize`, M-NORM-TP), one orientation shape at a time: each factor is a row of
+    sigma, read from its first float, its orientations along those of its filter."""
+    xp = backend.xp
+    n_ref = int(var.shape[0])
+    n_blocks = len(blocks.L)
+
+    def rows_of(starts: Any, shape: tuple[int, ...]) -> Any:
+        size = int(np.prod(shape, dtype=np.int64))
+        offsets = constant(backend, np.arange(size), starts, "int32")
+        index = xp.reshape(xp.reshape(starts, (-1, 1)) + xp.reshape(offsets, (1, -1)), (-1,))
+        n = int(starts.shape[0])
+        return xp.reshape(xp.take(sigma, index, axis=1), (n_ref, n, *shape))
+
+    def divided(name: str) -> Any:
+        if name == "var":
+            (channels,) = factors[name]
+            n = int(channels.shape[0])
+            divisor = xp.reshape(xp.take(var, channels, axis=1), (n_ref, n, 1, 1))
+            return lambda dense, *_: dense / divisor
+        groups = _groups(tables, name)
+        axes = _SIGMA_ORIENTATIONS[name]
+        # The orientation groups of the family, one axis per block each: l; l2, l3; l1, l2, l3.
+        n_groups = {"S1": 1, "S2": 1, "S3": 2, "S4": 3}[name]
+        divisors = []
+        for (_, shape), (a, b) in zip(groups, factors[name], strict=True):
+            row_shape = shape[:n_blocks]
+            n = int(a.shape[0])
+
+            def along(
+                factor: Any, group: int, n: int = n, ones: tuple[int, ...] = (1,) * n_blocks
+            ) -> Any:
+                return xp.reshape(
+                    factor,
+                    (
+                        n_ref,
+                        n,
+                        *(
+                            s
+                            for g in range(n_groups)
+                            for s in (factor.shape[2:] if g == group else ones)
+                        ),
+                    ),
+                )
+
+            first = rows_of(a, row_shape)
+            second = rows_of(b, shape[n_blocks * axes[1] : n_blocks * (axes[1] + 1)])
+            product = along(first, axes[0]) * along(second, axes[1])
+            if name == "S1":
+                product = xp.sqrt(product)
+            divisors.append(
+                xp.reshape(xp.broadcast_to(product, (n_ref, n, *shape)), (n_ref, n, -1, 1))
+            )
+        return lambda dense, group: dense / divisors[group]
 
     scale = {name: divided(name) for name in tables.rows}
     return apply(backend, buffer, tables.transform, scale, chunks)
@@ -338,6 +624,11 @@ def check_reference(reference: _NormReference, plan: STPlan, n_batch: int, dtype
     left it empty gives NaN, as in STL (OP-3). The batch is 1 or that of the data, as STL
     broadcasts; the dtype is that of the operator.
     """
+    if reference.blocks is not None:
+        raise ValueError(
+            "the reference comes from a tensor product, and these statistics are planar: "
+            "normalise with planar statistics of the same J, L and channels (maths.md M-NORM)."
+        )
     found_nc, found_j = (int(n) for n in reference.present.shape)
     found_l = reference.n_orientations
     mismatches = [
@@ -364,6 +655,56 @@ def check_reference(reference: _NormReference, plan: STPlan, n_batch: int, dtype
             "the reference with their diagonal entries set, so that it holds their auto "
             "statistics (maths.md M-NORM, M-CHAN, OP-30)."
         )
+    _check_batch_and_dtype(reference, n_batch, dtype)
+
+
+def check_tensor_prod_reference(
+    reference: _NormReference, plan: TensorProdPlan, n_batch: int, dtype: Any
+) -> None:
+    """Raise unless ``reference`` can normalise the statistics of the tensor product ``plan``
+    (maths.md M-NORM-TP, M-NORM; Part IV, R-Y03): it must come from a tensor product with the
+    same blocks, J, L, low-pass flags and number of channels, with a normalisation scale for
+    every channel the plan normalises; the sizes and the periodicity of the blocks are free, as
+    in M-NORM. The batch and the dtype follow :func:`check_reference`."""
+    expected = tensor_prod_blocks(plan)
+    found = reference.blocks
+    if found is None:
+        raise ValueError(
+            "the reference comes from planar statistics, and these are a tensor product: "
+            "normalise with statistics of a tensor product with the same blocks, J, L and "
+            "low-pass flags (maths.md M-NORM-TP)."
+        )
+    n_channels = int(reference.present.shape[0])
+    mismatches = [
+        f"{name} = {got} (the operator has {want})"
+        for name, got, want in (
+            ("the blocks", list(found.geometries), list(expected.geometries)),
+            ("J", list(found.J), list(expected.J)),
+            ("L", list(found.L), list(expected.L)),
+            ("the low-pass flags", list(found.lowpass), list(expected.lowpass)),
+            ("the number of channels", n_channels, plan.n_channels),
+        )
+        if got != want
+    ]
+    if mismatches:
+        raise ValueError(
+            f"the reference has {', '.join(mismatches)}: normalise with statistics of a tensor "
+            "product with the same blocks, J, L, low-pass flags and channels; the sizes and the "
+            "periodicity of its blocks may differ (maths.md M-NORM-TP, M-LP)."
+        )
+    with_scale = np.asarray(reference.present.reshape(n_channels, -1).any(axis=1), dtype=bool)
+    missing = [c for c in plan.pairs.auto if not with_scale[c]]
+    if missing:
+        raise ValueError(
+            f"the reference has no normalisation scale for channel(s) {missing}, which this "
+            "operator normalises (they have auto statistics in cross_matrix): compute "
+            "the reference with their diagonal entries set, so that it holds their auto "
+            "statistics (maths.md M-NORM, M-CHAN, OP-30)."
+        )
+    _check_batch_and_dtype(reference, n_batch, dtype)
+
+
+def _check_batch_and_dtype(reference: _NormReference, n_batch: int, dtype: Any) -> None:
     if reference.n_batch not in (1, n_batch):
         raise ValueError(
             f"the reference was computed on {reference.n_batch} batch elements without "

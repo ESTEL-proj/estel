@@ -92,7 +92,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -106,6 +106,7 @@ from ..wavelets._operator import (
     WaveletPlan,
     build_wavelet_plan,
 )
+from ..wavelets._tensor_prod import TensorProdWaveletPlan, build_tensor_prod_plan
 
 NORMS = ("none", "self", "ref")
 """The values of ``norm`` (maths.md M-NORM)."""
@@ -370,6 +371,179 @@ def build_plan(
         empty_s4_triples=tuple(t for t in s4_triples if ("S4", *t) not in weights),
         _key=(
             wavelets,
+            data.n_channels,
+            matrix.tobytes(),
+            norm,
+            bool(ref_batch_mean),
+            bool(standardize),
+        ),
+    )
+
+
+# ---------------------------------------------------------------------- tensor products
+
+LOWPASS_TP = ("ST", None)
+"""The values of ``lowpass`` of a tensor product in ESTEL 1.0.0 (maths.md M-LP): ``"ST"``, the
+low-pass filter of each block where it exists, or ``None``. ESTEL 1.0.0 has no tensor-product
+spectrum, so STL's ``"PS"`` and ``("ST", "PS")`` are not taken."""
+
+
+@dataclass(frozen=True, eq=False)
+class TensorProdPlan:
+    """The static description of the statistics of a tensor product (maths.md M-NOT-TP, M-LP,
+    M-IDX-TP, M-CHAN; Part II, §12.6; task T3.6): what the compact layout, the normalisation and
+    the files need, without the loop, which task T3.2 adds.
+
+    Built by :func:`build_tensor_prod_statistics_plan` from the plan of the wavelet operator of
+    the tensor product (``TensorProdWaveletPlan``, task T3.1); NumPy only, immutable and
+    hashable. Its index sets are those of each block (M-IDX-TP): the index set of the tensor
+    product is their Cartesian product, which the layout enumerates chunk by chunk, never as a
+    table the size of the full grid.
+    """
+
+    geometry: type[Data]
+    """``DataTensorProd``."""
+    wavelets: TensorProdWaveletPlan
+    """The plans of the blocks, in block order (task T3.1)."""
+    block_geometries: tuple[type[Data], ...]
+    """The geometry of each block, ``Data2D`` or ``Data1D``."""
+    pbc: tuple[bool, ...]
+    """Whether each block is periodic."""
+    J: tuple[int, ...]
+    """J_a, the number of wavelet scales of each block."""
+    L: tuple[int, ...]
+    """L_a, the number of orientations of each block."""
+    kernel_size: int
+    """K, the size of the wavelet kernels, the same in every block (M-W1-TP)."""
+    spatial_shape: tuple[int, ...]
+    """The spatial shape of the data at full resolution, the axes of every block in order."""
+    lowpass: str | None
+    """``"ST"`` or ``None`` (:data:`LOWPASS_TP`)."""
+    lowpass_blocks: tuple[bool, ...]
+    """Whether each block has a low-pass filter (M-LP): ``lowpass="ST"`` and every size of the
+    block divisible by 2^J_a."""
+    n_channels: int
+    """Nc, fixed when the plan is built."""
+    cross_matrix: NDArray[np.bool_]
+    """``cross_matrix``, read-only, ``(Nc, Nc)``, upper triangle (M-CHAN)."""
+    pairs: ChannelPairs
+    """The channel pairs of each family (M-CHAN)."""
+    norm: str
+    """The normalisation, one of :data:`NORMS` (M-NORM, M-NORM-TP)."""
+    ref_batch_mean: bool
+    """Whether the ``norm="self"`` reference is averaged over the batch (M-NORM)."""
+    standardize: bool
+    """Whether each map is standardised before the transform (M-MOM, M-STD)."""
+    first_layer: tuple[tuple[int, ...], ...]
+    """For each block, its scales of S1 and S2: 0 … J'_a - 1, with J'_a = J_a + 1 when the
+    block has a low-pass filter, whose scale is J_a (M-IDX-TP, M-LP)."""
+    s3: tuple[tuple[tuple[int, int], ...], ...]
+    """For each block, its pairs ``(j2, j3)`` of S3, j2 ≤ j3 < J_a (M-IDX-TP)."""
+    s4: tuple[tuple[tuple[int, int, int], ...], ...]
+    """For each block, its triples ``(j1, j2, j3)`` of S4, j1 ≤ j2 ≤ j3 < J_a (M-IDX-TP)."""
+    _key: tuple[Any, ...] = field(repr=False)
+
+    def __hash__(self) -> int:
+        return hash(self._key)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, TensorProdPlan):
+            return NotImplemented
+        return self._key == other._key
+
+    @property
+    def n_blocks(self) -> int:
+        return len(self.J)
+
+    @property
+    def n_scales(self) -> tuple[int, ...]:
+        """J'_a, the number of scales of S1 and S2 in each block, the low-pass scale included."""
+        return tuple(len(scales) for scales in self.first_layer)
+
+    def orientations_at(self, scale: tuple[int, ...]) -> tuple[int, ...]:
+        """The orientation shape of the chunks of S1 and S2 at the multi-index ``scale``: L_a,
+        or 1 along a block taken at its low-pass scale, which has orientation 0 only (M-LP)."""
+        return tuple(
+            1 if j == n else size for j, n, size in zip(scale, self.J, self.L, strict=True)
+        )
+
+
+def build_tensor_prod_statistics_plan(
+    data: Data,
+    J: Any = None,  # noqa: N803 (maths.md notation)
+    L: Any = None,  # noqa: N803
+    *,
+    lowpass: str | None = "ST",
+    kernel_size: int = KERNEL_SIZE,
+    cross_matrix: Any = None,
+    norm: str = "none",
+    ref_batch_mean: bool = False,
+    standardize: bool = False,
+) -> TensorProdPlan:
+    """The :class:`TensorProdPlan` of a ``DataTensorProd``, with one J and one L per block
+    (M-DATA-TP, M-DEF-TP: a list, an entry ``None`` giving the default of the block). The values
+    of ``data`` are not read. ``lowpass`` is ``"ST"`` (STL's default) or ``None`` (M-LP);
+    ``cross_matrix``, ``norm``, ``ref_batch_mean`` and ``standardize`` are those of
+    :func:`build_plan`. Warns once, as STL does, for each block whose sizes are not divisible
+    by 2^J_a: it has no low-pass filter (M-LP, OP-34)."""
+    if not isinstance(data, Data) or data._geometry != "tensor_prod":
+        raise TypeError(
+            f"the statistics of a tensor product take a DataTensorProd, got "
+            f"{type(data).__name__}; for 1D and 2D data, use build_plan."
+        )
+    if isinstance(lowpass, bool) or lowpass not in LOWPASS_TP:
+        raise ValueError(
+            f'lowpass={lowpass!r}: pass "ST" (the low-pass filter of each block, the default) '
+            'or None (maths.md M-LP); ESTEL 1.0.0 has no tensor-product spectrum, so "PS" is '
+            "not available."
+        )
+    wavelets = build_tensor_prod_plan(cast(Any, data), J, L, kernel_size=kernel_size)
+    matrix = _cross_matrix(cross_matrix, data.n_channels)
+    _check_options(norm, ref_batch_mean, standardize)
+    flags = []
+    for a, block in enumerate(wavelets.blocks):
+        has = lowpass == "ST" and all(n % 2**block.J == 0 for n in block.spatial_shape)
+        if lowpass == "ST" and not has:
+            warnings.warn(
+                f"block {a} ({block.geometry.__name__} of shape {block.spatial_shape}) has no "
+                f"low-pass filter: its sizes are not all divisible by 2^J_{a} = {2**block.J}, "
+                "which the low-pass filter needs, one downsampling more than its wavelets "
+                "(maths.md M-LP, OP-34). Its S1 and S2 have the wavelet scales only; use a size "
+                f"divisible by {2**block.J}, or J_{a} = {block.J - 1}, to keep it.",
+                UserWarning,
+                stacklevel=2,
+            )
+        flags.append(has)
+    scales = tuple(range(block.J) for block in wavelets.blocks)
+    return TensorProdPlan(
+        geometry=type(data),
+        wavelets=wavelets,
+        block_geometries=tuple(b.geometry for b in wavelets.blocks),
+        pbc=tuple(b.pbc for b in wavelets.blocks),
+        J=wavelets.J,
+        L=wavelets.L,
+        kernel_size=wavelets.blocks[0].kernel_size,
+        spatial_shape=wavelets.spatial_shape,
+        lowpass=lowpass,
+        lowpass_blocks=tuple(flags),
+        n_channels=data.n_channels,
+        cross_matrix=matrix,
+        pairs=channel_pairs(matrix),
+        norm=norm,
+        ref_batch_mean=bool(ref_batch_mean),
+        standardize=bool(standardize),
+        first_layer=tuple(
+            tuple(range(block.J + int(flag)))
+            for block, flag in zip(wavelets.blocks, flags, strict=True)
+        ),
+        s3=tuple(tuple((j2, j3) for j3 in js for j2 in range(j3 + 1)) for js in scales),
+        s4=tuple(
+            tuple((j1, j2, j3) for j3 in js for j2 in range(j3 + 1) for j1 in range(j2 + 1))
+            for js in scales
+        ),
+        _key=(
+            wavelets,
+            lowpass,
             data.n_channels,
             matrix.tobytes(),
             norm,

@@ -36,12 +36,25 @@ from ..backend import _registry
 from ..backend._protocol import Backend
 from ..data._base import geometry_class
 from ..io import _schema
-from ..scattering._plan import STPlan, build_plan
+from ..scattering._plan import (
+    STPlan,
+    TensorProdPlan,
+    build_plan,
+    build_tensor_prod_statistics_plan,
+)
 from . import _layout as compact
-from ._arrays import constant
-from ._grid import REAL_PART_ONLY, FamilyGrid
-from ._layout import Chunked, Copy, FamilyChunks, Layout, Take, Unpack
-from ._normalization import _NormReference
+from ._arrays import constant, dtype_name
+from ._grid import REAL_PART_ONLY, FamilyGrid, tensor_prod_auto_scales
+from ._layout import Chunked, Copy, FamilyChunks, Layout, Pack, Take, Unpack
+from ._normalization import (
+    TensorProdBlocks,
+    _NormReference,
+    as_constant,
+    check_tensor_prod_reference,
+    normalize,
+    self_reference,
+    tensor_prod_blocks,
+)
 from ._reductions import ORIENTATION_AXES, SCALE_AXES
 from ._reductions import angular_fourier as reduce_angular_fourier
 from ._reductions import iso as reduce_iso
@@ -60,6 +73,15 @@ class _Reductions(NamedTuple):
 
 
 _NO_REDUCTION = _Reductions()
+
+_FULL_GRID_LIMIT = 2 * 1024**3
+"""The largest full-grid view of the statistics of a tensor product, in bytes, batch included,
+in its dtype (Part II, §12.7; Part IV, §22, "No role for the full grid in tensor products"):
+beyond it ``full_grid`` raises. Internal and temporary: removed after 1.0.0 (LF65)."""
+
+_TENSOR_PROD_SELECT = ("c", "c1", "c2")
+"""The axes ``select`` takes on the statistics of a tensor product, with ``family`` and the
+shorthand ``channel``: the channels only (Part II, §12.7; naming the blocks is LF44)."""
 
 
 class STStatistics:
@@ -92,7 +114,7 @@ class STStatistics:
     _backend: str
     _buffer: Any
     _layout: Layout
-    _plan: STPlan
+    _plan: STPlan | TensorProdPlan
     _reductions: _Reductions
     _reference: _NormReference | None
     _standardization: tuple[Any, Any] | None
@@ -108,7 +130,7 @@ class STStatistics:
         cls,
         buffer: Any,
         layout: Layout,
-        plan: STPlan,
+        plan: STPlan | TensorProdPlan,
         backend: str,
         *,
         reductions: _Reductions = _NO_REDUCTION,
@@ -165,8 +187,25 @@ class STStatistics:
         ``(Nb, Nc, Nc, J, J, J, L, L, L)`` for S4; mean and var are real, S1 to S4 complex, the
         coefficients that are real by construction with an imaginary part 0. The view is built
         on demand from the compact storage (Part III, §19.5).
+
+        On the statistics of a tensor product, each scale and orientation axis is one axis per
+        block (maths.md M-S-TP), and a view over 2 GiB, batch included, is refused: read the
+        statistics with ``to_vector``, or ``select`` a family and channels first.
         """
         grid = self._grid(family)
+        if isinstance(self._plan, TensorProdPlan):
+            n_batch = int(self._buffer.shape[0])
+            itemsize = int(np.dtype(dtype_name(self._buffer)).itemsize)
+            size = compact.full_grid_bytes(self._layout, grid.name, n_batch, itemsize)
+            if size > _FULL_GRID_LIMIT:
+                raise ValueError(
+                    f"full_grid({family!r}): the full-grid view of this tensor product would take "
+                    f"{size / 1024**3:.2f} GiB ({n_batch} batch element(s), shape "
+                    f"{grid.shape}), more than the {_FULL_GRID_LIMIT / 1024**3:.0f} GiB that "
+                    "full_grid builds for a tensor product. Use to_vector(), which holds the "
+                    "coefficients alone, or select(family=..., channel=(a, b)) to reduce the "
+                    "view first (Part II, §12.7; LF65)."
+                )
         return compact.full_grid(self._backend_object(), self._buffer, self._layout, grid.name)
 
     def select(self, family: str | Sequence[str] | None = None, **index: Any) -> STStatistics:
@@ -183,6 +222,16 @@ class STStatistics:
         """
         names = self._family_names(family)
         index = _expand_channel(index)
+        if isinstance(self._plan, TensorProdPlan):
+            others = sorted(a for a in index if a not in _TENSOR_PROD_SELECT)
+            if others:
+                raise ValueError(
+                    f"select({', '.join(f'{a}=...' for a in others)}): on the statistics of a "
+                    "tensor product, select takes family and the channels only (c1, c2, "
+                    "channel=(a, b), and c for mean and var); naming the scale and orientation "
+                    "axes of the blocks comes later (LF44). Use full_grid on a small case, or "
+                    "to_vector."
+                )
         chosen = [g for g in self._grids if g.name in names]
         valid = sorted({a for g in chosen for a in g.axes})
         for axis in index:
@@ -220,11 +269,7 @@ class STStatistics:
         """
         backend = self._backend_object()
         xp = backend.xp
-        specs = _vector_specs(self._layout)
-        tables = tuple(
-            compact.chunk_tables(backend, spec.within, spec.kinds, spec.starts, self._buffer)
-            for spec in specs
-        )
+        tables = _vector_tables(backend, _vector_specs(self._layout), self._buffer)
         vector = _vector_function(backend.name, self._layout)(self._buffer, tables)
         if mask_st is None:
             return vector
@@ -262,9 +307,11 @@ class STStatistics:
             )
         n_batch = int(self._buffer.shape[0])
         parts: list[Any] = []
-        for grid, spec in zip(self._grids, _complex_specs(self._layout), strict=True):
-            dense = compact.unpack(backend, self._buffer, spec)
-            x = xp.reshape(backend.real_pairs_to_complex(dense), (n_batch, -1))
+        specs = _complex_specs(self._layout)
+        tables = _vector_tables(backend, specs, self._buffer)
+        for grid, spec, found in zip(self._grids, specs, tables, strict=True):
+            floats = _family_floats(backend, self._buffer, spec, found)
+            x = backend.real_pairs_to_complex(xp.reshape(floats, (n_batch, -1, 2)))
             if grid.name in weights:
                 x = x * weights[grid.name]
             if mean_along_batch:
@@ -300,7 +347,16 @@ class STStatistics:
           J, and are J by default.
 
         Reduce once, with every reduction wanted: reduced statistics are not reduced again.
+        The reductions are not defined on the statistics of a tensor product: they raise.
         """
+        if isinstance(self._plan, TensorProdPlan):
+            raise ValueError(
+                "reduce(): the reductions iso, angular_fourier and scale_cosine are written for "
+                "one scale and one orientation axis per layer, and are not defined on the "
+                "statistics of a tensor product in ESTEL 1.0.0 (maths.md M-NORM-TP, OP-44); "
+                "their definition on products is LF26. Use the statistics as they are, with "
+                "to_vector or select."
+            )
         state = self._reductions
         if state != _NO_REDUCTION:
             raise ValueError(
@@ -335,7 +391,9 @@ class STStatistics:
                 "reduce(scale_cosine=True) without iso=True: the scale cosine transform is "
                 "defined on isotropic statistics (maths.md M-RED-SCALE); pass iso=True as well."
             )
-        L, J = self._plan.L, self._plan.J  # noqa: N806
+        plan = self._plan
+        assert isinstance(plan, STPlan)
+        L, J = plan.L, plan.J  # noqa: N806
         n_angular = _check_count("angular_harmonics", angular_harmonics, L, "L")
         n_scale = _check_count("scale_harmonics", scale_harmonics, J, "J")
         width = _check_count("dj", dj, J, "J")
@@ -427,12 +485,28 @@ class STStatistics:
         backend = self._backend_object()
         plan = self._plan
         layout_arrays, layout_content = compact.payload(self._layout)
+        if isinstance(plan, TensorProdPlan):
+            plan_content = _tensor_prod_content(plan)
+        else:
+            plan_content = {
+                "geometry": plan.geometry._geometry,
+                "J": plan.J,
+                "L": plan.L,
+                "kernel_size": plan.kernel_size,
+                "spatial_shape": list(plan.spatial_shape),
+                "pbc": plan.pbc,
+                "nan_threshold": plan.nan_threshold,
+                "n_channels": plan.n_channels,
+                "norm": plan.norm,
+                "ref_batch_mean": plan.ref_batch_mean,
+                "standardize": plan.standardize,
+            }
         arrays: dict[str, NDArray[Any]] = {
             "buffer": np.asarray(backend.to_numpy(self._buffer)),
             **{f"layout__{k}": v for k, v in layout_arrays.items()},
             "plan__cross_matrix": np.asarray(plan.cross_matrix),
         }
-        if plan.mask is not None:
+        if isinstance(plan, STPlan) and plan.mask is not None:
             arrays = {**arrays, "plan__mask": np.asarray(plan.mask)}
         if self._reference is not None:
             ref = self._reference
@@ -451,19 +525,7 @@ class STStatistics:
             }
         state = self._reductions
         content = {
-            "plan": {
-                "geometry": plan.geometry._geometry,
-                "J": plan.J,
-                "L": plan.L,
-                "kernel_size": plan.kernel_size,
-                "spatial_shape": list(plan.spatial_shape),
-                "pbc": plan.pbc,
-                "nan_threshold": plan.nan_threshold,
-                "n_channels": plan.n_channels,
-                "norm": plan.norm,
-                "ref_batch_mean": plan.ref_batch_mean,
-                "standardize": plan.standardize,
-            },
+            "plan": plan_content,
             "layout": layout_content,
             "reductions": {
                 "iso": state.iso,
@@ -475,6 +537,11 @@ class STStatistics:
             else {
                 "ref_batch_mean": self._reference.ref_batch_mean,
                 "n_orientations": self._reference.n_orientations,
+                **(
+                    {}
+                    if self._reference.blocks is None
+                    else {"blocks": _blocks_content(self._reference.blocks)}
+                ),
             },
         }
         return arrays, content
@@ -556,21 +623,82 @@ def _compiled(backend_name: str, transform: compact.FloatMap) -> Any:
     return backend.jit(mapped)
 
 
+VectorSpec = Unpack | tuple[tuple[Unpack, Pack], ...]
+"""How :meth:`STStatistics.to_vector` reads one family: its chunks in the order of its full
+grid, read as one dense array (:class:`_layout.Unpack`), or, for a family whose chunks have
+several orientation shapes (tensor products), one group of chunks of one shape at a time,
+each written at its place in the vector of the family (a :class:`_layout.Pack` whose floats
+are the vector's)."""
+
+
+def _vector_spec(layout: Layout, grid: FamilyGrid, parts: int) -> VectorSpec:
+    """The :data:`VectorSpec` of ``grid`` in ``layout``, ``parts`` floats per entry."""
+    order = compact.grid_order(grid)
+    if grid.shapes is None:
+        return compact.unpack_spec(layout, grid.name, order, parts)
+    sizes = np.array(
+        [int(np.prod(grid.kind_shape(int(k)), dtype=np.int64)) for k in grid.kinds[order]],
+        dtype=np.int64,
+    )
+    starts = (np.cumsum(sizes) - sizes) * parts
+    n_floats = int(sizes.sum()) * parts
+    groups = []
+    for shape, rows in grid.shape_groups(order):
+        n_o = int(np.prod(shape, dtype=np.int64))
+        write = Pack(
+            kinds=np.zeros(rows.shape[0], dtype=np.int64),
+            within=np.arange(n_o * parts, dtype=np.int64).reshape(1, n_o, parts),
+            starts=starts[rows],
+            n_floats=n_floats,
+            whole=False,
+        )
+        groups.append((compact.unpack_spec(layout, grid.name, order[rows], parts), write))
+    return tuple(groups)
+
+
 @functools.lru_cache(maxsize=64)
-def _vector_specs(layout: Layout) -> tuple[Unpack, ...]:
+def _vector_specs(layout: Layout) -> tuple[VectorSpec, ...]:
     """For each family, how :meth:`STStatistics.to_vector` reads it: its chunks in the order of
     its full grid, (re, im) for a complex family (0 for the imaginary part of a real entry), re
     alone for mean, var and the families of ``REAL_PART_ONLY`` (M-FLAT, OP-37). Tables of one
     row per chunk."""
     return tuple(
-        compact.unpack_spec(
-            layout,
-            grid.name,
-            compact.grid_order(grid),
-            2 if grid.is_complex and grid.name not in REAL_PART_ONLY else 1,
-        )
+        _vector_spec(layout, grid, 2 if grid.is_complex and grid.name not in REAL_PART_ONLY else 1)
         for grid in layout.grids
     )
+
+
+def _vector_tables(backend: Backend, specs: Sequence[VectorSpec], like: Any) -> tuple[Any, ...]:
+    """The tables of the chunks of ``specs`` (``_layout.ChunkTables``), arguments of the
+    compiled flattening."""
+
+    def tables(spec: Unpack | Pack) -> compact.ChunkTables:
+        return compact.chunk_tables(backend, spec.within, spec.kinds, spec.starts, like)
+
+    return tuple(
+        tables(spec)
+        if isinstance(spec, Unpack)
+        else tuple((tables(read), tables(write)) for read, write in spec)
+        for spec in specs
+    )
+
+
+def _family_floats(backend: Backend, buffer: Any, spec: VectorSpec, tables: Any) -> Any:
+    """The floats ``(Nb, m)`` of one family in the order of its vector (:data:`VectorSpec`):
+    one gather, or, one orientation shape at a time, a gather written at its places in the
+    vector, the groups summed (each float receives one value)."""
+    xp = backend.xp
+    if isinstance(spec, Unpack):
+        dense = compact.unpack(backend, buffer, spec, tables)
+        return xp.reshape(dense, (int(buffer.shape[0]), -1))
+    total = None
+    for (read, write), (read_tables, write_tables) in zip(spec, tables, strict=True):
+        dense = compact.unpack(backend, buffer, read, read_tables)
+        found = compact.pack(backend, dense, write, write_tables)
+        total = found if total is None else total + found
+    if total is None:
+        return xp.zeros((int(buffer.shape[0]), 0), dtype=buffer.dtype)
+    return total
 
 
 @functools.lru_cache(maxsize=64)
@@ -581,11 +709,11 @@ def _vector_function(backend_name: str, layout: Layout) -> Any:
     backend = _registry.backend_named(backend_name)
     specs = _vector_specs(layout)
 
-    def vector(buffer: Any, tables: tuple[compact.ChunkTables, ...]) -> Any:
+    def vector(buffer: Any, tables: tuple[Any, ...]) -> Any:
         xp = backend.xp
         return xp.concat(
             [
-                xp.reshape(compact.unpack(backend, buffer, spec, found), (-1,))
+                xp.reshape(_family_floats(backend, buffer, spec, found), (-1,))
                 for spec, found in zip(specs, tables, strict=True)
             ],
             axis=0,
@@ -595,11 +723,9 @@ def _vector_function(backend_name: str, layout: Layout) -> Any:
 
 
 @functools.lru_cache(maxsize=64)
-def _complex_specs(layout: Layout) -> tuple[Unpack, ...]:
+def _complex_specs(layout: Layout) -> tuple[VectorSpec, ...]:
     """For each family, its chunks in the order of its full grid, read as (re, im)."""
-    return tuple(
-        compact.unpack_spec(layout, grid.name, compact.grid_order(grid), 2) for grid in layout.grids
-    )
+    return tuple(_vector_spec(layout, grid, 2) for grid in layout.grids)
 
 
 # ---------------------------------------------------------------------- helpers
@@ -756,32 +882,95 @@ def _mask_positions(mask_st: Any, length: int) -> NDArray[np.int64]:
     return np.flatnonzero(found)
 
 
-def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> STStatistics:
-    spec = content["plan"]
+def _tensor_prod_content(plan: TensorProdPlan) -> dict[str, Any]:
+    """The parameters of the plan of a tensor product, for ``estel.io`` (schema version 5)."""
+    return {
+        "geometry": plan.geometry._geometry,
+        "blocks": [g._geometry for g in plan.block_geometries],
+        "J": list(plan.J),
+        "L": list(plan.L),
+        "lowpass": plan.lowpass,
+        "lowpass_blocks": list(plan.lowpass_blocks),
+        "kernel_size": plan.kernel_size,
+        "spatial_shape": list(plan.spatial_shape),
+        "pbc": list(plan.pbc),
+        "n_channels": plan.n_channels,
+        "norm": plan.norm,
+        "ref_batch_mean": plan.ref_batch_mean,
+        "standardize": plan.standardize,
+    }
+
+
+def _blocks_content(blocks: TensorProdBlocks) -> dict[str, Any]:
+    return {
+        "geometries": list(blocks.geometries),
+        "J": list(blocks.J),
+        "L": list(blocks.L),
+        "lowpass": list(blocks.lowpass),
+    }
+
+
+def _tensor_prod_plan(spec: dict[str, Any], cross_matrix: NDArray[np.bool_]) -> TensorProdPlan:
+    """The plan of a tensor product rebuilt from the parameters of a file: the data example
+    takes the signature of ``DataTensorProd`` (blocks, no mask, one ``pbc`` per block)."""
     cls = geometry_class(spec["geometry"])
-    mask = arrays.get("plan__mask")
-    example = cls(
+    blocks = [geometry_class(name) for name in spec["blocks"]]
+    example = cast(Any, cls)(
         np.zeros((1, spec["n_channels"], *spec["spatial_shape"])),
-        mask=None if mask is None else mask.astype(bool),
-        pbc=bool(spec["pbc"]),
+        blocks,
+        pbc=[bool(flag) for flag in spec["pbc"]],
     )
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)  # OP-3 and OP-13 were shown when computed
-        plan = build_plan(
+        warnings.simplefilter("ignore", UserWarning)  # OP-34 was shown when computed
+        plan = build_tensor_prod_statistics_plan(
             example,
-            spec["J"],
-            spec["L"],
+            list(spec["J"]),
+            list(spec["L"]),
+            lowpass=spec["lowpass"],
             kernel_size=spec["kernel_size"],
-            cross_matrix=arrays["plan__cross_matrix"].astype(bool),
+            cross_matrix=cross_matrix,
             norm=spec["norm"],
             ref_batch_mean=spec["ref_batch_mean"],
             standardize=spec["standardize"],
         )
-    if plan.nan_threshold != spec["nan_threshold"]:
+    if list(plan.lowpass_blocks) != list(spec["lowpass_blocks"]):
         raise ValueError(
-            f"the file was computed with a NaN threshold {spec['nan_threshold']}, but "
-            f"{cls.__name__} now uses {plan.nan_threshold}: recompute the statistics."
+            f"the file has the low-pass flags {spec['lowpass_blocks']}, but its blocks now give "
+            f"{list(plan.lowpass_blocks)} (maths.md M-LP): recompute the statistics."
         )
+    return plan
+
+
+def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> STStatistics:
+    spec = content["plan"]
+    cls = geometry_class(spec["geometry"])
+    plan: STPlan | TensorProdPlan
+    if "blocks" in spec:
+        plan = _tensor_prod_plan(spec, arrays["plan__cross_matrix"].astype(bool))
+    else:
+        mask = arrays.get("plan__mask")
+        example = cls(
+            np.zeros((1, spec["n_channels"], *spec["spatial_shape"])),
+            mask=None if mask is None else mask.astype(bool),
+            pbc=bool(spec["pbc"]),
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)  # OP-3 and OP-13 were shown when computed
+            plan = build_plan(
+                example,
+                spec["J"],
+                spec["L"],
+                kernel_size=spec["kernel_size"],
+                cross_matrix=arrays["plan__cross_matrix"].astype(bool),
+                norm=spec["norm"],
+                ref_batch_mean=spec["ref_batch_mean"],
+                standardize=spec["standardize"],
+            )
+        if plan.nan_threshold != spec["nan_threshold"]:
+            raise ValueError(
+                f"the file was computed with a NaN threshold {spec['nan_threshold']}, but "
+                f"{cls.__name__} now uses {plan.nan_threshold}: recompute the statistics."
+            )
     backend_name = _registry.get_backend()
     backend = _registry.backend_named(backend_name)
 
@@ -798,12 +987,21 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
     if content["reference"] is not None:
         present = arrays["reference__present"].astype(bool)
         present.flags.writeable = False
+        blocks = content["reference"].get("blocks")
         reference = _NormReference(
             var=to_backend(arrays["reference__var"]),
             sigma=to_backend(arrays["reference__sigma"]),
             present=present,
             n_orientations=int(content["reference"]["n_orientations"]),
             ref_batch_mean=bool(content["reference"]["ref_batch_mean"]),
+            blocks=None
+            if blocks is None
+            else TensorProdBlocks(
+                geometries=tuple(blocks["geometries"]),
+                J=tuple(int(n) for n in blocks["J"]),
+                L=tuple(int(n) for n in blocks["L"]),
+                lowpass=tuple(bool(f) for f in blocks["lowpass"]),
+            ),
         )
     standardization = None
     if "standardization__mean" in arrays:
@@ -823,6 +1021,67 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
         plan,
         backend_name,
         reductions=reductions,
+        reference=reference,
+        standardization=standardization,
+    )
+
+
+# ---------------------------------------------------------------------- tensor products
+
+
+def tensor_prod_statistics(
+    buffer: Any,
+    plan: TensorProdPlan,
+    reference: _NormReference | None = None,
+    standardization: tuple[Any, Any] | None = None,
+) -> STStatistics:
+    """The statistics of a tensor product from its raw buffer, ``(Nb, n_floats)`` in the layout
+    of ``_layout.tensor_prod_layout(plan)``, normalised as the plan says (maths.md M-NORM-TP;
+    task T3.6): what the loop of the operator (task T3.2) returns through. ``reference`` is the
+    reference of ``norm="ref"``, from statistics of a tensor product computed with
+    ``norm="self"``, checked against the plan; with ``norm="self"`` the reference is computed
+    from the buffer, and gradients flow through it."""
+    backend_name = _registry.backend_of(buffer)
+    if backend_name is None:
+        raise TypeError("tensor_prod_statistics takes a buffer of a backend, not a NumPy array.")
+    backend = _registry.backend_named(backend_name)
+    layout = compact.tensor_prod_layout(plan)
+    if tuple(buffer.shape[1:]) != (layout.n_floats,):
+        raise ValueError(
+            f"the buffer has shape {tuple(buffer.shape)}, and the layout of this tensor product "
+            f"holds {layout.n_floats} floats per batch element."
+        )
+    blocks = tensor_prod_blocks(plan)
+    n_orientations = int(np.prod(plan.L, dtype=np.int64))
+    if plan.norm == "self":
+        if reference is not None:
+            raise ValueError('norm="self" takes no reference (maths.md M-NORM).')
+        reference = self_reference(
+            backend,
+            buffer,
+            layout,
+            tensor_prod_auto_scales(plan),
+            n_orientations,
+            plan.ref_batch_mean,
+            blocks,
+        )
+    elif plan.norm == "ref":
+        if reference is None:
+            raise ValueError(
+                'norm="ref" needs a reference: pass statistics of a tensor product computed '
+                'with norm="self" (maths.md M-NORM).'
+            )
+        check_tensor_prod_reference(reference, plan, int(buffer.shape[0]), buffer.dtype)
+        reference = as_constant(backend, reference)
+    elif reference is not None:
+        raise ValueError('norm="none" takes no reference (maths.md M-NORM).')
+    if reference is not None:
+        buffer, layout = normalize(backend, buffer, layout, reference)
+    return STStatistics._create(
+        buffer,
+        layout,
+        plan,
+        backend_name,
         reference=reference,
         standardization=standardization,
     )
