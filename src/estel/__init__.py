@@ -8,7 +8,7 @@ from .data._base import Data
 from .data._planar import Data1D, Data2D
 from .data._tensor_prod import DataTensorProd
 from .scattering._filters import STFilters
-from .scattering._operator import STOperator
+from .scattering._operator import STOperator, STOperatorTensorProd
 from .scattering._plan import STPlan
 from .statistics._statistics import STStatistics
 from .synthesis._api import SynthesisResult, synthesize_from_maps, synthesize_from_stats
@@ -23,6 +23,7 @@ __all__ = [
     "DataTensorProd",
     "STFilters",
     "STOperator",
+    "STOperatorTensorProd",
     "STPlan",
     "STStatistics",
     "SynthesisResult",

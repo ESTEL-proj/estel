@@ -2,7 +2,7 @@
 issue #137; maths.md M-IDX-TP, M-LP, M-S-TP, M-NORM-TP, M-FLAT; Part II, §12.7; Part III,
 §19.4 to §19.6).
 
-The operator of tensor products comes with T3.2. These tests take the raw statistics from the
+These tests, written before the operator of tensor products (T3.2), take the raw statistics from the
 parity fixtures of T3.4 (``scattering_tp``), or from the oracle ``spec_tensor_prod(...,
 norm="none")`` on the fields of ``statistics_tp``, which stores only normalised values, place
 them in the layout of the plan (``tensor_prod_layout``), and read them back through
@@ -30,7 +30,7 @@ from estel.backend import _registry
 from estel.scattering._plan import TensorProdPlan, build_tensor_prod_statistics_plan
 from estel.statistics import _grid, _layout, _normalization, _statistics
 from estel.statistics._arrays import constant
-from estel.statistics._statistics import tensor_prod_statistics
+from estel.statistics._statistics import statistics_of as tensor_prod_statistics
 from tests.parity._compare import assert_parity, full_grid, load_fixture, read_manifest
 from tests.statistics.test_layout import _static_elements
 

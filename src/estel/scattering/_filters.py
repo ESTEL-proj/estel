@@ -27,9 +27,11 @@ from numpy.typing import NDArray
 
 from .._config import FloatDType
 from ..backend import _registry
-from ..statistics._layout import loop_gather
+from ..statistics._layout import ChunkTables, loop_gather
 from ..wavelets._operator import MeanWeights, WaveletFilters, build_wavelet_filters
-from ._plan import STPlan
+from ..wavelets._tensor_prod import build_tensor_prod_filters as build_block_filters
+from ._plan import STPlan, TensorProdPlan
+from ._tensor_prod import Scale, tensor_prod_loop
 
 
 class _FilterFields(NamedTuple):
@@ -118,4 +120,62 @@ def build_filters(plan: STPlan, backend_name: str, dtype: FloatDType, device: An
             backend.asarray(take.astype(np.int32), "int32", device)
             for take in loop_gather(plan).takes
         ),
+    )
+
+
+# ---------------------------------------------------------------------- tensor products
+
+
+class TensorProdFilters(NamedTuple):
+    """The numerical arrays of the scattering transform of a tensor product (Part II, §12.6;
+    task T3.2): what ``STOperatorTensorProd.filters`` gives and ``estel.functional.scattering``
+    takes, an opaque object like :class:`STFilters`. Backend arrays in the operator's dtype,
+    built once from the plan (:func:`build_tensor_prod_filters`); a named tuple, so that JAX
+    takes it as a pytree whose leaves are the arrays. Its tables grow with the chunks of the
+    segments and with the pixels of one block, never with the coefficients."""
+
+    wavelets: tuple[WaveletFilters, ...]
+    """The arrays of the wavelet operator of each block: its bank and smoothing kernel."""
+    arm_crops: dict[Scale, tuple[Any, ...]]
+    """Per wavelet scale j3, per block, the crops of the arms along that block,
+    ``(n_arms, *shape of the block)``, or ``None`` (``SecondLayerScale.arm_crops``)."""
+    band_crops: dict[Scale, tuple[Any, ...]]
+    """Per wavelet scale j3, per block, the crop of the band map, or ``None``."""
+    s3_rows: dict[Scale, Any]
+    """Per j3, the rows of the S3 sums that are the chunks of its segment (int32)."""
+    s3_denominators: dict[Scale, Any]
+    """Per j3, their denominators, in the operator's dtype."""
+    s4_rows: dict[Scale, Any]
+    s4_denominators: dict[Scale, Any]
+    s4_pack: ChunkTables
+    """The tables of the packing of S4 into its floats (``statistics._layout.pack``)."""
+
+
+def build_tensor_prod_filters(
+    plan: TensorProdPlan, backend_name: str, dtype: FloatDType, device: Any
+) -> TensorProdFilters:
+    """The filters of the tensor-product plan ``plan`` on the backend ``backend_name``, cast
+    once to ``dtype`` on ``device`` (Part I, §3.1, rules 4 and 7)."""
+    backend = _registry.backend_named(backend_name)
+    loop = tensor_prod_loop(plan)
+
+    def real(a: NDArray[Any] | None) -> Any:
+        if a is None:
+            return None
+        return backend.asarray(np.asarray(a, dtype=np.float64), dtype, device)
+
+    def index(a: NDArray[Any]) -> Any:
+        return backend.asarray(np.asarray(a).astype(np.int32), "int32", device)
+
+    second = loop.second_layer
+    pack = loop.s4_pack
+    return TensorProdFilters(
+        wavelets=build_block_filters(plan.wavelets, backend_name, dtype, device),
+        arm_crops={s.j3: tuple(real(c) for c in s.arm_crops) for s in second},
+        band_crops={s.j3: tuple(real(c) for c in s.band_crops) for s in second},
+        s3_rows={s.j3: index(s.s3_rows) for s in second},
+        s3_denominators={s.j3: real(s.s3_denominators) for s in second},
+        s4_rows={s.j3: index(s.s4_rows) for s in second},
+        s4_denominators={s.j3: real(s.s4_denominators) for s in second},
+        s4_pack=(index(pack.within), index(pack.kinds), index(pack.starts)),
     )

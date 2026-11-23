@@ -392,7 +392,7 @@ spectrum, so STL's ``"PS"`` and ``("ST", "PS")`` are not taken."""
 class TensorProdPlan:
     """The static description of the statistics of a tensor product (maths.md M-NOT-TP, M-LP,
     M-IDX-TP, M-CHAN; Part II, §12.6; task T3.6): what the compact layout, the normalisation and
-    the files need, without the loop, which task T3.2 adds.
+    the files need; the loop of task T3.2 reads it with ``_tensor_prod.tensor_prod_loop``.
 
     Built by :func:`build_tensor_prod_statistics_plan` from the plan of the wavelet operator of
     the tensor product (``TensorProdWaveletPlan``, task T3.1); NumPy only, immutable and
@@ -507,23 +507,13 @@ def build_tensor_prod_statistics_plan(
             'or None (maths.md M-LP); ESTEL 1.0.0 has no tensor-product spectrum, so "PS" is '
             "not available."
         )
-    wavelets = build_tensor_prod_plan(cast(Any, data), J, L, kernel_size=kernel_size)
-    matrix = _cross_matrix(cross_matrix, data.n_channels)
     _check_options(norm, ref_batch_mean, standardize)
-    flags = []
-    for a, block in enumerate(wavelets.blocks):
-        has = lowpass == "ST" and all(n % 2**block.J == 0 for n in block.spatial_shape)
-        if lowpass == "ST" and not has:
-            warnings.warn(
-                f"block {a} ({block.geometry.__name__} of shape {block.spatial_shape}) has no "
-                f"low-pass filter: its sizes are not all divisible by 2^J_{a} = {2**block.J}, "
-                "which the low-pass filter needs, one downsampling more than its wavelets "
-                "(maths.md M-LP, OP-34). Its S1 and S2 have the wavelet scales only; use a size "
-                f"divisible by {2**block.J}, or J_{a} = {block.J - 1}, to keep it.",
-                UserWarning,
-                stacklevel=2,
-            )
-        flags.append(has)
+    # The low-pass flags (M-LP, OP-34), with STL's warning, come with the plans of the blocks.
+    wavelets = build_tensor_prod_plan(
+        cast(Any, data), J, L, kernel_size=kernel_size, lowpass=lowpass
+    )
+    matrix = _cross_matrix(cross_matrix, data.n_channels)
+    flags = list(wavelets.lowpass_blocks)
     scales = tuple(range(block.J) for block in wavelets.blocks)
     return TensorProdPlan(
         geometry=type(data),

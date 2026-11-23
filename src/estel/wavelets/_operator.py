@@ -246,9 +246,10 @@ class WaveletPlan:
     """How the low-pass filter φ_J is realised: in 1.0.0, ``"smoothing_cascade"``, the cascade
     of the smoothing kernels of J downsamplings, as in STL (maths.md M-NOT, M-LP)."""
     lowpass_level: int
-    """The level at which the low-pass filter is read: J, the data downsampled J times. The
-    planar statistics of 1.0.0 compute no low-pass coefficient; the tensor products apply it
-    (task T3.2)."""
+    """The level at which the low-pass filter is read, one below the level of the last wavelet
+    scale: J in 1.0.0, the data downsampled J times. The planar statistics of 1.0.0 compute no
+    low-pass coefficient, and their :attr:`levels` stop before it; a block of a tensor product
+    with a low-pass filter goes down to it (:attr:`has_lowpass`; task T3.2)."""
     masks: MaskMaps | None
     """The static masks and reweighting maps of the data (M-DOWN-MASK, M-MASK), or ``None``
     when no value is missing."""
@@ -261,6 +262,19 @@ class WaveletPlan:
         if not isinstance(other, WaveletPlan):
             return NotImplemented
         return self._key == other._key
+
+    @property
+    def has_lowpass(self) -> bool:
+        """Whether the plan goes down to :attr:`lowpass_level`, so that the low-pass filter is
+        computed (maths.md M-LP): a block of a tensor product whose sizes are divisible by 2^J,
+        with ``lowpass="ST"``."""
+        return self.lowpass_level in self.levels
+
+    @property
+    def wavelet_levels(self) -> tuple[int, ...]:
+        """The levels of the wavelet scales and those between them: 0 … the level of the last
+        wavelet scale, without the level of the low-pass filter."""
+        return tuple(d for d in self.levels if d <= max(self.scale_levels))
 
     def bank(self) -> NDArray[np.complex128]:
         """The wavelet bank, ``(L, *kernel)``, NumPy complex128 (M-WAV-2D, M-WAV-1D). Raises a
@@ -284,10 +298,12 @@ class WaveletPlan:
         ``history`` given: ``()`` for the field, ``(j,)`` for first-layer data convolved at
         scale ``j``, computed at ``level`` or before. Second-layer data, a history of two
         scales, are never downsampled."""
-        if not _is_index(level) or level not in self.levels[:-1]:
+        steps = self.wavelet_levels[:-1]
+        if not _is_index(level) or level not in steps:
             raise ValueError(
                 f"downsample(level={level!r}): the loop downsamples from the levels "
-                f"{self.levels[0]} … {self.levels[-1] - 1} (J = {self.J})."
+                f"{self.levels[0]} … {steps[-1] if steps else -1} (J = {self.J}); the step to "
+                "the level of the low-pass filter is the low-pass filter (maths.md M-LP)."
             )
         if not isinstance(history, tuple) or not all(_is_index(j) for j in history):
             raise TypeError(
@@ -361,8 +377,8 @@ def build_wavelet_plan(
     if isinstance(data, DataTensorProd):
         raise TypeError(
             "STOperator takes 1D and 2D data, not a DataTensorProd: the scattering operator of "
-            "a tensor product, STOperatorTensorProd, comes with task T3.2. Until then, compute "
-            "the statistics of planar data, estel.Data2D or estel.Data1D."
+            "a tensor product is STOperatorTensorProd, with one J and one L per block (maths.md "
+            "§3)."
         )
     _check_wavelet(wavelet)
     n_scales = _check_scales(J, data.shape[2:])
@@ -396,14 +412,23 @@ def _wavelet_plan(
     n_orientations: int,
     wavelet: str,
     size: int,
+    *,
+    lowpass: bool = False,
 ) -> WaveletPlan:
     """The :class:`WaveletPlan` of a planar ``geometry`` with the static metadata given, and J,
     L and K already validated: of data (:func:`build_wavelet_plan`), or of one block of a
-    tensor product (``estel.wavelets._tensor_prod``)."""
+    tensor product (``estel.wavelets._tensor_prod``).
+
+    With ``lowpass``, the plan goes down to the level of the low-pass filter too, one level
+    below that of its last wavelet scale (maths.md M-LP): the blocks of a tensor product that
+    have a low-pass filter (task T3.2). The planar statistics of 1.0.0 have none."""
     ndim = geometry.ndim
     # The level of each scale: in 1.0.0, scale j at level d = j (maths.md M-NOT).
     scale_levels = tuple(range(n_scales))
-    levels = tuple(range(max(scale_levels) + 1))
+    # The low-pass filter φ_J is read one level below the last wavelet scale: in 1.0.0, the
+    # cascade of the smoothing kernels of J downsamplings (M-LP). LF6 changes this line only.
+    lowpass_level = max(scale_levels) + 1
+    levels = tuple(range((lowpass_level if lowpass else max(scale_levels)) + 1))
     masks = (
         None
         if mask is None
@@ -431,7 +456,7 @@ def _wavelet_plan(
         levels=levels,
         level_shapes=tuple(tuple(n // 2**d for n in spatial) for d in levels),
         lowpass_realization="smoothing_cascade",
-        lowpass_level=n_scales,
+        lowpass_level=lowpass_level,
         masks=masks,
         _key=(
             geometry,
@@ -444,6 +469,7 @@ def _wavelet_plan(
             static_mask,
             wavelet,
             scale_levels,
+            levels,
         ),
     )
 
@@ -484,7 +510,7 @@ def build_wavelet_filters(
         reweight = backend.asarray(np.asarray(found[1], dtype=np.float64), dtype, device)
         return valid, reweight
 
-    down_levels = plan.levels[:-1]
+    down_levels = plan.wavelet_levels[:-1]
     field_down = {d: maps(d) for d in down_levels}
     modulus_down = {
         (d, j): maps(d, (j,))
