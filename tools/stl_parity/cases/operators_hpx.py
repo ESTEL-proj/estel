@@ -48,6 +48,8 @@ from numpy.typing import NDArray
 STL_ENV = "healpix"
 
 
+# Repeated in each HEALPix case: make_fixtures.py imports a case by its path, so a case cannot
+# import a sibling module, and this loader must exist before _healpix.py can be read.
 def _helper() -> ModuleType:
     """The settings of the HEALPix cases, ``_healpix.py``, imported by its path."""
     path = Path(__file__).resolve().with_name("_healpix.py")

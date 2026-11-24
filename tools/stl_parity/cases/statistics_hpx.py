@@ -4,7 +4,8 @@ with the masks of the scattering layers (Part II, §14.2, §14.4; task T5.3, iss
 
 For each configuration ``<config>``, runs STL's scattering operator (``ST_Operator.apply``)
 without spectrum (``compute_PS=False``), L = 4 gauges, with the settings of ``_healpix.py`` (the
-sphere, no geometry cache, the kernel in float64; OP-45, OP-46), as ``statistics_2d`` does:
+sphere, no geometry cache, the kernel in float64; OP-45, OP-46) and with
+``replace_nan_value=None``, as ``statistics_2d`` does:
 
 * with ``norm="vanilla"`` on a target field (ESTEL's ``"none"``);
 * with ``norm="store_ref"`` on the same field (ESTEL's ``"self"``), and the configuration's
@@ -16,6 +17,20 @@ sphere, no geometry cache, the kernel in float64; OP-45, OP-46), as ``statistics
   ``to_iso`` then ``to_scale_ft``; ``to_iso``, ``to_angular_ft`` then ``to_scale_ft``, with the
   configuration's harmonics; and ``to_flatten(flatten_complex=True)`` of the normalised and of
   the fully reduced statistics.
+
+**``replace_nan_value=None``** (decided by the maintainer on #163, the open point T5.2 records).
+With STL's default, ``replace_nan_value=NaN``, the invalid pixels of a downsampled map are set to
+NaN, and a valid pixel whose interpolation reads an invalid pixel with a weight of rounding size (a
+zero weight of OP-92, below the 1e-12 of STL's support test) gets 0 x NaN = NaN in S1 and S2, and
+through the normalisation NaN in S3, S4 and the flat vectors (``nan_16``: level 1, pixel 188 reads
+pixel 167 with a weight of 8.6e-16 at gauge 2). ESTEL uses masks as weights and gives a finite
+value. With ``None``, the setting STL's own syntheses pass (as for OP-60), the invalid pixels keep
+the zero the masked decimation gives them, and the masks alone decide which pixels the means read.
+The manifest records it under ``stl_settings``. The setting acts on the decimation only: at level 0,
+STL convolves the field with its NaN, and the same effect remains there. In ``disc_nan_16``, the
+valid cell 60 reads the missing cell 39 with a weight of 1.87e-15 at gauge 2, so S1 and S2 are NaN
+at ``[0, 0, 0, 0, 2]``, and through ``s2_ref`` S3, S4 and the vectors where they normalise by it
+(reported on #164; not decided).
 
 It stores, for each configuration:
 
@@ -43,7 +58,10 @@ The configurations cover the cells of §14.4 for HEALPix: the full sky at ``nsid
 and 16 (J = 3); two channels with every pair (cross terms); a disc at ``nside`` 16, a partial
 sky given by ``cell_ids``; a mask of missing values on the full sky at ``nside`` 16 (J = 3),
 given as ``mask_full_res``, with a batch of two and ``norm_batch_mean=True``; and a disc with a
-hole of missing values, its mask inferred by STL from the NaN of a single map (M-DATA-HPX). J is
+hole of missing values, its mask inferred by STL from the NaN of a single map (M-DATA-HPX); the
+hole is 2 pixels, so its masks of the field and of the first layer at levels 1 and 2
+(``smooth_1``, ``smooth_2``, ``layer1_1``, ``layer1_2``) are empty, and ``layer2_2_0`` is
+invalid everywhere (the support at level 2 covers its 30 pixels). J is
 STL's default, max(1, ⌊log₂ ``nside``⌋ - 1), passed explicitly. The fields are seeded Gaussian
 white noise, each channel correlated with the previous one, as in ``statistics_2d``. The pixel
 indices are stored as float64, exact below 2⁵³.
@@ -68,6 +86,8 @@ from numpy.typing import NDArray
 STL_ENV = "healpix"
 
 
+# Repeated in each HEALPix case: make_fixtures.py imports a case by its path, so a case cannot
+# import a sibling module, and this loader must exist before _healpix.py can be read.
 def _helper() -> ModuleType:
     """The settings of the HEALPix cases, ``_healpix.py``, imported by its path."""
     path = Path(__file__).resolve().with_name("_healpix.py")
@@ -124,7 +144,7 @@ PARAMETERS: dict[str, Any] = {
             "norm_batch_mean": False, "harmonics_angle": 3, "harmonics_scale": 3, "dj": 3,
         },
     },
-    "stl_settings": HEALPIX.SETTINGS,
+    "stl_settings": HEALPIX.SETTINGS | {"replace_nan_value": None},
 }  # fmt: skip
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
 
@@ -239,6 +259,7 @@ def _configuration(data_cls: Any, name: str, config: dict[str, Any]) -> dict[str
         L=PARAMETERS["L"],
         norm="store_ref",
         compute_PS=False,
+        replace_nan_value=PARAMETERS["stl_settings"]["replace_nan_value"],  # see the docstring
         downsample_nan_weight_threshold=PARAMETERS["threshold"],
         wavelet_op_kwargs=HEALPIX.WAVELET_OP_KWARGS,
         **kwargs,

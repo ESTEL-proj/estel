@@ -9348,7 +9348,8 @@
           "ellipsoid": "sphere",
           "conv_cache_dir": null
         },
-        "kernel": "float64: HealPixConv.set_kernel replaced at run time by a function that calls it, then copies the float64 kernel into its weights (tools/stl_parity/cases/_healpix.py, keep_kernel_float64); STL and healpix-analyse unchanged on disk"
+        "kernel": "float64: HealPixConv.set_kernel replaced at run time by a function that calls it, then copies the float64 kernel into its weights (tools/stl_parity/cases/_healpix.py, keep_kernel_float64); STL and healpix-analyse unchanged on disk",
+        "replace_nan_value": null
       }
     },
     "torch_default_dtype": "float64",
@@ -10216,7 +10217,7 @@
       "disc_nan_16_vector": {
         "dtype": "float64",
         "shape": [
-          700
+          892
         ]
       },
       "disc_nan_16_vector_reduced": {
@@ -11482,13 +11483,13 @@
       "nan_16_vector": {
         "dtype": "float64",
         "shape": [
-          2372
+          2996
         ]
       },
       "nan_16_vector_reduced": {
         "dtype": "float64",
         "shape": [
-          76
+          168
         ]
       },
       "nan_16_wav_1_0": {
@@ -11510,7 +11511,7 @@
         ]
       }
     },
-    "sha256": "a6fe9b9ae0a1d21aae9331cf408e473a259bc7c6236effa9c16e20e20f4d81b0"
+    "sha256": "5b6c4c8fcc2b5751406f2cd4ab60e79093f75f8085db44d37531e8b7a8ac99cb"
   },
   "statistics_ps_2d.npz": {
     "case": "tools/stl_parity/cases/statistics_ps_2d.py",

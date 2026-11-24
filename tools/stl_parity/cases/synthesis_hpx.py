@@ -69,6 +69,8 @@ from numpy.typing import NDArray
 STL_ENV = "healpix"
 
 
+# Repeated in each HEALPix case: make_fixtures.py imports a case by its path, so a case cannot
+# import a sibling module, and this loader must exist before _healpix.py can be read.
 def _helper() -> ModuleType:
     """The settings of the HEALPix cases, ``_healpix.py``, imported by its path."""
     path = Path(__file__).resolve().with_name("_healpix.py")
@@ -162,7 +164,11 @@ def run() -> dict[str, NDArray[Any]]:
         j_target = data.get_wavelet_op(**HEALPIX.WAVELET_OP_KWARGS).J - (not data.pbc)
         j_running = running.get_wavelet_op(**HEALPIX.WAVELET_OP_KWARGS).J - (not running.pbc)
         n_scales = min(j_target, j_running)
-        assert n_scales == p["J"], n_scales
+        if n_scales != p["J"]:
+            raise ValueError(
+                f"the user level would run with J = {n_scales}, not {p['J']}: set PARAMETERS['J'] "
+                "to the J of synthesize_from_maps (M-SYN-OPS) and describe it in the docstring."
+            )
         options: dict[str, Any] = {
             "compute_PS": p["compute_PS"],
             "has_fewer_convolutions": False,
@@ -170,7 +176,12 @@ def run() -> dict[str, NDArray[Any]]:
         }
         st_op_target = data.get_ST_op(J=n_scales, **options)
         st_op_running = running.get_ST_op(J=n_scales, replace_nan_value=None, **options)
-        assert p["L"] == st_op_target.wavelet_op.L == st_op_running.wavelet_op.L
+        if not p["L"] == st_op_target.wavelet_op.L == st_op_running.wavelet_op.L:
+            raise ValueError(
+                f"STL's operators have L = {st_op_target.wavelet_op.L} and "
+                f"{st_op_running.wavelet_op.L}, not {p['L']}: set PARAMETERS['L'] to STL's "
+                "default L (M-DEF-HPX)."
+            )
 
         setattr(lbfgs, "_strong_wolfe", recording)  # noqa: B010 (a module of torch)
         setattr(synthesis, "optimize_lbfgs", keeping_history)  # noqa: B010
