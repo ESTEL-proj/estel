@@ -1,4 +1,4 @@
-"""Static masks and reweighting maps of planar data (maths.md M-DOWN-MASK, M-MASK).
+"""Static masks and reweighting maps (maths.md M-DOWN-MASK, M-MASK; M-MASK-HPX for HEALPix).
 
 Built once, in NumPy float64, when an operator is built, from the full-resolution mask of the
 data; never traced, never differentiated (tag N of Part II, §12). The static part of the
@@ -18,7 +18,7 @@ of the kernel size K on every spatial axis.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -189,6 +189,102 @@ def build_mask_maps(
 
     return MaskMaps(
         pbc=pbc,
+        full_res=m0,
+        smooth_invalid={d: smooth[d][0] for d in range(1, n_levels)},
+        smooth_reweight={d: smooth[d][1] for d in range(1, n_levels)},
+        wav_invalid={key: value[0] for key, value in wav.items()},
+        wav_reweight={key: value[1] for key, value in wav.items()},
+        layer1=layer1,
+        layer2=layer2,
+    )
+
+
+# ---------------------------------------------------------------------- HEALPix (M-MASK-HPX)
+
+
+HEALPIX_SUPPORT_THRESHOLD = 1e-12
+"""Above it, the support of a pixel touches an invalid pixel (maths.md M-MASK-HPX); the same
+threshold below which an interpolation weight counts as absent (M-CONV-HPX, OP-110)."""
+
+HEALPIX_REWEIGHT_FLOOR = 1e-8
+"""The floor of 1 - f in the reweighting maps of HEALPix (M-MASK-HPX)."""
+
+
+def _as_real(mask: BoolMap) -> RealMap:
+    """A mask as a 0/1 float64 map."""
+    return mask.astype(np.float64)
+
+
+def _threshold_floored(fraction: RealMap, threshold: float) -> tuple[BoolMap, RealMap]:
+    """The invalid pixels (f > τ) and the reweighting 1 / (1 - f), with 1 - f not below
+    :data:`HEALPIX_REWEIGHT_FLOOR`, 0 at invalid pixels (M-MASK-HPX)."""
+    invalid = ~(fraction <= threshold)
+    kept = np.maximum(1.0 - np.where(invalid, 0.0, fraction), HEALPIX_REWEIGHT_FLOOR)
+    return invalid, np.where(invalid, 0.0, 1.0 / kept)
+
+
+def build_healpix_mask_maps(
+    mask: BoolMap,
+    scale_levels: Sequence[int],
+    support: Callable[[int, BoolMap], BoolMap],
+    decimate: Callable[[int, RealMap], RealMap],
+    threshold: float,
+) -> MaskMaps:
+    """The static maps of ``mask`` on HEALPix, for the scales of ``scale_levels`` (maths.md
+    M-MASK-HPX, with M-MASK and M-DOWN-MASK), each map on the pixels of its level.
+
+    ``support(d, invalid)``: the invalid outputs of a convolution at level ``d`` of data whose
+    invalid pixels are ``invalid`` (the support test of M-MASK-HPX, above
+    :data:`HEALPIX_SUPPORT_THRESHOLD` for at least one gauge); ``decimate(d, a)``: one step of
+    M-DOWN-HPX of the map ``a`` from level ``d`` to ``d + 1``. The callers build these from the
+    tables of each level. The maps are computed level by level, every convolution of a level
+    together, so that the caller needs the stencils of one level at a time.
+
+    The fields of :class:`MaskMaps` are those of the planar maps (``build_mask_maps``), with the
+    reweighting 1 / (1 - f) floored as M-MASK-HPX says; ``pbc`` is True: no padding is involved.
+    """
+    m0 = np.asarray(mask, dtype=bool)
+    scale_levels = tuple(int(d) for d in scale_levels)
+    n_levels = max(scale_levels) + 1
+
+    smooth: list[tuple[BoolMap, RealMap]] = [(m0, np.ones(m0.shape))]
+    for d in range(1, n_levels):
+        smooth.append(_threshold_floored(decimate(d - 1, _as_real(smooth[-1][0])), threshold))
+
+    layer1: dict[int, BoolMap] = {}
+    wav: dict[tuple[int, int], tuple[BoolMap, RealMap]] = {}
+    layer2: dict[tuple[int, int], BoolMap] = {}
+    for d in range(n_levels):
+        # First-layer data of the scales of earlier levels, brought one step down to level d.
+        wav = {
+            **wav,
+            **{
+                (d, j): _threshold_floored(
+                    decimate(d - 1, _as_real(layer1[j] if level == d - 1 else wav[(d - 1, j)][0])),
+                    threshold,
+                )
+                for j, level in enumerate(scale_levels)
+                if level < d
+            },
+        }
+        # Every convolution at level d: layer 1 of its scales, then layer 2 of the scales j3
+        # there, of data convolved at j2 ≤ j3 and brought to level d.
+        layer1 = {
+            **layer1,
+            **{j: support(d, smooth[d][0]) for j, level in enumerate(scale_levels) if level == d},
+        }
+        layer2 = {
+            **layer2,
+            **{
+                (j3, j2): support(d, layer1[j2] if scale_levels[j2] == d else wav[(d, j2)][0])
+                for j3, level3 in enumerate(scale_levels)
+                if level3 == d
+                for j2 in range(j3 + 1)
+            },
+        }
+
+    return MaskMaps(
+        pbc=True,
         full_res=m0,
         smooth_invalid={d: smooth[d][0] for d in range(1, n_levels)},
         smooth_reweight={d: smooth[d][1] for d in range(1, n_levels)},

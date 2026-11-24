@@ -4,7 +4,8 @@ A ``Data`` object is one backend array plus static metadata: the periodicity ``p
 missing values. It is immutable: operations return new objects (:meth:`Data.with_array`),
 never modify one. Subclasses (``Data1D``, ``Data2D`` in ``_planar.py``) set the number of spatial
 axes and the geometry constants, and override only the geometry hooks (tag G of §12.4);
-``DataTensorProd`` (``_tensor_prod.py``) composes them, one geometry per block.
+``DataHealpix`` (``_healpix.py``) has one pixel axis on the sphere; ``DataTensorProd``
+(``_tensor_prod.py``) composes the planar ones, one geometry per block.
 
 Validation happens once, here, when the object is built (review rule B1): the array is converted
 to the backend, promoted to ``(Nb, Nc, *spatial)``, and its NaN become the mask. The mask is a
@@ -37,9 +38,9 @@ _FLOAT_DTYPES = ("float32", "float64")
 class Data:
     """Data plus static metadata: the mother class of every geometry.
 
-    Build a geometry instead: ``Data1D`` or ``Data2D``. The mother class holds the shared
-    logic; a subclass sets ``ndim``, the number of spatial axes (a class constant of a single
-    geometry), and overrides only the geometry hooks.
+    Build a geometry instead: ``Data1D``, ``Data2D`` or ``DataHealpix``. The mother class holds
+    the shared logic; a subclass sets ``ndim``, the number of spatial axes (a class constant of a
+    single geometry), and overrides only the geometry hooks.
 
     Parameters
     ----------
@@ -93,7 +94,7 @@ class Data:
         if not hasattr(cls, "_geometry"):
             raise TypeError(
                 f"{cls.__name__} is the mother class and has no geometry: build a geometry "
-                "instead, estel.Data1D or estel.Data2D."
+                "instead, estel.Data1D or estel.Data2D, or estel.DataHealpix."
             )
         if not isinstance(pbc, bool | np.bool_):
             raise TypeError(
@@ -406,8 +407,9 @@ class DownsampleWeights(NamedTuple):
     """
 
     kernel: Any
-    """The smoothing kernel of the geometry, real, with the real dtype of the data
-    (planar: the smoothing kernel of maths.md M-SMOOTH-2D, M-SMOOTH-1D)."""
+    """The static kernel of the step, with the real dtype of the data: planar, the smoothing
+    kernel of maths.md M-SMOOTH-2D, M-SMOOTH-1D; HEALPix, the decimation tables of the step
+    (``HealpixDownTables``, M-DOWN-HPX)."""
     valid: Any = None
     """Without missing values, ``None``. Otherwise the valid input pixels, a boolean array of
     the spatial shape at the input level: invalid pixels are set to 0 before filtering, never

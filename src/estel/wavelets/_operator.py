@@ -56,6 +56,7 @@ from .._config import FloatDType, default_device, default_dtype
 from ..backend import _registry
 from ..backend._protocol import DType
 from ..data._base import Data, DownsampleWeights, _StaticMask
+from ..data._healpix import DataHealpix
 from ..data._masks import BoolMap, MaskMaps, RealMap, build_mask_maps
 from ..data._tensor_prod import DataTensorProd
 from ._banks import KERNEL_SIZE as KERNEL_SIZE  # the default K, for the plan (re-exported)
@@ -281,6 +282,13 @@ class WaveletPlan:
         ``ValueError`` when the geometry has no bank with ``L`` orientations."""
         return wavelet_bank(self.ndim, self.L, self.kernel_size)
 
+    def _build_filters(self, backend_name: str, dtype: FloatDType, device: Any) -> Any:
+        """The arrays of this plan on the backend ``backend_name``, cast once to ``dtype`` on
+        ``device``: a hook, so that the operator and the ``STPlan`` build the filters of every
+        geometry with one call (planar: :func:`build_wavelet_filters`; HEALPix:
+        ``_healpix_operator.build_healpix_wavelet_filters``)."""
+        return build_wavelet_filters(self, backend_name, dtype, device)
+
     def border(self, history: History, level: int) -> int:
         """The border β, in pixels at ``level``, of data convolved at the scales ``history``
         (M-BORDER; :func:`border_width`)."""
@@ -357,7 +365,7 @@ def build_wavelet_plan(
     data: Data,
     J: int | None = None,  # noqa: N803 (maths.md notation)
     L: int | None = None,  # noqa: N803
-    wavelet: str = "bump_steerable",
+    wavelet: str | None = None,
     *,
     kernel_size: int = KERNEL_SIZE,
 ) -> WaveletPlan:
@@ -367,13 +375,22 @@ def build_wavelet_plan(
     By default J = ⌊log₂ min N⌋ - 2, and L = 4 in 2D, 1 in 1D (M-DEF, M-DEF-1D). Raises when J
     is not an integer ≥ 1 or the sizes are not divisible by 2^(J-1) (M-DATA-2D, OP-8), and when
     L is not an integer ≥ 1, as STL accepts (Part II, §12.5); :meth:`WaveletPlan.bank` checks L
-    against the bank of the geometry.
+    against the bank of the geometry. ``wavelet=None`` is the wavelet of the geometry.
+
+    HEALPix data get a ``HealpixWaveletPlan`` (``_healpix_operator``), with their own defaults
+    and rules (maths.md M-DEF-HPX, M-MASK-HPX): the plan of each geometry is chosen here, once,
+    and everything after it goes through the hooks of the plan and of its filters.
     """
     if not isinstance(data, Data):
         raise TypeError(
             f"the wavelets are built for a Data object, such as estel.Data2D, got "
             f"{type(data).__name__}."
         )
+    if isinstance(data, DataHealpix):
+        # Imported here: the HEALPix plan subclasses WaveletPlan, defined in this module.
+        from ._healpix_operator import build_healpix_wavelet_plan
+
+        return build_healpix_wavelet_plan(data, J, L, wavelet, kernel_size=kernel_size)
     if isinstance(data, DataTensorProd):
         raise TypeError(
             "STOperator takes 1D and 2D data, not a DataTensorProd: the scattering operator of "
@@ -390,16 +407,16 @@ def build_wavelet_plan(
         data.mask,
         n_scales,
         n_orientations,
-        wavelet,
+        wavelet or WAVELETS[0],
         _check_size(kernel_size),
     )
 
 
 def _check_wavelet(wavelet: object) -> None:
-    if wavelet not in WAVELETS:
+    if wavelet is not None and wavelet not in WAVELETS:
         raise ValueError(
             f"wavelet={wavelet!r}: ESTEL 1.0.0 has the bump-steerable wavelets only; pass "
-            f'"bump_steerable" (maths.md M-WAV-2D, M-WAV-1D).'
+            f'"bump_steerable", or None (maths.md M-WAV-2D, M-WAV-1D).'
         )
 
 
@@ -494,6 +511,22 @@ class WaveletFilters(NamedTuple):
     of first-layer data convolved at j from d to d+1, or no entry without missing values
     (``WaveletPlan.downsample_maps(d, (j,))``)."""
 
+    # The hooks the operator reads the arrays through, shared with the filters of HEALPix
+    # (``_healpix_operator.HealpixWaveletFilters``), whose tables differ from level to level.
+
+    def _conv_tables(self, level: int) -> Any:
+        """The tables of ``Data._conv`` at ``level``: the bank, the same at every level."""
+        return self.kernels
+
+    def _down_tables(self, level: int) -> Any:
+        """The kernel of the downsampling step from ``level``: the smoothing kernel."""
+        return self.smoothing
+
+    @property
+    def _any_array(self) -> Any:
+        """A real array of the operator's dtype, which gives the filters' backend and dtype."""
+        return self.smoothing
+
 
 def build_wavelet_filters(
     plan: WaveletPlan, backend_name: str, dtype: FloatDType, device: Any
@@ -530,7 +563,7 @@ def build_wavelet_filters(
 
 
 class WaveletOperator:
-    """The wavelets of 1D and 2D planar data, level by level: internal (Part II, §12.5).
+    """The wavelets of 1D, 2D and HEALPix data, level by level: internal (Part II, §12.5).
 
     ``WaveletOperator(data, J, L)`` builds the static part and, on the backend of ``data`` in
     the default dtype, the arrays. ``STOperator`` holds the two apart, in its plan and its
@@ -543,11 +576,13 @@ class WaveletOperator:
         An example of the data: its geometry, spatial shape, ``pbc``, mask and backend fix the
         operator; its values are not read.
     J:
-        The number of scales; by default ⌊log₂ min N⌋ - 2 (M-DEF, M-DEF-1D).
+        The number of scales; by default ⌊log₂ min N⌋ - 2 (M-DEF, M-DEF-1D), max(1, depth - 1)
+        on HEALPix (M-DEF-HPX).
     L:
-        The number of orientations; by default 4 in 2D and 1 in 1D.
+        The number of orientations; by default 4 in 2D, 1 in 1D, 4 gauges on HEALPix.
     wavelet:
-        ``"bump_steerable"``, the only wavelets of 1.0.0.
+        ``None``, the wavelet of the geometry: the bump-steerable wavelets of planar data, the
+        kernel of M-WAV-HPX on HEALPix.
     """
 
     __slots__ = ("_data", "_filters", "_plan")
@@ -561,12 +596,12 @@ class WaveletOperator:
         data: Data,
         J: int | None = None,  # noqa: N803 (maths.md notation)
         L: int | None = None,  # noqa: N803
-        wavelet: str = "bump_steerable",
+        wavelet: str | None = None,
         *,
         kernel_size: int = KERNEL_SIZE,
     ) -> None:
         plan = build_wavelet_plan(data, J, L, wavelet, kernel_size=kernel_size)
-        filters = build_wavelet_filters(plan, data.backend, default_dtype(), default_device())
+        filters = plan._build_filters(data.backend, default_dtype(), default_device())
         self._bind(data, plan, filters)
 
     def _bind(self, data: Data, plan: WaveletPlan, filters: WaveletFilters | None) -> None:
@@ -694,7 +729,7 @@ class WaveletOperator:
         lead, spatial = self._split(x, level, "apply")
         xp = _registry.backend_named(self._data.backend).xp
         flat = xp.reshape(x, (lead[0], -1, *spatial))
-        out = self._data._conv(flat, filters.kernels, level)
+        out = self._data._conv(flat, filters._conv_tables(level), level)
         return xp.reshape(out, (lead[0], plan.L, *lead[1:], *spatial))
 
     def downsample(self, x: Any, level: int, history: History = ()) -> Any:
@@ -719,7 +754,7 @@ class WaveletOperator:
         valid, reweight = (None, None) if maps is None else maps
         xp = _registry.backend_named(self._data.backend).xp
         flat = xp.reshape(x, (lead[0], -1, *spatial))
-        weights = DownsampleWeights(filters.smoothing, valid, reweight)
+        weights = DownsampleWeights(filters._down_tables(level), valid, reweight)
         out = self._data._downsample(flat, weights, level)
         return xp.reshape(out, (*lead, *tuple(out.shape[2:])))
 
@@ -728,7 +763,7 @@ class WaveletOperator:
             raise ValueError(
                 f"WaveletOperator.{function}: this operator holds its static part only. Bind "
                 "the arrays too: WaveletOperator.from_parts(data, plan, filters), with "
-                "filters = build_wavelet_filters(plan, backend, dtype, device)."
+                "filters = plan._build_filters(backend, dtype, device)."
             )
         return self._filters
 

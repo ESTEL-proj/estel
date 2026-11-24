@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data1D, Data2D, DataTensorProd
+from estel import Data1D, Data2D, DataHealpix, DataTensorProd
 from estel.backend._protocol import Backend
 from estel.data._moments import modulus
 from estel.wavelets._operator import WaveletOperator
@@ -125,6 +125,56 @@ def test_jvp_and_hvp_of_the_tensor_product_operator_match_finite_differences(
     Slow: second-order derivatives belong to the full tier (AGENTS.md, golden rule 13; the
     decisions of the maintainer on issue #22)."""
     x, function = _tensor_prod_layers(backend)
+    v = direction_like(backend, x, seed=1)
+    _, tangent = backend.jvp(function, (x,), (v,))
+    np.testing.assert_allclose(
+        backend.to_numpy(tangent),
+        _central_difference(backend, function, x, v),
+        rtol=RTOL,
+        atol=ATOL,
+    )
+    weights = direction_like(backend, function(x), seed=2)
+
+    def scalar(array: Any) -> Any:
+        return backend.xp.sum(weights * function(array))
+
+    def gradient(array: Any) -> Any:
+        return backend.value_and_grad(scalar)(array)[1]
+
+    hessian_vector = backend.to_numpy(backend.hvp(scalar, x, v))
+    assert np.abs(hessian_vector).max() > 1e-3  # the modulus: a second order that is not zero
+    np.testing.assert_allclose(
+        hessian_vector, _central_difference(backend, gradient, x, v), rtol=RTOL, atol=ATOL
+    )
+
+
+def _healpix_layers(backend: Backend) -> tuple[Any, Callable[[Any], Any]]:
+    """Two layers of the pyramid of a HEALPix field, ``nside`` 4 with one missing pixel, the
+    smallest map whose first layer keeps valid pixels through a masked decimation (at ``nside``
+    2 the stencil covers most of the sphere, and one missing pixel invalidates the whole first
+    layer): ψ ⋆ D(|ψ ⋆ x|) and D(x), as :func:`_two_layers` (maths.md M-CONV-HPX, M-DOWN-HPX,
+    M-MASK-HPX; task T5.5)."""
+    mask = np.zeros(192, dtype=bool)
+    mask[70] = True
+    field = np.random.default_rng(0).standard_normal((1, 2, 192)) + 0.2
+    data = DataHealpix(field, mask=mask)
+    operator = WaveletOperator(data, 2)
+    xp = backend.xp
+
+    def function(x: Any) -> Any:
+        u = operator.downsample(modulus(operator.apply(x, 0)), 0, history=(0,))
+        v = backend.complex_to_real_pairs(operator.apply(u, 1))
+        return xp.concat([xp.reshape(v, (-1,)), xp.reshape(operator.downsample(x, 0), (-1,))])
+
+    return data.array, function
+
+
+@pytest.mark.maths("M-CONV-HPX", "M-DOWN-HPX", "M-MASK-HPX")
+def test_jvp_and_hvp_of_the_healpix_operator_match_finite_differences(backend: Backend) -> None:
+    """The hooks of ``DataHealpix`` (``gather_weighted``, ``segment_sum``), through its wavelet
+    operator, differentiated to second order, as for the planar operator (issue #166,
+    decision 5)."""
+    x, function = _healpix_layers(backend)
     v = direction_like(backend, x, seed=1)
     _, tangent = backend.jvp(function, (x,), (v,))
     np.testing.assert_allclose(
