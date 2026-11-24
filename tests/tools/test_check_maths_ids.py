@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
 import pytest
 
-from .conftest import REPO, run_tool, write
+from .conftest import REPO, TOOLS, run_tool, write
 
 MATHS = """# maths
 ## 1. Planar
@@ -46,11 +47,13 @@ GOOD = {
 }
 
 
-# Section 4 and M-PS-2D are listed in the tool as not yet implemented (issues #18 and #126);
-# section 5 has no oracle by decision (Part IV, §22, "No oracle for the syntheses"): its IDs
-# need a test and no _spec function.
+# Section 4 is listed in the tool as not yet implemented (issues #18 and #126); section 5 has
+# no oracle by decision (Part IV, §22, "No oracle for the syntheses"): its IDs need a test and no
+# _spec function. The tool lists no single ID since M-PS-2D got its oracle (issue #149): the
+# tests of that list give it one entry, PENDING_ID, in the tool's own process.
 PENDING = """### 1.9 Power spectrum — M-PS-2D
 """
+PENDING_ID = {"M-PS-2D": "T4.1"}
 PENDING_SECTIONS = """## 4. HEALPix
 ### 4.0 Data — M-DATA-HPX
 """
@@ -60,7 +63,7 @@ NO_ORACLE = """## 5. Syntheses
 MARKED = 'import pytest\npytestmark = pytest.mark.maths("{}")\n'
 COMPLETE = {
     **GOOD,
-    "docs/maths.md": MATHS + PENDING + PENDING_SECTIONS + NO_ORACLE,
+    "docs/maths.md": MATHS + PENDING_SECTIONS + NO_ORACLE,
     "tests/synthesis/test_target.py": MARKED.format("M-SYN-TARGET"),
 }
 
@@ -68,6 +71,19 @@ COMPLETE = {
 def check(root: Path) -> tuple[int, str]:
     result = run_tool("check_maths_ids.py", "--root", str(root))
     return result.returncode, result.stderr
+
+
+def check_with_listed_id(root: Path, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """The errors of the tool on ``root``, run in this process with ``PENDING_ID`` as its list of
+    single IDs not yet implemented."""
+    spec = importlib.util.spec_from_file_location("check_maths_ids", TOOLS / "check_maths_ids.py")
+    assert spec is not None
+    assert spec.loader is not None
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    monkeypatch.setattr(tool, "NOT_YET_IMPLEMENTED_IDS", PENDING_ID)
+    errors: list[str] = tool.check(root)
+    return errors
 
 
 def test_repository_passes() -> None:
@@ -162,19 +178,14 @@ def test_oracle_function_of_a_section_without_oracle_fails(tmp_path: Path) -> No
     ("change", "message"),
     [
         pytest.param(
-            {"docs/maths.md": MATHS + PENDING + NO_ORACLE},
+            {"docs/maths.md": MATHS + NO_ORACLE},
             "lists section 4 (T5.1), but no ID",
             id="section-without-id",
         ),
         pytest.param(
-            {"docs/maths.md": MATHS + PENDING + PENDING_SECTIONS},
+            {"docs/maths.md": MATHS + PENDING_SECTIONS},
             "SECTIONS_WITHOUT_ORACLE lists section 5",
             id="section-without-oracle-without-id",
-        ),
-        pytest.param(
-            {"docs/maths.md": MATHS + PENDING_SECTIONS + NO_ORACLE},
-            "lists M-PS-2D (T4.1), which docs/maths.md does not define",
-            id="listed-id-not-defined",
         ),
         pytest.param(
             {
@@ -184,14 +195,6 @@ def test_oracle_function_of_a_section_without_oracle_fails(tmp_path: Path) -> No
             "lists section 4 (T5.1), but every ID of that section has an oracle function",
             id="section-implemented",
         ),
-        pytest.param(
-            {
-                "src/estel/_spec/ps.py": 'def spec_ps(x):\n    """Implements M-PS-2D."""\n',
-                "tests/spec/test_ps.py": MARKED.format("M-PS-2D"),
-            },
-            "lists M-PS-2D (T4.1), which has an oracle function and a test",
-            id="listed-id-implemented",
-        ),
     ],
 )
 def test_stale_list_entry_fails(tmp_path: Path, change: dict[str, str], message: str) -> None:
@@ -200,3 +203,39 @@ def test_stale_list_entry_fails(tmp_path: Path, change: dict[str, str], message:
     code, err = check(tmp_path)
     assert code == 1
     assert message in err
+
+
+def test_listed_id_needs_no_oracle_and_no_test(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An ID of ``NOT_YET_IMPLEMENTED_IDS`` is accepted without an oracle function or a test."""
+    write(tmp_path, {**COMPLETE, "docs/maths.md": COMPLETE["docs/maths.md"] + PENDING})
+    assert check_with_listed_id(tmp_path, monkeypatch) == []
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        pytest.param(
+            {},
+            "lists M-PS-2D (T4.1), which docs/maths.md does not define",
+            id="listed-id-not-defined",
+        ),
+        pytest.param(
+            {
+                "docs/maths.md": COMPLETE["docs/maths.md"] + PENDING,
+                "src/estel/_spec/ps.py": 'def spec_ps(x):\n    """Implements M-PS-2D."""\n',
+                "tests/spec/test_ps.py": MARKED.format("M-PS-2D"),
+            },
+            "lists M-PS-2D (T4.1), which has an oracle function and a test",
+            id="listed-id-implemented",
+        ),
+    ],
+)
+def test_stale_listed_id_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: dict[str, str], message: str
+) -> None:
+    """An entry of ``NOT_YET_IMPLEMENTED_IDS`` that names nothing, or is no longer needed, must
+    be removed."""
+    write(tmp_path, {**COMPLETE, **change})
+    assert any(message in error for error in check_with_listed_id(tmp_path, monkeypatch))
