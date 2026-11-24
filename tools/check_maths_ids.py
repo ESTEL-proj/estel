@@ -41,7 +41,7 @@ TESTS = Path("tests")
 # What the coverage step accepts as not yet implemented, with the task that implements it and
 # removes the entry (decision of the maintainer on issue #18).
 NOT_YET_IMPLEMENTED_SECTIONS = {
-    "4": "T5.1",  # HEALPix
+    "4": "T5.4",  # HEALPix
 }
 # Sections without an oracle by decision, with the decision: their IDs need a test and no
 # _spec function.
