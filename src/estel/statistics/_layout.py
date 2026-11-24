@@ -2,7 +2,8 @@
 of the compact layout" and "The compact layout stored by chunks"; tasks T2.15, T3.7).
 
 The statistics are stored in one real buffer ``(Nb, n_floats)``: every coefficient STL computes,
-and only those, each real entry as one float (mean, var, the auto S1 and S2, the diagonal of S4),
+and only those, each real entry as one float (mean, var, the auto S1 and S2, the diagonal of S4,
+every entry of PS),
 each complex entry as two consecutive floats, (re, im). STL's conjugate duplicates are kept
 (Part III, §19.8, option a). Nothing is NaN: absent coefficients are not stored.
 

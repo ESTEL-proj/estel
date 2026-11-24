@@ -13,6 +13,7 @@ are compared with the fixture, in float64, with the tolerances of Part II, §14.
 
 from __future__ import annotations
 
+import dataclasses
 import warnings
 from functools import cache
 from pathlib import Path
@@ -22,13 +23,14 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data2D, STOperator, STStatistics
+from estel import Data2D, STOperator, STStatistics, _config
 from estel._spec import planar as spec
 from estel.backend import _registry
 from estel.io import _schema
 from estel.scattering._plan import PlanarPlan, build_plan
 from estel.statistics import _grid, _layout, _normalization, _statistics
 from estel.statistics._arrays import constant
+from estel.statistics._normalization import SpectrumParameters
 from estel.statistics._statistics import statistics_of
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 from tests.statistics.test_layout import _static_elements
@@ -124,9 +126,8 @@ def test_positions_equal_the_fixture(name: str) -> None:
     layout = _layout.base_layout(plan)
     grids = _raw(name, "field")
     stats = statistics_of(_buffer(layout, grids), plan)
-    for family in FAMILIES:
+    for family in FAMILIES:  # PS: the fixture's <config>_raw_PS (_raw)
         assert_parity(_numpy(stats.full_grid(family)), grids[family])
-    assert_parity(_numpy(stats.full_grid("PS")), _arrays()[f"{name}_raw_PS"])
     last = layout.segments[-1]
     assert (last.family, last.level, last.index_names) == ("PS", (0,), ("c1", "c2", "bin"))
     assert layout.span("PS")[1] == layout.n_floats
@@ -208,6 +209,7 @@ def test_select_by_channel_pair_returns_the_spectrum_too() -> None:
     np.testing.assert_array_equal(_numpy(one.full_grid("PS")), grids["PS"][:, 1, 1, 2])
 
     assert [g.name for g in stats.select(j3=1)._grids] == ["S3", "S4"]
+    assert [g.name for g in stats.select(l=2)._grids] == ["S1", "S2"]
     with pytest.raises(ValueError, match=r"valid axis names: bin, c1, c2"):
         stats.select("PS", j=0)
 
@@ -244,7 +246,8 @@ def test_save_and_load_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     assert stats._reference is not None
     assert loaded._reference.spectrum is not None
     assert stats._reference.spectrum is not None
-    assert loaded._reference.spectrum.bins == stats._reference.spectrum.bins == (5, 3, 1)
+    expected = SpectrumParameters(n_bins=5, J=3, Jmin=1)
+    assert loaded._reference.spectrum.parameters == stats._reference.spectrum.parameters == expected
     np.testing.assert_array_equal(
         _numpy(loaded._reference.ps_sqrt), _numpy(stats._reference.ps_sqrt)
     )
@@ -287,22 +290,103 @@ def test_reference_of_another_operator() -> None:
         _with_reference(without)
 
 
+def test_reference_with_the_spectrum_on_statistics_without_it() -> None:
+    """A reference that holds the spectrum is accepted for statistics without it, its σᴾˢ
+    ignored, as STL ignores ``PS_ref`` without ``compute_PS`` (decision of the maintainer on
+    #157): the result equals that of the same reference stripped of its spectrum."""
+    reference = _periodic()._reference
+    assert reference is not None
+    assert reference.spectrum is not None
+    stripped = dataclasses.replace(reference, sigma_ps=None, spectrum=None)
+    rng = np.random.default_rng(8)
+    data = Data2D(rng.standard_normal((2, 2, 32, 32)), pbc=True)
+    plan = build_plan(data, 3, 4, norm="ref")
+    assert plan.spectrum is None
+    buffer = _registry.current_backend().asarray(
+        rng.random((2, _layout.base_layout(plan).n_floats)) + 0.5, "float64", None
+    )
+    found = statistics_of(buffer, plan, reference)
+    assert "PS" not in found._layout.names
+    np.testing.assert_array_equal(
+        _numpy(found.to_vector()), _numpy(statistics_of(buffer, plan, stripped).to_vector())
+    )
+
+
+def test_gradients_through_the_spectrum_reference() -> None:
+    """Gradients through σᴾˢ follow M-NORM (OP-18, LF21): with ``norm="self"`` they flow through
+    the reference, with ``norm="ref"`` it is a constant. The loss is the sum of the normalised
+    cross spectrum PS[0, 1, b] / (σᴾˢ_0(b) σᴾˢ_1(b)), on a raw buffer x without the operator; its
+    gradient with respect to the auto spectrum x₀₀(b) is -x₀₁ / (2 x₀₀ √(x₀₀ x₁₁)) when the
+    reference is that of x (``norm="self"``), and 0 when the reference, computed from x too, is
+    passed with ``norm="ref"``."""
+    backend = _registry.current_backend()
+    xp = backend.xp
+    rng = np.random.default_rng(9)
+    data = Data2D(rng.standard_normal((1, 2, 32, 32)), pbc=True)
+    plans = {norm: build_plan(data, 3, 4, norm=norm, compute_PS=True) for norm in ("self", "ref")}
+    layout = _layout.base_layout(plans["self"])
+    n_bins = layout.grid("PS").n_orientations
+    starts = layout.chunk_starts("PS")  # the pairs (0, 0), (0, 1), (1, 1)
+    auto_0, cross, auto_1 = (int(a) + np.arange(n_bins) for a in starts)
+    x = rng.random((1, layout.n_floats)) + 0.5
+
+    def loss(buffer: Any, norm: str) -> Any:
+        stats = statistics_of(buffer, plans["self"])
+        if norm == "ref":
+            stats = statistics_of(buffer, plans["ref"], stats._reference)
+        return xp.sum(stats.select("PS", channel=(0, 1)).to_vector())
+
+    grads = {
+        norm: _numpy(
+            backend.value_and_grad(lambda b, n=norm: loss(b, n))(
+                backend.asarray(x, "float64", None)
+            )[1]
+        )
+        for norm in ("self", "ref")
+    }
+    root = np.sqrt(x[0, auto_0] * x[0, auto_1])
+    np.testing.assert_allclose(
+        grads["self"][0, auto_0], -x[0, cross] / (2 * x[0, auto_0] * root), rtol=1e-12
+    )
+    np.testing.assert_allclose(grads["self"][0, cross], 1 / root, rtol=1e-12)
+    np.testing.assert_array_equal(grads["ref"][0, auto_0], 0)
+    np.testing.assert_array_equal(grads["ref"][0, auto_1], 0)
+    np.testing.assert_allclose(grads["ref"][0, cross], 1 / root, rtol=1e-12)
+
+
+def test_the_loop_refuses_a_plan_with_the_spectrum(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Until the spectrum operator (T4.1), statistics with the spectrum are read, saved and
+    loaded, not recomputed: an operator rebuilt from them raises a clear error before its loop,
+    rather than an ``IndexError`` or silent NaN."""
+    monkeypatch.setattr(_config, "_dtype", "float64")  # the dtype of the statistics
+    stats = _periodic()
+    operator = STOperator.from_statistics(stats)
+    data = Data2D(_arrays()["periodic_field"], pbc=True)
+    with pytest.raises(NotImplementedError, match=r"task T4\.1.*compute_PS=False"):
+        operator.apply(data)
+
+
 @pytest.mark.parametrize(
-    ("shape", "options", "match"),
+    ("shape", "options", "error", "match"),
     [
-        pytest.param((32, 32), {"Jmin": 2}, r"0 ≤ Jmin ≤ J - 2.*compute_PS=False", id="Jmin"),
+        pytest.param(
+            (32, 32), {"Jmin": 2}, ValueError, r"0 ≤ Jmin ≤ J - 2.*compute_PS=False", id="Jmin"
+        ),
         # J = 1, so that the scattering statistics take the odd size (M-DATA-2D).
-        pytest.param((32, 31), {"J": 1}, r"even sizes.*OP-20", id="odd"),
-        pytest.param((32, 32), {"n_bins": 0}, r"n_bins=0: pass a positive integer", id="bins"),
+        pytest.param((32, 31), {"J": 1}, ValueError, r"even sizes.*OP-20", id="odd"),
+        pytest.param((32, 32), {"n_bins": 0}, ValueError, r"n_bins=0: pass a positive", id="bins"),
+        pytest.param((32, 32), {"n_bins": 4.0}, TypeError, r"n_bins=4\.0: pass", id="bins-type"),
+        pytest.param((32, 32), {"Jmin": 0.5}, TypeError, r"Jmin=0\.5: pass", id="Jmin-type"),
     ],
 )
 def test_plan_refuses_a_spectrum_it_cannot_compute(
-    shape: tuple[int, int], options: dict[str, Any], match: str
+    shape: tuple[int, int], options: dict[str, Any], error: type[Exception], match: str
 ) -> None:
     """The plan refuses the spectrum with J_min outside 0 … J_PS - 2 (OP-93), on an odd size
-    (OP-20) and with a number of bins that is not positive, with what to do (maths.md §1.9)."""
+    (OP-20) and with a number of bins that is not positive, with what to do (maths.md §1.9): a
+    ``TypeError`` when ``n_bins`` or ``Jmin`` is not an integer, a ``ValueError`` otherwise."""
     data = Data2D(np.zeros((1, 1, *shape)), pbc=True)
-    with pytest.raises(ValueError, match=match):
+    with pytest.raises(error, match=match):
         build_plan(data, L=4, compute_PS=True, **options)
     with pytest.raises(ValueError, match="act only on the power spectrum"):
         build_plan(Data2D(np.zeros((1, 1, 32, 32)), pbc=True), None, 4, n_bins=5)
@@ -313,16 +397,18 @@ def test_spectrum_tables_grow_with_the_chunks(monkeypatch: pytest.MonkeyPatch) -
     layout, the floats of σᴾˢ, the rows of its normalisation) hold fewer elements than its
     coefficients, and the maps that read it (``to_vector``, ``select``, ``reduce``) make no
     constant that large: one row per channel pair, never a table per coefficient or the size of
-    its full grid. Three channels and 24 bins: 144 coefficients, a full grid of 216."""
+    its full grid. Three channels and 96 bins, so that the spectrum outweighs the tables of the
+    other families: 576 coefficients, a full grid of 864. The constants are recorded from the
+    normalisation (``norm="self"``) on."""
     rng = np.random.default_rng(7)
     data = Data2D(rng.standard_normal((1, 3, 32, 32)), pbc=True)
-    plan = build_plan(data, 3, 4, norm="self", compute_PS=True, n_bins=24)
+    plan = build_plan(data, 3, 4, norm="self", compute_PS=True, n_bins=96)
     layout = _layout.base_layout(plan)
     grid = layout.grid("PS")
     n_coefficients = grid.n_chunks * grid.n_orientations
-    assert (n_coefficients, int(np.prod(grid.shape))) == (144, 216)
+    assert (n_coefficients, int(np.prod(grid.shape))) == (576, 864)
     present = _grid.auto_scales(plan)
-    spectrum = _normalization.spectrum_reference_of(plan.spectrum, 3).present.tobytes()
+    spectrum = _normalization.spectrum_reference_of(plan.spectrum, plan.pairs).present.tobytes()
     tables = _normalization._norm_tables(
         layout, present.shape, present.tobytes(), plan.L, None, spectrum
     )
@@ -332,8 +418,6 @@ def test_spectrum_tables_grow_with_the_chunks(monkeypatch: pytest.MonkeyPatch) -
     buffer = _registry.current_backend().asarray(
         rng.random((1, layout.n_floats)) + 0.5, "float64", None
     )
-    stats = statistics_of(buffer, plan)
-    reduced = stats.reduce(iso=True)
     sizes: list[int] = []
 
     def recording(backend: Any, array: Any, like: Any, dtype: Any = None) -> Any:
@@ -342,8 +426,11 @@ def test_spectrum_tables_grow_with_the_chunks(monkeypatch: pytest.MonkeyPatch) -
 
     for module in (_layout, _normalization, _statistics):
         monkeypatch.setattr(module, "constant", recording)
+    stats = statistics_of(buffer, plan)
+    stats.to_vector()
     stats.select("PS").to_vector()
     stats.select("PS", bin=[5, 2], c1=[2, 0]).to_vector()
-    reduced.select("PS")._to_complex_vector()
+    stats.select(channel=(0, 1)).to_vector()
+    stats.reduce(iso=True).select("PS")._to_complex_vector()
     assert sizes
     assert max(sizes) < n_coefficients

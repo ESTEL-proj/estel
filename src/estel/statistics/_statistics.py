@@ -47,6 +47,7 @@ from ._arrays import constant, dtype_name
 from ._grid import REAL_PART_ONLY, FamilyGrid
 from ._layout import Chunked, Copy, FamilyChunks, Layout, Pack, Take, Unpack
 from ._normalization import (
+    SpectrumParameters,
     SpectrumReference,
     TensorProdBlocks,
     _NormReference,
@@ -523,8 +524,8 @@ class STStatistics:
             if ref.spectrum is not None:
                 arrays = {
                     **arrays,
-                    "reference__ps": np.asarray(backend.to_numpy(ref.ps)),
-                    "reference__ps_present": np.asarray(ref.spectrum.present),
+                    "reference__sigma_ps": np.asarray(backend.to_numpy(ref.sigma_ps)),
+                    "reference__sigma_ps_present": np.asarray(ref.spectrum.present),
                 }
         if self._standardization is not None:
             mean, std = self._standardization
@@ -555,7 +556,7 @@ class STStatistics:
                 **(
                     {}
                     if self._reference.spectrum is None
-                    else {"spectrum_bins": list(self._reference.spectrum.bins)}
+                    else {"spectrum": {"parameters": self._reference.spectrum.parameters._asdict()}}
                 ),
             },
         }
@@ -569,7 +570,7 @@ class STStatistics:
             if reference is None
             # σᴾˢ only with the power spectrum: without it the leaves are those of before T4.4.
             else (reference.var, reference.sigma)
-            + (() if reference.ps is None else (reference.ps,)),
+            + (() if reference.sigma_ps is None else (reference.sigma_ps,)),
             self._standardization,
         )
         aux = (
@@ -973,11 +974,6 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
                     else {"n_bins": spectrum["n_bins"], "Jmin": spectrum["Jmin"]}
                 ),
             )
-        if spectrum is not None and plan.spectrum is not None and spectrum["J"] != plan.spectrum.J:
-            raise ValueError(
-                f"the file has a power spectrum with J = {spectrum['J']}, but its plan now gives "
-                f"{plan.spectrum.J} (maths.md §1.9): recompute the statistics."
-            )
         if plan.nan_threshold != spec["nan_threshold"]:
             raise ValueError(
                 f"the file was computed with a NaN threshold {spec['nan_threshold']}, but "
@@ -1000,13 +996,13 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
         present = arrays["reference__present"].astype(bool)
         present.flags.writeable = False
         blocks = content["reference"].get("blocks")
-        bins = content["reference"].get("spectrum_bins")
+        stored = content["reference"].get("spectrum")
         spectrum = None
-        if bins is not None:
-            channels = arrays["reference__ps_present"].astype(bool)
+        if stored is not None:
+            channels = arrays["reference__sigma_ps_present"].astype(bool)
             channels.flags.writeable = False
-            a, b, c = (int(n) for n in bins)
-            spectrum = SpectrumReference(channels, (a, b, c))
+            parameters = SpectrumParameters(**{k: int(v) for k, v in stored["parameters"].items()})
+            spectrum = SpectrumReference(channels, parameters)
         reference = _NormReference(
             var=to_backend(arrays["reference__var"]),
             sigma=to_backend(arrays["reference__sigma"]),
@@ -1021,7 +1017,7 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
                 L=tuple(int(n) for n in blocks["L"]),
                 lowpass=tuple(bool(f) for f in blocks["lowpass"]),
             ),
-            ps=None if spectrum is None else to_backend(arrays["reference__ps"]),
+            sigma_ps=None if spectrum is None else to_backend(arrays["reference__sigma_ps"]),
             spectrum=spectrum,
         )
     standardization = None

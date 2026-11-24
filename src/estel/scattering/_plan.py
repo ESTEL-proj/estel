@@ -177,8 +177,10 @@ def channel_pairs(matrix: NDArray[np.bool_]) -> ChannelPairs:
 @dataclass(frozen=True)
 class SpectrumPlan:
     """The static description of the 2D power spectrum in the statistics (maths.md §1.9,
-    "Range", "Number of bins", "Channel pairs and layout"; task T4.4): whether they hold it, how
-    many bins, J_PS and J_min, and its channel pairs. Hashable. The bins, their windows and the
+    "Range", "Number of bins"; task T4.4): how many bins, J_PS and J_min. Hashable. Its channel
+    pairs are those of the plan (``PlanarPlan.pairs``): the pairs c1 ≤ c2 of S1 and S2, one
+    matrix for the scattering statistics and the spectrum (M-CHAN; decision on #148); σᴾˢ
+    exists for the channels of ``pairs.auto`` (M-NORM, OP-30). The bins, their windows and the
     borders of the estimators are not here: they come with the spectrum operator (task T4.1)."""
 
     n_bins: int
@@ -188,13 +190,6 @@ class SpectrumPlan:
     scattering statistics (M-DEF)."""
     Jmin: int
     """J_min, with 0 ≤ J_min ≤ J_PS - 2 (OP-93)."""
-    pairs: tuple[ChannelPair, ...]
-    """The pairs ``(c1, c2)``, c1 ≤ c2, of ``cross_matrix``, in row-major order: those of S1 and
-    S2 (M-CHAN; one matrix for the scattering statistics and the spectrum, decision on #148).
-    ``[c2, c1]`` stays NaN."""
-    auto: tuple[int, ...]
-    """The channels with an auto spectrum: the True diagonal entries of ``cross_matrix``. The
-    normalisation scale σᴾˢ_c(b) exists for these only (M-NORM, OP-30)."""
 
     def content(self) -> dict[str, int]:
         """The parameters of the spectrum for ``estel.io``."""
@@ -207,13 +202,13 @@ def build_spectrum_plan(
     J: int | None,  # noqa: N803 (maths.md notation)
     n_bins: Any,
     Jmin: Any,  # noqa: N803 (STL's name)
-    pairs: ChannelPairs,
 ) -> SpectrumPlan:
     """The :class:`SpectrumPlan` of 2D data of ``spatial_shape`` (maths.md §1.9): J_PS is ``J``,
     the J given to the operator, or ⌊log₂ N_max⌋ - 1 with N_max = ⌊min(N₁, N₂)/2⌋ when it is
     ``None``. Raises a clear error on data that are not 2D (LF23), on an odd size (OP-20), when
     J_min is not between 0 and J_PS - 2 (OP-93), and on a number of bins that is not a positive
-    integer."""
+    integer: a ``TypeError`` when ``Jmin`` or ``n_bins`` is not an integer, a ``ValueError``
+    when it is out of range."""
     if ndim != 2 or len(spatial_shape) != 2:
         raise ValueError(
             f"the power spectrum is computed on 2D data only in ESTEL 1.0.0, and these data "
@@ -234,22 +229,19 @@ def build_spectrum_plan(
             "§1.9, OP-93). Pass compute_PS=False, a smaller Jmin, or use a larger image (a "
             "larger J)."
         )
+    advice = (
+        "pass a positive integer, or None for max(4, round(3 (J - 1 - Jmin))) bins, about three "
+        "per octave (maths.md §1.9)."
+    )
     if n_bins is None:
         found = max(4, round(3 * (j_ps - 1 - int(Jmin))))
-    elif isinstance(n_bins, bool) or not isinstance(n_bins, int | np.integer) or n_bins < 1:
-        raise ValueError(
-            f"n_bins={n_bins!r}: pass a positive integer, or None for max(4, round(3 (J - 1 - "
-            "Jmin))) bins, about three per octave (maths.md §1.9)."
-        )
+    elif isinstance(n_bins, bool) or not isinstance(n_bins, int | np.integer):
+        raise TypeError(f"n_bins={n_bins!r}: {advice}")
+    elif n_bins < 1:
+        raise ValueError(f"n_bins={n_bins!r}: {advice}")
     else:
         found = int(n_bins)
-    return SpectrumPlan(
-        n_bins=found,
-        J=j_ps,
-        Jmin=int(Jmin),
-        pairs=tuple(sorted({(c, c) for c in pairs.auto} | set(pairs.cross))),
-        auto=pairs.auto,
-    )
+    return SpectrumPlan(n_bins=found, J=j_ps, Jmin=int(Jmin))
 
 
 @dataclass(frozen=True, eq=False)
@@ -465,6 +457,13 @@ class PlanarPlan(_PlanFields, STPlan):
         return build_filters(self, backend_name, dtype, device)
 
     def _values(self, data: Data, filters: STFilters) -> ScatteringValues:
+        if self.spectrum is not None:
+            raise NotImplementedError(
+                "this plan holds the 2D power spectrum, which no operator computes yet: the "
+                "spectrum operator comes with task T4.1 (maths.md §1.9). Statistics with the "
+                "spectrum can be read, saved and loaded, not recomputed; build the operator "
+                "with compute_PS=False to compute the scattering statistics."
+            )
         return scattering_values(data, self, cast(PlanarFilters, filters))  # by _check_data
 
     def _layout(self) -> Layout:
@@ -483,7 +482,7 @@ class PlanarPlan(_PlanFields, STPlan):
             self.ref_batch_mean,
             spectrum=None
             if self.spectrum is None
-            else spectrum_reference_of(self.spectrum, self.n_channels),
+            else spectrum_reference_of(self.spectrum, self.pairs),
         )
 
     def _content(self) -> tuple[dict[str, Any], dict[str, NDArray[Any]]]:
@@ -551,7 +550,7 @@ def build_plan(
     matrix = _cross_matrix(cross_matrix, data.n_channels)
     _check_options(norm, ref_batch_mean, standardize)
     pairs = channel_pairs(matrix)
-    spectrum = _spectrum(wavelets, J, compute_PS, n_bins, Jmin, pairs)
+    spectrum = _spectrum(wavelets, J, compute_PS, n_bins, Jmin)
     levels = wavelets.levels
     scale_levels = wavelets.scale_levels
     scales = tuple(range(wavelets.J))
@@ -643,7 +642,6 @@ def _spectrum(
     compute_ps: object,
     n_bins: object,
     jmin: object,
-    pairs: ChannelPairs,
 ) -> SpectrumPlan | None:
     """The :class:`SpectrumPlan` of :func:`build_plan`, or ``None`` without ``compute_PS``, whose
     options must then keep their defaults (decision on #148)."""
@@ -661,7 +659,7 @@ def _spectrum(
                 "compute_PS=True; leave them to their defaults otherwise (maths.md §1.9)."
             )
         return None
-    return build_spectrum_plan(wavelets.spatial_shape, wavelets.ndim, J, n_bins, jmin, pairs)
+    return build_spectrum_plan(wavelets.spatial_shape, wavelets.ndim, J, n_bins, jmin)
 
 
 # ---------------------------------------------------------------------- tensor products

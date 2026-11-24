@@ -46,7 +46,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 if TYPE_CHECKING:
-    from ..scattering._plan import PlanarPlan, SpectrumPlan, TensorProdPlan
+    from ..scattering._plan import PlanarPlan, TensorProdPlan
 
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4", "PS")
 """The families of ESTEL 1.0.0, in STL's order (``to_flatten``, M-FLAT): PS last, held only when
@@ -391,7 +391,8 @@ def base_grids(plan: PlanarPlan) -> tuple[FamilyGrid, ...]:
 
     channels = np.ones(nc, dtype=bool)
     s12 = first[:, :, None] & scales
-    spectrum = () if plan.spectrum is None else (spectrum_grid(plan.spectrum, nc),)
+    # The spectrum has the channel pairs of S1 and S2: one matrix for both (decision on #148).
+    spectrum = () if plan.spectrum is None else (spectrum_grid(plan.spectrum.n_bins, first),)
     return (
         _family("mean", ("c",), channels, (), False, single, np.ones((1, 1), dtype=bool)),
         _family("var", ("c",), channels, (), False, single, np.ones((1, 1), dtype=bool)),
@@ -424,23 +425,19 @@ PS_AXES = ("c1", "c2", "bin")
 the bins is named ``bin``, to be thought again with the notation, W5, #71)."""
 
 
-def spectrum_grid(spectrum: SpectrumPlan, n_channels: int) -> FamilyGrid:
-    """The family ``"PS"`` of the 2D power spectrum (maths.md §1.9, "Channel pairs and layout";
-    M-CHAN): one chunk per channel pair c1 ≤ c2 of ``cross_matrix``, holding the dense array of
-    its n_b bins; one kind, every entry real (one float), as the auto S1 and S2, the full grid
-    complex with an imaginary part 0."""
-    pairs = np.array(
-        [[(c1, c2) in spectrum.pairs for c2 in range(n_channels)] for c1 in range(n_channels)],
-        dtype=bool,
-    ).reshape(n_channels, n_channels)
+def spectrum_grid(n_bins: int, pairs: NDArray[np.bool_]) -> FamilyGrid:
+    """The family ``"PS"`` of the 2D power spectrum with ``n_bins`` bins (maths.md §1.9, "Channel
+    pairs and layout"; M-CHAN): one chunk per True of ``pairs`` ``(Nc, Nc)``, the pairs c1 ≤ c2
+    of ``cross_matrix``, holding the dense array of its bins; one kind, every entry real (one
+    float), as the auto S1 and S2, the full grid complex with an imaginary part 0."""
     return _family(
         "PS",
         PS_AXES,
         pairs,
-        (spectrum.n_bins,),
+        (n_bins,),
         True,
         lambda chunks: np.zeros(chunks.shape[0], dtype=np.int64),
-        np.ones((1, spectrum.n_bins), dtype=bool),
+        np.ones((1, n_bins), dtype=bool),
     )
 
 
