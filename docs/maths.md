@@ -535,7 +535,7 @@ Automatic, when the operator is built, from the example data. `pbc=None` counts 
 
 - **Shape** (Nb, Nc, Nc, n\_b), stored as complex numbers (complex128 in float64) whose imaginary part is exactly 0, as S1 and S2 (M-CHAN).
 - **Pairs.** Only c₁ ≤ c₂ is computed, for the pairs that `cross_matrix` holds; the other entries, (c₂, c₁) included, are NaN. The spectrum is real and symmetric in the two channels: PS\[c₂, c₁\] would equal PS\[c₁, c₂\].
-- **Default pairs.** Inside the scattering operator, the spectrum has the pairs of the scattering statistics (M-CHAN; default: every pair c₁ ≤ c₂). STL's spectrum operator alone defaults to the auto spectra only. In ESTEL, `cross_matrix=None` means every pair c₁ ≤ c₂ on `CrossSpectrumOperator` as on `STOperator`, and inside `STOperator` one matrix selects the pairs of the scattering statistics and of the spectrum alike (decision of the maintainer on #148). **⚠ OP-94**
+- **Default pairs.** Inside the scattering operator, the spectrum has the pairs of the scattering statistics (M-CHAN; default: every pair c₁ ≤ c₂). STL's spectrum operator alone defaults to the auto spectra only. In ESTEL, `cross_matrix=None` means every pair c₁ ≤ c₂ on `SpectrumOperator` as on `STOperator`, and inside `STOperator` one matrix selects the pairs of the scattering statistics and of the spectrum alike (decision of the maintainer on #148). **⚠ OP-94**
 - **Checked:** NaN exactly at c₁ > c₂, auto spectra only by default; the scattering operator's spectrum equals, bit for bit, that of the spectrum operator with the upper triangle, for the four estimators (32 × 32 periodic and not, with and without missing pixels; 32 × 16 non-periodic).
 
 #### In the scattering operator
@@ -553,13 +553,13 @@ Decided by the maintainer on #148 (Part IV, §22). Every option is set at constr
 | Option | ESTEL | Default | STL |
 | --- | --- | --- | --- |
 | number of bins | `n_bins` | `None`: max(4, round(3 (J\_PS − 1 − J\_min))) | `n_bins` |
-| J\_PS | `J` of `CrossSpectrumOperator`; inside `STOperator`, its own J | `None`: ⌊log₂ N\_max⌋ − 1 | `J` |
+| J\_PS | `J` of `SpectrumOperator`; inside `STOperator`, its own J | `None`: ⌊log₂ N\_max⌋ − 1 | `J` |
 | J\_min | `Jmin` | 0, with 0 ≤ J\_min ≤ J\_PS − 2 | `Jmin` |
-| estimator | `method` of `CrossSpectrumOperator`, `spectrum_method` of `STOperator` | `"auto"`: the choice above | `spectrum_method` |
+| estimator | `method` of `SpectrumOperator`, `spectrum_method` of `STOperator` | `"auto"`: the choice above | `spectrum_method` |
 | channel pairs | `cross_matrix` | `None`: every pair c₁ ≤ c₂ (OP-94) | `compute_cross_spectrum_matrix`, default the auto spectra |
 | spectrum in the scattering statistics | `compute_PS` of `STOperator`, at construction only | True for 2D data | `compute_PS`, also in `apply` |
 | reference of `norm="ref"` | `apply(data, ref=…)` | — | `PS_ref_sqrt_chan_diag` |
-| bin centres c\_b | the coordinate of the bin axis of `"PS"` (named in T4.4) | — | `bin_centers`, in cycles per pixel: c\_b / (2 N\_max) |
+| bin centres c\_b | `STStatistics.bin_centers`, the coordinate of the axis `bin` of `"PS"`, in cycles per pixel as STL: c\_b / (2 N\_max) | — | `bin_centers`, in cycles per pixel: c\_b / (2 N\_max) |
 | fraction of the border energy | fixed at 0.60 (OP-21) | — | `energy_fraction` of `estimate_pbc_border_crop` |
 
 Not transferred: the legacy windows (`binning_type="legacy"`), `largest_crop`, the smooth mask (`pbc_mask_type="smooth"`), the per-call overrides; `build_pbc_mask` is internal to the plan; `plot_cross_spectrum` goes with STL's plotting utilities (Part II, §9.3); `device` and `dtype` are those of ESTEL's backend.
@@ -651,7 +651,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-26 | A missing-data mask must be one 2D map, shared by all batch elements and channels; auto-detection fails on batched examples | reproduce, document; LF54 | reproduced |
 | OP-27 | Missing pixels are filled with NaN during downsampling by default, which breaks gradients; ESTEL uses weights, with identical values, verified by parity cases with masks from phase P2 | ESTEL uses weights | differs |
 | OP-93 | STL's scattering operator always builds its spectrum operator, even with `compute_PS=False`, and that operator requires 0 ≤ J\_min ≤ J\_PS − 2: every 2D scattering operator with J = 1 fails at construction (`ValueError`), the default one of an 8 × 8 image included. ESTEL's `STOperator` accepts J = 1 with `compute_PS=False` | decided on #148: ESTEL builds the spectrum only when it computes it, and raises a clear error at construction when `compute_PS=True` and J < 2 + J\_min, saying to pass `compute_PS=False` or to use a larger image; STL gives no value there, so parity is not concerned | differs |
-| OP-94 | The default channel pairs of the spectrum: inside STL's scattering operator, those of the statistics (every pair c₁ ≤ c₂, M-CHAN); STL's spectrum operator alone, the auto spectra only | decided on #148: `cross_matrix=None` means every pair c₁ ≤ c₂ on `CrossSpectrumOperator` as on `STOperator`; the parity cases pass the matrix explicitly | differs |
+| OP-94 | The default channel pairs of the spectrum: inside STL's scattering operator, those of the statistics (every pair c₁ ≤ c₂, M-CHAN); STL's spectrum operator alone, the auto spectra only | decided on #148: `cross_matrix=None` means every pair c₁ ≤ c₂ on `SpectrumOperator` as on `STOperator`; the parity cases pass the matrix explicitly | differs |
 | OP-95 | The legacy windows of the spectrum (§1.9), the Littlewood-Paley windows of STL v1.x, have compact support: when J\_PS is large or J\_min > 0, a bin holds no Fourier mode, Z\_b = 0 and its coefficient is NaN (0 / 0), with a border of 0. Checked: 44 of 229 configurations (16 to 128 pixels, every J\_PS and J\_min), for example 32 × 32 with J\_PS = 5 or 64 × 64 with J\_PS = 6 (one bin each); never at the default J with J\_min = 0 | decided on #148: the legacy windows are not transferred (Part II, §10) | closed |
 | OP-97 | Sizes: the spectrum requires even sizes (OP-20), the scattering loop sizes divisible by 2^(J−1) (OP-8). How to accept sizes as general as possible for every statistic | to take up after 1.0.0 (LF61) | open |
 
