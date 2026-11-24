@@ -19,7 +19,8 @@ so is an entry whose section defines no ID.
 
 **Not yet implemented.** The oracle covers sections 1 (planar 2D) and 2 (1D) of
 ``docs/maths.md`` (task T2.6, issue #18), section 3 (tensor products; task T3.3, issue #126),
-and the 2D power spectrum M-PS-2D (task T4.2, issue #149). ``NOT_YET_IMPLEMENTED_SECTIONS``
+the 2D power spectrum M-PS-2D (task T4.2, issue #149) and section 4 (HEALPix; task T5.4, issue
+#165): both lists are empty. ``NOT_YET_IMPLEMENTED_SECTIONS``
 and ``NOT_YET_IMPLEMENTED_IDS`` list what the coverage step accepts without an oracle function
 or a test, each with the task that implements it; that task removes its own entries. An entry
 that names nothing, or whose IDs all have an oracle function and a test, is an error: remove it.
@@ -40,9 +41,7 @@ SPEC = Path("src/estel/_spec")
 TESTS = Path("tests")
 # What the coverage step accepts as not yet implemented, with the task that implements it and
 # removes the entry (decision of the maintainer on issue #18).
-NOT_YET_IMPLEMENTED_SECTIONS = {
-    "4": "T5.4",  # HEALPix
-}
+NOT_YET_IMPLEMENTED_SECTIONS: dict[str, str] = {}
 # Sections without an oracle by decision, with the decision: their IDs need a test and no
 # _spec function.
 SECTIONS_WITHOUT_ORACLE = {

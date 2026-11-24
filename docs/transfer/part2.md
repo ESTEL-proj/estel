@@ -358,7 +358,7 @@ All utilities take public objects, return values or a matplotlib `Figure`, never
 
 | Function | Tag | Purpose |
 | --- | --- | --- |
-| `spec_wavelets_*`, `spec_scattering(x, J, L, pbc, mask)`, `spec_tensor_prod(...)`, `spec_spectra(...)`, `spec_healpix(...)` | R | Direct sums, explicit loops, float64, no optimisation. Each docstring lists the `M-` IDs it implements. For HEALPix spectra (step 2, LF24), a naive float64 SHT at small sizes, cross-checked against healpy |
+| `spec_wavelets_*`, `spec_scattering(x, J, L, pbc, mask)`, `spec_tensor_prod(...)`, `spec_spectra(...)`; for HEALPix (`healpix.py`), `spec_pixel_centres`, `spec_rings`, `spec_interp_weights`, `spec_stencil`, `spec_gauge_angles`, `spec_rotation`, `spec_stencil_points`, `spec_conv_tables`, `spec_conv_hpx`, `spec_wavelet_hpx`, `spec_support_hpx`, `spec_decimation_hpx`, `spec_reweighting_hpx`, `spec_downsample_hpx`, `spec_levels_hpx`, `spec_masks_hpx`, `spec_scattering_hpx`, `spec_data_hpx`, `spec_defaults_hpx`, `spec_apply_hpx` | R | Direct sums, explicit loops, float64, no optimisation. Each docstring lists the `M-` IDs it implements. For HEALPix spectra (step 2, LF24), a naive float64 SHT at small sizes, cross-checked against healpy |
 
 ## 13. Mathematics extracted from STL, and open points
 
