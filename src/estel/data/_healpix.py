@@ -142,8 +142,9 @@ class DataHealpix(Data):
         given to check it; with ``cell_ids`` it is required (OP-91).
     cell_ids:
         The NESTED indices of the pixels of a partial sky, integers, strictly increasing (OP-90),
-        one per pixel; ``None`` (the default) for the full sky. With ``cell_ids``, ``pbc`` is
-        False, even when they cover the whole sphere.
+        one per pixel; ``None`` (the default) for the full sky. ``cell_ids`` that cover the whole
+        sphere, 12 · 4^depth of them, raise: omit them for a full sky (rule A6). With
+        ``cell_ids``, ``pbc`` is False.
     partition:
         Reserved for step 2 (LF34): ``None`` only.
 
@@ -462,7 +463,8 @@ def _full_sky_depth(n_pix: int, depth: object) -> int:
 
 def _check_cell_ids(cell_ids: Any, depth: int, n_pix: int) -> NDArray[np.int64]:
     """``cell_ids`` as int64: 1D, one per pixel, integers within the pixels of ``depth``,
-    strictly increasing (maths.md OP-90)."""
+    strictly increasing (maths.md OP-90), and fewer than the whole sphere of ``depth``: a full
+    sky is given without ``cell_ids``, one way to say it (rule A6)."""
     ids = np.asarray(cell_ids)
     if ids.ndim != 1 or ids.size != n_pix:
         raise ValueError(
@@ -476,6 +478,12 @@ def _check_cell_ids(cell_ids: Any, depth: int, n_pix: int) -> NDArray[np.int64]:
         )
     ids = ids.astype(np.int64)
     total = 12 * 4**depth
+    if ids.size == total:
+        raise ValueError(
+            f"DataHealpix: cell_ids has {total} entries, the whole sphere at depth {depth} "
+            f"(nside {1 << depth}). A full sky is given without cell_ids: omit cell_ids (and "
+            "depth, which is read from the number of pixels); cell_ids are for a partial sky."
+        )
     if ids.min() < 0 or ids.max() >= total:
         raise ValueError(
             f"DataHealpix: cell_ids holds pixels outside [0, {total}), the pixels of depth "

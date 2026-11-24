@@ -54,8 +54,6 @@ def test_a_partial_sky_has_its_cells_and_no_pbc() -> None:
     assert not data.cell_ids.flags.writeable
     # The levels hold the parents of the pixels above (M-DOWN-HPX).
     assert [data._n_pixels(d) for d in range(3)] == [12, 6, 3]
-    # Cells that cover the whole sphere are still a partial sky (M-DATA-HPX, OP-91).
-    assert DataHealpix(_field(48), depth=1, cell_ids=np.arange(48)).pbc is False
 
 
 def test_pbc_is_read_only() -> None:
@@ -99,6 +97,12 @@ ERRORS: list[Any] = [
     ),
     pytest.param(
         {"array": _field(2), "depth": 1, "cell_ids": [3, 48]}, ValueError, "outside", id="range"
+    ),
+    pytest.param(
+        {"array": _field(48), "depth": 1, "cell_ids": np.arange(48)},
+        ValueError,
+        "omit cell_ids",
+        id="whole-sphere",
     ),
     pytest.param(
         {"array": _field(2), "depth": 1, "cell_ids": [3.0, 4.0]}, TypeError, "integer", id="float"
