@@ -245,8 +245,18 @@ def test_norm_is_checked() -> None:
 
 
 def test_compute_ps() -> None:
-    with pytest.raises(NotImplementedError, match=r"T4.1"):
-        STOperator(Data2D(_field((16, 16)), pbc=True), 2, norm="none")
+    """The spectrum is computed by default on 2D data (task T4.1), and only with it do its
+    options act (decisions on #148)."""
+    data = Data2D(_field((16, 16)), pbc=True)
+    stats = STOperator(data, 2, norm="none").apply(data)
+    assert stats._layout.names[-1] == "PS"
+    plain = STOperator(data, 2, norm="none", compute_PS=False).apply(data)
+    assert "PS" not in plain._layout.names
+    for option in ({"n_bins": 5}, {"Jmin": 1}, {"spectrum_method": "fft"}):
+        with pytest.raises(ValueError, match=r"act only on the power spectrum"):
+            STOperator(data, 2, norm="none", compute_PS=False, **option)
+        with pytest.raises(ValueError, match=r"act only on the power spectrum"):
+            STOperator(Data1D(_field((32,)), pbc=True), 2, norm="none", **option)
     with pytest.raises(ValueError, match="LF23"):
         STOperator(Data1D(_field((32,)), pbc=True), 2, norm="none", compute_PS=True)
     STOperator(Data1D(_field((32,)), pbc=True), 2, norm="none", compute_PS=False)

@@ -28,6 +28,7 @@ from numpy.typing import NDArray
 
 from .._config import FloatDType
 from ..backend import _registry
+from ..spectra._estimators import SpectrumFilters, build_spectrum_filters
 from ..statistics._layout import ChunkTables, loop_gather, tensor_prod_gather
 from ..wavelets._operator import MeanWeights, WaveletFilters, build_wavelet_filters
 from ..wavelets._tensor_prod import build_tensor_prod_wavelet_filters
@@ -65,6 +66,9 @@ class _FilterFields(NamedTuple):
     of ``statistics._layout.loop_sums``, to the compact buffer of the statistics: for each kind
     of chunk the loop computes complex and the buffer stores with real entries, the floats kept
     (int32; ``statistics._layout.loop_gather``; Part III, §19.3, §19.9; task T3.7)."""
+    spectrum: SpectrumFilters | None = None
+    """The static arrays of the 2D power spectrum (maths.md §1.9; task T4.1), those of
+    ``SpectrumOperator`` for the same plan of the spectrum, or ``None`` without it."""
 
 
 class STFilters:
@@ -75,16 +79,17 @@ class STFilters:
     operator's plan, to ``estel.functional.scattering``. Its arrays are on the operator's
     backend, dtype and device; it has no public field. The filters of each geometry are a
     subclass, internal to ESTEL, and a named tuple: :class:`PlanarFilters` for 1D and 2D data,
-    :class:`TensorProdFilters` for tensor products. Its one hook, :attr:`_smoothing`, gives
-    their backend and dtype; the plan builds them (``STPlan._build_filters``; issue #144).
+    :class:`TensorProdFilters` for tensor products, and the filters of ``SpectrumOperator``
+    (``spectra._plan``). Its one hook, :attr:`_any_array`, gives their backend and dtype; the
+    plan builds them (``STPlan._build_filters``; issue #144).
     """
 
     __slots__ = ()
 
     @property
-    def _smoothing(self) -> Any:
+    def _any_array(self) -> Any:
         """An array of the filters, which gives their backend and dtype: the smoothing kernel
-        (of the first block of a tensor product)."""
+        (of the first block of a tensor product), or a table of the spectrum."""
         raise NotImplementedError
 
 
@@ -95,7 +100,7 @@ class PlanarFilters(_FilterFields, STFilters):
     __slots__ = ()
 
     @property
-    def _smoothing(self) -> Any:
+    def _any_array(self) -> Any:
         return self.wavelets.smoothing
 
 
@@ -145,6 +150,9 @@ def build_filters(
             backend.asarray(take.astype(np.int32), "int32", device)
             for take in loop_gather(plan).takes
         ),
+        spectrum=None
+        if plan.spectrum is None
+        else build_spectrum_filters(plan.spectrum, plan.mask, backend, dtype, device),
     )
 
 
@@ -181,7 +189,7 @@ class TensorProdFilters(_TensorProdFilterFields, STFilters):
     __slots__ = ()
 
     @property
-    def _smoothing(self) -> Any:
+    def _any_array(self) -> Any:
         return self.wavelets[0].smoothing
 
 

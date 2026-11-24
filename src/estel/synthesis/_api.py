@@ -6,7 +6,7 @@ the Nyquist pre-filter, the standardisation of the target, the Gaussian start, t
 loss on the complex form of the flattened statistics and PyTorch's L-BFGS (M-SYN-TARGET to
 M-SYN-OPS). What ESTEL adds is checkpoints (maths.md §5.8). In 1.0.0 the fields are periodic,
 planar 2D and without missing values (LF47), and syntheses run on the PyTorch backend only
-(LF1); the 2D power spectrum joins the loss with T4.1.
+(LF1); the 2D power spectrum joins the loss with T4.5.
 
 The driver is not traced code: it reads the losses and the counts of the optimizer to write
 checkpoints and to stop. The loss itself is pure (``estel.synthesis._loss``).
@@ -193,7 +193,8 @@ def synthesize_from_maps(
         ``n_batch`` may differ from the target's Nb; or map by map (M-SYN-TARGET, M-SYN-LOSS).
     compute_PS:
         Whether the 2D power spectrum enters the loss: True by default in STL, for periodic
-        fields (M-SYN-OPS). The spectra come in task T4.1: pass ``compute_PS=False``.
+        fields (M-SYN-OPS). The syntheses with the spectrum come in task T4.5: pass
+        ``compute_PS=False``.
     max_iter:
         The iterations of L-BFGS of the whole run, those before ``resume_from`` included; the
         evaluations of the loss are capped at ⌊5 x ``max_iter`` / 4⌋ (M-SYN-LBFGS, OP-74).
@@ -319,13 +320,20 @@ def synthesize_from_stats(
 
     ``init`` is ``None`` or ``"gaussian"`` for a Gaussian start drawn with ``seed``, or an
     array that broadcasts to ``(n_batch, Nc, N1, N2)``. The other parameters are those of
-    :func:`synthesize_from_maps`. The power spectrum joins with T4.1.
+    :func:`synthesize_from_maps`. The power spectrum joins with T4.5: statistics that hold it
+    raise.
     """
     _refuse_tensor_product(stats, "synthesize_from_stats", "stats")
     if not isinstance(stats, STStatistics):
         raise TypeError(
             f"synthesize_from_stats takes STStatistics, got {type(stats).__name__}; to start "
             "from maps, use estel.synthesize_from_maps."
+        )
+    if "PS" in stats._layout.names:
+        raise NotImplementedError(
+            "synthesize_from_stats: these statistics hold the 2D power spectrum, and the "
+            "syntheses with the spectrum come in task T4.5. Compute the statistics of the target "
+            "with STOperator(..., compute_PS=False)."
         )
     if stats._plan.geometry._geometry == "tensor_prod":
         raise NotImplementedError(
@@ -599,7 +607,8 @@ def _check_loss_compute_ps(compute_ps: object) -> None:
     if compute_ps is None or compute_ps:
         raise NotImplementedError(
             "compute_PS: the 2D power spectrum enters the loss of periodic syntheses by default "
-            "(maths.md M-SYN-OPS), and the spectra come in task T4.1. Pass compute_PS=False."
+            "(maths.md M-SYN-OPS), and the syntheses with the spectrum come in task T4.5. Pass "
+            "compute_PS=False."
         )
 
 

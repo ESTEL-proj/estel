@@ -10,6 +10,7 @@ from .data._tensor_prod import DataTensorProd
 from .scattering._filters import STFilters
 from .scattering._operator import STOperator, STOperatorTensorProd
 from .scattering._plan import STPlan
+from .spectra._operator import SpectrumOperator
 from .statistics._statistics import STStatistics
 from .synthesis._api import SynthesisResult, synthesize_from_maps, synthesize_from_stats
 
@@ -26,6 +27,7 @@ __all__ = [
     "STOperatorTensorProd",
     "STPlan",
     "STStatistics",
+    "SpectrumOperator",
     "SynthesisResult",
     "functional",
     "get_backend",

@@ -8,7 +8,7 @@ Summary of [Part I, §2 — Architecture](../transfer/part1.md#2-architecture). 
 | --- | --- | --- | --- |
 | Frontend | `src/estel/__init__.py`, public modules | public API, frozen by `api/manifest.json` | everything below |
 | Engine layer | `src/estel/engines/` | chooses the engine that runs the whole computation | engines, never a backend directly |
-| L2 skeleton | `scattering/`, `statistics/`, `synthesis/`, `functional/` | scattering loop, statistics, reductions, synthesis driver; backend-neutral | L1, L0 protocol |
+| L2 skeleton | `scattering/`, `statistics/`, `synthesis/`, `functional/`, `spectra/` | scattering loop, statistics, reductions, synthesis driver, power spectrum; backend-neutral | L1, L0 protocol |
 | L1 geometry | `data/`, `wavelets/` | geometry written once on L0; data classes provide a few hooks | L0 protocol |
 | L0 primitives | `src/estel/backend/` | ~20 primitives, the only code importing a backend | `torch`, and `jax` (experimental from P1) |
 | Oracle | `src/estel/_spec/` | naive float64 NumPy transcription of `docs/maths.md` | NumPy only |

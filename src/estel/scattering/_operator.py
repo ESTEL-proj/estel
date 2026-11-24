@@ -33,12 +33,20 @@ from .._config import FloatDType, default_device, default_dtype
 from ..backend import _registry
 from ..data._base import Data
 from ..engines import _registry as _engines
-from ..functional._scattering import check_data, compute, reference_of
+from ..functional._scattering import apply_operator
 from ..statistics._arrays import dtype_name
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
 from ._filters import PlanarFilters, STFilters, TensorProdFilters
-from ._plan import PlanarPlan, STPlan, TensorProdPlan, build_plan, build_tensor_prod_statistics_plan
+from ._plan import (
+    SCATTERING_SPECTRUM_ADVICE,
+    PlanarPlan,
+    SpectrumAdvice,
+    STPlan,
+    TensorProdPlan,
+    build_plan,
+    build_tensor_prod_statistics_plan,
+)
 
 _WIDE = ("float64", "complex128")
 
@@ -74,8 +82,20 @@ class STOperator:
         entries below the diagonal are ignored. By default every pair, the upper
         triangle (M-CHAN, M-DEF). Every channel must appear in at least one pair (OP-30).
     compute_PS:
-        Whether to compute the power spectrum: True by default for 2D data, unavailable for 1D
-        data in 1.0.0 (LF23). The 2D spectra come in T4.1: pass ``compute_PS=False``.
+        Whether the statistics hold the 2D power spectrum, the family ``"PS"`` (maths.md §1.9):
+        True by default for 2D data, unavailable for 1D data in 1.0.0 (LF23). It is computed
+        on the field after the standardisation, with the channel pairs of ``cross_matrix``, by
+        the estimators of ``SpectrumOperator``, with J_PS the J of the operator; it needs even
+        sizes (OP-20) and J ≥ 2 + Jmin (OP-93).
+    n_bins:
+        The number of bins of the spectrum: by default max(4, round(3 (J - 1 - Jmin))).
+    Jmin:
+        J_min of the spectrum, 0 by default, with 0 ≤ Jmin ≤ J - 2.
+    spectrum_method:
+        The estimator of the spectrum, as ``method`` of ``SpectrumOperator``: ``"auto"`` (the
+        default), ``"fft"``, ``"pbc_mask"``, ``"nan_mask"`` or ``"pbc_nan_mask"``. ``n_bins``,
+        ``Jmin`` and ``spectrum_method`` act only with the spectrum: another value than their
+        default without it raises.
     engine:
         The engine that runs the computation (Part II, §9.4): ``"python"``, the only engine of
         1.0.0.
@@ -90,6 +110,10 @@ class STOperator:
     _reference: _NormReference | None
     _plan_type: ClassVar[type[PlanarPlan] | type[TensorProdPlan]] = PlanarPlan
     """The plan of the operator's geometry, which :meth:`from_statistics` takes."""
+    _spectrum_advice: ClassVar[SpectrumAdvice] = SCATTERING_SPECTRUM_ADVICE
+    """What the errors of the power spectrum advise (golden rule 8): ``compute_PS=False``."""
+    _missing_reference_advice: ClassVar[str] = ", or build the operator with {name}.from_statistics"
+    """The end of the advice of ``apply`` with ``norm="ref"`` and no reference."""
     _other_statistics: ClassVar[str] = (
         "these are the statistics of a tensor product, which STOperator does not compute: use "
         "STOperatorTensorProd.from_statistics(stats)."
@@ -106,13 +130,15 @@ class STOperator:
         standardize: bool = False,
         cross_matrix: Any = None,
         compute_PS: bool | None = None,  # noqa: N803 (STL's name)
+        n_bins: int | None = None,
+        Jmin: int = 0,  # noqa: N803 (STL's name)
+        spectrum_method: str = "auto",
         engine: str = "python",
     ) -> None:
         if not isinstance(data, Data):
             raise TypeError(
                 f"STOperator takes a Data object, such as estel.Data2D, got {type(data).__name__}."
             )
-        _check_compute_ps(compute_PS, data.ndim)
         plan = build_plan(
             data,
             J,
@@ -121,6 +147,11 @@ class STOperator:
             norm=norm,
             ref_batch_mean=ref_batch_mean,
             standardize=standardize,
+            compute_PS=_compute_ps(compute_PS, data.ndim),
+            n_bins=n_bins,
+            Jmin=Jmin,
+            spectrum_method=spectrum_method,
+            spectrum_advice=self._spectrum_advice,
         )
         plan.wavelets.bank()  # validates L for the geometry (M-WAV-1D)
         if norm != "none":
@@ -139,6 +170,13 @@ class STOperator:
                 f"{name}.from_statistics takes STStatistics, got {type(stats).__name__}."
             )
         plan = stats._plan
+        if not isinstance(plan, PlanarPlan | TensorProdPlan):
+            raise ValueError(
+                f"{name}.from_statistics: these statistics hold the power spectrum alone, "
+                f"computed by a {plan._operator_name}, not by a scattering operator. Build a "
+                f"{plan._operator_name} again from data, with the options they were computed "
+                "with."
+            )
         if not isinstance(plan, cls._plan_type):
             raise ValueError(f"{name}.from_statistics: {cls._other_statistics}")
         operator = cls.__new__(cls)
@@ -219,33 +257,22 @@ class STOperator:
         the result, replacing the one it held, with a ``UserWarning``.
         """
         name = type(self).__name__
-        plan = self._plan
-        check_data(data, plan, self._filters)
-        reference = reference_of(ref, plan) if ref is not None else None
-        if reference is None and plan.norm == "ref":
-            reference = self._reference
-            if reference is None:
-                raise ValueError(
-                    f'{name}.apply: norm="ref" needs a reference, and this operator '
-                    'holds none. Pass ref=, statistics computed with norm="self", or build '
-                    f"the operator with {name}.from_statistics (maths.md M-NORM)."
-                )
-        stats = compute(data, plan, self._filters, reference)
-        if plan.norm == "self":
-            if self._reference is not None:
-                warnings.warn(
-                    f'{name}.apply: norm="self" replaces the reference this operator '
-                    "held by that of the new statistics (maths.md M-NORM).",
-                    UserWarning,
-                    stacklevel=2,
-                )
-            self._reference = stats._reference
+        stats, self._reference = apply_operator(
+            name,
+            data,
+            self._plan,
+            self._filters,
+            ref,
+            self._reference,
+            self._missing_reference_advice.format(name=name),
+        )
         return stats
 
     def __repr__(self) -> str:
         plan = _plan_of(self, PlanarPlan)
         return (
-            f"STOperator(J={plan.J}, L={plan.L}, norm={plan.norm!r}, "
+            f"STOperator(J={plan.J}, L={plan.L}, compute_PS={plan.spectrum is not None}, "
+            f"norm={plan.norm!r}, "
             f"ref_batch_mean={plan.ref_batch_mean}, standardize={plan.standardize}, "
             f"spatial_shape={plan.spatial_shape}, n_channels={plan.n_channels}, "
             f"pbc={plan.pbc}, backend={self._backend!r}, dtype={self._dtype!r})"
@@ -398,7 +425,9 @@ def _warn_channels_without_auto(plan: PlanarPlan | TensorProdPlan) -> None:
         )
 
 
-def _check_compute_ps(compute_ps: object, ndim: int) -> None:
+def _compute_ps(compute_ps: object, ndim: int) -> bool:
+    """Whether the statistics hold the power spectrum: ``compute_PS``, True by default for 2D
+    data; 1D data have none in 1.0.0 (LF23)."""
     if compute_ps is not None and not isinstance(compute_ps, bool | np.bool_):
         raise TypeError(f"compute_PS={compute_ps!r}: pass True, False or None (the default).")
     if ndim != 2:
@@ -407,9 +436,5 @@ def _check_compute_ps(compute_ps: object, ndim: int) -> None:
                 f"compute_PS=True: ESTEL 1.0.0 computes power spectra of 2D data only; for "
                 f"{ndim}D data they come later (LF23). Pass compute_PS=False, or leave it to None."
             )
-        return
-    if compute_ps is None or compute_ps:
-        raise NotImplementedError(
-            "compute_PS: the 2D power spectra come in task T4.1, and compute_PS is True by "
-            "default for 2D data. Pass compute_PS=False."
-        )
+        return False
+    return True if compute_ps is None else bool(compute_ps)

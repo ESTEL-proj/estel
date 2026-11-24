@@ -18,7 +18,14 @@ import pytest
 from jax.test_util import check_grads
 
 from estel.backend._protocol import Backend
-from tests.differentiation._cases import CASES, Case, scattering_function
+from tests.differentiation._cases import (
+    CASES,
+    SPECTRUM_CASES,
+    Case,
+    SpectrumCase,
+    scattering_function,
+    spectrum_function,
+)
 
 
 @pytest.mark.slow
@@ -32,5 +39,22 @@ def test_check_grads_to_second_order(case: Case, backend: Backend) -> None:
 
     def of_any_array(array: Any) -> Any:
         return compiled(jnp.asarray(array))  # check_grads evaluates its differences on NumPy
+
+    check_grads(of_any_array, (data.array,), order=2, modes=("fwd", "rev"))  # type: ignore[no-untyped-call]
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("case", SPECTRUM_CASES, ids=lambda case: case.name)
+def test_check_grads_of_the_spectrum(case: SpectrumCase, backend: Backend) -> None:
+    """The 2D power spectrum (maths.md §1.9; task T4.1), through ``SpectrumOperator`` and through
+    ``STOperator`` with the spectrum, to second order in both modes.
+
+    Slow: second-order derivatives on a backend that compiles each operation on first use
+    (Part I, §5.4); the full tier only, as the decisions of T4.1 ask."""
+    data, function = spectrum_function(backend, case)
+    compiled = jax.jit(function)
+
+    def of_any_array(array: Any) -> Any:
+        return compiled(jnp.asarray(array))
 
     check_grads(of_any_array, (data.array,), order=2, modes=("fwd", "rev"))  # type: ignore[no-untyped-call]
