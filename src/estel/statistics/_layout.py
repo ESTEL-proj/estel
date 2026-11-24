@@ -2,7 +2,8 @@
 of the compact layout" and "The compact layout stored by chunks"; tasks T2.15, T3.7).
 
 The statistics are stored in one real buffer ``(Nb, n_floats)``: every coefficient STL computes,
-and only those, each real entry as one float (mean, var, the auto S1 and S2, the diagonal of S4),
+and only those, each real entry as one float (mean, var, the auto S1 and S2, the diagonal of S4,
+every entry of PS),
 each complex entry as two consecutive floats, (re, im). STL's conjugate duplicates are kept
 (Part III, §19.8, option a). Nothing is NaN: absent coefficients are not stored.
 
@@ -13,8 +14,11 @@ chunk saying which of its entries take one float), and its :class:`Segment` s, o
 and level (the output resolution of the loop), each a range of the family's chunks. The families
 follow one another in the order mean, var, S1 … S4; within a family the segments follow the
 levels, and within a segment the entries follow the order of the full grid: the chunks in the
-order of their axes, then their orientations. The layout keeps one small row per chunk, never a
-table per coefficient; the coordinates of an entry are computed on demand (:meth:`Layout.entries`).
+order of their axes, then their orientations. The power spectrum (task T4.4), when the plan has
+it, comes last, after S4 (maths.md M-FLAT): one segment at level 0, a chunk per channel pair
+holding the dense array of its bins, every entry one float. The layout keeps one small row per
+chunk, never a table per coefficient; the coordinates of an entry are computed on demand
+(:meth:`Layout.entries`).
 A layout is hashable: it is static data of the pytree of ``STStatistics`` and a static argument
 of JAX.
 
@@ -25,7 +29,8 @@ differentiable to any order on every backend. Each acts chunk by chunk, with tab
 with the number of chunks and of orientations, never with the number of coefficients:
 
 * :func:`loop_gather`: from the sums of the scattering loop (:func:`loop_sums`),
-  each of which is a chunk, to the buffer of :func:`base_layout`;
+  each of which is a chunk, to the buffer of :func:`base_layout` (the floats before the power
+  spectrum, the last family when the plan has it);
 * :class:`FloatMap`: from one buffer to another, family by family: a copy, or the chunks of a
   family read as dense arrays ``(Nb, n_chunks, n_orientations, 2)`` (re, im; :func:`unpack`),
   gathered or combined across chunks, transformed on their orientations, and written back
@@ -62,7 +67,7 @@ class Segment:
     §19.4)."""
 
     family: str
-    """``"mean"``, ``"var"``, ``"S1"`` … ``"S4"``."""
+    """``"mean"``, ``"var"``, ``"S1"`` … ``"S4"``, ``"PS"``."""
     level: Level
     """The output level of its entries: ``(d,)`` for 1D and 2D data, a multi-index in tensor
     products (T3.6); ``()`` when they come from several levels (after ``scale_cosine``)."""
@@ -447,7 +452,9 @@ def build_layout(
 def base_layout(plan: PlanarPlan) -> Layout:
     """The layout of the statistics the scattering loop computes, from the plan alone
     (``_grid.base_grids``): every chunk is at the level of the scale of its last convolution
-    (the level of j, or of j3)."""
+    (the level of j, or of j3). With the power spectrum (maths.md §1.9; task T4.4), its family
+    ``"PS"`` is one segment at level 0, after S4, the last floats of the buffer: the loop
+    writes the floats before it (:func:`loop_gather`), the spectrum operator those of PS."""
     levels = tuple((int(d),) for d in plan.levels)
     level_of = {int(d): i for i, d in enumerate(plan.levels)}
     scale_level = np.array([level_of[int(plan.scale_levels[j])] for j in plan.scales])
@@ -558,7 +565,9 @@ def loop_gather(plan: PlanarPlan) -> LoopGather:
 
     The loop divides its sums level by level, each as real floats: a complex sum as (re, im)
     pairs, its carried axes in C order. The buffer is their concatenation in the order of its
-    chunks; a real entry the loop computes complex (the diagonal of S4) keeps its real part."""
+    chunks; a real entry the loop computes complex (the diagonal of S4) keeps its real part.
+    The power spectrum, the last family of the layout when the plan has it, is not a sum of the
+    loop: the gather gives the floats before it (``layout.span("PS")[0]``)."""
     layout = base_layout(plan)
     sums = loop_sums(plan)
     found: dict[tuple[str, tuple[int, ...]], tuple[int, int, bool]] = {
@@ -574,6 +583,8 @@ def loop_gather(plan: PlanarPlan) -> LoopGather:
     takes: list[NDArray[np.int64]] = []
     take_of: dict[bytes, int] = {}
     for grid in layout.grids:
+        if grid.name == "PS":  # the last family, written by the spectrum operator (T4.1)
+            continue
         n_o = int(np.prod(_carried_shape(plan, grid.name))) if grid.is_complex else 1
         floats = grid.floats_per_kind
         for row, kind in zip(grid.chunks.tolist(), grid.kinds.tolist(), strict=True):

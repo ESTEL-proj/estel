@@ -109,6 +109,7 @@ from ..statistics._normalization import (
     check_reference,
     check_tensor_prod_reference,
     self_reference,
+    spectrum_reference_of,
     tensor_prod_blocks,
 )
 from ..wavelets._operator import (
@@ -171,6 +172,76 @@ def channel_pairs(matrix: NDArray[np.bool_]) -> ChannelPairs:
         for pair in (((c1, c2),) if c1 == c2 else ((c1, c2), (c2, c1)))
     )
     return ChannelPairs(n_channels=n, auto=auto, cross=cross, ordered=ordered)
+
+
+@dataclass(frozen=True)
+class SpectrumPlan:
+    """The static description of the 2D power spectrum in the statistics (maths.md §1.9,
+    "Range", "Number of bins"; task T4.4): how many bins, J_PS and J_min. Hashable. Its channel
+    pairs are those of the plan (``PlanarPlan.pairs``): the pairs c1 ≤ c2 of S1 and S2, one
+    matrix for the scattering statistics and the spectrum (M-CHAN; decision on #148); σᴾˢ
+    exists for the channels of ``pairs.auto`` (M-NORM, OP-30). The bins, their windows and the
+    borders of the estimators are not here: they come with the spectrum operator (task T4.1)."""
+
+    n_bins: int
+    """n_b, the number of bins: given, or max(4, round(3 (J_PS - 1 - J_min)))."""
+    J: int
+    """J_PS: the J given to the operator, or ⌊log₂ N_max⌋ - 1, equal to the default J of the
+    scattering statistics (M-DEF)."""
+    Jmin: int
+    """J_min, with 0 ≤ J_min ≤ J_PS - 2 (OP-93)."""
+
+    def content(self) -> dict[str, int]:
+        """The parameters of the spectrum for ``estel.io``."""
+        return {"n_bins": self.n_bins, "J": self.J, "Jmin": self.Jmin}
+
+
+def build_spectrum_plan(
+    spatial_shape: tuple[int, ...],
+    ndim: int,
+    J: int | None,  # noqa: N803 (maths.md notation)
+    n_bins: Any,
+    Jmin: Any,  # noqa: N803 (STL's name)
+) -> SpectrumPlan:
+    """The :class:`SpectrumPlan` of 2D data of ``spatial_shape`` (maths.md §1.9): J_PS is ``J``,
+    the J given to the operator, or ⌊log₂ N_max⌋ - 1 with N_max = ⌊min(N₁, N₂)/2⌋ when it is
+    ``None``. Raises a clear error on data that are not 2D (LF23), on an odd size (OP-20), when
+    J_min is not between 0 and J_PS - 2 (OP-93), and on a number of bins that is not a positive
+    integer: a ``TypeError`` when ``Jmin`` or ``n_bins`` is not an integer, a ``ValueError``
+    when it is out of range."""
+    if ndim != 2 or len(spatial_shape) != 2:
+        raise ValueError(
+            f"the power spectrum is computed on 2D data only in ESTEL 1.0.0, and these data "
+            f"have {len(spatial_shape)} spatial axes (LF23): pass compute_PS=False."
+        )
+    if any(n % 2 for n in spatial_shape):
+        raise ValueError(
+            f"the power spectrum requires even sizes, and the data are {tuple(spatial_shape)} "
+            "(maths.md §1.9, OP-20): crop the data to even sizes, or pass compute_PS=False."
+        )
+    n_max = min(spatial_shape) // 2
+    j_ps = int(np.floor(np.log2(n_max))) - 1 if J is None else int(J)
+    if isinstance(Jmin, bool) or not isinstance(Jmin, int | np.integer):
+        raise TypeError(f"Jmin={Jmin!r}: pass an integer, 0 by default (maths.md §1.9).")
+    if not 0 <= int(Jmin) <= j_ps - 2:
+        raise ValueError(
+            f"Jmin={Jmin} with J = {j_ps}: the power spectrum needs 0 ≤ Jmin ≤ J - 2 (maths.md "
+            "§1.9, OP-93). Pass compute_PS=False, a smaller Jmin, or use a larger image (a "
+            "larger J)."
+        )
+    advice = (
+        "pass a positive integer, or None for max(4, round(3 (J - 1 - Jmin))) bins, about three "
+        "per octave (maths.md §1.9)."
+    )
+    if n_bins is None:
+        found = max(4, round(3 * (j_ps - 1 - int(Jmin))))
+    elif isinstance(n_bins, bool) or not isinstance(n_bins, int | np.integer):
+        raise TypeError(f"n_bins={n_bins!r}: {advice}")
+    elif n_bins < 1:
+        raise ValueError(f"n_bins={n_bins!r}: {advice}")
+    else:
+        found = int(n_bins)
+    return SpectrumPlan(n_bins=found, J=j_ps, Jmin=int(Jmin))
 
 
 @dataclass(frozen=True, eq=False)
@@ -349,6 +420,10 @@ class _PlanFields:
     empty_s4_triples: tuple[tuple[int, int, int], ...]
     """The triples of :attr:`s4_triples` whose S4 has no valid pixel (OP-3)."""
     _key: tuple[Any, ...] = field(repr=False)
+    spectrum: SpectrumPlan | None = None
+    """The power spectrum of the statistics (maths.md §1.9), or ``None`` when they do not hold
+    it. Its values come from the spectrum operator (task T4.1); until then no operator asks for
+    it."""
 
 
 class PlanarPlan(_PlanFields, STPlan):
@@ -382,6 +457,13 @@ class PlanarPlan(_PlanFields, STPlan):
         return build_filters(self, backend_name, dtype, device)
 
     def _values(self, data: Data, filters: STFilters) -> ScatteringValues:
+        if self.spectrum is not None:
+            raise NotImplementedError(
+                "this plan holds the 2D power spectrum, which no operator computes yet: the "
+                "spectrum operator comes with task T4.1 (maths.md §1.9). Statistics with the "
+                "spectrum can be read, saved and loaded, not recomputed; build the operator "
+                "with compute_PS=False to compute the scattering statistics."
+            )
         return scattering_values(data, self, cast(PlanarFilters, filters))  # by _check_data
 
     def _layout(self) -> Layout:
@@ -392,7 +474,15 @@ class PlanarPlan(_PlanFields, STPlan):
 
     def _self_reference(self, backend: Backend, buffer: Any, layout: Layout) -> _NormReference:
         return self_reference(
-            backend, buffer, layout, auto_scales(self), self.L, self.ref_batch_mean
+            backend,
+            buffer,
+            layout,
+            auto_scales(self),
+            self.L,
+            self.ref_batch_mean,
+            spectrum=None
+            if self.spectrum is None
+            else spectrum_reference_of(self.spectrum, self.pairs),
         )
 
     def _content(self) -> tuple[dict[str, Any], dict[str, NDArray[Any]]]:
@@ -408,6 +498,7 @@ class PlanarPlan(_PlanFields, STPlan):
             "norm": self.norm,
             "ref_batch_mean": self.ref_batch_mean,
             "standardize": self.standardize,
+            "spectrum": None if self.spectrum is None else self.spectrum.content(),
         }
         return content, ({} if self.mask is None else {"mask": np.asarray(self.mask)})
 
@@ -428,6 +519,9 @@ def build_plan(
     norm: str = "none",
     ref_batch_mean: bool = False,
     standardize: bool = False,
+    compute_PS: bool = False,  # noqa: N803 (STL's name)
+    n_bins: int | None = None,
+    Jmin: int = 0,  # noqa: N803 (STL's name)
 ) -> PlanarPlan:
     """The :class:`PlanarPlan` of a scattering transform with ``J`` scales and ``L``
     orientations on data with the geometry, spatial shape, ``pbc``, mask and number of channels
@@ -442,6 +536,11 @@ def build_plan(
     no mean with a valid pixel (M-MEAN, OP-3). Warns once when some means have no valid pixel,
     listing them (their coefficients are NaN, OP-3), and once when a border is too large for the
     grid and is reduced (M-BORDER, OP-13).
+
+    With ``compute_PS``, the statistics also hold the 2D power spectrum, with ``n_bins`` bins and
+    J_min ``Jmin`` (maths.md §1.9; :func:`build_spectrum_plan`); without it, ``n_bins`` and
+    ``Jmin`` keep their defaults. ``STOperator`` does not pass them until the spectrum operator
+    exists (task T4.1).
     """
     if not isinstance(data, Data):
         raise TypeError(
@@ -450,6 +549,8 @@ def build_plan(
     wavelets = build_wavelet_plan(data, J, L, kernel_size=kernel_size)
     matrix = _cross_matrix(cross_matrix, data.n_channels)
     _check_options(norm, ref_batch_mean, standardize)
+    pairs = channel_pairs(matrix)
+    spectrum = _spectrum(wavelets, J, compute_PS, n_bins, Jmin)
     levels = wavelets.levels
     scale_levels = wavelets.scale_levels
     scales = tuple(range(wavelets.J))
@@ -496,7 +597,7 @@ def build_plan(
         nan_threshold=wavelets.nan_threshold,
         n_channels=data.n_channels,
         cross_matrix=matrix,
-        pairs=channel_pairs(matrix),
+        pairs=pairs,
         norm=norm,
         ref_batch_mean=bool(ref_batch_mean),
         standardize=bool(standardize),
@@ -529,8 +630,36 @@ def build_plan(
             norm,
             bool(ref_batch_mean),
             bool(standardize),
+            spectrum,
         ),
+        spectrum=spectrum,
     )
+
+
+def _spectrum(
+    wavelets: WaveletPlan,
+    J: int | None,  # noqa: N803 (maths.md notation)
+    compute_ps: object,
+    n_bins: object,
+    jmin: object,
+) -> SpectrumPlan | None:
+    """The :class:`SpectrumPlan` of :func:`build_plan`, or ``None`` without ``compute_PS``, whose
+    options must then keep their defaults (decision on #148)."""
+    if not isinstance(compute_ps, bool | np.bool_):
+        raise TypeError(f"compute_PS={compute_ps!r}: pass True or False.")
+    if not compute_ps:
+        changed = [
+            f"{name}={value!r}"
+            for name, value, default in (("n_bins", n_bins, None), ("Jmin", jmin, 0))
+            if value is not default and value != default
+        ]
+        if changed:
+            raise ValueError(
+                f"{', '.join(changed)}: these options act only on the power spectrum, with "
+                "compute_PS=True; leave them to their defaults otherwise (maths.md §1.9)."
+            )
+        return None
+    return build_spectrum_plan(wavelets.spatial_shape, wavelets.ndim, J, n_bins, jmin)
 
 
 # ---------------------------------------------------------------------- tensor products
