@@ -33,6 +33,7 @@ from ..data._moments import Standardized
 from ..scattering._operator import STOperator
 from ..scattering._plan import PlanarPlan, build_spectrum_plan
 from ..statistics._arrays import device_of
+from ..statistics._grid import FAMILIES
 from ..statistics._statistics import _NO_REDUCTION, STStatistics
 from ..wavelets._operator import default_scales
 from . import _checkpoints
@@ -46,7 +47,7 @@ TOLERANCE_CHANGE = 1e-15
 # (maths.md M-SYN-OPS); L and the rest are the defaults, and the synthesis sets the others.
 ST_KWARGS = ("J",)
 # The families of the statistics of a synthesis, without the power spectrum (M-SYN-LOSS).
-_FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
+_FAMILIES = tuple(name for name in FAMILIES if name != "PS")
 # The settings a resumed run must share with the run that wrote its checkpoint.
 _SAME_RUN = (
     "entry",
@@ -441,11 +442,10 @@ def synthesize_from_stats(
     )
     # With the spectrum, its number of bins and J_min are those of the statistics (OP-76); its J
     # is the operator's, and the estimator of the periodic running fields is fft.
-    spectrum: dict[str, Any] = (
-        {"compute_PS": True, "n_bins": plan.spectrum.n_bins, "Jmin": plan.spectrum.Jmin}
-        if with_spectrum and plan.spectrum is not None
-        else {"compute_PS": False}
-    )
+    spectrum: dict[str, Any] = {"compute_PS": False}
+    if with_spectrum:
+        assert plan.spectrum is not None  # statistics that hold PS have the plan of its spectrum
+        spectrum = {"compute_PS": True, "n_bins": plan.spectrum.n_bins, "Jmin": plan.spectrum.Jmin}
     running_op = STOperator(
         template,
         plan.J,
@@ -668,9 +668,10 @@ def _check_loss_compute_ps(compute_ps: object) -> bool:
 
 def _default_n_bins(data: Data) -> int:
     """The number of bins of the spectrum of an operator built on ``data`` with its defaults
-    (maths.md §1.9, "Number of bins"): J_PS the default J of M-DEF, J_min 0. STL's
-    ``get_CS_op().n_bins``, of which a synthesis takes the smaller (M-SYN-OPS)."""
-    return build_spectrum_plan(data.shape[2:], data.ndim, default_scales(data), None, 0).n_bins
+    (maths.md §1.9, "Number of bins"): J_PS the spectrum's own default, ⌊log₂ N_max⌋ - 1, and
+    J_min 0. STL's ``get_CS_op().n_bins``, of which a synthesis takes the smaller (M-SYN-OPS),
+    whatever the J of the synthesis."""
+    return build_spectrum_plan(data.shape[2:], data.ndim, None, None, 0).n_bins
 
 
 def _check_flag(name: str, value: object) -> None:
