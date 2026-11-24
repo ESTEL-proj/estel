@@ -13,11 +13,12 @@ from typing import Any
 import numpy as np
 import pytest
 
-from estel import DataHealpix, _config
+from estel import Data1D, DataHealpix, _config
 from estel.backend._protocol import Backend, DType
 from estel.data._base import DownsampleWeights
 from estel.data._healpix import _StaticCellIds
-from estel.wavelets._operator import WaveletOperator
+from estel.synthesis._api import _running_data
+from estel.wavelets._operator import WaveletOperator, build_wavelet_plan
 
 pytestmark = pytest.mark.maths("M-DATA-HPX")
 
@@ -105,6 +106,18 @@ ERRORS: list[Any] = [
         id="whole-sphere",
     ),
     pytest.param(
+        {"array": _field(48), "depth": 1, "cell_ids": np.arange(48)[::-1]},
+        ValueError,
+        "np.argsort",
+        id="whole-sphere-unsorted",
+    ),
+    pytest.param(
+        {"array": _field(48), "depth": 0, "cell_ids": np.arange(48)},
+        ValueError,
+        "outside",
+        id="whole-sphere-wrong-depth",
+    ),
+    pytest.param(
         {"array": _field(2), "depth": 1, "cell_ids": [3.0, 4.0]}, TypeError, "integer", id="float"
     ),
     pytest.param(
@@ -128,6 +141,39 @@ def test_invalid_arguments_raise_and_say_what_to_do(
         DataHealpix(**kwargs)
 
 
+@pytest.mark.maths("M-DEF-HPX", "M-WAV-HPX")
+@pytest.mark.parametrize(
+    ("depth", "kwargs", "error", "match"),
+    [
+        pytest.param(2, {"J": 1}, None, None, id="J=1"),
+        pytest.param(2, {"J": 3}, None, None, id="J=depth+1"),
+        pytest.param(2, {"wavelet": "healpix"}, None, None, id="wavelet-healpix"),
+        pytest.param(2, {"J": 0}, ValueError, r"1 ≤ J ≤ 3", id="J=0"),
+        pytest.param(2, {"J": 4}, ValueError, r"1 ≤ J ≤ 3", id="J=depth+2"),
+        pytest.param(2, {"J": 1.5}, TypeError, "integer", id="J-not-integer"),
+        pytest.param(2, {"wavelet": "bump_steerable"}, ValueError, '"healpix"', id="wavelet"),
+        pytest.param(14, {}, ValueError, "int32", id="max-depth"),
+    ],
+)
+def test_wavelet_plan_arguments(
+    depth: int, kwargs: dict[str, Any], error: type[Exception] | None, match: str | None
+) -> None:
+    """J in 1 … depth + 1, the bound STL accepts (#166); the wavelet names of HEALPix; the
+    int32 limit of the tables (depth ≤ 13). The plan alone: no table is built."""
+    data = DataHealpix(_field(3), depth=depth, cell_ids=[0, 1, 2])
+    if error is None:
+        plan = build_wavelet_plan(data, **kwargs)
+        assert kwargs.get("J", max(1, depth - 1)) == plan.J
+        return
+    with pytest.raises(error, match=match):
+        build_wavelet_plan(data, **kwargs)
+
+
+def test_planar_data_refuse_the_healpix_wavelet() -> None:
+    with pytest.raises(ValueError, match="bump_steerable"):
+        build_wavelet_plan(Data1D(_field(16), pbc=True), wavelet="healpix")
+
+
 # ---------------------------------------------------------------------- pytree
 
 
@@ -143,6 +189,18 @@ def test_jit_takes_a_partial_sky_with_a_mask_and_keeps_its_metadata(backend: Bac
     np.testing.assert_array_equal(out.cell_ids, DISC)
     np.testing.assert_array_equal(out.mask, mask)
     np.testing.assert_array_equal(backend.to_numpy(out.array), 2 * backend.to_numpy(data.array))
+
+
+def test_the_running_data_of_a_synthesis_keep_depth_and_cell_ids(backend: Backend) -> None:
+    """One construction path: ``_from_parts`` with the metadata of the geometry
+    (``Data._meta``), as the synthesis builds its running fields (``_running_data``)."""
+    target = DataHealpix(_field(DISC.size, (1, 1)), depth=2, cell_ids=DISC)
+    running = _running_data(target, (2, 1, DISC.size), backend)
+    assert isinstance(running, DataHealpix)
+    assert (running.depth, running.pbc, running.shape) == (2, False, (2, 1, DISC.size))
+    np.testing.assert_array_equal(running.cell_ids, DISC)
+    with pytest.raises(TypeError, match="depth and cell_ids"):
+        DataHealpix._from_parts(target.array, None, False, target.backend)
 
 
 def test_static_cell_ids_compare_and_hash_by_value() -> None:
@@ -196,7 +254,7 @@ def test_a_complex_map_is_convolved_and_decimated_part_by_part(backend: Backend)
 
     for function in (conv, down):
         expected = backend.to_numpy(function(re)) + 1j * backend.to_numpy(function(im))
-        np.testing.assert_allclose(backend.to_numpy(function(z)), expected, atol=1e-12)
+        np.testing.assert_allclose(backend.to_numpy(function(z)), expected)
 
 
 @pytest.mark.maths("M-MASK-HPX")

@@ -375,7 +375,12 @@ def build_wavelet_plan(
     By default J = ⌊log₂ min N⌋ - 2, and L = 4 in 2D, 1 in 1D (M-DEF, M-DEF-1D). Raises when J
     is not an integer ≥ 1 or the sizes are not divisible by 2^(J-1) (M-DATA-2D, OP-8), and when
     L is not an integer ≥ 1, as STL accepts (Part II, §12.5); :meth:`WaveletPlan.bank` checks L
-    against the bank of the geometry. ``wavelet=None`` is the wavelet of the geometry.
+    against the bank of the geometry.
+
+    ``None`` (the default) means the wavelet of the geometry: ``"bump_steerable"`` for 1D
+    and 2D data (M-WAV-2D, M-WAV-1D), ``"healpix"`` for ``DataHealpix`` (M-WAV-HPX). Each
+    geometry accepts ``None`` and its own name only: 1D and 2D data ``"bump_steerable"``,
+    ``DataHealpix`` ``"healpix"``; another name raises a ``ValueError`` that lists them.
 
     HEALPix data get a ``HealpixWaveletPlan`` (``_healpix_operator``), with their own defaults
     and rules (maths.md M-DEF-HPX, M-MASK-HPX): the plan of each geometry is chosen here, once,
@@ -415,8 +420,9 @@ def build_wavelet_plan(
 def _check_wavelet(wavelet: object) -> None:
     if wavelet is not None and wavelet not in WAVELETS:
         raise ValueError(
-            f"wavelet={wavelet!r}: ESTEL 1.0.0 has the bump-steerable wavelets only; pass "
-            f'"bump_steerable", or None (maths.md M-WAV-2D, M-WAV-1D).'
+            f"wavelet={wavelet!r}: 1D and 2D data accept wavelet=None (the default, their "
+            'wavelet) or "bump_steerable", the only wavelets of ESTEL 1.0.0 for them (maths.md '
+            'M-WAV-2D, M-WAV-1D); "healpix" is for DataHealpix. Pass None or "bump_steerable".'
         )
 
 
@@ -534,6 +540,23 @@ def build_wavelet_filters(
     """The arrays of ``plan`` on the backend ``backend_name``, cast once to ``dtype`` on
     ``device`` (Part I, §3.1, rules 4 and 7)."""
     backend = _registry.backend_named(backend_name)
+    field_down, modulus_down = downsample_maps_of(plan, backend_name, dtype, device)
+    return WaveletFilters(
+        kernels=backend.asarray(plan.bank(), COMPLEX[dtype], device),
+        smoothing=backend.asarray(smoothing_kernel(plan.ndim), dtype, device),
+        field_down=field_down,
+        modulus_down=modulus_down,
+    )
+
+
+def downsample_maps_of(
+    plan: WaveletPlan, backend_name: str, dtype: FloatDType, device: Any
+) -> tuple[dict[int, tuple[Any, Any]], dict[tuple[int, int], tuple[Any, Any]]]:
+    """The ``(valid, reweight)`` maps of every downsampling step of ``plan``, on the backend in
+    ``dtype``: per level ``d`` for the field, and per ``(d, j)`` for first-layer data convolved
+    at scale ``j`` (``WaveletPlan.downsample_maps``; M-DOWN-MASK). Empty without missing
+    values. Shared by the filters of every geometry."""
+    backend = _registry.backend_named(backend_name)
 
     def maps(level: int, history: History = ()) -> tuple[Any, Any] | None:
         found = plan.downsample_maps(level, history)
@@ -551,11 +574,9 @@ def build_wavelet_filters(
         for j, level in enumerate(plan.scale_levels)
         if level <= d
     }
-    return WaveletFilters(
-        kernels=backend.asarray(plan.bank(), COMPLEX[dtype], device),
-        smoothing=backend.asarray(smoothing_kernel(plan.ndim), dtype, device),
-        field_down={d: m for d, m in field_down.items() if m is not None},
-        modulus_down={k: m for k, m in modulus_down.items() if m is not None},
+    return (
+        {d: m for d, m in field_down.items() if m is not None},
+        {k: m for k, m in modulus_down.items() if m is not None},
     )
 
 
@@ -581,8 +602,10 @@ class WaveletOperator:
     L:
         The number of orientations; by default 4 in 2D, 1 in 1D, 4 gauges on HEALPix.
     wavelet:
-        ``None``, the wavelet of the geometry: the bump-steerable wavelets of planar data, the
-        kernel of M-WAV-HPX on HEALPix.
+        ``None`` (the default), the wavelet of the geometry: ``"bump_steerable"`` for 1D and 2D
+        data (M-WAV-2D, M-WAV-1D), ``"healpix"`` for ``DataHealpix`` (M-WAV-HPX). 1D and 2D
+        data accept ``None`` or ``"bump_steerable"``, ``DataHealpix`` ``None`` or
+        ``"healpix"``; another name raises a ``ValueError`` that lists them.
     """
 
     __slots__ = ("_data", "_filters", "_plan")

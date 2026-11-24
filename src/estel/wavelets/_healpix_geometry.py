@@ -69,11 +69,12 @@ from __future__ import annotations
 import itertools
 import math
 from dataclasses import dataclass
-from numbers import Integral
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from estel.data._healpix import check_cell_ids, check_depth
+from estel.data._masks import HEALPIX_SUPPORT_THRESHOLD
 from estel.wavelets._banks import _check_n_orientations
 from estel.wavelets._healpix_bank import HEALPIX_GAUGES, HEALPIX_KERNEL_SIZE, _check_kernel_size
 from estel.wavelets._healpix_pixels import (
@@ -103,11 +104,6 @@ __all__ = [
 MAX_DEPTH = 13
 """The deepest level the tables index: 12 · 4^13 pixels (``nside`` 8192) fit int32 indices."""
 
-_ABSENT_WEIGHT = 1e-12
-"""A neighbour whose interpolation weight is below this counts as absent in the binding on a
-partial sky (decision of 24 November 2026 on issue #26; maths.md OP-110): the threshold of the
-support test of M-MASK-HPX."""
-
 _CONE_CHUNK = 1 << 14
 """Coarse pixels searched at once by :func:`_cone_pairs`: bounds its temporary arrays."""
 
@@ -118,17 +114,9 @@ _CONE_CHUNK = 1 << 14
 
 
 def _check_depth(depth: object, minimum: int = 0) -> int:
-    """``depth`` as an int in [minimum, MAX_DEPTH]."""
-    if isinstance(depth, bool) or not isinstance(depth, Integral):
-        raise TypeError(
-            f"depth={depth!r}: the depth is an integer, log2(nside), such as depth=4 for nside 16."
-        )
-    value = int(depth)
-    if value < minimum:
-        raise ValueError(
-            f"depth={value}: the depth must be at least {minimum} here"
-            + (" (a decimation goes from depth to depth - 1)." if minimum else ".")
-        )
+    """``depth`` as an int in [minimum, MAX_DEPTH]: the check of the data
+    (``estel.data._healpix.check_depth``), then the int32 limit of the tables."""
+    value = check_depth(depth, minimum=minimum)
     if value > MAX_DEPTH:
         raise ValueError(
             f"depth={value} (nside {1 << value}): the HEALPix tables index pixels in int32, "
@@ -138,35 +126,12 @@ def _check_depth(depth: object, minimum: int = 0) -> int:
     return value
 
 
-def _check_cell_ids(cell_ids: ArrayLike | None, depth: int) -> NDArray[np.int64]:
-    """The NESTED pixels as int64: all of them for ``None``, else checked (maths.md OP-90)."""
-    n_pix = 12 * 4**depth
+def _pixels(cell_ids: ArrayLike | None, depth: int) -> NDArray[np.int64]:
+    """The NESTED pixels as int64: all of them for ``None``, else checked as the data check
+    them (``estel.data._healpix.check_cell_ids``; maths.md OP-90)."""
     if cell_ids is None:
-        return np.arange(n_pix, dtype=np.int64)
-    ids = np.asarray(cell_ids)
-    if ids.ndim != 1 or ids.size == 0:
-        raise ValueError(
-            f"cell_ids has shape {ids.shape}: give a non-empty 1D array of NESTED pixel "
-            "indices, or None for the full sky."
-        )
-    if not np.issubdtype(ids.dtype, np.integer):
-        raise TypeError(
-            f"cell_ids has dtype {ids.dtype}: give integer NESTED pixel indices, for example "
-            "cell_ids.astype(np.int64)."
-        )
-    ids = ids.astype(np.int64)
-    if ids.min() < 0 or ids.max() >= n_pix:
-        raise ValueError(
-            f"cell_ids holds pixels outside [0, {n_pix}), the {n_pix} pixels of depth {depth} "
-            f"(nside {1 << depth}): check depth, or the NESTED indices."
-        )
-    if np.any(np.diff(ids) <= 0):
-        raise ValueError(
-            "cell_ids must be strictly increasing (maths.md OP-90): sort the pixels and the "
-            "data together, order = np.argsort(cell_ids); cell_ids, x = cell_ids[order], "
-            "x[..., order], and remove repeated pixels."
-        )
-    return ids
+        return np.arange(12 * 4**depth, dtype=np.int64)
+    return check_cell_ids(cell_ids, depth)
 
 
 def interp_weights_nested(
@@ -287,10 +252,11 @@ def _bind_support(
     rule of maths.md M-CONV-HPX (OP-50), as decided on 24 November 2026 (issue #26).
 
     A neighbour counts as absent when it is outside ``ids`` or when its interpolation weight is
-    below :data:`_ABSENT_WEIGHT` (1e-12, the threshold of the support test of M-MASK-HPX). The
-    weights of the remaining neighbours of a stencil point are renormalised to sum to 1
-    exactly, with no floor on their sum. A stencil point with no remaining neighbour takes the
-    neighbours of the stencil centre of its pixel and gauge, which reads the pixel itself.
+    below ``HEALPIX_SUPPORT_THRESHOLD`` (1e-12, the threshold of the support test of
+    M-MASK-HPX, defined in ``estel.data._masks``). The weights of the remaining neighbours of a
+    stencil point are renormalised to sum to 1 exactly, with no floor on their sum. A stencil
+    point with no remaining neighbour takes the neighbours of the stencil centre of its pixel
+    and gauge, which reads the pixel itself.
 
     **This differs from STL** (healpix-analyse's ``_bind_support_batched`` and
     ``TorchGeometry.bind_support``) at the ill-conditioned points of the edge (maths.md
@@ -309,13 +275,13 @@ def _bind_support(
         return pos, found
 
     _, found = lookup(index)
-    present = found & (weight >= _ABSENT_WEIGHT)
+    present = found & (weight >= HEALPIX_SUPPORT_THRESHOLD)
     empty: NDArray[np.bool_] = ~np.asarray(present.any(axis=-1))  # (L, N, P)
     centre = (kernel_size // 2) * (kernel_size + 1)
     index = np.where(empty[..., None], index[:, :, centre : centre + 1], index)
     weight = np.where(empty[..., None], weight[:, :, centre : centre + 1], weight)
     pos, found = lookup(index)
-    present = found & (weight >= _ABSENT_WEIGHT)
+    present = found & (weight >= HEALPIX_SUPPORT_THRESHOLD)
     w = np.where(present, weight, 0.0)
     total = w.sum(axis=-1, keepdims=True)
     if not np.all(total > 0):
@@ -359,7 +325,7 @@ def healpix_stencils(
     module docstring.
     """
     depth = _check_depth(depth)
-    ids = _check_cell_ids(cell_ids, depth)
+    ids = _pixels(cell_ids, depth)
     n_gauges = _check_n_orientations(L)
     size = _check_kernel_size(kernel_size)
     index, weight = _stencil_interpolation(ids, depth, n_gauges, size)
@@ -496,7 +462,7 @@ def healpix_decimation(cell_ids: ArrayLike | None, depth: int) -> HealpixDecimat
     Layout: the module docstring.
     """
     depth = _check_depth(depth, minimum=1)
-    fine = _check_cell_ids(cell_ids, depth)
+    fine = _pixels(cell_ids, depth)
     nside = 1 << depth
     coarse = np.unique(fine // 4)
     lon_c, lat_c = centres_lonlat(coarse, depth - 1)

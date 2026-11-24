@@ -38,7 +38,6 @@ from ._base import (
     Data,
     DownsampleWeights,
     _promote,
-    _StaticMask,
     _to_backend,
     _validate_mask,
 )
@@ -179,12 +178,12 @@ class DataHealpix(Data):
             found_depth = _full_sky_depth(n_pix, depth)
             static_ids = None
         else:
-            found_depth = _check_depth(depth, required=True)
-            static_ids = _StaticCellIds(_check_cell_ids(cell_ids, found_depth, n_pix), found_depth)
+            found_depth, ids = _partial_sky(cell_ids, depth, n_pix)
+            static_ids = _StaticCellIds(ids, found_depth)
         backend = _registry.current_backend()
         nan = np.asarray(backend.to_numpy(backend.xp.isnan(values)), dtype=bool)
         full_mask = _validate_mask(mask, nan, values.shape, backend, cls)
-        self._set_hpx(values, full_mask, found_depth, static_ids, backend_name)
+        self._set(values, full_mask, static_ids is None, backend_name, (found_depth, static_ids))
 
     @classmethod
     def _accepted_shapes(cls) -> str:
@@ -192,41 +191,32 @@ class DataHealpix(Data):
 
     # ------------------------------------------------------------------ construction
 
-    def _set_hpx(
-        self,
-        array: Any,
-        mask: NDArray[np.bool_] | None,
-        depth: int,
-        cell_ids: _StaticCellIds | None,
-        backend: str,
-    ) -> None:
-        self._set(array, mask, cell_ids is None, backend)
+    def _meta(self) -> tuple[Any, ...]:
+        """``(depth, cell_ids)``: the static metadata beyond the mask, ``cell_ids`` as its
+        hashable wrapper (``None`` on the full sky)."""
+        return (self._depth, self._cell_ids)
+
+    def _set_meta(self, meta: tuple[Any, ...]) -> None:
+        if len(meta) != 2:
+            raise TypeError(
+                f"DataHealpix needs its depth and cell_ids to be rebuilt, got meta={meta!r}: "
+                "pass the _meta() of a DataHealpix, data._meta(), to _from_parts."
+            )
+        depth, cell_ids = meta
         object.__setattr__(self, "_depth", depth)
         object.__setattr__(self, "_cell_ids", cell_ids)
+        # pbc follows cell_ids, whatever was passed: True on the full sky only (M-DATA-HPX).
+        object.__setattr__(self, "_pbc", cell_ids is None)
 
-    @classmethod
-    def _from_hpx(
-        cls,
-        array: Any,
-        mask: NDArray[np.bool_] | None,
-        depth: int,
-        cell_ids: _StaticCellIds | None,
-        backend: str,
-    ) -> DataHealpix:
-        """A new object from parts already validated, without looking at the values."""
-        new = cls.__new__(cls)
-        new._set_hpx(array, mask, depth, cell_ids, backend)
-        return new
-
-    def _like(self, array: Any) -> Data:
-        return self._from_hpx(array, self._mask, self._depth, self._cell_ids, self._backend)
+    def _rebuild_advice(self) -> str:
+        return "DataHealpix(array, mask=data.mask, depth=data.depth, cell_ids=data.cell_ids)"
 
     # ------------------------------------------------------------------ accessors
 
     @property
     def pbc(self) -> bool:
         """True on a full sky, False on the partial sky of :attr:`cell_ids` (M-DATA-HPX)."""
-        return self._cell_ids is None
+        return cast(bool, self._pbc)
 
     @property
     def depth(self) -> int:
@@ -251,21 +241,6 @@ class DataHealpix(Data):
         if self._cell_ids is None:
             return int(12 * 4 ** (self._depth - int(level)))
         return self._cell_ids.level_sizes[int(level)]
-
-    # ------------------------------------------------------------------ pytree
-
-    def _tree_flatten(self) -> tuple[tuple[Any], tuple[Any, ...]]:
-        """The array is the only leaf; the mask, ``depth``, ``cell_ids`` and the backend are
-        static and hashable (Part I, §2.3; issue #166, decision 7)."""
-        mask = None if self._mask is None else _StaticMask(self._mask)
-        return (self._array,), (mask, self._depth, self._cell_ids, self._backend)
-
-    @classmethod
-    def _tree_unflatten(cls, aux: tuple[Any, ...], children: tuple[Any, ...]) -> Data:
-        mask, depth, cell_ids, backend = aux
-        return cls._from_hpx(
-            children[0], None if mask is None else mask.mask, depth, cell_ids, backend
-        )
 
     # ------------------------------------------------------------------ geometry hooks
 
@@ -422,24 +397,83 @@ def _decimation_rows(
 # ---------------------------------------------------------------------- validation
 
 
-def _check_depth(depth: object, *, required: bool) -> int:
-    """``depth`` as an int ≥ 0."""
+def check_depth(depth: object, *, minimum: int = 0, owner: str = "") -> int:
+    """``depth``, log₂ ``nside``, as an int ≥ ``minimum``: the one check of a depth, for the
+    data and for the tables of ``estel.wavelets._healpix_geometry``. ``owner`` prefixes the
+    messages (``"DataHealpix: "``)."""
+    if isinstance(depth, bool) or not isinstance(depth, Integral):
+        raise TypeError(
+            f"{owner}depth={depth!r}: the depth is an integer, log2(nside), such as depth=4 for "
+            "nside 16."
+        )
+    value = int(depth)
+    if value < minimum:
+        raise ValueError(
+            f"{owner}depth={value}: the depth must be at least {minimum} here"
+            + (" (a decimation goes from depth to depth - 1)." if minimum else " (nside 1).")
+        )
+    return value
+
+
+def check_cell_ids(cell_ids: Any, depth: int, *, owner: str = "") -> NDArray[np.int64]:
+    """``cell_ids`` as int64: a non-empty 1D array of integers within the 12 · 4^depth pixels of
+    ``depth``, strictly increasing (maths.md OP-90). The one check of NESTED pixel indices, for
+    the data and for the tables of ``estel.wavelets._healpix_geometry``. ``owner`` prefixes the
+    messages."""
+    ids = np.asarray(cell_ids)
+    if ids.ndim != 1 or ids.size == 0:
+        raise ValueError(
+            f"{owner}cell_ids has shape {ids.shape}: give a non-empty 1D array of NESTED pixel "
+            "indices, or None for the full sky."
+        )
+    if not np.issubdtype(ids.dtype, np.integer):
+        raise TypeError(
+            f"{owner}cell_ids has dtype {ids.dtype}: give integer NESTED pixel indices, for "
+            "example cell_ids.astype(np.int64)."
+        )
+    ids = ids.astype(np.int64)
+    total = 12 * 4**depth
+    if ids.min() < 0 or ids.max() >= total:
+        raise ValueError(
+            f"{owner}cell_ids holds pixels outside [0, {total}), the pixels of depth {depth} "
+            f"(nside {1 << depth}): check depth and the NESTED indices."
+        )
+    if np.any(np.diff(ids) <= 0):
+        raise ValueError(
+            f"{owner}cell_ids must be strictly increasing (maths.md OP-90). Sort the pixels and "
+            "the data together: order = np.argsort(cell_ids); cell_ids, array = "
+            "cell_ids[order], array[..., order]; and remove repeated pixels."
+        )
+    return cast(NDArray[np.int64], ids)
+
+
+def _partial_sky(cell_ids: Any, depth: object, n_pix: int) -> tuple[int, NDArray[np.int64]]:
+    """The depth and the pixels of a partial sky of ``n_pix`` pixels: ``depth`` required
+    (OP-91), ``cell_ids`` checked (OP-90), one per pixel, and not the whole sphere, which is a
+    full sky given without ``cell_ids`` (rule A6). The whole sphere is tested last, so that
+    a wrong depth or an unsorted sphere get their own message."""
     if depth is None:
         raise ValueError(
             "DataHealpix(cell_ids=...) needs depth, log2(nside) of the map: on a partial sky it "
             "cannot be read from the number of pixels (maths.md OP-91). Pass depth=4 for "
             "nside 16, for example."
-            if required
-            else "DataHealpix: depth is missing."
         )
-    if isinstance(depth, bool) or not isinstance(depth, Integral):
-        raise TypeError(
-            f"DataHealpix(depth={depth!r}): the depth is an integer, log2(nside), such as "
-            "depth=4 for nside 16."
+    owner = "DataHealpix: "
+    found = check_depth(depth, owner=owner)
+    ids = check_cell_ids(cell_ids, found, owner=owner)
+    if ids.size != n_pix:
+        raise ValueError(
+            f"{owner}cell_ids has {ids.size} entries, but the array has {n_pix} pixels; pass "
+            f"one NESTED index per pixel, shape ({n_pix},)."
         )
-    if int(depth) < 0:
-        raise ValueError(f"DataHealpix(depth={depth}): the depth is at least 0 (nside 1).")
-    return int(depth)
+    total = 12 * 4**found
+    if ids.size == total:
+        raise ValueError(
+            f"{owner}cell_ids has {total} entries, the whole sphere at depth {found} "
+            f"(nside {1 << found}). A full sky is given without cell_ids: omit cell_ids (and "
+            "depth, which is read from the number of pixels); cell_ids are for a partial sky."
+        )
+    return found, ids
 
 
 def _full_sky_depth(n_pix: int, depth: object) -> int:
@@ -453,46 +487,9 @@ def _full_sky_depth(n_pix: int, depth: object) -> int:
             "768, …). For a partial sky, pass cell_ids, the NESTED indices of the pixels, and "
             "depth (maths.md M-DATA-HPX, OP-91)."
         )
-    if depth is not None and _check_depth(depth, required=False) != found:
+    if depth is not None and check_depth(depth, owner="DataHealpix: ") != found:
         raise ValueError(
             f"DataHealpix(depth={depth}): the {n_pix} pixels are a full sky of depth {found} "
             f"(nside {1 << found}). Pass depth={found} or None, or cell_ids for a partial sky."
         )
     return found
-
-
-def _check_cell_ids(cell_ids: Any, depth: int, n_pix: int) -> NDArray[np.int64]:
-    """``cell_ids`` as int64: 1D, one per pixel, integers within the pixels of ``depth``,
-    strictly increasing (maths.md OP-90), and fewer than the whole sphere of ``depth``: a full
-    sky is given without ``cell_ids``, one way to say it (rule A6)."""
-    ids = np.asarray(cell_ids)
-    if ids.ndim != 1 or ids.size != n_pix:
-        raise ValueError(
-            f"DataHealpix: cell_ids has shape {ids.shape}, but the array has {n_pix} pixels; "
-            f"pass one NESTED index per pixel, shape ({n_pix},)."
-        )
-    if not np.issubdtype(ids.dtype, np.integer):
-        raise TypeError(
-            f"DataHealpix: cell_ids has dtype {ids.dtype}; pass integer NESTED pixel indices, "
-            "for example cell_ids.astype(np.int64)."
-        )
-    ids = ids.astype(np.int64)
-    total = 12 * 4**depth
-    if ids.size == total:
-        raise ValueError(
-            f"DataHealpix: cell_ids has {total} entries, the whole sphere at depth {depth} "
-            f"(nside {1 << depth}). A full sky is given without cell_ids: omit cell_ids (and "
-            "depth, which is read from the number of pixels); cell_ids are for a partial sky."
-        )
-    if ids.min() < 0 or ids.max() >= total:
-        raise ValueError(
-            f"DataHealpix: cell_ids holds pixels outside [0, {total}), the pixels of depth "
-            f"{depth} (nside {1 << depth}): check depth and the NESTED indices."
-        )
-    if np.any(np.diff(ids) <= 0):
-        raise ValueError(
-            "DataHealpix: cell_ids must be strictly increasing (maths.md OP-90). Sort the pixels "
-            "and the data together: order = np.argsort(cell_ids); cell_ids, array = "
-            "cell_ids[order], array[..., order]; and remove repeated pixels."
-        )
-    return cast(NDArray[np.int64], ids)

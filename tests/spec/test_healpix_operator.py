@@ -121,8 +121,9 @@ def _check_masks(plan: Any, levels: Any, invalid: NDArray[np.bool_]) -> None:
 
 
 @pytest.mark.maths("M-MASK-HPX", "M-MASK", "M-DOWN-MASK")
+@pytest.mark.parametrize("dtype", ["float64"])  # the masks are float64 in every dtype
 @pytest.mark.parametrize("sky", ["full", "disc"])
-def test_masks_equal_the_oracle_at_nside_8(sky: str) -> None:
+def test_masks_equal_the_oracle_at_nside_8(sky: str, dtype: DType) -> None:
     """A hole of 16 pixels and a few scattered ones, J = 3, on the full sky and on the disc of
     ``disc_8``: enough to make every family non-trivial."""
     nside, ids, maps = _domain(f"{sky}_8")
@@ -134,8 +135,9 @@ def test_masks_equal_the_oracle_at_nside_8(sky: str) -> None:
 
 @pytest.mark.slow
 @pytest.mark.maths("M-MASK-HPX", "M-MASK", "M-DOWN-MASK")
+@pytest.mark.parametrize("dtype", ["float64"])  # the masks are float64 in every dtype
 @pytest.mark.parametrize("name", ["nan_16", "disc_nan_16"])
-def test_masks_equal_the_oracle_on_the_masked_configurations(name: str) -> None:
+def test_masks_equal_the_oracle_on_the_masked_configurations(name: str, dtype: DType) -> None:
     """The two masked configurations of ``statistics_hpx``, ``nside`` 16, J = 3.
 
     Slow: ``nside`` 16, the oracle's naive tables (decision 4 on #165)."""

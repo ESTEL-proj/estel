@@ -23,6 +23,7 @@ from numpy.typing import NDArray
 from estel import DataHealpix, _config
 from estel.backend import _registry
 from estel.backend._protocol import DType
+from estel.wavelets._healpix_operator import HealpixWaveletPlan
 from estel.wavelets._operator import WaveletOperator, build_wavelet_plan
 from tests.parity._compare import assert_parity, load_fixture
 from tests.parity.test_healpix_tables import EXCLUDED_ROWS, _well_conditioned_rows
@@ -88,14 +89,17 @@ def test_decimation_equals_stl(name: str, dtype: DType) -> None:
     operator = _operator(name, 2)
     actual = _numpy(operator.downsample(operator._data.array, 0))[:, 0]
     assert_parity(actual, _operators()[f"{name}_down"], dtype)
-    coarse = operator.plan.level_cell_ids(1)  # type: ignore[attr-defined]
+    plan = operator.plan
+    assert isinstance(plan, HealpixWaveletPlan)
+    coarse = plan.level_cell_ids(1)
     if coarse is not None:
         np.testing.assert_array_equal(coarse, _operators()[f"{name}_down_cell_ids"])
 
 
 @pytest.mark.maths("M-MASK-HPX", "M-MASK", "M-DOWN-MASK")
+@pytest.mark.parametrize("dtype", ["float64"])  # the masks are float64 in every dtype
 @pytest.mark.parametrize("name", ["nan_16", "disc_nan_16"])
-def test_masks_equal_stl(name: str) -> None:
+def test_masks_equal_stl(name: str, dtype: DType) -> None:
     """Every static mask and reweighting map of the two masked configurations, on the pixels of
     their level: the masks exactly, the maps to the float64 parity tolerance (they are built in
     float64 with the plan, whatever the dtype)."""
@@ -110,6 +114,7 @@ def test_masks_equal_stl(name: str) -> None:
         cell_ids=None if full else ids,
     )
     plan = build_wavelet_plan(data, 3)
+    assert isinstance(plan, HealpixWaveletPlan)
     masks = plan.masks
     assert masks is not None
 
@@ -119,7 +124,8 @@ def test_masks_equal_stl(name: str) -> None:
     same(masks.full_res, "smooth_0")
     for d in (1, 2):
         if not full:
-            np.testing.assert_array_equal(plan.level_cell_ids(d), fixture[f"{name}_cell_ids_{d}"])  # type: ignore[attr-defined]
+            expected_ids = fixture[f"{name}_cell_ids_{d}"]
+            np.testing.assert_array_equal(plan.level_cell_ids(d), expected_ids)
         same(masks.smooth_invalid[d], f"smooth_{d}")
         assert_parity(masks.smooth_reweight[d], fixture[f"{name}_reweight_smooth_{d}"])
     for j, layer in masks.layer1.items():

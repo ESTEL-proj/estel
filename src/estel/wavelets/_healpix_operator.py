@@ -38,16 +38,22 @@ from .._config import FloatDType
 from ..backend import _registry
 from ..data._base import _StaticMask
 from ..data._healpix import DataHealpix, HealpixConvTables, HealpixDownTables, _StaticCellIds
-from ..data._masks import HEALPIX_SUPPORT_THRESHOLD, BoolMap, RealMap, build_healpix_mask_maps
+from ..data._masks import (
+    HEALPIX_SUPPORT_THRESHOLD,
+    BoolMap,
+    MaskMaps,
+    RealMap,
+    build_mask_maps_with,
+)
 from ._banks import _check_n_orientations
 from ._healpix_bank import HEALPIX_GAUGES, _check_kernel_size, healpix_kernel_weights
 from ._healpix_geometry import (
-    MAX_DEPTH,
     HealpixDecimation,
+    _check_depth,
     healpix_decimation,
     healpix_stencils,
 )
-from ._operator import History, WaveletPlan, _read_only
+from ._operator import History, WaveletPlan, _read_only, downsample_maps_of
 
 HEALPIX_WAVELETS = ("healpix",)
 """The wavelets of HEALPix data in 1.0.0: the kernel of maths.md M-WAV-HPX, STL's
@@ -134,21 +140,17 @@ def build_healpix_wavelet_plan(
     default max(1, depth - 1), L = 4, K = 5 (maths.md M-DEF-HPX); its values are not read.
 
     Raises when J is not an integer in 1 … depth + 1 (each scale one level coarser, down to
-    ``nside`` 1), when L is not an integer ≥ 1, when K is not odd and ≥ 3, and when the
-    wavelet is not that of M-WAV-HPX.
+    ``nside`` 1: the bound STL accepts), when L is not an integer ≥ 1, when K is not odd and
+    ≥ 3, when the depth exceeds the int32 limit of the tables, and when ``wavelet`` is neither
+    ``None`` nor ``"healpix"``.
     """
     if wavelet not in (None, *HEALPIX_WAVELETS):
         raise ValueError(
-            f"wavelet={wavelet!r}: HEALPix data have one wavelet in ESTEL 1.0.0, the kernel of "
-            'maths.md M-WAV-HPX: pass wavelet=None (the default) or "healpix".'
+            f"wavelet={wavelet!r}: DataHealpix accepts wavelet=None (the default, its wavelet) "
+            'or "healpix", the kernel of maths.md M-WAV-HPX, its only wavelet in ESTEL 1.0.0; '
+            '"bump_steerable" is for 1D and 2D data. Pass None or "healpix".'
         )
-    depth = data.depth
-    if depth > MAX_DEPTH:
-        raise ValueError(
-            f"DataHealpix of depth {depth} (nside {1 << depth}): the HEALPix tables index pixels "
-            f"in int32, which holds at most depth {MAX_DEPTH} (nside {1 << MAX_DEPTH}). Use a "
-            "coarser map."
-        )
+    depth = _check_depth(data.depth)  # the int32 limit of the tables
     n_scales = _check_healpix_scales(J, depth)
     n_gauges = _check_n_orientations(HEALPIX_GAUGES if L is None else L)
     size = _check_kernel_size(kernel_size)
@@ -158,7 +160,7 @@ def build_healpix_wavelet_plan(
     level_shapes = tuple((data._n_pixels(d),) for d in levels)
     masks = None
     if data.mask is not None:
-        masks = _healpix_masks(data.mask, depth, static_ids, scale_levels, n_gauges, size)
+        masks = _healpix_masks(data.mask, depth, static_ids, scale_levels, n_gauges, size, data.pbc)
     static_mask = None if data.mask is None else _StaticMask(data.mask)
     return HealpixWaveletPlan(
         geometry=DataHealpix,
@@ -208,7 +210,8 @@ def _healpix_masks(
     scale_levels: tuple[int, ...],
     n_gauges: int,
     size: int,
-) -> Any:
+    pbc: bool,
+) -> MaskMaps:
     """The masks and reweighting maps of M-MASK-HPX, from the tables of each level, built one
     level at a time and dropped (module docstring)."""
 
@@ -242,8 +245,8 @@ def _healpix_masks(
         summed = np.bincount(tables.segment_ids, weights=gathered, minlength=tables.num_segments)
         return np.asarray(summed, dtype=np.float64)
 
-    return build_healpix_mask_maps(
-        mask, scale_levels, support, decimate, threshold=DataHealpix._nan_threshold
+    return build_mask_maps_with(
+        mask, scale_levels, support, decimate, threshold=DataHealpix._nan_threshold, pbc=pbc
     )
 
 
@@ -282,25 +285,10 @@ def build_healpix_wavelet_filters(
             segment_ids=backend.asarray(tables.segment_ids, "int32", device),
         )
 
-    def maps(level: int, history: History = ()) -> tuple[Any, Any] | None:
-        found = plan.downsample_maps(level, history)
-        if found is None:
-            return None
-        valid = backend.asarray(np.asarray(found[0], dtype=bool), "bool", device)
-        reweight = backend.asarray(np.asarray(found[1], dtype=np.float64), dtype, device)
-        return valid, reweight
-
-    down_levels = plan.wavelet_levels[:-1]
-    field_down = {d: maps(d) for d in down_levels}
-    modulus_down = {
-        (d, j): maps(d, (j,))
-        for d in down_levels
-        for j, level in enumerate(plan.scale_levels)
-        if level <= d
-    }
+    field_down, modulus_down = downsample_maps_of(plan, backend_name, dtype, device)
     return HealpixWaveletFilters(
         conv=tuple(conv(d) for d in plan.levels),
-        down=tuple(down(d) for d in down_levels),
-        field_down={d: m for d, m in field_down.items() if m is not None},
-        modulus_down={k: m for k, m in modulus_down.items() if m is not None},
+        down=tuple(down(d) for d in plan.wavelet_levels[:-1]),
+        field_down=field_down,
+        modulus_down=modulus_down,
     )
