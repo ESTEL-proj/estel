@@ -249,7 +249,7 @@ STL stores, at `j1 = j2`, both `(l1, l2)` and `(l2, l1)`, which are complex conj
 - (a) keep STL's set as canonical, with packing as a pure storage choice and duplicates weighted twice in the loss;
 - (b) make the non-redundant set canonical.
 
-Option (a) keeps the losses of 1.0.0; option (b) is cleaner and changes reference values (a major). The decision is taken after 1.0.0 (LF20). Whatever is chosen, the gather of the Rust engine (§18.2) must produce it.
+Option (a) keeps the losses of 1.0.0; option (b) is cleaner and changes reference values (the next 1.x minor). Option (b) was decided on 24 November 2026 (LF20). The gather of the Rust engine (§18.2) must produce it.
 
 ### 19.9 Where the conversion is written
 

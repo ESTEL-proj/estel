@@ -145,11 +145,11 @@ S_4[j_1,\ell_1,j_2,\ell_2; J] = \mathrm{Cov}\big(\Phi\, D\, U_{j_1,\ell_1} x,\ \
 
 ## 6.5 Canonical coefficient set — M-CANON
 
-*In the register as LF20, "decision after 1.0.0". This entry lists the redundancies and counts them.*
+*In the register as LF20; the canonical set and the rule of `to_vector` decided on 24 November 2026 (LF20). This entry lists the redundancies and counts them; the sets of every family in every geometry are still to write (LF20, task 1).*
 
 - **Hermitian symmetry of S4.** S4\[c₁, c₂; j₁, ℓ₁, j₂, ℓ₂; j, ℓ\] is the conjugate of S4\[c₂, c₁; j₂, ℓ₂, j₁, ℓ₁; j, ℓ\]. For an auto term (c₁ = c₂), the full-grid tensor of STL stores both (ℓ₁, ℓ₂) and (ℓ₂, ℓ₁) at j₁ = j₂: (j + 1) L (L − 1) / 2 duplicates per band and orientation. The diagonal entries, j₁ = j₂ and ℓ₁ = ℓ₂, are real.
 - **S1 and S2,** auto terms: real. Cross terms: (c₁, c₂) and (c₂, c₁) are conjugates, already stored once.
-- **S3 and S4, cross terms:** both channel orders are computed in STL (OP-14); with the Hermitian symmetry, one order of S4 suffices. S3 has no such symmetry: its two arguments play different roles.
+- **S3 and S4, cross terms:** both channel orders are computed in STL (OP-14). With the Hermitian symmetry, one order of S4 suffices only at j₁ = j₂: at j₁ < j₂, the entry of (c₂, c₁) is the conjugate of an entry with j₁ > j₂, which is not computed, so both orders stay. The duplicates of a cross pair are 3/(2(J + 2)) of its S4, 15 to 25 % for J = 4 to 8. S3 has no such symmetry: its two arguments play different roles.
 - **Counts,** auto terms, one channel:
 
 | J, L | STL (non-NaN) | canonical | of which S4: STL, canonical |
@@ -160,7 +160,7 @@ S_4[j_1,\ell_1,j_2,\ell_2; J] = \mathrm{Cov}\big(\Phi\, D\, U_{j_1,\ell_1} x,\ \
 | 6, 8 | 30,114 | 25,410 | 28,672, 23,968 |
 
   The first line is the count of the STOC deliverable (Table 1), which is STL's count, duplicates included. The canonical set removes 11 to 19 % of S4.
-- **Open (LF20):** whether the canonical set is what `to_vector` returns, and how real and imaginary parts are counted for the entries that are real.
+- **Decided on 24 November 2026 (LF20):** the non-redundant set is canonical: at j₁ = j₂, S4 keeps ℓ₁ ≤ ℓ₂ for an auto term and one channel order for a cross pair; 1D with L = 2 and products of 1D blocks only keep one of two conjugate orientations; the losses change. `to_vector` returns the canonical set: one real for an entry real by construction (auto S1, S2 and PS; the diagonal of S4, c₁ = c₂, j₁ = j₂, ℓ₁ = ℓ₂; every term whose last filter is low-pass in every block, Φ being real), two for any other, as the `is_complex` of a segment. Its squared norm is the complex loss of M-SYN-LOSS on the canonical set.
 
 ## 6.6 Strict scale order — M-STRICT
 
@@ -194,7 +194,7 @@ STL computes the second layer for j₁ ≤ j₂ ≤ j, **equality with the band 
 
 ## 6.7 Isotropic reduction and conjugation — M-ISO2
 
-*In the register as LF32 (OP-5). A test shows that STL's definition needs no change; what is open is the imaginary part.*
+*In the register as LF32 (OP-5). A test shows that STL's definition needs no change; its imaginary part is dropped, decided on 25 November 2026 (LF32).*
 
 The orientations ℓ = 0 … L−1 cover \[0, π). For a real field, extend them to ℓ ∈ ℤ: a filter turned by π gives the conjugate response.
 
@@ -216,7 +216,7 @@ Tested: this agrees with STL's loops to 1e-18. No value is mixed with a conjugat
 - The **imaginary part** is not: it depends on which half-plane of orientations is called \[0, π). For a field whose statistics are invariant under a rotation by π, its expectation is zero.
 - **Measured** on a lognormal field turned by 90 degrees (128², J = 3): the real parts change by 3e-3, which is the defect of the kernels themselves (Part IV, R-N19), and the imaginary parts by more than their own size. The imaginary parts are about a tenth of the real parts.
 
-**Open.** Whether `iso` returns the real parts only. It would halve the reduced S3 and S4, and remove from a loss a term that is noise for isotropic fields and is not invariant in any case. It is a change of values.
+**Decided on 25 November 2026 (LF32, question 1).** `iso` returns the real parts only, of the reduced S3 and S4 and of the reduced cross S1 and S2: the average over the 2L band orientations of \[0, 2π), invariant under rotations by π/L. It halves the reduced S3 and S4, and removes from a loss a term that is noise for isotropic fields and is not invariant in any case. It is a change of values. LF32's questions 2 and 3 (1D with L = 2; `angular_fourier` without `iso`) are decided in its card, and are still to write here (LF32, task 1).
 
 ## 6.8 Partitioned sums — M-PART
 
