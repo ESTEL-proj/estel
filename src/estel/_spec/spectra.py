@@ -53,9 +53,11 @@ def spec_bessel_j0(x: Any) -> Array:
     M equally spaced points, which is exact for a periodic integrand up to its aliases:
     ``(1/M) Σ_m cos(x sin(2πm/M)) = J₀(x) + 2 Σ_{q≥1} J_{qM}(x)`` for even M. With
     M ≥ |x| + 20 |x|^(1/3) + 32, the first alias, 2 J_M(x), is far below 1e-15 (J_nu(x) decays
-    faster than exponentially once nu - x exceeds a few x^(1/3)); the rounding of ``x sin θ``
-    leaves an absolute error of at most about |x| · 2.2e-16, 1.8e-13 at x = 256 π. This meets the
-    accuracy that §1.9 requires, an absolute error of at most 1e-12 on [0, π N_max].
+    faster than exponentially once nu - x exceeds a few x^(1/3)). The rounding of each term,
+    that of θ_m = 2πm/M included, averages out over the M terms. Measured against references
+    summed with 40 significant digits: an absolute error of at most 8.1e-15 on a grid of 20 001
+    points over [0, 256 π], and of 7.0e-15 on every argument π rho k / N_max of the borders at
+    N = 512. The 1e-12 that §1.9 requires on [0, π N_max] holds with a margin of about 100.
     """
     x = np.abs(np.asarray(x, dtype=np.float64))
     largest = float(x.max()) if x.size else 0.0
@@ -282,6 +284,10 @@ def spec_spectra(
       PS_b = N_pix / N_obs · (1/Z_b) Σ_{n∈O} f_{b,c1}[n] f_{b,c2}[n];
     - ``pbc_nan_mask``: as ``pbc_mask``, with M_b O in place of M_b, after the same filling.
 
+    Data with missing pixels given to ``fft`` or ``pbc_mask``, no observed pixel for ``nan_mask``
+    or ``pbc_nan_mask``, and a bin whose M_b O is null everywhere for ``pbc_nan_mask`` raise a
+    ``ValueError``.
+
     Only the real part of the cross spectra is computed (OP-19). Returns ``PS``, ``method`` (the
     estimator used) and ``bins`` (the result of ``spec_spectrum_bins``).
     """
@@ -301,20 +307,21 @@ def spec_spectra(
     index = _radial_index(n1, n2)
     n_pix = n1 * n2
 
-    # Each map with its missing pixels filled with the mean of its valid pixels (nan_mask and
-    # pbc_nan_mask); the observed pixels O, valid in every batch element and channel.
+    # The observed pixels O, valid in every batch element and channel; then each map with its
+    # missing pixels filled with the mean of its valid pixels (nan_mask and pbc_nan_mask). With
+    # some observed pixel, every map has a valid pixel.
+    observed: Array = np.asarray(~missing.any(axis=(0, 1)), dtype=np.float64)
+    if chosen in ("nan_mask", "pbc_nan_mask") and not observed.any():
+        raise ValueError(
+            "no pixel is valid in every batch element and channel: the estimator "
+            f"{chosen!r} has nothing to average (M-PS-2D); give data with common valid pixels."
+        )
     filled = np.array(x)
     for batch in range(nb):
         for c in range(nc):
             valid = ~missing[batch, c]
             if (~valid).any():
                 filled[batch, c] = np.where(valid, x[batch, c], x[batch, c][valid].mean())
-    observed: Array = np.asarray(~missing.any(axis=(0, 1)), dtype=np.float64)
-    if chosen == "nan_mask" and not observed.any():
-        raise ValueError(
-            "no pixel is valid in every batch element and channel: the estimator 'nan_mask' "
-            "has nothing to average (M-PS-2D); give data with common valid pixels."
-        )
 
     x_hat = np.fft.fft2(filled, norm="ortho")  # (Nb, Nc, N1, N2), complex
     ps = np.full((nb, nc, nc, n_b), np.nan, dtype=np.complex128)
@@ -345,7 +352,7 @@ def spec_spectra(
             weight = observed
         else:  # pbc_nan_mask
             weight = _hard_mask(n1, n2, int(bins["borders"][b])) * observed
-        if not weight.any():
+        if chosen == "pbc_nan_mask" and not weight.any():
             raise ValueError(
                 f"bin {b}: no observed pixel lies inside its border of {bins['borders'][b]} "
                 f"pixels, so the estimator {chosen!r} has nothing to average (M-PS-2D); use "

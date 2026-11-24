@@ -615,6 +615,13 @@ def spec_normalize(stats: Statistics, reference: Statistics) -> Statistics:
             )
         sigma_ps = reference["sigma_PS"]
         ps = np.array(stats["PS"])
+        if sigma_ps.shape[1:] != (ps.shape[1], ps.shape[3]):
+            raise ValueError(
+                f"the reference's sigma_PS has shape {sigma_ps.shape}, but the statistics have "
+                f"{ps.shape[1]} channel(s) and {ps.shape[3]} bins (M-NORM, M-PS-2D); pass the "
+                "reference of statistics with the same channels and the same bins (J, Jmin, "
+                "n_bins)."
+            )
         with np.errstate(invalid="ignore"):  # NaN where no pair or no sigma_PS exists
             for c1 in range(ps.shape[1]):
                 for c2 in range(ps.shape[2]):

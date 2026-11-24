@@ -190,6 +190,24 @@ def test_statistics_without_the_spectrum_are_unchanged() -> None:
     assert np.array_equal(without["vector"], with_ps["vector"][:-n_ps])
 
 
+@pytest.mark.parametrize("masked", [False, True])
+def test_spectrum_is_computed_after_the_standardisation(masked: bool) -> None:
+    """With ``standardize``, the spectrum of ``spec_apply`` is that of the field standardised by
+    ``spec_standardize`` (maths §1.9, "Field"; decision 3 on #149): no fixture sets
+    ``standardize``."""
+    arrays = _arrays("statistics_ps_2d")
+    name = "open_masked" if masked else "periodic"
+    pbc = _configs("statistics_ps_2d")[name]["pbc"]
+    mask = arrays[f"{name}_mask"].astype(bool) if masked else None
+    field = arrays[f"{name}_field"]
+    out = planar.spec_apply(
+        field, 2, pbc, mask, None, 4, norm="none", standardize=True, compute_PS=True
+    )
+    x, invalid = planar.spec_data(field, 2, 3, mask, pbc)
+    standardized, _, _ = planar.spec_standardize(x, 2, invalid)
+    assert_parity(out["PS"], spec.spec_spectra(standardized, pbc)["PS"])
+
+
 # ---------------------------------------------------------------------- the Bessel function J₀
 
 
@@ -228,6 +246,23 @@ def test_bessel_j0_equals_its_series() -> None:
 # ---------------------------------------------------------------------- errors
 
 
+def _disjoint_maps() -> NDArray[np.float64]:
+    """Two channels, each missing the half of the pixels that the other has, and one channel
+    missing every pixel: no pixel is valid in every map."""
+    field = np.ones((3, 16, 16))
+    field[0, :, :8] = np.nan
+    field[1, :, 8:] = np.nan
+    field[2] = np.nan
+    return field
+
+
+def _observed_on_the_edge() -> NDArray[np.float64]:
+    """One map observed on its first row only, inside no border (β_b ≥ 3 at 16 x 16)."""
+    field = np.full((16, 16), np.nan)
+    field[0] = 1.0
+    return field
+
+
 @pytest.mark.parametrize(
     ("call", "message"),
     [
@@ -258,6 +293,33 @@ def test_bessel_j0_equals_its_series() -> None:
             ),
             "compute_PS=False",
             id="J-too-small",
+        ),
+        pytest.param(
+            lambda: planar.spec_apply(np.zeros(64), 1, True, norm="none", compute_PS=True),
+            "2D data only",
+            id="spectrum-of-1d-data",
+        ),
+        pytest.param(
+            lambda: spec.spec_spectra(_disjoint_maps(), True),
+            "no pixel is valid in every batch element and channel",
+            id="no-observed-pixel",
+        ),
+        pytest.param(
+            lambda: spec.spec_spectra(_disjoint_maps(), False),
+            "no pixel is valid in every batch element and channel",
+            id="no-observed-pixel-open",
+        ),
+        pytest.param(
+            lambda: spec.spec_spectra(_observed_on_the_edge(), False),
+            "no observed pixel lies inside its border",
+            id="null-bin-of-pbc-nan-mask",
+        ),
+        pytest.param(
+            lambda: planar.spec_normalize(
+                {"PS": np.ones((1, 1, 1, 6))}, {"sigma_PS": np.ones((1, 1, 4))}
+            ),
+            "the same bins",
+            id="reference-with-other-bins",
         ),
     ],
 )
