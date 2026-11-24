@@ -18,6 +18,7 @@ import healpy as hp  # type: ignore[import-untyped]
 import numpy as np
 import pytest
 
+from estel.wavelets import _healpix_geometry
 from estel.wavelets._healpix_bank import healpix_kernel_weights
 from estel.wavelets._healpix_geometry import (
     MAX_DEPTH,
@@ -63,7 +64,7 @@ def _disc(depth: int, colatitude: float, longitude: float, radius: float) -> np.
 @pytest.mark.parametrize("depth", [0, 1, 4, MAX_DEPTH])
 def test_pixel_centres_equal_healpy(depth: int) -> None:
     pix = _pixels(depth)
-    theta, phi = xyf2ang(*nest2xyf(pix, depth), 1 << depth)
+    theta, phi = xyf2ang(*nest2xyf(pix, depth), depth)
     expected_theta, expected_phi = hp.pix2ang(1 << depth, pix, nest=True)
     np.testing.assert_allclose(theta, expected_theta, rtol=0, atol=1e-14)
     np.testing.assert_allclose(phi, expected_phi, rtol=0, atol=1e-14)
@@ -143,7 +144,7 @@ def test_stencil_points_and_their_order() -> None:
     """Point (u, v), entry p = (v + 2) K + (u + 2), at colatitude √(u² + v²) alpha and azimuth
     atan2(v, u)."""
     nside, size = 16, 5
-    grid = local_kernel_grid(size, nside)
+    grid = local_kernel_grid(size, 4)
     alpha = math.sqrt(4 * math.pi / (12 * nside**2))
     v, u = np.divmod(np.arange(size * size), size)
     u, v = u - 2, v - 2
@@ -164,7 +165,7 @@ def test_stencil_points_and_their_order() -> None:
 @pytest.mark.maths("M-WAV-HPX")
 @pytest.mark.parametrize("size", [3, 5, 7])
 def test_kernel_equals_the_formula(size: int) -> None:
-    kernel = healpix_kernel_weights(size)
+    kernel = healpix_kernel_weights(kernel_size=size)
     assert kernel.shape == (size * size,)
     assert kernel.dtype == np.complex128
     c = (size - 1) // 2
@@ -185,7 +186,7 @@ def test_kernel_equals_the_formula(size: int) -> None:
 )
 def test_kernel_size_is_checked(size: object, error: type[Exception]) -> None:
     with pytest.raises(error, match="kernel_size"):
-        healpix_kernel_weights(size)  # type: ignore[arg-type]
+        healpix_kernel_weights(kernel_size=size)  # type: ignore[arg-type]
 
 
 # --------------------------------------------------------------------------------- decimation
@@ -194,13 +195,18 @@ def test_kernel_size_is_checked(size: object, error: type[Exception]) -> None:
 @pytest.mark.maths("M-DOWN-HPX")
 @pytest.mark.parametrize("depth", [1, 2, 4])
 @pytest.mark.parametrize("sky", ["full", "disc"])
-def test_candidate_search_equals_brute_force(depth: int, sky: str) -> None:
-    """Every fine pixel within rho of a coarse centre, and no other (decision 2 on #26)."""
+@pytest.mark.parametrize("chunk", [7, _healpix_geometry._CONE_CHUNK])
+def test_candidate_search_equals_brute_force(
+    depth: int, sky: str, chunk: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every fine pixel within rho of a coarse centre, and no other (decision 2 on #26), in one
+    chunk of coarse pixels or in many (7 coarse pixels a chunk)."""
+    monkeypatch.setattr(_healpix_geometry, "_CONE_CHUNK", chunk)
     nside = 1 << depth
     fine = np.arange(12 * nside**2) if sky == "full" else _disc(depth, 1.4, 0.5, 0.6)
     coarse = np.unique(fine // 4)
-    lon_c, lat_c = centres_lonlat(coarse, nside // 2)
-    lon_f, lat_f = centres_lonlat(fine, nside)
+    lon_c, lat_c = centres_lonlat(coarse, depth - 1)
+    lon_f, lat_f = centres_lonlat(fine, depth)
     radius = math.radians(3.0 * math.degrees(math.sqrt(4.0 * math.pi / (12 * nside**2))))
     rows, cols, gamma = _cone_pairs(lon_c, lat_c, lon_f, lat_f, radius)
     all_gamma = _haversine(lat_c[:, None], lon_c[:, None], lat_f[None], lon_f[None])
@@ -237,7 +243,7 @@ def test_decimation_of_the_full_sky() -> None:
 @pytest.mark.maths("M-CONV-HPX")
 def test_stencil_layout_and_dtypes() -> None:
     depth, n_gauges, size = 2, 3, 5
-    tables = healpix_stencils(None, depth, n_gauges, size)
+    tables = healpix_stencils(None, depth, L=n_gauges, kernel_size=size)
     n_pix = 12 * 4**depth
     assert tables.index.shape == tables.weight.shape == (n_gauges * n_pix, size * size, 4)
     assert tables.index.dtype == np.int32
@@ -275,7 +281,7 @@ def test_partial_sky_rule() -> None:
 
 def test_deepest_level_fits_int32() -> None:
     ids = np.array([0, 1, 2, 3, 12 * 4**MAX_DEPTH - 1], dtype=np.int64)
-    stencils = healpix_stencils(ids, MAX_DEPTH, 1, 3)
+    stencils = healpix_stencils(ids, MAX_DEPTH, L=1, kernel_size=3)
     decimation = healpix_decimation(ids, MAX_DEPTH)
     assert stencils.index.dtype == decimation.index.dtype == np.int32
     np.testing.assert_array_equal(decimation.cell_ids_out, [0, (12 * 4**MAX_DEPTH - 1) // 4])

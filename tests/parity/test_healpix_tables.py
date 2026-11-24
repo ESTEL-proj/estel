@@ -11,8 +11,8 @@ Part II, §14.3. The tables equal healpix-analyse's as operators, not entry by e
 
 On the discs, STL's partial-sky rule (M-CONV-HPX, OP-50) is set by interpolation weights at the
 level of rounding at a few stencil points of the edge; ESTEL applies the well-posed rule decided
-by the maintainer (a neighbour of weight below 1e-12 counts as absent; an open point of maths.md
-§4.6, written by T5.4), which differs from STL there. The discs are compared with the fixtures
+by the maintainer (a neighbour of weight below 1e-12 counts as absent; maths.md
+OP-110), which differs from STL there. The discs are compared with the fixtures
 on every row that is not ill-conditioned, with the definition of that decision (point 2 of
 https://github.com/ESTEL-proj/estel/issues/26#issuecomment-7134295984).
 """
@@ -60,14 +60,14 @@ def _grid(name: str) -> tuple[NDArray[np.int64] | None, int, NDArray[np.int64]]:
 def _tables(name: str) -> tuple[HealpixStencils, HealpixDecimation]:
     cell_ids, depth, _ = _grid(name)
     parameters = read_manifest()[f"{CASE}.npz"]["parameters"]
-    stencils = healpix_stencils(cell_ids, depth, parameters["L"], parameters["K"])
+    stencils = healpix_stencils(cell_ids, depth, L=parameters["L"], kernel_size=parameters["K"])
     return stencils, healpix_decimation(cell_ids, depth)
 
 
 def _convolve(tables: HealpixStencils, maps: NDArray[np.float64]) -> NDArray[np.complex128]:
     """``gather_weighted`` along the pixels, then the kernel: ``(B, Npix)`` -> ``(B, L, Npix)``."""
     gathered = (maps[:, tables.index] * tables.weight).sum(axis=-1)  # (B, L · Npix, K²)
-    kernel = healpix_kernel_weights(tables.kernel_size)
+    kernel = healpix_kernel_weights(kernel_size=tables.kernel_size)
     out: NDArray[np.complex128] = gathered @ kernel.real + 1j * (gathered @ kernel.imag)
     return out.reshape(maps.shape[0], tables.n_gauges, -1)
 
@@ -105,7 +105,9 @@ def _well_conditioned_rows(name: str) -> tuple[NDArray[np.bool_], NDArray[np.boo
 def test_kernel_equals_stl() -> None:
     expected = _fixture()["kernel"]  # (1, 1, K²)
     assert_parity(
-        healpix_kernel_weights(read_manifest()[f"{CASE}.npz"]["parameters"]["K"])[None, None],
+        healpix_kernel_weights(kernel_size=read_manifest()[f"{CASE}.npz"]["parameters"]["K"])[
+            None, None
+        ],
         expected,
     )
 
@@ -115,7 +117,7 @@ def test_dense_convolution_equals_stl() -> None:
     """``conv_4[g, k, n]``: the response at pixel k and gauge g to the unit map at pixel n."""
     stencils = healpix_stencils(None, 2)
     n_pix = 192
-    kernel = healpix_kernel_weights(stencils.kernel_size)
+    kernel = healpix_kernel_weights(kernel_size=stencils.kernel_size)
     values = kernel[None, :, None] * stencils.weight  # (L · Npix, K², 4)
     rows = np.broadcast_to(np.arange(stencils.index.shape[0])[:, None, None], stencils.index.shape)
     dense = np.zeros((stencils.index.shape[0], n_pix), dtype=np.complex128)

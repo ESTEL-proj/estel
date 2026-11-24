@@ -18,9 +18,15 @@ from numbers import Integral
 import numpy as np
 from numpy.typing import NDArray
 
-from estel.wavelets._banks import KERNEL_SIZE, _check_zero_sum
+from estel.wavelets._banks import _check_zero_sum
 
-__all__ = ["healpix_kernel_weights"]
+__all__ = ["HEALPIX_GAUGES", "HEALPIX_KERNEL_SIZE", "healpix_kernel_weights"]
+
+HEALPIX_KERNEL_SIZE = 5
+"""K, the stencil size of the HEALPix convolution, 5 x 5 points (maths.md M-DEF-HPX)."""
+
+HEALPIX_GAUGES = 4
+"""L, the number of gauges of the HEALPix convolution (maths.md M-DEF-HPX)."""
 
 
 def _check_kernel_size(kernel_size: object) -> int:
@@ -28,19 +34,19 @@ def _check_kernel_size(kernel_size: object) -> int:
     if isinstance(kernel_size, bool) or not isinstance(kernel_size, Integral):
         raise TypeError(
             f"kernel_size={kernel_size!r}: the stencil size is an odd integer ≥ 3, such as "
-            f"{KERNEL_SIZE}."
+            f"{HEALPIX_KERNEL_SIZE}."
         )
     size = int(kernel_size)
     if size < 3 or size % 2 == 0:
         raise ValueError(
             f"kernel_size={size}: the stencil size must be odd, so that the stencil has a centre "
             f"pixel, and at least 3 (a 1 x 1 kernel is zero once its mean is subtracted); the "
-            f"default is {KERNEL_SIZE} (maths.md M-DEF-HPX)."
+            f"default is {HEALPIX_KERNEL_SIZE} (maths.md M-DEF-HPX)."
         )
     return size
 
 
-def healpix_kernel_weights(kernel_size: int = KERNEL_SIZE) -> NDArray[np.complex128]:
+def healpix_kernel_weights(*, kernel_size: int = HEALPIX_KERNEL_SIZE) -> NDArray[np.complex128]:
     """The complex wavelet kernel of maths.md M-WAV-HPX, flattened on the stencil.
 
     ψ[u, v] = exp(-(u² + v²) / 2) · exp(i π u / 2) on the offsets u, v ∈ {-c, …, c},
