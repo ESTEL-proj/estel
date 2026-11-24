@@ -18,19 +18,22 @@ sphere, no geometry cache, the kernel in float64; OP-45, OP-46) and with
   configuration's harmonics; and ``to_flatten(flatten_complex=True)`` of the normalised and of
   the fully reduced statistics.
 
-**``replace_nan_value=None``** (decided by the maintainer on #163, the open point T5.2 records).
-With STL's default, ``replace_nan_value=NaN``, the invalid pixels of a downsampled map are set to
-NaN, and a valid pixel whose interpolation reads an invalid pixel with a weight of rounding size (a
-zero weight of OP-92, below the 1e-12 of STL's support test) gets 0 x NaN = NaN in S1 and S2, and
-through the normalisation NaN in S3, S4 and the flat vectors (``nan_16``: level 1, pixel 188 reads
-pixel 167 with a weight of 8.6e-16 at gauge 2). ESTEL uses masks as weights and gives a finite
-value. With ``None``, the setting STL's own syntheses pass (as for OP-60), the invalid pixels keep
-the zero the masked decimation gives them, and the masks alone decide which pixels the means read.
-The manifest records it under ``stl_settings``. The setting acts on the decimation only: at level 0,
-STL convolves the field with its NaN, and the same effect remains there. In ``disc_nan_16``, the
-valid cell 60 reads the missing cell 39 with a weight of 1.87e-15 at gauge 2, so S1 and S2 are NaN
-at ``[0, 0, 0, 0, 2]``, and through ``s2_ref`` S3, S4 and the vectors where they normalise by it
-(reported on #164; not decided).
+**STL never sees NaN in the data it computes on; the missing data are carried by its masks**
+(maths.md OP-102, decided by the maintainer on #163 and #164). With missing values, STL's
+``ST_Operator`` is built from the field with its NaN, so that STL builds its masks from them
+(inferred from the NaN of a single map, or given as ``mask_full_res`` for a batch), and is then
+applied to the same fields with 0 at the missing pixels: the masks are fixed in the operator at
+construction, and ``apply`` does not check the data against them. It runs with
+``replace_nan_value=None``, the setting STL's own syntheses pass (as for OP-60), so that the
+decimation leaves 0, not NaN, at the invalid pixels. Otherwise a valid pixel whose interpolation
+reads an invalid pixel with a weight of rounding size (a zero weight of OP-92, below the 1e-12 of
+STL's support test) gets 0 x NaN = NaN in S1 and S2, and through the normalisation in S3, S4 and the
+flat vectors, where ESTEL, whose masks are weights, gives a finite value: at level 1 through the
+decimation (``nan_16``: pixel 188 reads pixel 167 with a weight of 8.6e-16 at gauge 2), and at level
+0 through the NaN of the field itself, which ``replace_nan_value`` does not reach (``disc_nan_16``:
+the valid cell 60 reads the missing cell 39 with a weight of 1.87e-15 at gauge 2). The fixture
+stores the fields with their NaN, which ESTEL's tests pass, and the masks. The manifest records the
+rule under ``stl_settings``.
 
 It stores, for each configuration:
 
@@ -144,7 +147,15 @@ PARAMETERS: dict[str, Any] = {
             "norm_batch_mean": False, "harmonics_angle": 3, "harmonics_scale": 3, "dj": 3,
         },
     },
-    "stl_settings": HEALPIX.SETTINGS | {"replace_nan_value": None},
+    "stl_settings": HEALPIX.SETTINGS
+    | {
+        "replace_nan_value": None,
+        "missing_data": (
+            "STL never sees NaN in the data it computes on: ST_Operator is built from the field "
+            "with its NaN (masks inferred from them, or given as mask_full_res), then applied to "
+            "the fields with 0 at the missing pixels; the fixture stores the fields with their NaN"
+        ),
+    },
 }  # fmt: skip
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
 
@@ -252,14 +263,19 @@ def _configuration(data_cls: Any, name: str, config: dict[str, Any]) -> dict[str
                 array=torch.from_numpy(missing), **({"nside": nside} | geometry)
             )
     out.update({f"{name}_{key}": f for key, f in fields.items()})
-    target = data_cls(array=torch.from_numpy(fields["field"].copy()), **geometry)
-    other = data_cls(array=torch.from_numpy(fields["ref_field"].copy()), **geometry)
-    operator = (target if example is None else example).get_ST_op(
+    # The operator is built from the field with its NaN (its masks), and applied to the fields
+    # with 0 at the missing pixels: STL never computes on NaN (see the docstring).
+    built_on = data_cls(array=torch.from_numpy(fields["field"].copy()), **geometry)
+    target, other = (
+        data_cls(array=torch.from_numpy(np.nan_to_num(fields[key], nan=0.0)), **geometry)
+        for key in ("field", "ref_field")
+    )
+    operator = (built_on if example is None else example).get_ST_op(
         J=config["J"],
         L=PARAMETERS["L"],
         norm="store_ref",
         compute_PS=False,
-        replace_nan_value=PARAMETERS["stl_settings"]["replace_nan_value"],  # see the docstring
+        replace_nan_value=PARAMETERS["stl_settings"]["replace_nan_value"],
         downsample_nan_weight_threshold=PARAMETERS["threshold"],
         wavelet_op_kwargs=HEALPIX.WAVELET_OP_KWARGS,
         **kwargs,

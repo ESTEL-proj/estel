@@ -9349,7 +9349,8 @@
           "conv_cache_dir": null
         },
         "kernel": "float64: HealPixConv.set_kernel replaced at run time by a function that calls it, then copies the float64 kernel into its weights (tools/stl_parity/cases/_healpix.py, keep_kernel_float64); STL and healpix-analyse unchanged on disk",
-        "replace_nan_value": null
+        "replace_nan_value": null,
+        "missing_data": "STL never sees NaN in the data it computes on: ST_Operator is built from the field with its NaN (masks inferred from them, or given as mask_full_res), then applied to the fields with 0 at the missing pixels; the fixture stores the fields with their NaN"
       }
     },
     "torch_default_dtype": "float64",
@@ -10217,13 +10218,13 @@
       "disc_nan_16_vector": {
         "dtype": "float64",
         "shape": [
-          892
+          1082
         ]
       },
       "disc_nan_16_vector_reduced": {
         "dtype": "float64",
         "shape": [
-          96
+          164
         ]
       },
       "disc_nan_16_wav_1_0": {
@@ -11511,7 +11512,7 @@
         ]
       }
     },
-    "sha256": "5b6c4c8fcc2b5751406f2cd4ab60e79093f75f8085db44d37531e8b7a8ac99cb"
+    "sha256": "e2c56e150d75ac0a1becd6c611934a916b61c293210385f1751d4f0112e033d7"
   },
   "statistics_ps_2d.npz": {
     "case": "tools/stl_parity/cases/statistics_ps_2d.py",
