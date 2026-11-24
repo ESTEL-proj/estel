@@ -4,8 +4,7 @@ Where each block comes from (the five blocks decided on 24 November 2026, Part I
 
 1. the NESTED pixel numbering and centres (:func:`nest2xyf`, :func:`xyf2nest`, :func:`xyf2ang`)
    and the RING to NESTED conversion (:func:`ring2nest`) are written in ``_healpix_pixels.py``
-   from the published HEALPix formulas (Górski et al. 2005, ApJ 622, 759) and, where its
-   module docstring says so, from healpix_bare (BSD-3, its notice kept there);
+   from the published HEALPix formulas only (Górski et al. 2005, ApJ 622, 759);
 2. the bilinear interpolation of 4 pixels (``_healpix_pixels.interpolation_ring``) is written
    from its definition in ``docs/maths.md``, M-CONV-HPX, step 3; :func:`interp_weights_nested`
    applies it to directions, through degrees as healpix-analyse ``aac5e26`` does;
