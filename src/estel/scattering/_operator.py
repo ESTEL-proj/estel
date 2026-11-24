@@ -74,8 +74,20 @@ class STOperator:
         entries below the diagonal are ignored. By default every pair, the upper
         triangle (M-CHAN, M-DEF). Every channel must appear in at least one pair (OP-30).
     compute_PS:
-        Whether to compute the power spectrum: True by default for 2D data, unavailable for 1D
-        data in 1.0.0 (LF23). The 2D spectra come in T4.1: pass ``compute_PS=False``.
+        Whether the statistics hold the 2D power spectrum, the family ``"PS"`` (maths.md §1.9):
+        True by default for 2D data, unavailable for 1D data in 1.0.0 (LF23). It is computed
+        on the field after the standardisation, with the channel pairs of ``cross_matrix``, by
+        the estimators of ``SpectrumOperator``, with J_PS the J of the operator; it needs even
+        sizes (OP-20) and J ≥ 2 + Jmin (OP-93).
+    n_bins:
+        The number of bins of the spectrum: by default max(4, round(3 (J - 1 - Jmin))).
+    Jmin:
+        J_min of the spectrum, 0 by default, with 0 ≤ Jmin ≤ J - 2.
+    spectrum_method:
+        The estimator of the spectrum, as ``method`` of ``SpectrumOperator``: ``"auto"`` (the
+        default), ``"fft"``, ``"pbc_mask"``, ``"nan_mask"`` or ``"pbc_nan_mask"``. ``n_bins``,
+        ``Jmin`` and ``spectrum_method`` act only with the spectrum: another value than their
+        default without it raises.
     engine:
         The engine that runs the computation (Part II, §9.4): ``"python"``, the only engine of
         1.0.0.
@@ -106,13 +118,15 @@ class STOperator:
         standardize: bool = False,
         cross_matrix: Any = None,
         compute_PS: bool | None = None,  # noqa: N803 (STL's name)
+        n_bins: int | None = None,
+        Jmin: int = 0,  # noqa: N803 (STL's name)
+        spectrum_method: str = "auto",
         engine: str = "python",
     ) -> None:
         if not isinstance(data, Data):
             raise TypeError(
                 f"STOperator takes a Data object, such as estel.Data2D, got {type(data).__name__}."
             )
-        _check_compute_ps(compute_PS, data.ndim)
         plan = build_plan(
             data,
             J,
@@ -121,6 +135,10 @@ class STOperator:
             norm=norm,
             ref_batch_mean=ref_batch_mean,
             standardize=standardize,
+            compute_PS=_compute_ps(compute_PS, data.ndim),
+            n_bins=n_bins,
+            Jmin=Jmin,
+            spectrum_method=spectrum_method,
         )
         plan.wavelets.bank()  # validates L for the geometry (M-WAV-1D)
         if norm != "none":
@@ -139,6 +157,13 @@ class STOperator:
                 f"{name}.from_statistics takes STStatistics, got {type(stats).__name__}."
             )
         plan = stats._plan
+        if not isinstance(plan, PlanarPlan | TensorProdPlan):
+            raise ValueError(
+                f"{name}.from_statistics: these statistics hold the power spectrum alone, "
+                f"computed by a {plan._operator_name}, not by a scattering operator. Build a "
+                f"{plan._operator_name} again from data, with the options they were computed "
+                "with."
+            )
         if not isinstance(plan, cls._plan_type):
             raise ValueError(f"{name}.from_statistics: {cls._other_statistics}")
         operator = cls.__new__(cls)
@@ -245,7 +270,8 @@ class STOperator:
     def __repr__(self) -> str:
         plan = _plan_of(self, PlanarPlan)
         return (
-            f"STOperator(J={plan.J}, L={plan.L}, norm={plan.norm!r}, "
+            f"STOperator(J={plan.J}, L={plan.L}, compute_PS={plan.spectrum is not None}, "
+            f"norm={plan.norm!r}, "
             f"ref_batch_mean={plan.ref_batch_mean}, standardize={plan.standardize}, "
             f"spatial_shape={plan.spatial_shape}, n_channels={plan.n_channels}, "
             f"pbc={plan.pbc}, backend={self._backend!r}, dtype={self._dtype!r})"
@@ -398,7 +424,9 @@ def _warn_channels_without_auto(plan: PlanarPlan | TensorProdPlan) -> None:
         )
 
 
-def _check_compute_ps(compute_ps: object, ndim: int) -> None:
+def _compute_ps(compute_ps: object, ndim: int) -> bool:
+    """Whether the statistics hold the power spectrum: ``compute_PS``, True by default for 2D
+    data; 1D data have none in 1.0.0 (LF23)."""
     if compute_ps is not None and not isinstance(compute_ps, bool | np.bool_):
         raise TypeError(f"compute_PS={compute_ps!r}: pass True, False or None (the default).")
     if ndim != 2:
@@ -407,9 +435,5 @@ def _check_compute_ps(compute_ps: object, ndim: int) -> None:
                 f"compute_PS=True: ESTEL 1.0.0 computes power spectra of 2D data only; for "
                 f"{ndim}D data they come later (LF23). Pass compute_PS=False, or leave it to None."
             )
-        return
-    if compute_ps is None or compute_ps:
-        raise NotImplementedError(
-            "compute_PS: the 2D power spectra come in task T4.1, and compute_PS is True by "
-            "default for 2D data. Pass compute_PS=False."
-        )
+        return False
+    return True if compute_ps is None else bool(compute_ps)

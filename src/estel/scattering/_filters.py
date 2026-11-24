@@ -28,6 +28,7 @@ from numpy.typing import NDArray
 
 from .._config import FloatDType
 from ..backend import _registry
+from ..spectra._estimators import SpectrumFilters, build_spectrum_filters
 from ..statistics._layout import ChunkTables, loop_gather, tensor_prod_gather
 from ..wavelets._operator import MeanWeights, WaveletFilters, build_wavelet_filters
 from ..wavelets._tensor_prod import build_tensor_prod_wavelet_filters
@@ -65,6 +66,9 @@ class _FilterFields(NamedTuple):
     of ``statistics._layout.loop_sums``, to the compact buffer of the statistics: for each kind
     of chunk the loop computes complex and the buffer stores with real entries, the floats kept
     (int32; ``statistics._layout.loop_gather``; Part III, §19.3, §19.9; task T3.7)."""
+    spectrum: SpectrumFilters | None = None
+    """The static arrays of the 2D power spectrum (maths.md §1.9; task T4.1), those of
+    ``SpectrumOperator`` for the same plan of the spectrum, or ``None`` without it."""
 
 
 class STFilters:
@@ -145,6 +149,9 @@ def build_filters(
             backend.asarray(take.astype(np.int32), "int32", device)
             for take in loop_gather(plan).takes
         ),
+        spectrum=None
+        if plan.spectrum is None
+        else build_spectrum_filters(plan.spectrum, plan.mask, backend, dtype, device),
     )
 
 

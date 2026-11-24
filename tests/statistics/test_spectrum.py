@@ -227,8 +227,8 @@ def test_reduce_keeps_the_spectrum() -> None:
 
 
 def test_save_and_load_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """``estel.io``, schema version 6: the spectrum, its reference and its description in the
-    plan come back unchanged; a file of version 5 is refused, with what to do."""
+    """``estel.io``, schema version 7: the spectrum, its reference and its description in the
+    plan come back unchanged; a file of version 6 is refused, with what to do."""
     stats = _runs("spectrum_options")["store"]
     path = tmp_path / "ps.npz"
     stats.save(path)
@@ -251,12 +251,12 @@ def test_save_and_load_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     np.testing.assert_array_equal(
         _numpy(loaded._reference.ps_sqrt), _numpy(stats._reference.ps_sqrt)
     )
-    old = tmp_path / "version5.npz"
-    monkeypatch.setattr(_schema, "SCHEMA_VERSION", 5)
+    old = tmp_path / "version6.npz"
+    monkeypatch.setattr(_schema, "SCHEMA_VERSION", 6)
     stats.save(old)
     monkeypatch.undo()
-    assert _schema.SCHEMA_VERSION == 6
-    with pytest.raises(ValueError, match=r"schema version 5.*reads version 6"):
+    assert _schema.SCHEMA_VERSION == 7
+    with pytest.raises(ValueError, match=r"schema version 6.*reads version 7"):
         STStatistics.load(old)
 
 
@@ -354,16 +354,21 @@ def test_gradients_through_the_spectrum_reference() -> None:
     np.testing.assert_allclose(grads["ref"][0, cross], 1 / root, rtol=1e-12)
 
 
-def test_the_loop_refuses_a_plan_with_the_spectrum(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Until the spectrum operator (T4.1), statistics with the spectrum are read, saved and
-    loaded, not recomputed: an operator rebuilt from them raises a clear error before its loop,
-    rather than an ``IndexError`` or silent NaN."""
+def test_an_operator_rebuilt_from_statistics_computes_the_spectrum(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Since the spectrum operator (T4.1), an operator rebuilt from statistics with the spectrum
+    computes them again, the spectrum included (``STOperator.from_statistics``): on the target of
+    ``periodic``, the same statistics as the fixture's ``store`` run."""
     monkeypatch.setattr(_config, "_dtype", "float64")  # the dtype of the statistics
     stats = _periodic()
     operator = STOperator.from_statistics(stats)
     data = Data2D(_arrays()["periodic_field"], pbc=True)
-    with pytest.raises(NotImplementedError, match=r"task T4\.1.*compute_PS=False"):
-        operator.apply(data)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)  # the reference held is replaced
+        again = operator.apply(data)
+    for family in FAMILIES:
+        assert_parity(_numpy(again.full_grid(family)), _numpy(stats.full_grid(family)))
 
 
 @pytest.mark.parametrize(

@@ -149,3 +149,83 @@ def direction_like(backend: Backend, array: Any, seed: int) -> Any:
     """A seeded direction with the shape of ``array``, of unit root mean square."""
     values = np.random.default_rng(seed).standard_normal(tuple(array.shape))
     return backend.asarray(values, "float64")
+
+
+# ---------------------------------------------------------------------- the power spectrum (T4.1)
+
+
+@dataclass(frozen=True)
+class SpectrumCase:
+    """One configuration of the 2D power spectrum (maths.md §1.9; task T4.1): through
+    ``SpectrumOperator`` alone, or through ``STOperator`` with the spectrum."""
+
+    name: str
+    shape: tuple[int, ...]
+    pbc: bool
+    masked: bool = False
+    scattering: bool = False
+    options: dict[str, Any] = field(default_factory=dict)
+
+
+SPECTRUM_SMALLEST = SpectrumCase("ps-fft-self", (1, 1, 16, 16), pbc=True)
+"""The spectrum case of the fast tier: one map of 16 x 16 pixels, ``fft``, ``norm="self"``."""
+
+SPECTRUM_CASES = (
+    SPECTRUM_SMALLEST,
+    SpectrumCase("ps-pbc-mask-cross-none", (1, 2, 16, 16), pbc=False, options={"norm": "none"}),
+    SpectrumCase(
+        "ps-nan-mask-batch-mean",
+        (2, 1, 16, 16),
+        pbc=True,
+        masked=True,
+        options={"ref_batch_mean": True},
+    ),
+    SpectrumCase(
+        "ps-pbc-nan-mask-ref", (1, 1, 16, 16), pbc=False, masked=True, options={"norm": "ref"}
+    ),
+    SpectrumCase(
+        "st-ps-open-mask-standardize-self",
+        (1, 1, 16, 16),
+        pbc=False,
+        masked=True,
+        scattering=True,
+        options={"norm": "self", "standardize": True, "L": 2},
+    ),
+)
+
+
+def spectrum_data_of(case: SpectrumCase, seed: int = 0) -> Data2D:
+    mask = None
+    if case.masked:
+        mask = np.zeros(case.shape[2:], dtype=bool)
+        mask[6:8, 5:7] = True
+    values = np.random.default_rng(seed).standard_normal(case.shape) + 0.2
+    return Data2D(values, mask=mask, pbc=case.pbc)
+
+
+def spectrum_function(backend: Backend, case: SpectrumCase) -> tuple[Data, Function]:
+    """The data of the case and the function ``array -> coefficients``: every coefficient that
+    exists (``coefficients``), the spectrum included, through ``estel.functional.spectrum`` or
+    ``estel.functional.scattering``. With ``norm="ref"``, the reference is that of other data."""
+    data = spectrum_data_of(case)
+
+    def build(**options: Any) -> Any:
+        merged = {**case.options, **options}
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13: tested with the plan
+            if case.scattering:
+                return STOperator(data, J, **merged)
+            return estel.SpectrumOperator(data, **merged)
+
+    operator = build()
+    pure = estel.functional.scattering if case.scattering else estel.functional.spectrum
+    reference = None
+    if operator.plan.norm == "ref":
+        storing = build(norm="self")
+        reference = pure(spectrum_data_of(case, 1), storing.plan, storing.filters)
+
+    def function(array: Any) -> Any:
+        stats = pure(data.with_array(array), operator.plan, operator.filters, reference)
+        return coefficients(backend, stats)
+
+    return data, function

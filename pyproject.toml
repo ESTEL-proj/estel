@@ -197,8 +197,9 @@ containers = ["estel"]
 layers = [
     "(engines)",
     # One layer, L2, whose packages may import one another: the operator returns STStatistics and
-    # calls estel.functional, which runs the loop of estel.scattering (T2.5).
-    "(scattering) : (statistics) : (synthesis) : (functional)",
+    # calls estel.functional, which runs the loop of estel.scattering (T2.5); estel.spectra holds
+    # the spectrum operator and its estimators, which the loop of STOperator calls too (T4.1).
+    "(scattering) : (statistics) : (synthesis) : (functional) : (spectra)",
     # L1: the wavelet operator of estel.wavelets calls the geometry hooks of estel.data and
     # reads its mask builders (T2.10); estel.data imports nothing from estel.wavelets.
     "(wavelets)",

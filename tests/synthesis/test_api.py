@@ -237,7 +237,7 @@ def _masked() -> np.ndarray:
 MAPS_ERRORS: dict[str, tuple[type[Exception], str, Any, dict[str, Any]]] = {
     "not-periodic": (ValueError, "LF47", lambda: Data2D(_maps(), pbc=False), {}),
     "masked": (ValueError, "LF47", lambda: Data2D(_masked(), pbc=True), {}),
-    "power-spectrum": (NotImplementedError, "T4.1", _maps, {"compute_PS": None}),
+    "power-spectrum": (NotImplementedError, "T4.5", _maps, {"compute_PS": None}),
     "n-batch": (ValueError, "n_batch", _maps, {"mean_field": False, "n_batch": 2}),
     "st-kwargs": (ValueError, r"takes \['J'\] only", _maps, {"st_kwargs": {"J": 2, "L": 4}}),
     "checkpoint-dir": (ValueError, "go together", _maps, {"checkpoint_every": 2}),
@@ -249,7 +249,7 @@ MAPS_ERRORS: dict[str, tuple[type[Exception], str, Any, dict[str, Any]]] = {
 
 @pytest.mark.parametrize("case", sorted(MAPS_ERRORS))
 def test_maps_errors_say_what_to_do(backend: Backend, case: str) -> None:
-    """Non-periodic and masked targets (LF47), the power spectrum before T4.1, and settings
+    """Non-periodic and masked targets (LF47), the power spectrum before T4.5, and settings
     that do not fit, each with an error that says what to do (golden rule 8)."""
     if _unavailable(backend):
         return
@@ -291,6 +291,12 @@ def _raw_stats() -> Any:
     return STOperator(data, 2, norm="none", compute_PS=False).apply(data)
 
 
+def _spectrum_stats() -> Any:
+    """Statistics with the 2D power spectrum, the default of STOperator on 2D data (T4.1)."""
+    data = Data2D(_maps(), pbc=True)
+    return STOperator(data, 2, norm="self").apply(data)
+
+
 STATS_ERRORS: dict[str, tuple[type[Exception], str, Any, int]] = {
     "not-self": (ValueError, 'norm="self"', _raw_stats, 1),
     "reduced": (ValueError, "reduced", lambda: _stats().reduce(iso=True), 1),
@@ -301,6 +307,7 @@ STATS_ERRORS: dict[str, tuple[type[Exception], str, Any, int]] = {
         3,
     ),
     "maps": (TypeError, "synthesize_from_maps", _maps, 1),
+    "power-spectrum": (NotImplementedError, r"T4\.5.*compute_PS=False", _spectrum_stats, 1),
 }
 
 

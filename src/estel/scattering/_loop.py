@@ -60,7 +60,8 @@ from ..backend._protocol import Backend
 from ..data._base import Data
 from ..data._moments import _backend as _backend_of
 from ..data._moments import cov_sum_valid, divide, gram_sum, modulus, standardize, sum_valid
-from ..statistics._layout import gather_loop, loop_gather
+from ..spectra._estimators import spectrum_floats
+from ..statistics._layout import gather_loop, loop_gather, spectrum_pairs
 from ..wavelets._operator import WaveletOperator
 from ._filters import PlanarFilters, window
 
@@ -217,6 +218,7 @@ def scattering_values(data: Data, plan: PlanarPlan, filters: PlanarFilters) -> S
     x, pending, mean_pre_std, std_pre_std = field_moments(
         x, window(moments, filters.moments), moments.denominator, axes, plan.standardize
     )
+    field = x  # at full resolution, after the standardisation: the field of the spectrum
     divided: list[Any] = []  # the divided sums of each level, as real (Nb, n) arrays
 
     moduli: dict[int, Any] = {}  # U_{j2} x of every scale computed so far, at the current level
@@ -251,8 +253,20 @@ def scattering_values(data: Data, plan: PlanarPlan, filters: PlanarFilters) -> S
             f"the loop produced {len(divided)} sums where the plan expects {gather.n_sums}: "
             "statistics._layout.loop_sums no longer follows the loop; make them agree."
         )
+    buffer = gather_loop(backend, divided, gather, filters.gather)
+    if plan.spectrum is not None and filters.spectrum is not None:
+        # The power spectrum, the last floats of the buffer (maths.md §1.9, M-FLAT; task T4.1),
+        # with the estimators of SpectrumOperator, on the field after the standardisation.
+        floats = spectrum_floats(
+            backend,
+            field,
+            plan.spectrum.method,
+            filters.spectrum,
+            spectrum_pairs(plan._layout()),
+        )
+        buffer = xp.concat([buffer, floats], axis=1)
     return ScatteringValues(
-        buffer=gather_loop(backend, divided, gather, filters.gather),
+        buffer=buffer,
         mean_pre_std=mean_pre_std,
         std_pre_std=std_pre_std,
     )

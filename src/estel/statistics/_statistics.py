@@ -38,6 +38,7 @@ from ..data._base import geometry_class
 from ..io import _schema
 from ..scattering._plan import (
     PlanarPlan,
+    STPlan,
     TensorProdPlan,
     build_plan,
     build_tensor_prod_statistics_plan,
@@ -210,6 +211,30 @@ class STStatistics:
                 )
         return compact.full_grid(self._backend_object(), self._buffer, self._layout, grid.name)
 
+    @property
+    def bin_centers(self) -> NDArray[np.float64]:
+        """The centres of the bins of the power spectrum ``"PS"``, the coordinate of its axis
+        ``bin``, in cycles per pixel, as STL's ``bin_centers``: c_b / (2 N_max) (maths.md §1.9;
+        Part II, §12.7). At equal J, J_min and number of bins they do not depend on the size of
+        the map. A NumPy float64 array, one entry per position of the axis ``bin`` (those kept
+        after ``select``). Statistics without the spectrum raise."""
+        spectrum = getattr(self._plan, "spectrum", None)
+        if spectrum is None or "PS" not in self._layout.names:
+            hint = (
+                "compute them with compute_PS=True (2D data), or with a SpectrumOperator"
+                if spectrum is None
+                else "select the family PS as well"
+            )
+            raise ValueError(
+                f"bin_centers: these statistics hold no power spectrum (PS); {hint} "
+                "(maths.md §1.9)."
+            )
+        grid = self._grid("PS")
+        positions = np.asarray(grid.coords[grid.axes.index("bin")], dtype=np.int64)
+        centers: NDArray[np.float64] = spectrum.bins().centers_cycles[positions]
+        centers.flags.writeable = False
+        return centers
+
     def select(self, family: str | Sequence[str] | None = None, **index: Any) -> STStatistics:
         """The statistics restricted to ``family`` and along the named axes of ``index``
         (Part II, §12.7).
@@ -378,6 +403,12 @@ class STStatistics:
                 "statistics of a tensor product in ESTEL 1.0.0 (maths.md M-NORM-TP, OP-44); "
                 "their definition on products is LF26. Use the statistics as they are, with "
                 "to_vector or select."
+            )
+        if self._layout.names == ("PS",):
+            raise ValueError(
+                "reduce(): these statistics hold the power spectrum alone, which every "
+                'reduction leaves unchanged (maths.md §1.9, "Reductions"): use them as they '
+                "are."
             )
         state = self._reductions
         if state != _NO_REDUCTION:
@@ -942,11 +973,37 @@ def _tensor_prod_plan(spec: dict[str, Any], cross_matrix: NDArray[np.bool_]) -> 
     return plan
 
 
+def _spectrum_operator_plan(spec: dict[str, Any], arrays: dict[str, NDArray[Any]]) -> STPlan:
+    """The plan of a ``SpectrumOperator`` rebuilt from the parameters of a file."""
+    from ..spectra._plan import build_spectrum_operator_plan  # the spectra import statistics
+
+    cls = geometry_class(spec["geometry"])
+    mask = arrays.get("plan__mask")
+    example = cls(
+        np.zeros((1, spec["n_channels"], *spec["spatial_shape"])),
+        mask=None if mask is None else mask.astype(bool),
+        pbc=bool(spec["pbc"]),
+    )
+    spectrum = spec["spectrum"]
+    return build_spectrum_operator_plan(
+        example,
+        spectrum["J"],
+        Jmin=spectrum["Jmin"],
+        n_bins=spectrum["n_bins"],
+        method=spectrum["method"],
+        cross_matrix=arrays["plan__cross_matrix"].astype(bool),
+        norm=spec["norm"],
+        ref_batch_mean=spec["ref_batch_mean"],
+    )
+
+
 def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> STStatistics:
     spec = content["plan"]
     cls = geometry_class(spec["geometry"])
-    plan: PlanarPlan | TensorProdPlan
-    if "blocks" in spec:
+    plan: Any
+    if spec.get("operator") == "SpectrumOperator":
+        plan = _spectrum_operator_plan(spec, arrays)
+    elif "blocks" in spec:
         plan = _tensor_prod_plan(spec, arrays["plan__cross_matrix"].astype(bool))
     else:
         mask = arrays.get("plan__mask")
@@ -971,7 +1028,11 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
                 **(
                     {}
                     if spectrum is None
-                    else {"n_bins": spectrum["n_bins"], "Jmin": spectrum["Jmin"]}
+                    else {
+                        "n_bins": spectrum["n_bins"],
+                        "Jmin": spectrum["Jmin"],
+                        "spectrum_method": spectrum["method"],
+                    }
                 ),
             )
         if plan.nan_threshold != spec["nan_threshold"]:

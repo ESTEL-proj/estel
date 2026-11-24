@@ -160,6 +160,12 @@ class _NormReference:
         return int(self.var.shape[0])
 
     @property
+    def spectrum_only(self) -> bool:
+        """Whether the reference holds the power spectrum alone, that of ``SpectrumOperator``
+        (task T4.1): no scale of the scattering statistics (:attr:`present` ``(Nc, 0)``)."""
+        return self.blocks is None and int(self.present.shape[-1]) == 0
+
+    @property
     def s2_sqrt(self) -> Any:
         """STL's ``S2_ref_sqrt_chan_diag``: ``(Nr, Nc, J, L)``, complex, NaN where sigma does
         not exist. A view, built on demand; the normalisation reads :attr:`sigma`."""
@@ -389,6 +395,37 @@ def self_reference(
         ref_batch_mean=ref_batch_mean,
         blocks=blocks,
         sigma_ps=None if auto_ps is None else xp.sqrt(auto_ps),
+        spectrum=spectrum,
+    )
+
+
+def spectrum_self_reference(
+    backend: Backend,
+    buffer: Any,
+    layout: Layout,
+    n_channels: int,
+    ref_batch_mean: bool,
+    spectrum: SpectrumReference,
+) -> _NormReference:
+    """The reference of ``norm="self"`` of statistics holding the power spectrum alone, those of
+    ``SpectrumOperator`` (maths.md M-NORM; Part II, §12.8; task T4.1): σᴾˢ read from the auto
+    spectra of ``buffer`` as in :func:`self_reference`, and no scattering scale: ``var`` and
+    ``sigma`` are ``(Nr, 0)``, ``present`` is ``(Nc, 0)`` (:attr:`_NormReference.spectrum_only`)."""
+    xp = backend.xp
+    floats = _spectrum_tables(layout, spectrum.present.tobytes())
+    auto_ps = xp.take(buffer, constant(backend, floats, buffer, "int32"), axis=1)
+    if ref_batch_mean:
+        auto_ps = xp.mean(auto_ps, axis=0, keepdims=True)
+    empty = xp.zeros((int(auto_ps.shape[0]), 0), dtype=auto_ps.dtype)
+    present = np.zeros((n_channels, 0), dtype=bool)
+    present.flags.writeable = False
+    return _NormReference(
+        var=empty,
+        sigma=empty,
+        present=present,
+        n_orientations=1,
+        ref_batch_mean=ref_batch_mean,
+        sigma_ps=xp.sqrt(auto_ps),
         spectrum=spectrum,
     )
 
@@ -766,6 +803,8 @@ def check_reference(reference: _NormReference, plan: PlanarPlan, n_batch: int, d
             "the reference comes from a tensor product, and these statistics are planar: "
             "normalise with planar statistics of the same J, L and channels (maths.md M-NORM)."
         )
+    if reference.spectrum_only:
+        raise ValueError(_SPECTRUM_ONLY)
     found_nc, found_j = (int(n) for n in reference.present.shape)
     found_l = reference.n_orientations
     mismatches = [
@@ -797,9 +836,42 @@ def check_reference(reference: _NormReference, plan: PlanarPlan, n_batch: int, d
     _check_batch_and_dtype(reference, n_batch, dtype)
 
 
-def _check_spectrum(reference: _NormReference, plan: PlanarPlan) -> None:
+_SPECTRUM_ONLY = (
+    "the reference comes from a SpectrumOperator and holds the power spectrum alone, without "
+    "the scattering statistics this operator normalises: normalise with statistics computed by "
+    'an STOperator with norm="self" (maths.md M-NORM). The reverse works: a SpectrumOperator '
+    "takes the reference of an STOperator whose spectrum has the same n_bins, J and Jmin."
+)
+
+
+def check_spectrum_reference(
+    reference: _NormReference, plan: Any, n_batch: int, dtype: Any
+) -> None:
+    """Raise unless ``reference`` can normalise the power spectrum alone of ``plan``, the plan
+    of ``SpectrumOperator`` (maths.md M-NORM; Part II, §12.8; task T4.1): the reference of a
+    ``SpectrumOperator`` or of an ``STOperator`` with the same n_b, J_PS and J_min, holding σᴾˢ
+    for every channel with an auto spectrum; the batch and the dtype as
+    :func:`check_reference`."""
+    if reference.blocks is not None:
+        raise ValueError(
+            "the reference comes from a tensor product, which has no power spectrum in ESTEL "
+            "1.0.0 (LF23): normalise with the statistics of a SpectrumOperator or of an "
+            "STOperator of 2D data computed with the power spectrum (maths.md M-NORM)."
+        )
+    if int(reference.present.shape[0]) != plan.n_channels:
+        raise ValueError(
+            f"the reference has {int(reference.present.shape[0])} channel(s), and the operator "
+            f"{plan.n_channels}: normalise with statistics of the same channels (maths.md "
+            "M-NORM)."
+        )
+    _check_spectrum(reference, plan)
+    _check_batch_and_dtype(reference, n_batch, dtype)
+
+
+def _check_spectrum(reference: _NormReference, plan: Any) -> None:
     """Raise unless ``reference`` holds σᴾˢ for the power spectrum of ``plan`` (maths.md M-NORM,
-    §1.9): the same n_b, J_PS and J_min, and σᴾˢ for every channel with an auto spectrum."""
+    §1.9), the plan of ``STOperator`` or of ``SpectrumOperator``: the same n_b, J_PS and J_min,
+    and σᴾˢ for every channel with an auto spectrum."""
     spectrum = plan.spectrum
     assert spectrum is not None
     expected = SpectrumParameters(spectrum.n_bins, spectrum.J, spectrum.Jmin)
@@ -840,6 +912,8 @@ def check_tensor_prod_reference(
     in M-NORM. The batch and the dtype follow :func:`check_reference`."""
     expected = tensor_prod_blocks(plan)
     found = reference.blocks
+    if reference.spectrum_only:
+        raise ValueError(_SPECTRUM_ONLY)
     if found is None:
         raise ValueError(
             "the reference comes from planar statistics, and these are a tensor product: "

@@ -55,7 +55,7 @@ from ..backend._protocol import Backend
 from ..io._schema import SCHEMA_VERSION
 from ..wavelets._tensor_prod import Level
 from ._arrays import constant, dtype_name
-from ._grid import FamilyGrid, base_grids, tensor_prod_grids
+from ._grid import FamilyGrid, base_grids, spectrum_grid, tensor_prod_grids
 
 if TYPE_CHECKING:
     from ..scattering._plan import PlanarPlan, TensorProdPlan
@@ -468,6 +468,24 @@ def base_layout(plan: PlanarPlan) -> Layout:
         families.append(FamilyChunks(grid, levels, np.asarray(level_ids, dtype=np.int64)))
     layout, _ = build_layout(families)
     return layout
+
+
+@functools.lru_cache(maxsize=64)
+def spectrum_layout(n_bins: int, pairs: bytes, n_channels: int) -> Layout:
+    """The layout of statistics holding the power spectrum alone, those of ``SpectrumOperator``
+    (maths.md §1.9; Part II, §12.8; task T4.1): the family ``"PS"`` of :func:`base_layout`, one
+    segment at level 0, one chunk per True of the ``(Nc, Nc)`` ``pairs`` (by its bytes)."""
+    matrix = np.frombuffer(pairs, dtype=bool).reshape(n_channels, n_channels)
+    grid = spectrum_grid(n_bins, matrix)
+    family = FamilyChunks(grid, ((0,),), np.zeros(grid.n_chunks, dtype=np.int64))
+    layout, _ = build_layout([family])
+    return layout
+
+
+def spectrum_pairs(layout: Layout) -> tuple[tuple[int, int], ...]:
+    """The channel pairs (c1, c2) of the chunks of ``"PS"`` in ``layout``, in the order of the
+    buffer: the order in which the spectrum operator writes them (task T4.1)."""
+    return tuple((int(c1), int(c2)) for c1, c2 in layout.grid("PS").chunks.tolist())
 
 
 @functools.lru_cache(maxsize=64)
