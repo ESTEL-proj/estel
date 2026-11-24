@@ -80,7 +80,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 | [LF62](LF62.md) | The benchmark of step 2 | 2a.0 | public datasets of the cases; thresholds; TF32 on NVIDIA GPUs: disabled, or kept if parity holds; default length of the L-BFGS history | Optimisation |
 | [LF57](LF57.md) | A less conservative border crop | 2a.1 | — | Mathematical choice |
 | [LF20](LF20.md) | Canonical coefficient set | 2a.2 | — | Mathematical choice |
-| [LF26](LF26.md) | Reductions on tensor products redefined | 2a.2 | — | Mathematical choice |
+| [LF26](LF26.md) | Reductions on tensor products redefined | 2a.2 | — | New feature |
 | [LF28](LF28.md) | Better regularisation of the cross S1 terms | 2a.2 | — | Mathematical choice |
 | [LF32](LF32.md) | Orientation reductions made complete and correct | 2a.2 | — | Mathematical choice |
 | [LF53](LF53.md) | Complex cross-channel terms kept | 2a.2 | — | Mathematical choice |
