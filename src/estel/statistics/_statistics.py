@@ -217,8 +217,9 @@ class STStatistics:
         ``bin``, in cycles per pixel, as STL's ``bin_centers``: c_b / (2 N_max) (maths.md §1.9;
         Part II, §12.7; M-PS-2D). At equal J, J_min and number of bins they do not depend on the
         size of the map. A read-only NumPy float64 array: one entry per position of the axis
-        ``bin``, those kept by ``select``; after ``select(bin=b)``, which drops the axis, the
-        centre of bin b alone, of shape ``()``. Statistics without the spectrum raise."""
+        ``bin``, those kept by ``select``. Statistics without the spectrum raise, and so do those
+        whose axis ``bin`` an integer dropped (``select(bin=b)``; Part II, §12.7): select
+        ``bin=[b]`` to keep the axis."""
         spectrum = getattr(self._plan, "spectrum", None)
         if spectrum is None or "PS" not in self._layout.names:
             hint = (
@@ -231,11 +232,13 @@ class STStatistics:
                 "(maths.md §1.9)."
             )
         grid = self._grid("PS")
-        if "bin" in grid.axes:
-            positions: Any = np.asarray(grid.coords[grid.axis("bin")], dtype=np.int64)
-        else:  # dropped by select(bin=b): the position it kept
-            positions = dict(grid.fixed)["bin"]
-        centers: NDArray[np.float64] = np.array(spectrum.bins().centers_cycles[positions])
+        if "bin" not in grid.axes:
+            raise ValueError(
+                "bin_centers: the axis bin was dropped by select(bin=b); select it with a list, "
+                "bin=[b], to keep the axis and its centre (Part II, §12.7)."
+            )
+        positions = np.asarray(grid.coords[grid.axis("bin")], dtype=np.int64)
+        centers: NDArray[np.float64] = spectrum.bins().centers_cycles[positions]
         centers.flags.writeable = False
         return centers
 
@@ -894,9 +897,6 @@ def _select_family(layout: Layout, name: str, index: dict[str, Any]) -> Copy | C
             *coords[column + 1 :],
         ]
     dropped = {grid.axis(a) for a, w in chosen.items() if isinstance(w, int)}
-    fixed = grid.fixed + tuple(
-        (a, int(grid.coords[grid.axis(a)][w])) for a, w in chosen.items() if isinstance(w, int)
-    )
     keep = [i for i in range(len(grid.axes)) if i not in dropped]
     chunk_axes = [i for i in range(k) if i not in dropped]
     real = grid.real.reshape(-1, *grid.orientations)
@@ -911,7 +911,6 @@ def _select_family(layout: Layout, name: str, index: dict[str, Any]) -> Copy | C
         chunks=positions[:, chunk_axes],
         kinds=grid.kinds[sources],
         real=real.reshape(real.shape[0], -1),
-        fixed=fixed,
     )
     levels, level_ids = layout.levels(name)
     family = FamilyChunks(new_grid, levels, level_ids[sources])
@@ -1007,7 +1006,7 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
     spec = content["plan"]
     cls = geometry_class(spec["geometry"])
     plan: Any
-    if spec.get("operator") == "SpectrumOperator":
+    if "operator" in spec:  # only the plan of SpectrumOperator writes it (spectra._plan)
         plan = _spectrum_operator_plan(spec, arrays)
     elif "blocks" in spec:
         plan = _tensor_prod_plan(spec, arrays["plan__cross_matrix"].astype(bool))

@@ -168,13 +168,15 @@ def apply_operator(
     filters: STFilters,
     ref: STStatistics | None,
     held: _NormReference | None,
+    missing_reference_advice: str = "",
 ) -> tuple[STStatistics, _NormReference | None]:
     """The ``apply`` of every operator (``STOperator``, ``STOperatorTensorProd``,
     ``SpectrumOperator``; maths.md M-NORM): the statistics of ``data``, and the reference the
     operator holds afterwards. ``ref`` is the reference passed to ``apply``; ``held`` the one the
     operator holds. With ``norm="ref"`` and no ``ref``, ``held`` normalises, and its absence is
-    an error; with ``norm="self"`` the operator keeps the reference of the result, replacing the
-    one it held with a ``UserWarning`` at the line that calls ``apply``."""
+    an error, whose advice ends with ``missing_reference_advice``, the operator's; with
+    ``norm="self"`` the operator keeps the reference of the result, replacing the one it held
+    with a ``UserWarning`` at the line that calls ``apply``."""
     check_data(data, plan, filters)
     reference = reference_of(ref, plan) if ref is not None else None
     if reference is None and plan.norm == "ref":
@@ -182,13 +184,8 @@ def apply_operator(
         if reference is None:
             raise ValueError(
                 f'{name}.apply: norm="ref" needs a reference, and this operator holds none. '
-                'Pass ref=, statistics computed with norm="self"'
-                + (
-                    f", or build the operator with {name}.from_statistics"
-                    if name != "SpectrumOperator"
-                    else ""
-                )
-                + " (maths.md M-NORM)."
+                f'Pass ref=, statistics computed with norm="self"{missing_reference_advice} '
+                "(maths.md M-NORM)."
             )
     stats = compute(data, plan, filters, reference)
     if plan.norm != "self":

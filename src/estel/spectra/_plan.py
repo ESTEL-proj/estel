@@ -28,6 +28,7 @@ from ..scattering._filters import STFilters
 from ..scattering._loop import ScatteringValues
 from ..scattering._plan import (
     ChannelPairs,
+    SpectrumAdvice,
     SpectrumPlan,
     STPlan,
     _check_options,
@@ -43,6 +44,13 @@ from ..statistics._normalization import (
     spectrum_self_reference,
 )
 from ._estimators import SpectrumFilters, build_spectrum_filters, spectrum_floats
+
+SPECTRUM_OPERATOR_ADVICE = SpectrumAdvice(
+    not_2d="pass estel.Data2D data to SpectrumOperator.",
+    odd_size="crop the data to even sizes.",
+    jmin="Pass a smaller Jmin or a larger J, or use a larger image.",
+)
+"""The advice of ``SpectrumOperator``, which has no ``compute_PS`` to switch off."""
 
 
 class _SpectrumFilterFields(NamedTuple):
@@ -176,12 +184,14 @@ def build_spectrum_operator_plan(
     cross_matrix: Any = None,
     norm: str = "self",
     ref_batch_mean: bool = False,
+    advice: SpectrumAdvice = SPECTRUM_OPERATOR_ADVICE,
 ) -> SpectrumOperatorPlan:
     """The :class:`SpectrumOperatorPlan` of the power spectrum of data with the geometry, spatial
     shape, ``pbc``, mask and number of channels of ``data`` (maths.md §1.9; Part II, §12.8): the
     checks of ``scattering._plan.build_spectrum_plan`` (2D data of even sizes, J_min, ``n_bins``,
     the estimator), those of ``cross_matrix`` (M-CHAN) and of ``norm`` and ``ref_batch_mean``
-    (M-NORM). The values of ``data.array`` are not read."""
+    (M-NORM), whose errors end with ``advice``, that of ``SpectrumOperator``. The values of
+    ``data.array`` are not read."""
     if not isinstance(data, Data):
         raise TypeError(
             f"SpectrumOperator takes a Data object, such as estel.Data2D, got "
@@ -206,7 +216,7 @@ def build_spectrum_operator_plan(
         method,
         bool(data.pbc),
         data.mask,
-        operator=SpectrumOperatorPlan._operator_name,
+        advice,
     )
     return SpectrumOperatorPlan(
         geometry=type(data),

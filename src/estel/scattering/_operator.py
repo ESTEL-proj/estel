@@ -38,7 +38,15 @@ from ..statistics._arrays import dtype_name
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
 from ._filters import PlanarFilters, STFilters, TensorProdFilters
-from ._plan import PlanarPlan, STPlan, TensorProdPlan, build_plan, build_tensor_prod_statistics_plan
+from ._plan import (
+    SCATTERING_SPECTRUM_ADVICE,
+    PlanarPlan,
+    SpectrumAdvice,
+    STPlan,
+    TensorProdPlan,
+    build_plan,
+    build_tensor_prod_statistics_plan,
+)
 
 _WIDE = ("float64", "complex128")
 
@@ -102,6 +110,10 @@ class STOperator:
     _reference: _NormReference | None
     _plan_type: ClassVar[type[PlanarPlan] | type[TensorProdPlan]] = PlanarPlan
     """The plan of the operator's geometry, which :meth:`from_statistics` takes."""
+    _spectrum_advice: ClassVar[SpectrumAdvice] = SCATTERING_SPECTRUM_ADVICE
+    """What the errors of the power spectrum advise (golden rule 8): ``compute_PS=False``."""
+    _missing_reference_advice: ClassVar[str] = ", or build the operator with {name}.from_statistics"
+    """The end of the advice of ``apply`` with ``norm="ref"`` and no reference."""
     _other_statistics: ClassVar[str] = (
         "these are the statistics of a tensor product, which STOperator does not compute: use "
         "STOperatorTensorProd.from_statistics(stats)."
@@ -139,6 +151,7 @@ class STOperator:
             n_bins=n_bins,
             Jmin=Jmin,
             spectrum_method=spectrum_method,
+            spectrum_advice=self._spectrum_advice,
         )
         plan.wavelets.bank()  # validates L for the geometry (M-WAV-1D)
         if norm != "none":
@@ -243,8 +256,15 @@ class STOperator:
         (from :meth:`from_statistics`). With ``norm="self"`` the operator keeps the reference of
         the result, replacing the one it held, with a ``UserWarning``.
         """
+        name = type(self).__name__
         stats, self._reference = apply_operator(
-            type(self).__name__, data, self._plan, self._filters, ref, self._reference
+            name,
+            data,
+            self._plan,
+            self._filters,
+            ref,
+            self._reference,
+            self._missing_reference_advice.format(name=name),
         )
         return stats
 

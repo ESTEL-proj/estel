@@ -20,11 +20,16 @@ from ..data._base import Data
 from ..functional._scattering import apply_operator
 from ..scattering._filters import STFilters
 from ..scattering._operator import _as_numpy
-from ..scattering._plan import STPlan
+from ..scattering._plan import SpectrumAdvice, STPlan
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
 from ._estimators import METHODS
-from ._plan import SpectrumOperatorFilters, SpectrumOperatorPlan, build_spectrum_operator_plan
+from ._plan import (
+    SPECTRUM_OPERATOR_ADVICE,
+    SpectrumOperatorFilters,
+    SpectrumOperatorPlan,
+    build_spectrum_operator_plan,
+)
 
 
 class SpectrumOperator:
@@ -67,6 +72,12 @@ class SpectrumOperator:
     """The values of ``method``: ``"auto"``, ``"fft"``, ``"pbc_mask"``, ``"nan_mask"`` and
     ``"pbc_nan_mask"`` (maths.md §1.9)."""
 
+    _spectrum_advice: ClassVar[SpectrumAdvice] = SPECTRUM_OPERATOR_ADVICE
+    """What the errors of the spectrum advise (golden rule 8): no ``compute_PS`` here."""
+    _missing_reference_advice: ClassVar[str] = ""
+    """The end of the advice of ``apply`` with ``norm="ref"`` and no reference: none, since a
+    ``SpectrumOperator`` is not rebuilt from statistics."""
+
     _plan: SpectrumOperatorPlan
     _filters: SpectrumOperatorFilters
     _backend: str
@@ -95,6 +106,7 @@ class SpectrumOperator:
             cross_matrix=_as_numpy(cross_matrix),
             norm=norm,
             ref_batch_mean=ref_batch_mean,
+            advice=self._spectrum_advice,
         )
         if norm != "none":
             missing = [c for c in range(plan.n_channels) if c not in plan.pairs.auto]
@@ -136,7 +148,13 @@ class SpectrumOperator:
         held, with a ``UserWarning``.
         """
         stats, self._reference = apply_operator(
-            "SpectrumOperator", data, self._plan, self._filters, ref, self._reference
+            type(self).__name__,
+            data,
+            self._plan,
+            self._filters,
+            ref,
+            self._reference,
+            self._missing_reference_advice,
         )
         return stats
 

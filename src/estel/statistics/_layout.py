@@ -1364,7 +1364,6 @@ def payload(layout: Layout) -> tuple[dict[str, NDArray[Any]], dict[str, Any]]:
                 "coords": [list(c) for c in g.coords],
                 "is_complex": g.is_complex,
                 "n_chunk_axes": g.n_chunk_axes,
-                "fixed": [[axis, index] for axis, index in g.fixed],
             }
             for g in layout.grids
         ],
@@ -1399,7 +1398,6 @@ def from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> La
             kinds=arrays[f"family__{i}__kinds"],
             real=arrays[f"family__{i}__real"].astype(bool),
             shapes=arrays.get(f"family__{i}__shapes"),
-            fixed=tuple((str(axis), int(index)) for axis, index in family["fixed"]),
         )
         for i, family in enumerate(content["families"])
     )

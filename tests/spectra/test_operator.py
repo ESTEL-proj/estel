@@ -199,9 +199,9 @@ def test_functional_spectrum_is_the_pure_function_of_apply() -> None:
 
 def test_statistics_of_the_spectrum_alone() -> None:
     """The family ``"PS"`` alone: its full grid, ``to_vector`` (its real part), ``select``, and
-    ``bin_centers`` in cycles per pixel, which follow a selection, the axis ``bin`` kept or
-    dropped; ``bin_centers`` of statistics without the spectrum raises; an ``STOperator`` cannot
-    be rebuilt from them."""
+    ``bin_centers`` in cycles per pixel, which follow a selection that keeps the axis ``bin``
+    and raise when an integer dropped it; ``bin_centers`` of statistics without the spectrum
+    raises; an ``STOperator`` cannot be rebuilt from them."""
     data = _data()
     stats = SpectrumOperator(data, norm="none").apply(data)
     grid = _numpy(stats.full_grid("PS"))
@@ -215,11 +215,9 @@ def test_statistics_of_the_spectrum_alone() -> None:
     assert centers.dtype == np.float64
     assert not centers.flags.writeable
     np.testing.assert_array_equal(stats.select(bin=[4, 1]).bin_centers, centers[[4, 1]])
-    one = stats.select(bin=2)
-    assert one._grids[0].axes == ("c1", "c2")
-    assert one.bin_centers.shape == ()
-    assert one.bin_centers == centers[2]
-    assert stats.select(bin=[4, 1]).select(bin=1).bin_centers == centers[1]
+    np.testing.assert_array_equal(stats.select(bin=[2]).bin_centers, centers[[2]])
+    with pytest.raises(ValueError, match=r"dropped by select\(bin=b\); select it with a list"):
+        _ = stats.select(bin=2).bin_centers
     with pytest.raises(ValueError, match=r"bin_centers: these statistics hold no power spectrum"):
         _ = STOperator(data, compute_PS=False).apply(data).bin_centers
     with pytest.raises(ValueError, match=r"computed by a SpectrumOperator"):
