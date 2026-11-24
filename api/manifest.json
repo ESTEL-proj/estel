@@ -55,6 +55,22 @@
     "estel.Data2D.ndim": {
       "kind": "constant"
     },
+    "estel.DataHealpix": {
+      "kind": "class",
+      "signature": "(self, array: Any, mask: Any=None, *, depth: int | None=None, cell_ids: Any=None, partition: Any=None) -> None"
+    },
+    "estel.DataHealpix.cell_ids": {
+      "kind": "property"
+    },
+    "estel.DataHealpix.depth": {
+      "kind": "property"
+    },
+    "estel.DataHealpix.ndim": {
+      "kind": "constant"
+    },
+    "estel.DataHealpix.pbc": {
+      "kind": "property"
+    },
     "estel.DataTensorProd": {
       "kind": "class",
       "signature": "(self, array: Any, blocks: Sequence[type[Data]], mask: Any=None, *, pbc: Sequence[bool]) -> None"

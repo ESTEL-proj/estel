@@ -133,6 +133,9 @@ class DataTensorProd(Data):
     def _like(self, array: Any) -> Data:
         return self._from_blocks(array, self._blocks, self._backend)
 
+    def _rebuild_advice(self) -> str:
+        return "DataTensorProd(array, data.blocks, pbc=data.pbc)"
+
     # ------------------------------------------------------------------ accessors
 
     @property

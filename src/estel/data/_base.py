@@ -4,7 +4,8 @@ A ``Data`` object is one backend array plus static metadata: the periodicity ``p
 missing values. It is immutable: operations return new objects (:meth:`Data.with_array`),
 never modify one. Subclasses (``Data1D``, ``Data2D`` in ``_planar.py``) set the number of spatial
 axes and the geometry constants, and override only the geometry hooks (tag G of §12.4);
-``DataTensorProd`` (``_tensor_prod.py``) composes them, one geometry per block.
+``DataHealpix`` (``_healpix.py``) has one pixel axis on the sphere; ``DataTensorProd``
+(``_tensor_prod.py``) composes the planar ones, one geometry per block.
 
 Validation happens once, here, when the object is built (review rule B1): the array is converted
 to the backend, promoted to ``(Nb, Nc, *spatial)``, and its NaN become the mask. The mask is a
@@ -37,9 +38,9 @@ _FLOAT_DTYPES = ("float32", "float64")
 class Data:
     """Data plus static metadata: the mother class of every geometry.
 
-    Build a geometry instead: ``Data1D`` or ``Data2D``. The mother class holds the shared
-    logic; a subclass sets ``ndim``, the number of spatial axes (a class constant of a single
-    geometry), and overrides only the geometry hooks.
+    Build a geometry instead: ``Data1D``, ``Data2D`` or ``DataHealpix``. The mother class holds
+    the shared logic; a subclass sets ``ndim``, the number of spatial axes (a class constant of a
+    single geometry), and overrides only the geometry hooks.
 
     Parameters
     ----------
@@ -93,7 +94,7 @@ class Data:
         if not hasattr(cls, "_geometry"):
             raise TypeError(
                 f"{cls.__name__} is the mother class and has no geometry: build a geometry "
-                "instead, estel.Data1D or estel.Data2D."
+                "instead, estel.Data1D or estel.Data2D, or estel.DataHealpix."
             )
         if not isinstance(pbc, bool | np.bool_):
             raise TypeError(
@@ -118,27 +119,59 @@ class Data:
     # ------------------------------------------------------------------ construction
 
     def _set(
-        self, array: Any, mask: NDArray[np.bool_] | None, pbc: bool | tuple[bool, ...], backend: str
+        self,
+        array: Any,
+        mask: NDArray[np.bool_] | None,
+        pbc: bool | tuple[bool, ...],
+        backend: str,
+        meta: tuple[Any, ...] = (),
     ) -> None:
         object.__setattr__(self, "_array", array)
         object.__setattr__(self, "_mask", mask)
         object.__setattr__(self, "_pbc", pbc)
         object.__setattr__(self, "_backend", backend)
+        self._set_meta(meta)
 
     @classmethod
     def _from_parts(
-        cls, array: Any, mask: NDArray[np.bool_] | None, pbc: bool | tuple[bool, ...], backend: str
+        cls,
+        array: Any,
+        mask: NDArray[np.bool_] | None,
+        pbc: bool | tuple[bool, ...],
+        backend: str,
+        meta: tuple[Any, ...] = (),
     ) -> Data:
         """A new object from parts already validated: no conversion, no check of values, so
-        that it works inside traced code."""
+        that it works inside traced code. ``meta`` is the static metadata of the geometry
+        beyond the mask and ``pbc``, :meth:`_meta` of an object of the same class: ``()`` for
+        planar data, ``(depth, cell_ids)`` for ``DataHealpix``."""
         new = cls.__new__(cls)
-        new._set(array, mask, pbc, backend)
+        new._set(array, mask, pbc, backend, meta)
         return new
+
+    def _meta(self) -> tuple[Any, ...]:
+        """The static metadata of the geometry beyond the mask and ``pbc``, hashable: what
+        :meth:`_from_parts` needs, with them, to rebuild an object of this class. A geometry
+        with more metadata overrides it and :meth:`_set_meta`; planar data have none."""
+        return ()
+
+    def _set_meta(self, meta: tuple[Any, ...]) -> None:
+        """Set the metadata of :meth:`_meta` on a new object (from :meth:`_set`)."""
+        if meta:
+            raise TypeError(
+                f"{type(self).__name__} has no static metadata beyond its mask and pbc; got "
+                f"{meta!r}. Pass meta=() or the _meta() of an object of the same class."
+            )
 
     def _like(self, array: Any) -> Data:
         """A new object of this geometry with ``array`` and the static metadata of this one: no
         conversion, no check of values (the functional updates and the slicing use it)."""
-        return self._from_parts(array, self._mask, self._pbc, self._backend)
+        return self._from_parts(array, self._mask, self._pbc, self._backend, self._meta())
+
+    def _rebuild_advice(self) -> str:
+        """The constructor call that builds an object like this one from a NumPy ``array``,
+        for the messages."""
+        return f"{type(self).__name__}(array, mask=data.mask, pbc=data.pbc)"
 
     def __setattr__(self, name: str, value: Any) -> None:
         raise AttributeError(
@@ -206,8 +239,9 @@ class Data:
         if _registry.backend_of(new_array) is None:
             raise TypeError(
                 f"with_array takes an array of the {self._backend} backend, got "
-                f"{type(new_array).__name__}. To start from NumPy, build a new "
-                f"{type(self).__name__}(array, mask=data.mask, pbc=data.pbc) instead."
+                f"{type(new_array).__name__}. To start from NumPy, convert the array to the "
+                f"{self._backend} backend first, in the dtype of data.array, or build a new "
+                f"{self._rebuild_advice()} instead."
             )
         new_shape = tuple(int(n) for n in new_array.shape)
         if new_shape != self.shape:
@@ -260,17 +294,18 @@ class Data:
         """The array is the only leaf; everything else is static (Part I, §2.3).
 
         The static part must be hashable and compare by value, since JAX caches compiled
-        functions by it: the mask goes in as a :class:`_StaticMask`.
+        functions by it: the mask goes in as a :class:`_StaticMask`, and the metadata of the
+        geometry (:meth:`_meta`) is hashable by contract.
         """
         mask = None if self._mask is None else _StaticMask(self._mask)
-        return (self._array,), (mask, self._pbc, self._backend)
+        return (self._array,), (mask, self._pbc, self._backend, self._meta())
 
     @classmethod
     def _tree_unflatten(cls, aux: tuple[Any, ...], children: tuple[Any, ...]) -> Data:
         """Rebuild from :meth:`_tree_flatten`, without looking at the leaf: the backend passes
         tracers, batched arrays and placeholders."""
-        mask, pbc, backend = aux
-        return cls._from_parts(children[0], None if mask is None else mask.mask, pbc, backend)
+        mask, pbc, backend, meta = aux
+        return cls._from_parts(children[0], None if mask is None else mask.mask, pbc, backend, meta)
 
     # ------------------------------------------------------------------ geometry hooks
 
@@ -406,8 +441,9 @@ class DownsampleWeights(NamedTuple):
     """
 
     kernel: Any
-    """The smoothing kernel of the geometry, real, with the real dtype of the data
-    (planar: the smoothing kernel of maths.md M-SMOOTH-2D, M-SMOOTH-1D)."""
+    """The static kernel of the step, with the real dtype of the data: planar, the smoothing
+    kernel of maths.md M-SMOOTH-2D, M-SMOOTH-1D; HEALPix, the decimation tables of the step
+    (``HealpixDownTables``, M-DOWN-HPX)."""
     valid: Any = None
     """Without missing values, ``None``. Otherwise the valid input pixels, a boolean array of
     the spatial shape at the input level: invalid pixels are set to 0 before filtering, never

@@ -30,7 +30,7 @@ from .._config import FloatDType
 from ..backend import _registry
 from ..spectra._estimators import SpectrumFilters, build_spectrum_filters
 from ..statistics._layout import ChunkTables, loop_gather, tensor_prod_gather
-from ..wavelets._operator import MeanWeights, WaveletFilters, build_wavelet_filters
+from ..wavelets._operator import MeanWeights, WaveletFilters
 from ..wavelets._tensor_prod import build_tensor_prod_wavelet_filters
 from ._tensor_prod import Scale
 
@@ -101,7 +101,7 @@ class PlanarFilters(_FilterFields, STFilters):
 
     @property
     def _any_array(self) -> Any:
-        return self.wavelets.smoothing
+        return self.wavelets._any_array
 
 
 # ---------------------------------------------------------------------- windows
@@ -138,7 +138,7 @@ def build_filters(
         return backend.asarray(np.asarray(a, dtype=bool), "bool", device)
 
     return PlanarFilters(
-        wavelets=build_wavelet_filters(plan.wavelets, backend_name, dtype, device),
+        wavelets=plan.wavelets._build_filters(backend_name, dtype, device),
         valid=None if plan.mask is None else boolean(~plan.mask),
         moments=weights(plan.moments),
         first_layer={j: weights(w) for j, w in plan.first_layer.items()},

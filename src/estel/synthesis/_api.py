@@ -718,9 +718,10 @@ def _xp_dtype(backend: Backend, dtype: str) -> Any:
 
 
 def _running_data(target: Data, shape: tuple[int, ...], backend: Backend) -> Data:
-    """Periodic data of the running fields' shape, of the target's geometry, without mask."""
+    """Periodic data of the running fields' shape, of the target's geometry and its static
+    metadata (``Data._meta``), without mask."""
     zeros = backend.xp.zeros(shape, dtype=target.array.dtype, device=target.array.device)
-    return type(target)._from_parts(zeros, None, True, backend.name)
+    return type(target)._from_parts(zeros, None, True, backend.name, target._meta())
 
 
 def _checkpoint_settings(every: object, directory: object) -> int | None:
