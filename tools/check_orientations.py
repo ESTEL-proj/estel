@@ -200,7 +200,10 @@ def _marker_hits(rel: str, comments: dict[int, str]) -> tuple[set[int], list[Hit
 
 
 def check_python(source: str, rel: str) -> list[Hit]:
-    valid, hits = _marker_hits(rel, _comments(source))
+    # Only the comments holding the marker matter (_marker_hits), and tokenizing a file costs
+    # as much as parsing it: a source without the marker word has none to read.
+    comments = _comments(source) if MARKER_WORD in source else {}
+    valid, hits = _marker_hits(rel, comments)
     seen: set[tuple[int, str]] = set()
     for form, value in _python_candidates(ast.parse(source, rel)):
         for literal in _large_ints(value):
