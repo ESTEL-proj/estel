@@ -128,6 +128,10 @@ class FamilyGrid:
     each kind, a corner of :attr:`orientations` (the positions from 0 along each axis), or
     ``None`` when every kind holds every orientation (planar statistics, and the families of
     tensor products without a low-pass scale). Read-only."""
+    fixed: tuple[tuple[str, int], ...] = ()
+    """The axes that ``select`` dropped with an integer, each with the original index of the
+    position it kept, in the order they were dropped: what the coordinate of a dropped axis
+    was (``STStatistics.bin_centers`` after ``select(bin=b)``)."""
 
     def __post_init__(self) -> None:
         if len(self.axes) != len(self.coords):
@@ -279,6 +283,7 @@ class FamilyGrid:
             _digest(self.kinds),
             _digest(self.real),
             None if self.shapes is None else _digest(self.shapes),
+            self.fixed,
         )
 
     def __hash__(self) -> int:

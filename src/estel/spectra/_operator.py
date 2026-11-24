@@ -17,8 +17,7 @@ from typing import Any, ClassVar
 
 from .._config import FloatDType, default_device, default_dtype
 from ..data._base import Data
-from ..functional._scattering import reference_of
-from ..functional._spectrum import compute_spectrum
+from ..functional._scattering import apply_operator
 from ..scattering._filters import STFilters
 from ..scattering._operator import _as_numpy
 from ..scattering._plan import STPlan
@@ -30,7 +29,7 @@ from ._plan import SpectrumOperatorFilters, SpectrumOperatorPlan, build_spectrum
 
 class SpectrumOperator:
     """The 2D power spectrum: binned auto and cross spectra of every channel pair (maths.md
-    §1.9), as ``STStatistics`` holding the family ``"PS"`` alone.
+    §1.9, M-PS-2D), as ``STStatistics`` holding the family ``"PS"`` alone.
 
     Parameters
     ----------
@@ -136,26 +135,9 @@ class SpectrumOperator:
         ``norm="self"`` the operator keeps the reference of the result, replacing the one it
         held, with a ``UserWarning``.
         """
-        plan = self._plan
-        reference = reference_of(ref, plan) if ref is not None else None  # type: ignore[arg-type]
-        if reference is None and plan.norm == "ref":
-            reference = self._reference
-            if reference is None:
-                raise ValueError(
-                    'SpectrumOperator.apply: norm="ref" needs a reference, and this operator '
-                    'holds none. Pass ref=, statistics computed with norm="self" (maths.md '
-                    "M-NORM)."
-                )
-        stats = compute_spectrum(data, plan, self._filters, reference)
-        if plan.norm == "self":
-            if self._reference is not None:
-                warnings.warn(
-                    'SpectrumOperator.apply: norm="self" replaces the reference this operator '
-                    "held by that of the new statistics (maths.md M-NORM).",
-                    UserWarning,
-                    stacklevel=2,
-                )
-            self._reference = stats._reference
+        stats, self._reference = apply_operator(
+            "SpectrumOperator", data, self._plan, self._filters, ref, self._reference
+        )
         return stats
 
     def __repr__(self) -> str:

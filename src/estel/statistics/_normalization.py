@@ -379,14 +379,9 @@ def self_reference(
     )
     var = xp.take(buffer, constant(backend, var_floats, buffer, "int32"), axis=1)
     diagonal = xp.take(buffer, constant(backend, s2_floats, buffer, "int32"), axis=1)
-    auto_ps = None
-    if spectrum is not None:
-        floats = _spectrum_tables(layout, spectrum.present.tobytes())
-        auto_ps = xp.take(buffer, constant(backend, floats, buffer, "int32"), axis=1)
     if ref_batch_mean:
         var = xp.mean(var, axis=0, keepdims=True)
         diagonal = xp.mean(diagonal, axis=0, keepdims=True)
-        auto_ps = None if auto_ps is None else xp.mean(auto_ps, axis=0, keepdims=True)
     return _NormReference(
         var=var,
         sigma=xp.sqrt(diagonal),
@@ -394,9 +389,29 @@ def self_reference(
         n_orientations=n_orientations,
         ref_batch_mean=ref_batch_mean,
         blocks=blocks,
-        sigma_ps=None if auto_ps is None else xp.sqrt(auto_ps),
+        sigma_ps=None
+        if spectrum is None
+        else _sigma_ps(backend, buffer, layout, spectrum, ref_batch_mean),
         spectrum=spectrum,
     )
+
+
+def _sigma_ps(
+    backend: Backend,
+    buffer: Any,
+    layout: Layout,
+    spectrum: SpectrumReference,
+    ref_batch_mean: bool,
+) -> Any:
+    """σᴾˢ of ``norm="self"``, ``(Nr, n)``: the square root of the auto spectra of the channels of
+    ``spectrum.present`` in ``buffer``, averaged over the batch first with ``ref_batch_mean``
+    (maths.md M-NORM, §1.9). One helper for the references of both operators."""
+    xp = backend.xp
+    floats = _spectrum_tables(layout, spectrum.present.tobytes())
+    auto_ps = xp.take(buffer, constant(backend, floats, buffer, "int32"), axis=1)
+    if ref_batch_mean:
+        auto_ps = xp.mean(auto_ps, axis=0, keepdims=True)
+    return xp.sqrt(auto_ps)
 
 
 def spectrum_self_reference(
@@ -411,12 +426,8 @@ def spectrum_self_reference(
     ``SpectrumOperator`` (maths.md M-NORM; Part II, §12.8; task T4.1): σᴾˢ read from the auto
     spectra of ``buffer`` as in :func:`self_reference`, and no scattering scale: ``var`` and
     ``sigma`` are ``(Nr, 0)``, ``present`` is ``(Nc, 0)`` (:attr:`_NormReference.spectrum_only`)."""
-    xp = backend.xp
-    floats = _spectrum_tables(layout, spectrum.present.tobytes())
-    auto_ps = xp.take(buffer, constant(backend, floats, buffer, "int32"), axis=1)
-    if ref_batch_mean:
-        auto_ps = xp.mean(auto_ps, axis=0, keepdims=True)
-    empty = xp.zeros((int(auto_ps.shape[0]), 0), dtype=auto_ps.dtype)
+    sigma_ps = _sigma_ps(backend, buffer, layout, spectrum, ref_batch_mean)
+    empty = backend.xp.zeros((int(sigma_ps.shape[0]), 0), dtype=sigma_ps.dtype)
     present = np.zeros((n_channels, 0), dtype=bool)
     present.flags.writeable = False
     return _NormReference(
@@ -425,7 +436,7 @@ def spectrum_self_reference(
         present=present,
         n_orientations=1,
         ref_batch_mean=ref_batch_mean,
-        sigma_ps=xp.sqrt(auto_ps),
+        sigma_ps=sigma_ps,
         spectrum=spectrum,
     )
 

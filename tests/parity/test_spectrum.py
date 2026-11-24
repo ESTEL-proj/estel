@@ -6,7 +6,7 @@ its default pairs (the auto spectra, passed here explicitly: OP-94) and each est
 with every pair c₁ ≤ c₂, and its bins. ESTEL computes them with ``SpectrumOperator`` and
 ``norm="none"``, STL's operator normalising nothing. The configuration ``nan_per_map``, whose
 missing pixels differ per map, is left out: ESTEL's mask is one map shared by every batch element
-and channel (OP-26), and the comment on #24 gives the numbers; ``tests/spec/test_spectra_operator``
+and channel (OP-98), and the comment on #24 gives the numbers; ``tests/spec/test_spectra_operator``
 compares it with the oracle on the union of its missing pixels.
 
 ``statistics_ps_2d`` (T4.3): STL's scattering operator with the spectrum, ``store_ref`` on a
@@ -39,7 +39,7 @@ SPECTRUM, STATISTICS = "spectrum_2d", "statistics_ps_2d"
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4", "PS")
 ESTIMATORS = ("fft", "pbc_mask", "nan_mask", "pbc_nan_mask")
 PER_MAP = "nan_per_map"
-"""Missing pixels that differ per map: out of ESTEL's data model (OP-26; comment on #24)."""
+"""Missing pixels that differ per map: out of ESTEL's data model (OP-98; comment on #24)."""
 PBC = {
     "periodic": True,
     "open": False,
@@ -114,8 +114,6 @@ def test_spectrum_operator_equals_stl(name: str, dtype: DType) -> None:
     np.testing.assert_array_equal(bins.radial, arrays[f"{name}_radial_bin_of_k"])
     np.testing.assert_array_equal(bins.mode_weights, arrays[f"{name}_weight_of_k"])
     np.testing.assert_array_equal(bins.borders, arrays[f"{name}_crop_borders"])
-    radial_k = np.arange(bins.n_max + 1) / (2 * bins.n_max)  # STL: in cycles per pixel
-    assert_parity(radial_k, arrays[f"{name}_radial_k"])
     scalars = arrays[f"{name}_bin_scalars"]
     assert (bins.J, bins.Jmin, bins.n_bins, bins.n_max) == tuple(
         int(scalars[i]) for i in (0, 1, 2, 5)

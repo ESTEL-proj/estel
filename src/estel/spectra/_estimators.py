@@ -19,7 +19,8 @@ With x̂ = ``rfft2(x, norm="ortho")`` and the pairs (c₁, c₂), c₁ ≤ c₂,
   prefactor N_pix / (Σ_n weight · Z_b).
 
 Only the real part of the cross spectra is computed (OP-19). The missing pixels are static,
-those of the mask of the data, read when the operator is built, as for ``STOperator``.
+those of the mask of the data, one map shared by every batch element and channel, read when
+the operator is built, as for ``STOperator`` (OP-98).
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from typing import Any, NamedTuple
 import numpy as np
 from numpy.typing import NDArray
 
+from .._config import FloatDType
 from ..backend._protocol import Backend
 from ..statistics._arrays import constant
 
@@ -43,7 +45,7 @@ def choose_estimator(method: object, pbc: bool, has_missing: bool) -> str:
     pixels (maths.md §1.9, "Choice of estimator"). ``"auto"``: ``pbc_nan_mask`` with missing
     pixels and ``pbc=False``, ``nan_mask`` with missing pixels otherwise, ``pbc_mask`` without
     and ``pbc=False``, ``fft`` otherwise. A forced ``fft`` or ``pbc_mask`` on data with missing
-    pixels raises, at construction, where STL raises at ``apply``."""
+    pixels raises, at construction, where STL raises at ``apply`` (OP-98)."""
     if not isinstance(method, str) or method not in METHODS:
         raise ValueError(
             f"spectrum method {method!r}: pass one of {', '.join(repr(m) for m in METHODS)} "
@@ -74,9 +76,8 @@ class SpectrumFilters(NamedTuple):
     M_b N_pix / (Σ_n M_b · Z_b), or with O in place of (or times) M_b; ``None`` for ``fft``."""
     valid: Any
     """``nan_mask`` and ``pbc_nan_mask`` on data with missing pixels: ``(N₁, N₂)``, the valid
-    pixels (bool); ``None`` otherwise."""
-    n_valid: float
-    """The number of valid pixels, the denominator of the filling mean; 0 without filling."""
+    pixels (bool); ``None`` otherwise. The denominator of the filling mean, their number, is in
+    the plan (``SpectrumPlan.n_valid``)."""
 
 
 def static_tables(
@@ -117,7 +118,7 @@ def build_spectrum_filters(
     spectrum: Any,
     mask: NDArray[np.bool_] | None,
     backend: Backend,
-    dtype: str,
+    dtype: FloatDType,
     device: Any,
 ) -> SpectrumFilters:
     """The :class:`SpectrumFilters` of ``spectrum`` (``scattering._plan.SpectrumPlan``) for data
@@ -136,14 +137,13 @@ def build_spectrum_filters(
     )
 
     def real(a: NDArray[Any] | None) -> Any:
-        return None if a is None else backend.asarray(np.asarray(a, np.float64), dtype, device)  # type: ignore[arg-type]
+        return None if a is None else backend.asarray(np.asarray(a, np.float64), dtype, device)
 
     filling = estimator in ("nan_mask", "pbc_nan_mask") and valid is not None
     return SpectrumFilters(
         modes=real(modes),
         pixels=real(pixels),
         valid=backend.asarray(valid, "bool", device) if filling else None,
-        n_valid=float(valid.sum()) if filling and valid is not None else 0.0,
     )
 
 
@@ -157,10 +157,15 @@ def _pair_index(backend: Backend, pairs: tuple[tuple[int, int], ...], like: Any)
 
 
 def estimate_fft(
-    backend: Backend, x: Any, filters: SpectrumFilters, pairs: tuple[tuple[int, int], ...]
+    backend: Backend,
+    x: Any,
+    filters: SpectrumFilters,
+    pairs: tuple[tuple[int, int], ...],
+    n_valid: int,
 ) -> Any:
     """``fft`` (periodic, no missing pixel): ``(Nb, n_pairs, n_b)``, the spectrum of each pair
-    of ``pairs`` of the field ``x`` ``(Nb, Nc, N₁, N₂)``."""
+    of ``pairs`` of the field ``x`` ``(Nb, Nc, N₁, N₂)``. The estimators share one signature:
+    ``n_valid``, the denominator of the filling mean, is read by those that fill."""
     xp = backend.xp
     spectrum = xp.fft.rfft2(x, norm="ortho")  # (Nb, Nc, N1, K2)
     first, second = _pair_index(backend, pairs, filters.modes)
@@ -179,15 +184,15 @@ def _bands(backend: Backend, x: Any, filters: SpectrumFilters, shape: tuple[int,
     return xp.fft.irfft2(spectrum[:, :, None] * filters.modes, s=shape, norm="ortho")
 
 
-def _filled(backend: Backend, x: Any, filters: SpectrumFilters) -> Any:
-    """Each map with its missing pixels set to the mean of its valid pixels (maths.md §1.9,
-    ``nan_mask``), with ``where``: the values at the missing pixels are never read."""
+def _filled(backend: Backend, x: Any, filters: SpectrumFilters, n_valid: int) -> Any:
+    """Each map with its missing pixels set to the mean of its ``n_valid`` valid pixels (maths.md
+    §1.9, ``nan_mask``), with ``where``: the values at the missing pixels are never read."""
     xp = backend.xp
     valid = filters.valid
     if valid is None:  # no missing pixel: nothing to fill
         return x
     kept = xp.where(valid, x, xp.zeros_like(x))
-    mean = xp.sum(kept, axis=(-2, -1), keepdims=True) / filters.n_valid
+    mean = xp.sum(kept, axis=(-2, -1), keepdims=True) / n_valid
     return xp.where(valid, kept, xp.broadcast_to(mean, x.shape))
 
 
@@ -203,24 +208,36 @@ def _band_sums(
 
 
 def estimate_pbc_mask(
-    backend: Backend, x: Any, filters: SpectrumFilters, pairs: tuple[tuple[int, int], ...]
+    backend: Backend,
+    x: Any,
+    filters: SpectrumFilters,
+    pairs: tuple[tuple[int, int], ...],
+    n_valid: int,
 ) -> Any:
     """``pbc_mask`` (non-periodic, no missing pixel): ``(Nb, n_pairs, n_b)``."""
     return _band_sums(backend, x, filters, pairs)
 
 
 def estimate_nan_mask(
-    backend: Backend, x: Any, filters: SpectrumFilters, pairs: tuple[tuple[int, int], ...]
+    backend: Backend,
+    x: Any,
+    filters: SpectrumFilters,
+    pairs: tuple[tuple[int, int], ...],
+    n_valid: int,
 ) -> Any:
     """``nan_mask`` (periodic, missing pixels): ``(Nb, n_pairs, n_b)``."""
-    return _band_sums(backend, _filled(backend, x, filters), filters, pairs)
+    return _band_sums(backend, _filled(backend, x, filters, n_valid), filters, pairs)
 
 
 def estimate_pbc_nan_mask(
-    backend: Backend, x: Any, filters: SpectrumFilters, pairs: tuple[tuple[int, int], ...]
+    backend: Backend,
+    x: Any,
+    filters: SpectrumFilters,
+    pairs: tuple[tuple[int, int], ...],
+    n_valid: int,
 ) -> Any:
     """``pbc_nan_mask`` (non-periodic, missing pixels): ``(Nb, n_pairs, n_b)``."""
-    return _band_sums(backend, _filled(backend, x, filters), filters, pairs)
+    return _band_sums(backend, _filled(backend, x, filters, n_valid), filters, pairs)
 
 
 _ESTIMATE = {
@@ -234,13 +251,14 @@ _ESTIMATE = {
 def spectrum_floats(
     backend: Backend,
     x: Any,
-    estimator: str,
+    spectrum: Any,
     filters: SpectrumFilters,
     pairs: tuple[tuple[int, int], ...],
 ) -> Any:
     """The floats of the family ``"PS"`` in a buffer, ``(Nb, n_pairs · n_b)``: the spectrum of
     each pair of ``pairs``, in this order (that of the chunks of ``"PS"`` in the layout), each
     followed by its n_b bins, one float each. ``x`` is the field ``(Nb, Nc, N₁, N₂)``, its missing
-    pixels never read."""
-    found = _ESTIMATE[estimator](backend, x, filters, pairs)
+    pixels never read; ``spectrum`` is the plan of the spectrum (``scattering._plan.SpectrumPlan``):
+    its estimator and the denominator of the filling mean."""
+    found = _ESTIMATE[spectrum.method](backend, x, filters, pairs, spectrum.n_valid)
     return backend.xp.reshape(found, (int(found.shape[0]), -1))

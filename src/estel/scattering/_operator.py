@@ -33,7 +33,7 @@ from .._config import FloatDType, default_device, default_dtype
 from ..backend import _registry
 from ..data._base import Data
 from ..engines import _registry as _engines
-from ..functional._scattering import check_data, compute, reference_of
+from ..functional._scattering import apply_operator
 from ..statistics._arrays import dtype_name
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
@@ -243,28 +243,9 @@ class STOperator:
         (from :meth:`from_statistics`). With ``norm="self"`` the operator keeps the reference of
         the result, replacing the one it held, with a ``UserWarning``.
         """
-        name = type(self).__name__
-        plan = self._plan
-        check_data(data, plan, self._filters)
-        reference = reference_of(ref, plan) if ref is not None else None
-        if reference is None and plan.norm == "ref":
-            reference = self._reference
-            if reference is None:
-                raise ValueError(
-                    f'{name}.apply: norm="ref" needs a reference, and this operator '
-                    'holds none. Pass ref=, statistics computed with norm="self", or build '
-                    f"the operator with {name}.from_statistics (maths.md M-NORM)."
-                )
-        stats = compute(data, plan, self._filters, reference)
-        if plan.norm == "self":
-            if self._reference is not None:
-                warnings.warn(
-                    f'{name}.apply: norm="self" replaces the reference this operator '
-                    "held by that of the new statistics (maths.md M-NORM).",
-                    UserWarning,
-                    stacklevel=2,
-                )
-            self._reference = stats._reference
+        stats, self._reference = apply_operator(
+            type(self).__name__, data, self._plan, self._filters, ref, self._reference
+        )
         return stats
 
     def __repr__(self) -> str:

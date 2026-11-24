@@ -218,7 +218,9 @@ def test_angular_fourier_is_applied_one_axis_at_a_time(dtype: str) -> None:
         if p.columns is not None and p.weights is not None
     ]
     assert widths
-    assert max(widths) <= 2 * planar._plan.L
+    plan = planar._plan
+    assert isinstance(plan, PlanarPlan)
+    assert max(widths) <= 2 * plan.L
 
 
 def _static_elements(found: Any, seen: set[int] | None = None) -> int:

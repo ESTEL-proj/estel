@@ -192,8 +192,9 @@ def gram_sums(v: Any, band: Any, with_s3: bool, with_s4: bool) -> tuple[Any, Any
 
 
 def scattering_values(data: Data, plan: PlanarPlan, filters: PlanarFilters) -> ScatteringValues:
-    """The statistics of ``data`` without normalisation (maths.md M-MOM, M-W1, M-S1 to M-S4),
-    STL's ``ST_Operator`` with ``norm="vanilla"`` and no spectrum.
+    """The statistics of ``data`` without normalisation (maths.md M-MOM, M-W1, M-S1 to M-S4, and
+    M-PS-2D when the plan holds the power spectrum), STL's ``ST_Operator`` with
+    ``norm="vanilla"``.
 
     ``data`` has the static metadata ``plan`` was built from (geometry, spatial shape, ``pbc``,
     mask, number of channels); ``filters`` are those of the plan, on the data's backend and
@@ -258,11 +259,7 @@ def scattering_values(data: Data, plan: PlanarPlan, filters: PlanarFilters) -> S
         # The power spectrum, the last floats of the buffer (maths.md §1.9, M-FLAT; task T4.1),
         # with the estimators of SpectrumOperator, on the field after the standardisation.
         floats = spectrum_floats(
-            backend,
-            field,
-            plan.spectrum.method,
-            filters.spectrum,
-            spectrum_pairs(plan._layout()),
+            backend, field, plan.spectrum, filters.spectrum, spectrum_pairs(plan._layout())
         )
         buffer = xp.concat([buffer, floats], axis=1)
     return ScatteringValues(

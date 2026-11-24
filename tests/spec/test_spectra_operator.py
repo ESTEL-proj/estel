@@ -7,7 +7,7 @@ forced, and the automatic choice, with and without missing pixels, periodic or n
 and a number of bins given; the spectrum within the scattering statistics, after the
 standardisation, normalised by itself (M-NORM), last in the vector (M-FLAT); and the
 configuration ``nan_per_map`` of ``spectrum_2d`` on the union of its missing pixels, the only form
-ESTEL takes (OP-26; comment on #24). Compared with ``assert_parity`` in the run's dtype: float64,
+ESTEL takes (OP-98; comment on #24). Compared with ``assert_parity`` in the run's dtype: float64,
 and float32 to the float32 tolerance of Part II, §14.3.
 
 A disagreement is a finding about ``docs/maths.md`` or about the oracle, since ESTEL matches
@@ -102,7 +102,7 @@ def test_statistics_with_the_spectrum_equal_the_oracle(dtype: DType) -> None:
 
 def test_maps_with_their_own_missing_pixels_on_their_union(dtype: DType) -> None:
     """The configuration ``nan_per_map`` of ``spectrum_2d``, whose missing pixels differ per map,
-    given to ESTEL with the union of its missing pixels as its one mask (OP-26): ``nan_mask`` and
+    given to ESTEL with the union of its missing pixels as its one mask (OP-98): ``nan_mask`` and
     ``pbc_nan_mask`` equal the oracle on that union. STL, which fills each map from its own
     valid pixels, differs by up to 29 % (comment on #24)."""
     field = load_fixture("spectrum_2d")["nan_per_map_field"]

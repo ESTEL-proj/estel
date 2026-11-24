@@ -29,6 +29,8 @@ from estel import (
 )
 from estel.backend import _registry
 from estel.io import _schema
+from estel.scattering._plan import PlanarPlan
+from estel.spectra._plan import SpectrumOperatorPlan
 
 pytestmark = pytest.mark.maths("M-PS-2D", "M-NORM")
 
@@ -150,8 +152,9 @@ def test_construction_errors_say_what_to_do(
     if error is None:
         SpectrumOperator(example, **options)
         return
-    with pytest.raises(error, match=match):
+    with pytest.raises(error, match=match) as found:
         SpectrumOperator(example, **options)
+    assert "compute_PS" not in str(found.value)  # advice a SpectrumOperator can follow
 
 
 def _corner() -> NDArray[np.bool_]:
@@ -196,9 +199,9 @@ def test_functional_spectrum_is_the_pure_function_of_apply() -> None:
 
 def test_statistics_of_the_spectrum_alone() -> None:
     """The family ``"PS"`` alone: its full grid, ``to_vector`` (its real part), ``select``, and
-    ``bin_centers`` in cycles per pixel, which follow a selection; ``reduce`` has nothing to do
-    and says so; ``bin_centers`` of statistics without the spectrum raises; an ``STOperator``
-    cannot be rebuilt from them."""
+    ``bin_centers`` in cycles per pixel, which follow a selection, the axis ``bin`` kept or
+    dropped; ``bin_centers`` of statistics without the spectrum raises; an ``STOperator`` cannot
+    be rebuilt from them."""
     data = _data()
     stats = SpectrumOperator(data, norm="none").apply(data)
     grid = _numpy(stats.full_grid("PS"))
@@ -212,8 +215,11 @@ def test_statistics_of_the_spectrum_alone() -> None:
     assert centers.dtype == np.float64
     assert not centers.flags.writeable
     np.testing.assert_array_equal(stats.select(bin=[4, 1]).bin_centers, centers[[4, 1]])
-    with pytest.raises(ValueError, match=r"hold the power spectrum alone, which every reduction"):
-        stats.reduce(iso=True)
+    one = stats.select(bin=2)
+    assert one._grids[0].axes == ("c1", "c2")
+    assert one.bin_centers.shape == ()
+    assert one.bin_centers == centers[2]
+    assert stats.select(bin=[4, 1]).select(bin=1).bin_centers == centers[1]
     with pytest.raises(ValueError, match=r"bin_centers: these statistics hold no power spectrum"):
         _ = STOperator(data, compute_PS=False).apply(data).bin_centers
     with pytest.raises(ValueError, match=r"computed by a SpectrumOperator"):
@@ -258,7 +264,10 @@ def test_save_and_load_round_trip(
     stats.save(path)
     loaded = STStatistics.load(path)
     assert loaded._plan == stats._plan
-    assert loaded._plan.spectrum.method == "nan_mask"  # type: ignore[union-attr]
+    plan = loaded._plan
+    assert isinstance(plan, PlanarPlan | SpectrumOperatorPlan)
+    assert plan.spectrum is not None
+    assert plan.spectrum.method == "nan_mask"
     assert loaded._layout == stats._layout
     for family in stats._layout.names:
         np.testing.assert_array_equal(
@@ -279,20 +288,34 @@ def test_save_and_load_round_trip(
 
 
 def test_from_statistics_computes_the_spectrum_again() -> None:
-    """``STOperator.from_statistics`` rebuilds an operator with the spectrum, its estimator
-    and its options, holding the reference: with ``norm="ref"`` it normalises other data as the
-    original operator would."""
+    """``STOperator.from_statistics`` rebuilds an operator with the spectrum, its estimator and
+    its options: from ``norm="self"`` statistics it computes them again; from ``norm="ref"``
+    statistics it holds the reference they were normalised with, and normalises other data by
+    it, with no ``ref``, as the original operator did."""
     target, other = _data(), _data(seed=1)
-    stats = STOperator(target, n_bins=4, Jmin=1, spectrum_method="pbc_mask").apply(target)
+    options: dict[str, Any] = {"n_bins": 4, "Jmin": 1, "spectrum_method": "pbc_mask"}
+    stats = STOperator(target, **options).apply(target)
     rebuilt = STOperator.from_statistics(stats)
     assert rebuilt.plan == stats._plan
     with pytest.warns(UserWarning, match="replaces the reference"):
         again = rebuilt.apply(target)
     np.testing.assert_array_equal(_numpy(again.to_vector()), _numpy(stats.to_vector()))
-    by_ref = STOperator(other, n_bins=4, Jmin=1, spectrum_method="pbc_mask", norm="ref")
-    expected = by_ref.apply(other, ref=stats)
-    reference_op = STOperator(other, n_bins=4, Jmin=1, spectrum_method="pbc_mask", norm="ref")
-    np.testing.assert_array_equal(
-        _numpy(reference_op.apply(other, ref=again).full_grid("PS")),
-        _numpy(expected.full_grid("PS")),
-    )
+    normalised = STOperator(other, norm="ref", **options).apply(other, ref=stats)
+    by_held = STOperator.from_statistics(normalised).apply(other)
+    np.testing.assert_array_equal(_numpy(by_held.to_vector()), _numpy(normalised.to_vector()))
+
+
+def test_reduce_leaves_the_spectrum_alone_unchanged() -> None:
+    """Every reduction leaves the power spectrum unchanged (maths.md §1.9, "Reductions"): the
+    statistics of a ``SpectrumOperator``, and those of an ``STOperator`` restricted to PS, come
+    back as they are."""
+    data = _data()
+    for stats in (
+        SpectrumOperator(data).apply(data),
+        STOperator(data).apply(data).select("PS"),
+    ):
+        reduced = stats.reduce(iso=True, angular_fourier=True, scale_cosine=True)
+        np.testing.assert_array_equal(
+            _numpy(reduced.full_grid("PS")), _numpy(stats.full_grid("PS"))
+        )
+        np.testing.assert_array_equal(_numpy(reduced.to_vector()), _numpy(stats.to_vector()))

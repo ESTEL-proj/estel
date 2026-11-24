@@ -79,16 +79,17 @@ class STFilters:
     operator's plan, to ``estel.functional.scattering``. Its arrays are on the operator's
     backend, dtype and device; it has no public field. The filters of each geometry are a
     subclass, internal to ESTEL, and a named tuple: :class:`PlanarFilters` for 1D and 2D data,
-    :class:`TensorProdFilters` for tensor products. Its one hook, :attr:`_smoothing`, gives
-    their backend and dtype; the plan builds them (``STPlan._build_filters``; issue #144).
+    :class:`TensorProdFilters` for tensor products, and the filters of ``SpectrumOperator``
+    (``spectra._plan``). Its one hook, :attr:`_any_array`, gives their backend and dtype; the
+    plan builds them (``STPlan._build_filters``; issue #144).
     """
 
     __slots__ = ()
 
     @property
-    def _smoothing(self) -> Any:
+    def _any_array(self) -> Any:
         """An array of the filters, which gives their backend and dtype: the smoothing kernel
-        (of the first block of a tensor product)."""
+        (of the first block of a tensor product), or a table of the spectrum."""
         raise NotImplementedError
 
 
@@ -99,7 +100,7 @@ class PlanarFilters(_FilterFields, STFilters):
     __slots__ = ()
 
     @property
-    def _smoothing(self) -> Any:
+    def _any_array(self) -> Any:
         return self.wavelets.smoothing
 
 
@@ -188,7 +189,7 @@ class TensorProdFilters(_TensorProdFilterFields, STFilters):
     __slots__ = ()
 
     @property
-    def _smoothing(self) -> Any:
+    def _any_array(self) -> Any:
         return self.wavelets[0].smoothing
 
 

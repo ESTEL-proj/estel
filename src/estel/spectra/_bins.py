@@ -15,7 +15,9 @@ builds its filters.
 of ESTEL (decision on #148): ESTEL computes it here, in float64, to an absolute error of at most
 1e-12 on [0, π N_max] (maths.md §1.9), with nothing shared with the oracle (decision on #149).
 Three regions: the power series for |x| ≤ 8, Miller's backward recurrence for 8 < |x| < 25,
-and Hankel's asymptotic expansion for |x| ≥ 25. Each is accurate to a few 1e-15 in its region.
+and Hankel's asymptotic expansion for |x| ≥ 25. Its absolute error is at most about 1.4e-14,
+near x = 8, where the cancellation of the series is largest, and below 3e-16 beyond x = 8
+(measured against the exact series).
 """
 
 from __future__ import annotations
@@ -34,13 +36,13 @@ fixed, not an option)."""
 
 _SERIES_LIMIT = 8.0
 """Below this |x|, J₀ is its power series: the largest term is about 114 at x = 8, so the
-cancellation costs about 3e-14."""
+cancellation costs up to about 1.5e-14."""
 _ASYMPTOTIC_LIMIT = 25.0
 """From this |x| on, J₀ is Hankel's asymptotic expansion, whose 48 terms decrease below 1e-17 at
 x = 25 (they would grow again from about the 2x-th)."""
 _MILLER_START = 80
-"""The order at which Miller's recurrence starts for 8 < |x| < 25: J_80(x) / J_0(x) is below
-1e-40 there, so the truncation costs nothing."""
+"""The order at which Miller's recurrence starts for 8 < |x| < 25: J_80(x) is at most 1.2e-32
+there (at x = 25), so the truncation costs nothing measurable."""
 _SERIES_TERMS = 40
 _ASYMPTOTIC_TERMS = 24
 

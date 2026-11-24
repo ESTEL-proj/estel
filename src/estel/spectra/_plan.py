@@ -15,7 +15,7 @@ as a static argument.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, NamedTuple
+from typing import Any, ClassVar, NamedTuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -35,14 +35,14 @@ from ..scattering._plan import (
     build_spectrum_plan,
     channel_pairs,
 )
-from ..statistics._layout import Layout, spectrum_layout
+from ..statistics._layout import Layout, spectrum_layout, spectrum_pairs
 from ..statistics._normalization import (
     _NormReference,
     check_spectrum_reference,
     spectrum_reference_of,
     spectrum_self_reference,
 )
-from ._estimators import SpectrumFilters, build_spectrum_filters
+from ._estimators import SpectrumFilters, build_spectrum_filters, spectrum_floats
 
 
 class _SpectrumFilterFields(NamedTuple):
@@ -58,7 +58,7 @@ class SpectrumOperatorFilters(_SpectrumFilterFields, STFilters):
     __slots__ = ()
 
     @property
-    def _smoothing(self) -> Any:
+    def _any_array(self) -> Any:
         return self.spectrum.modes
 
 
@@ -80,6 +80,8 @@ class _SpectrumPlanFields:
     ref_batch_mean: bool
     spectrum: SpectrumPlan
     """The description of the spectrum: n_b, J_PS, J_min, the estimator, the spatial shape."""
+    standardize: bool
+    """False: ``SpectrumOperator`` does not standardise its data."""
     _key: tuple[Any, ...] = field(repr=False)
 
 
@@ -88,8 +90,6 @@ class SpectrumOperatorPlan(_SpectrumPlanFields, STPlan):
     :func:`build_spectrum_operator_plan`; public and opaque as ``STPlan``."""
 
     _operator_name: ClassVar[str] = "SpectrumOperator"
-    standardize: ClassVar[bool] = False
-    """``SpectrumOperator`` does not standardise its data."""
 
     def _check_data(self, data: Data, filters: STFilters) -> None:
         if not isinstance(filters, SpectrumOperatorFilters):
@@ -124,10 +124,12 @@ class SpectrumOperatorPlan(_SpectrumPlanFields, STPlan):
         )
 
     def _values(self, data: Data, filters: STFilters) -> ScatteringValues:
-        raise TypeError(
-            "this is the plan of a SpectrumOperator, which computes the power spectrum alone: "
-            "pass it to estel.functional.spectrum, not estel.functional.scattering."
+        backend = _registry.backend_named(data.backend)
+        found = cast(SpectrumOperatorFilters, filters)  # by _check_data
+        floats = spectrum_floats(
+            backend, data.array, self.spectrum, found.spectrum, spectrum_pairs(self._layout())
         )
+        return ScatteringValues(buffer=floats)
 
     def _layout(self) -> Layout:
         matrix = np.zeros((self.n_channels, self.n_channels), dtype=bool)
@@ -196,7 +198,15 @@ def build_spectrum_operator_plan(
     matrix = _cross_matrix(cross_matrix, data.n_channels)
     spatial = tuple(int(n) for n in data.shape[2:])
     spectrum = build_spectrum_plan(
-        spatial, data.ndim, J, n_bins, Jmin, method, bool(data.pbc), data.mask
+        spatial,
+        data.ndim,
+        J,
+        n_bins,
+        Jmin,
+        method,
+        bool(data.pbc),
+        data.mask,
+        operator=SpectrumOperatorPlan._operator_name,
     )
     return SpectrumOperatorPlan(
         geometry=type(data),
@@ -209,6 +219,7 @@ def build_spectrum_operator_plan(
         norm=norm,
         ref_batch_mean=bool(ref_batch_mean),
         spectrum=spectrum,
+        standardize=False,
         _key=(
             type(data),
             spatial,

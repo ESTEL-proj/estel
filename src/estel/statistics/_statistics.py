@@ -116,7 +116,7 @@ class STStatistics:
     _backend: str
     _buffer: Any
     _layout: Layout
-    _plan: PlanarPlan | TensorProdPlan
+    _plan: STPlan
     _reductions: _Reductions
     _reference: _NormReference | None
     _standardization: tuple[Any, Any] | None
@@ -132,7 +132,7 @@ class STStatistics:
         cls,
         buffer: Any,
         layout: Layout,
-        plan: PlanarPlan | TensorProdPlan,
+        plan: STPlan,
         backend: str,
         *,
         reductions: _Reductions = _NO_REDUCTION,
@@ -215,9 +215,10 @@ class STStatistics:
     def bin_centers(self) -> NDArray[np.float64]:
         """The centres of the bins of the power spectrum ``"PS"``, the coordinate of its axis
         ``bin``, in cycles per pixel, as STL's ``bin_centers``: c_b / (2 N_max) (maths.md §1.9;
-        Part II, §12.7). At equal J, J_min and number of bins they do not depend on the size of
-        the map. A NumPy float64 array, one entry per position of the axis ``bin`` (those kept
-        after ``select``). Statistics without the spectrum raise."""
+        Part II, §12.7; M-PS-2D). At equal J, J_min and number of bins they do not depend on the
+        size of the map. A read-only NumPy float64 array: one entry per position of the axis
+        ``bin``, those kept by ``select``; after ``select(bin=b)``, which drops the axis, the
+        centre of bin b alone, of shape ``()``. Statistics without the spectrum raise."""
         spectrum = getattr(self._plan, "spectrum", None)
         if spectrum is None or "PS" not in self._layout.names:
             hint = (
@@ -230,8 +231,11 @@ class STStatistics:
                 "(maths.md §1.9)."
             )
         grid = self._grid("PS")
-        positions = np.asarray(grid.coords[grid.axes.index("bin")], dtype=np.int64)
-        centers: NDArray[np.float64] = spectrum.bins().centers_cycles[positions]
+        if "bin" in grid.axes:
+            positions: Any = np.asarray(grid.coords[grid.axis("bin")], dtype=np.int64)
+        else:  # dropped by select(bin=b): the position it kept
+            positions = dict(grid.fixed)["bin"]
+        centers: NDArray[np.float64] = np.array(spectrum.bins().centers_cycles[positions])
         centers.flags.writeable = False
         return centers
 
@@ -392,8 +396,8 @@ class STStatistics:
           J, and are J by default.
 
         The power spectrum passes through every reduction unchanged (maths.md §1.9,
-        "Reductions"). Reduce once, with every reduction wanted: reduced statistics are not
-        reduced again.
+        "Reductions"): statistics that hold it alone come back as they are. Reduce once, with
+        every reduction wanted: reduced statistics are not reduced again.
         The reductions are not defined on the statistics of a tensor product: they raise.
         """
         if self._plan.geometry._geometry == "tensor_prod":
@@ -403,12 +407,6 @@ class STStatistics:
                 "statistics of a tensor product in ESTEL 1.0.0 (maths.md M-NORM-TP, OP-44); "
                 "their definition on products is LF26. Use the statistics as they are, with "
                 "to_vector or select."
-            )
-        if self._layout.names == ("PS",):
-            raise ValueError(
-                "reduce(): these statistics hold the power spectrum alone, which every "
-                'reduction leaves unchanged (maths.md §1.9, "Reductions"): use them as they '
-                "are."
             )
         state = self._reductions
         if state != _NO_REDUCTION:
@@ -444,6 +442,10 @@ class STStatistics:
                 "reduce(scale_cosine=True) without iso=True: the scale cosine transform is "
                 "defined on isotropic statistics (maths.md M-RED-SCALE); pass iso=True as well."
             )
+        if self._layout.names == ("PS",):
+            # The power spectrum alone (SpectrumOperator, or select("PS")): every reduction
+            # leaves it unchanged (maths.md §1.9, "Reductions").
+            return self
         plan = cast(PlanarPlan, self._plan)  # a single geometry: a tensor product raised above
         L, J = plan.L, plan.J  # noqa: N806
         n_angular = _check_count("angular_harmonics", angular_harmonics, L, "L")
@@ -892,6 +894,9 @@ def _select_family(layout: Layout, name: str, index: dict[str, Any]) -> Copy | C
             *coords[column + 1 :],
         ]
     dropped = {grid.axis(a) for a, w in chosen.items() if isinstance(w, int)}
+    fixed = grid.fixed + tuple(
+        (a, int(grid.coords[grid.axis(a)][w])) for a, w in chosen.items() if isinstance(w, int)
+    )
     keep = [i for i in range(len(grid.axes)) if i not in dropped]
     chunk_axes = [i for i in range(k) if i not in dropped]
     real = grid.real.reshape(-1, *grid.orientations)
@@ -906,6 +911,7 @@ def _select_family(layout: Layout, name: str, index: dict[str, Any]) -> Copy | C
         chunks=positions[:, chunk_axes],
         kinds=grid.kinds[sources],
         real=real.reshape(real.shape[0], -1),
+        fixed=fixed,
     )
     levels, level_ids = layout.levels(name)
     family = FamilyChunks(new_grid, levels, level_ids[sources])
@@ -1109,7 +1115,7 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
 
 def statistics_of(
     buffer: Any,
-    plan: PlanarPlan | TensorProdPlan,
+    plan: STPlan,
     reference: _NormReference | None = None,
     standardization: tuple[Any, Any] | None = None,
 ) -> STStatistics:
@@ -1141,7 +1147,7 @@ def statistics_of(
 
 def finish(
     buffer: Any,
-    plan: PlanarPlan | TensorProdPlan,
+    plan: STPlan,
     reference: _NormReference | None,
     standardization: tuple[Any, Any] | None,
 ) -> STStatistics:

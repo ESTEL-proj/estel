@@ -35,7 +35,7 @@ def _series(x: float) -> float:
     e^x, costs nothing."""
     with localcontext() as context:
         context.prec = int(x / math.log(10)) + 40
-        quarter = -(Decimal(repr(x)) ** 2) / 4
+        quarter = -(Decimal(x) ** 2) / 4  # the exact value of the float x
         total, term, m = Decimal(0), Decimal(1), 0
         while m <= x or abs(term) > Decimal(10) ** -40:
             total += term

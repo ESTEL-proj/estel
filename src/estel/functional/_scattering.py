@@ -18,6 +18,7 @@ transformations pass through the compiled loop unchanged.
 from __future__ import annotations
 
 import functools
+import warnings
 from collections.abc import Callable
 
 from ..backend import _registry
@@ -64,26 +65,29 @@ def scattering(
     ``"self"`` the reference is part of the computation and gradients flow through it;
     with ``"ref"`` it is a constant.
     """
-    found, _ = _parts(plan, filters)
-    return compute(data, plan, filters, reference_of(ref, found))
+    found, parts = _parts(plan, filters)
+    return compute(data, found, parts, reference_of(ref, found))
 
 
 def _parts(
     plan: STPlan, filters: STFilters
 ) -> tuple[PlanarPlan | TensorProdPlan, PlanarFilters | TensorProdFilters]:
-    """The plan and the filters as the subclasses of one geometry, or a clear error."""
+    """The plan and the filters of a scattering operator, or a clear error: the type check of
+    :func:`scattering`, which takes neither those of ``SpectrumOperator``
+    (``estel.functional.spectrum``)."""
     if not (
         isinstance(plan, PlanarPlan | TensorProdPlan)
         and isinstance(filters, PlanarFilters | TensorProdFilters)
     ):
         raise TypeError(
-            f"expected the plan and the filters of an operator, op.plan and op.filters; got "
-            f"{type(plan).__name__} and {type(filters).__name__}."
+            f"expected the plan and the filters of a scattering operator, op.plan and "
+            f"op.filters; got {type(plan).__name__} and {type(filters).__name__}. For a "
+            "SpectrumOperator, use estel.functional.spectrum."
         )
     return plan, filters
 
 
-def reference_of(ref: object, plan: PlanarPlan | TensorProdPlan) -> _NormReference | None:
+def reference_of(ref: object, plan: STPlan) -> _NormReference | None:
     """The reference held by ``ref``, checked against the normalisation of ``plan``; its J,
     L and channels are checked against the plan by :func:`compute`, before the loop."""
     if ref is None:
@@ -110,13 +114,11 @@ def reference_of(ref: object, plan: PlanarPlan | TensorProdPlan) -> _NormReferen
     return ref._reference
 
 
-def check_data(
-    data: object, plan: PlanarPlan | TensorProdPlan, filters: PlanarFilters | TensorProdFilters
-) -> None:
+def check_data(data: object, plan: STPlan, filters: STFilters) -> None:
     """Raise unless ``data`` is data the plan was built for, on the filters' backend and dtype."""
     if not isinstance(data, Data):
         raise TypeError(f"expected a Data object, such as estel.Data2D, got {type(data).__name__}.")
-    backend = _registry.backend_of(filters._smoothing) or ""
+    backend = _registry.backend_of(filters._any_array) or ""
     _registry.check_backend(backend, data.array, owner="these filters")
     plan._check_data(data, filters)
     if data.n_channels != plan.n_channels:
@@ -125,7 +127,7 @@ def check_data(
             f"{plan.n_channels}: the number of channels is fixed at construction. Build a new "
             f"{plan._operator_name} for these data."
         )
-    dtype = filters._smoothing.dtype
+    dtype = filters._any_array.dtype
     if data.array.dtype != dtype:
         raise TypeError(
             f"the data are {data.array.dtype}, but the operator computes in "
@@ -140,11 +142,11 @@ def compute(
     filters: STFilters,
     reference: _NormReference | None,
 ) -> STStatistics:
-    """:func:`scattering` with the reference already extracted: the loop of the geometry of
-    the plan, a subclass of ``STPlan``, then the one path after the loop
-    (``statistics._statistics.finish``). A ``norm="ref"`` reference is checked once, before the
-    loop, on planar data and on tensor products alike."""
-    plan, filters = _parts(plan, filters)
+    """The one path of every operator, behind :func:`scattering` and ``functional.spectrum``,
+    with the reference already extracted: the values of the plan (``STPlan._values``: the
+    scattering loop of its geometry, or the estimator of the power spectrum), then the one path
+    after them (``statistics._statistics.finish``). A ``norm="ref"`` reference is checked once,
+    before the values, by the plan."""
     check_data(data, plan, filters)
     if plan.norm == "ref":
         if reference is None:
@@ -152,8 +154,50 @@ def compute(
                 'norm="ref" needs a reference: pass ref=, statistics computed with '
                 'norm="self" (maths.md M-NORM).'
             )
-        plan._check_reference(reference, int(data.shape[0]), filters._smoothing.dtype)
+        plan._check_reference(reference, int(data.shape[0]), filters._any_array.dtype)
     backend = _registry.backend_named(data.backend)
     found = _loop(backend.name)(data, plan=plan, filters=filters)
     standardization = (found.mean_pre_std, found.std_pre_std) if plan.standardize else None
     return finish(found.buffer, plan, reference, standardization)
+
+
+def apply_operator(
+    name: str,
+    data: Data,
+    plan: STPlan,
+    filters: STFilters,
+    ref: STStatistics | None,
+    held: _NormReference | None,
+) -> tuple[STStatistics, _NormReference | None]:
+    """The ``apply`` of every operator (``STOperator``, ``STOperatorTensorProd``,
+    ``SpectrumOperator``; maths.md M-NORM): the statistics of ``data``, and the reference the
+    operator holds afterwards. ``ref`` is the reference passed to ``apply``; ``held`` the one the
+    operator holds. With ``norm="ref"`` and no ``ref``, ``held`` normalises, and its absence is
+    an error; with ``norm="self"`` the operator keeps the reference of the result, replacing the
+    one it held with a ``UserWarning`` at the line that calls ``apply``."""
+    check_data(data, plan, filters)
+    reference = reference_of(ref, plan) if ref is not None else None
+    if reference is None and plan.norm == "ref":
+        reference = held
+        if reference is None:
+            raise ValueError(
+                f'{name}.apply: norm="ref" needs a reference, and this operator holds none. '
+                'Pass ref=, statistics computed with norm="self"'
+                + (
+                    f", or build the operator with {name}.from_statistics"
+                    if name != "SpectrumOperator"
+                    else ""
+                )
+                + " (maths.md M-NORM)."
+            )
+    stats = compute(data, plan, filters, reference)
+    if plan.norm != "self":
+        return stats, held
+    if held is not None:
+        warnings.warn(
+            f'{name}.apply: norm="self" replaces the reference this operator held by that of '
+            "the new statistics (maths.md M-NORM).",
+            UserWarning,
+            stacklevel=3,
+        )
+    return stats, stats._reference

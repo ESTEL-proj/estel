@@ -194,11 +194,14 @@ class SpectrumPlan:
     scattering statistics (M-DEF)."""
     Jmin: int
     """J_min, with 0 ≤ J_min ≤ J_PS - 2 (OP-93)."""
-    method: str = "fft"
+    method: str
     """The estimator, one of ``spectra._estimators.ESTIMATORS``, chosen at construction from
     ``pbc`` and the missing pixels of the example, or given (maths.md §1.9)."""
-    spatial_shape: tuple[int, ...] = ()
+    spatial_shape: tuple[int, ...]
     """(N₁, N₂), even."""
+    n_valid: int
+    """The number of valid pixels of the data, N₁ N₂ without missing pixels: the denominator of
+    the mean that fills the missing pixels of each map (``nan_mask``, ``pbc_nan_mask``)."""
 
     def content(self) -> dict[str, Any]:
         """The parameters of the spectrum for ``estel.io``."""
@@ -219,6 +222,7 @@ def build_spectrum_plan(
     method: Any = "auto",
     pbc: bool = True,
     mask: NDArray[np.bool_] | None = None,
+    operator: str = "STOperator",
 ) -> SpectrumPlan:
     """The :class:`SpectrumPlan` of 2D data of ``spatial_shape`` (maths.md §1.9): J_PS is ``J``,
     the J given to the operator, or ⌊log₂ N_max⌋ - 1 with N_max = ⌊min(N₁, N₂)/2⌋ when it is
@@ -228,16 +232,20 @@ def build_spectrum_plan(
     that is not a positive integer (a ``TypeError`` when ``Jmin`` or ``n_bins`` is not an
     integer, a ``ValueError`` when it is out of range), on an unknown ``method``, on ``fft`` or
     ``pbc_mask`` with missing pixels, and on a bin of ``pbc_nan_mask`` without an observed pixel
-    inside its border."""
+    inside its border. ``operator`` is the operator that asks, ``"STOperator"`` or
+    ``"SpectrumOperator"``: each message gives advice that operator can follow."""
+    scattering = operator == "STOperator"
     if ndim != 2 or len(spatial_shape) != 2:
         raise ValueError(
             f"the power spectrum is computed on 2D data only in ESTEL 1.0.0, and these data "
-            f"have {len(spatial_shape)} spatial axes (LF23): pass compute_PS=False."
+            f"have {len(spatial_shape)} spatial axes (LF23): "
+            + ("pass compute_PS=False." if scattering else f"pass estel.Data2D data to {operator}.")
         )
     if any(n % 2 for n in spatial_shape):
         raise ValueError(
             f"the power spectrum requires even sizes, and the data are {tuple(spatial_shape)} "
-            "(maths.md §1.9, OP-20): crop the data to even sizes, or pass compute_PS=False."
+            "(maths.md §1.9, OP-20): crop the data to even sizes"
+            + (", or pass compute_PS=False." if scattering else ".")
         )
     n_max = min(spatial_shape) // 2
     j_ps = int(np.floor(np.log2(n_max))) - 1 if J is None else int(J)
@@ -246,8 +254,12 @@ def build_spectrum_plan(
     if not 0 <= int(Jmin) <= j_ps - 2:
         raise ValueError(
             f"Jmin={Jmin} with J = {j_ps}: the power spectrum needs 0 ≤ Jmin ≤ J - 2 (maths.md "
-            "§1.9, OP-93). Pass compute_PS=False, a smaller Jmin, or use a larger image (a "
-            "larger J)."
+            "§1.9, OP-93). "
+            + (
+                "Pass compute_PS=False, a smaller Jmin, or use a larger image (a larger J)."
+                if scattering
+                else "Pass a smaller Jmin or a larger J, or use a larger image."
+            )
         )
     advice = (
         "pass a positive integer, or None for max(4, round(3 (J - 1 - Jmin))) bins, about three "
@@ -268,6 +280,7 @@ def build_spectrum_plan(
         Jmin=int(Jmin),
         method=estimator,
         spatial_shape=tuple(int(n) for n in spatial_shape),
+        n_valid=int(np.prod(spatial_shape)) if mask is None else int((~mask).sum()),
     )
     if estimator == "pbc_nan_mask":
         bins = plan.bins()
@@ -308,7 +321,30 @@ class SecondLayerWindows:
     operand of S3; ``None`` when :attr:`windows` is empty or j3 has no S3."""
 
 
-class STPlan:
+class _SharedFields:
+    """The fields every plan has, read by the code shared by the operators (the data checks,
+    the normalisation, the files): declared here, set by each subclass of :class:`STPlan`.
+    Private, so that the public, opaque ``STPlan`` has no public field."""
+
+    __slots__ = ()
+
+    geometry: type[Data]
+    """The geometry of the data, the Data subclass the plan was built for."""
+    n_channels: int
+    """Nc, fixed when the plan is built."""
+    cross_matrix: NDArray[np.bool_]
+    """``cross_matrix``, read-only, ``(Nc, Nc)``, upper triangle (M-CHAN)."""
+    pairs: ChannelPairs
+    """The channel pairs of each family (M-CHAN)."""
+    norm: str
+    """The normalisation, one of :data:`NORMS` (M-NORM)."""
+    ref_batch_mean: bool
+    """Whether the ``norm="self"`` reference is averaged over the batch (M-NORM)."""
+    standardize: bool
+    """Whether each map is standardised before the transform (M-MOM)."""
+
+
+class STPlan(_SharedFields):
     """The static description of a scattering transform: an opaque object (Part II, §12.6).
 
     Get it from ``STOperator.plan`` or ``STOperatorTensorProd.plan`` and pass it, with the
