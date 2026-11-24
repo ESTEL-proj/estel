@@ -179,7 +179,7 @@ def test_oracle_function_of_a_section_without_oracle_fails(tmp_path: Path) -> No
     [
         pytest.param(
             {"docs/maths.md": MATHS + NO_ORACLE},
-            "lists section 4 (T5.1), but no ID",
+            "lists section 4 (T5.4), but no ID",
             id="section-without-id",
         ),
         pytest.param(
@@ -192,7 +192,7 @@ def test_oracle_function_of_a_section_without_oracle_fails(tmp_path: Path) -> No
                 "src/estel/_spec/hpx.py": 'def spec_hpx(x):\n    """Implements M-DATA-HPX."""\n',
                 "tests/spec/test_hpx.py": MARKED.format("M-DATA-HPX"),
             },
-            "lists section 4 (T5.1), but every ID of that section has an oracle function",
+            "lists section 4 (T5.4), but every ID of that section has an oracle function",
             id="section-implemented",
         ),
     ],
