@@ -16,14 +16,18 @@ Two kinds of checks, under the decisions of the maintainer on #165:
 Fast tier: the geometry against healpy, and the operators at ``nside`` 4 and 8. Full tier: the
 operators at ``nside`` 16, the masks and the statistics, as the oracle is naive by design.
 
-**Known disagreement (an open point reported on #165).** On a partial sky, the convolution of
-the oracle differs from the fixtures at the pixels where a stencil point falls on the longitude
-of a pixel (on the meridians φ = 0 and π/4) and the pixels it reads with a non-zero weight are not
-in ``cell_ids``: whether a weight of rounding size (3e-17) on an available pixel is renormalised
-to 1, or the point falls back on the stencil centre, depends on the rounding of STL's code, which
-the oracle does not read.
-The tests concerned are marked ``xfail(strict=True)`` and reported on #165; they turn into
-failures once the point is decided.
+**The edge of a partial sky** (OP-110, decisions of the maintainer on #165). At a stencil point
+that falls on a pixel longitude or on a ring, one interpolation weight is null in exact
+arithmetic and of rounding size in practice; on a partial sky STL's result there is set by its
+rounding, while the oracle drops every neighbour of weight below 10⁻¹² (M-CONV-HPX). So:
+
+- the convolutions of ``disc_8`` and ``disc_16`` are compared with STL on every (gauge, pixel)
+  row that is not ill-conditioned: a row is ill-conditioned when one of its stencil points has
+  no neighbour in ``cell_ids`` with a weight of at least 10⁻¹², while one of its 4 neighbours,
+  in ``cell_ids`` or not, has a weight below 10⁻¹²;
+- the statistics of ``disc_16`` and ``disc_nan_16`` are not compared with STL, since a mean mixes
+  every pixel: T5.6 compares them between ESTEL and the oracle. Their masks, their decimations
+  and the pixels of their levels are compared with STL.
 
 A disagreement is a finding about ``docs/maths.md`` or about the oracle: do not change the oracle,
 a fixture or a tolerance to make a test pass; report the M- ID, the configuration and the
@@ -49,11 +53,9 @@ pytestmark = pytest.mark.maths(
 )
 GEOMETRY_RTOL = 1e-12
 """The agreement asked of the oracle's geometry with healpy (decision 3 on #165)."""
-OPEN_POINT = pytest.mark.xfail(
-    strict=True,
-    reason="open point reported on #165: the partial-sky rule at stencil points that "
-    "fall on a pixel longitude depends on STL's rounding",
-)
+ILL_CONDITIONED = {"full_8": 0, "disc_8": 16, "full_16": 0, "disc_16": 14}
+"""The number of ill-conditioned (gauge, pixel) rows of each domain of ``operators_hpx``,
+left out of the comparison with STL (OP-110)."""
 
 
 def _healpy() -> Any:
@@ -254,15 +256,31 @@ def test_dense_operators_equal_the_fixture() -> None:
     np.testing.assert_allclose(matrix.sum(axis=1), 1.0, rtol=0, atol=1e-15)
 
 
+def _ill_conditioned(nside: int, cell_ids: NDArray[np.int64]) -> NDArray[np.bool_]:
+    """The ill-conditioned (gauge, pixel) rows, ``(L, Npix)`` (OP-110; decision 2 on #165): one
+    of the row's stencil points has no neighbour in ``cell_ids`` with a weight of at least
+    10⁻¹², while one of its 4 neighbours, in ``cell_ids`` or not, has a weight below 10⁻¹²."""
+    neighbours, weights = spec.spec_interp_weights(
+        nside, *spec.spec_stencil_points(nside, cell_ids)
+    )
+    position = np.clip(np.searchsorted(cell_ids, neighbours), 0, cell_ids.size - 1)
+    inside = cell_ids[position] == neighbours
+    small = weights < spec.SUPPORT_THRESHOLD
+    no_neighbour = ~(inside & ~small).any(axis=0)  # [g, k, p]
+    ill: NDArray[np.bool_] = (no_neighbour & small.any(axis=0)).any(axis=-1)
+    return ill
+
+
 def _domain(name: str) -> None:
     fixture = _operators()
     nside = int(name.rsplit("_", 1)[1])
     cell_ids = fixture[f"{name}_cell_ids"].astype(np.int64)
     maps = fixture[f"{name}_maps"]
     tables = spec.spec_conv_tables(nside, cell_ids)
-    assert_parity(
-        spec.spec_conv_hpx(maps, tables, spec.spec_wavelet_hpx()), fixture[f"{name}_conv"]
-    )
+    actual = spec.spec_conv_hpx(maps, tables, spec.spec_wavelet_hpx())
+    kept = ~_ill_conditioned(nside, cell_ids)
+    assert int((~kept).sum()) == ILL_CONDITIONED[name]
+    assert_parity(actual[:, kept], fixture[f"{name}_conv"][:, kept])
 
 
 def _decimation(name: str) -> None:
@@ -279,14 +297,15 @@ def _decimation(name: str) -> None:
     "name",
     [
         "full_8",
-        pytest.param("disc_8", marks=OPEN_POINT),
+        "disc_8",
         pytest.param("full_16", marks=pytest.mark.slow),
-        pytest.param("disc_16", marks=[pytest.mark.slow, OPEN_POINT]),
+        pytest.param("disc_16", marks=pytest.mark.slow),
     ],
 )
 def test_convolution_equals_the_fixture(name: str) -> None:
     """M-CONV-HPX: the convolution of three maps, full sky and on a disc crossing the equator
-    (partial-sky rule, OP-50).
+    (partial-sky rule, OP-50), on every (gauge, pixel) row that is not ill-conditioned (OP-110);
+    the full sky has none.
 
     Slow: at ``nside`` 16, the tables of 3072 pixels, 4 gauges and 25 stencil points.
     """
@@ -372,16 +391,15 @@ def test_masks_equal_the_fixture(name: str) -> None:
         "full_8",
         "full_16_cross",
         "nan_16",
-        pytest.param("disc_16", marks=OPEN_POINT),
-        pytest.param("disc_nan_16", marks=OPEN_POINT),
     ],
 )
 def test_statistics_equal_the_fixture(name: str) -> None:
     """Section 1 on this geometry: the statistics without normalisation (``vanilla``), with
     ``norm="self"`` (``store``) and those of a second field with ``norm="ref"`` (``load``), the
-    reference, the reductions and the vectors of every configuration of ``statistics_hpx``, the
-    NaN at the same positions. The masked configurations run on the fields with their NaN, the
-    mask given or inferred from them, as STL builds its operator.
+    reference, the reductions and the vectors of every full-sky configuration of
+    ``statistics_hpx``, the NaN at the same positions; the partial skies ``disc_16`` and
+    ``disc_nan_16`` are left to T5.6 (OP-110, see the module docstring). The masked configuration
+    runs on the fields with their NaN and the mask given, as STL builds its operator.
 
     Slow: the oracle loops over the coefficients of J = 3 at ``nside`` 16 (decision 4 on #165).
     """

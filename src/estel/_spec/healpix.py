@@ -57,7 +57,8 @@ N_GAUGES = 4
 NAN_THRESHOLD = 0.33
 """τ, above which a decimated pixel is invalid (M-DOWN-HPX, M-DEF-HPX)."""
 SUPPORT_THRESHOLD = 1e-12
-"""Above it, a pixel's support touches an invalid pixel (M-MASK-HPX)."""
+"""Above it, a pixel's support touches an invalid pixel (M-MASK-HPX); below it, an
+interpolation weight counts as absent on a partial sky (M-CONV-HPX, OP-110)."""
 REWEIGHT_FLOOR = 1e-8
 """The floor of 1 - f in the reweighting maps (M-MASK-HPX)."""
 DECIMATION_RADIUS = 3.0
@@ -344,29 +345,18 @@ def _as_cell_ids(nside: int, cell_ids: Any) -> Array:
     return out
 
 
-def spec_conv_tables(
+def spec_stencil_points(
     nside: int,
     cell_ids: Any = None,
     L: int = N_GAUGES,  # noqa: N803
     K: int = KERNEL_SIZE,  # noqa: N803
 ) -> tuple[Array, Array]:
-    """The interpolation tables of the convolution on the pixels ``cell_ids`` (the full sky by
-    default) of ``nside``: for each gauge g, pixel k, stencil point p and neighbour i, the
-    position in ``cell_ids`` of the pixel read and its weight, ``(L, Npix, K², 4)`` each.
-    Implements M-CONV-HPX, steps 1 to 3, with its partial-sky rule (OP-50).
+    """The colatitude and the longitude of the stencil points carried to each pixel of
+    ``cell_ids`` (the full sky by default) in each gauge, ``(L, Npix, K²)`` each. Implements
+    M-CONV-HPX, steps 1 and 2.
 
-    The stencil (``spec_stencil``) is carried to each pixel by ``spec_rotation`` in each gauge
-    (``spec_gauge_angles``), and each of its points is interpolated by ``spec_interp_weights``.
-    **Partial sky:** a neighbour that is not in ``cell_ids`` is dropped, and the weights of the
-    remaining ones are divided by their sum; a stencil point with no neighbour in ``cell_ids``
-    takes the neighbours and the weights of the stencil centre, which reads the pixel itself.
-
-    Not settled by M-CONV-HPX (an open point reported on #165): where a stencil point falls on a
-    pixel longitude or on a ring, one weight is null in exact arithmetic and a few 1e-17 after
-    rounding. The oracle applies the rule above to the weights as computed, so that a weight of
-    rounding size left alone is renormalised to 1, and a point whose neighbours in ``cell_ids``
-    all have null weights counts as one with no neighbour. STL differs from it at some of these
-    points, on a partial sky only.
+    The stencil (``spec_stencil``) is carried to each pixel by ``spec_rotation``, with the angles
+    of ``spec_gauge_angles``.
     """
     nside = _check_nside(nside)
     ids = _as_cell_ids(nside, cell_ids)
@@ -384,20 +374,40 @@ def spec_conv_tables(
     rotated = np.einsum("gkab,pb->gkpa", rotation, points)
     theta_p = np.arctan2(np.hypot(rotated[..., 0], rotated[..., 1]), rotated[..., 2])
     phi_p = np.arctan2(rotated[..., 1], rotated[..., 0])
-    neighbours, weights = spec_interp_weights(nside, theta_p, phi_p)  # [i, g, k, p]
-    neighbours, weights = np.moveaxis(neighbours, 0, -1), np.moveaxis(weights, 0, -1)
+    return theta_p, phi_p
+
+
+def spec_conv_tables(
+    nside: int,
+    cell_ids: Any = None,
+    L: int = N_GAUGES,  # noqa: N803
+    K: int = KERNEL_SIZE,  # noqa: N803
+) -> tuple[Array, Array]:
+    """The interpolation tables of the convolution on the pixels ``cell_ids`` (the full sky by
+    default) of ``nside``: for each gauge g, pixel k, stencil point p and neighbour i, the
+    position in ``cell_ids`` of the pixel read and its weight, ``(L, Npix, K², 4)`` each.
+    Implements M-CONV-HPX, steps 1 to 3, with its partial-sky rule (OP-50, OP-110).
+
+    Each stencil point of ``spec_stencil_points`` is interpolated by ``spec_interp_weights``.
+    **Partial sky:** a neighbour that is not in ``cell_ids``, or whose weight is below 10⁻¹², is
+    dropped, and the weights of the remaining ones are divided by their sum, with no floor; a
+    stencil point with no remaining neighbour takes the neighbours and the weights of the stencil
+    centre, which reads the pixel itself. The threshold is applied on the full sky too, where it
+    changes nothing beyond rounding.
+    """
+    nside = _check_nside(nside)
+    ids = _as_cell_ids(nside, cell_ids)
+    neighbours, weights = spec_interp_weights(nside, *spec_stencil_points(nside, ids, L, K))
+    neighbours, weights = np.moveaxis(neighbours, 0, -1), np.moveaxis(weights, 0, -1)  # [g,k,p,i]
 
     position = np.clip(np.searchsorted(ids, neighbours), 0, ids.size - 1)
-    available = ids[position] == neighbours
-    kept = np.where(available, weights, 0.0)
-    total = kept.sum(axis=-1, keepdims=True)
-    empty = ~available.any(axis=-1, keepdims=True)
-    # Neighbours in cell_ids whose weights are all null count as none (open point, #165).
-    empty = empty | (total == 0.0)
+    kept_mask = (ids[position] == neighbours) & (weights >= SUPPORT_THRESHOLD)
+    kept = np.where(kept_mask, weights, 0.0)
+    empty = ~kept_mask.any(axis=-1, keepdims=True)
     with np.errstate(divide="ignore", invalid="ignore"):
-        kept = np.where(empty, 0.0, kept / total)
+        kept = np.where(empty, 0.0, kept / kept.sum(axis=-1, keepdims=True))
     centre = (K * K) // 2  # the point (0, 0)
-    if np.any(~available[..., centre, :].any(axis=-1)):
+    if np.any(empty[..., centre, :]):
         raise ValueError("a stencil centre reads no pixel of cell_ids (M-CONV-HPX).")
     index = np.where(empty, position[..., centre : centre + 1, :], position)
     weight = np.where(empty, kept[..., centre : centre + 1, :], kept)
