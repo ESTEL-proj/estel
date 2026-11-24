@@ -6,7 +6,9 @@ Two kinds of checks, under the decisions of the maintainer on #165:
 - **The oracle's own geometry against healpy.** The NESTED pixel centres, the ring ordering and
   the bilinear interpolation of ``estel._spec.healpix`` are compared with healpy's documented
   functions (``pix2ang``, ``ring2nest``, ``get_interp_weights``) on dense samples. healpy (GPL-2)
-  is test-only (Part I, §1.5): it is imported inside the tests, never by the package. The
+  is test-only (Part I, §1.5): this module imports it, never the package. It is imported at
+  collection, outside the time budget of every test: its import, which pulls in astropy, costs
+  over 1 s of CPU on CI, which the first test of each worker would otherwise carry. The
   interpolation weights are compared as linear functionals (the weight of each pixel, summed
   over the 4 slots), since a zero weight may sit on another pixel (OP-92).
 - **The oracle against the fixtures of T5.3** (``operators_hpx``, ``statistics_hpx``, STL
@@ -40,6 +42,7 @@ import math
 from functools import cache
 from typing import Any
 
+import healpy  # type: ignore[import-untyped]
 import numpy as np
 import pytest
 from numpy.typing import NDArray
@@ -58,13 +61,6 @@ ILL_CONDITIONED = {"full_8": 0, "disc_8": 16, "full_16": 0, "disc_16": 14}
 left out of the comparison with STL (OP-110)."""
 
 
-def _healpy() -> Any:
-    """healpy, imported by the tests only: GPL-2, never imported by the package (Part I, §1.5)."""
-    import healpy  # type: ignore[import-untyped]
-
-    return healpy
-
-
 def _functional(index: NDArray[Any], weight: NDArray[Any], npix: int) -> dict[int, float]:
     """The interpolation as linear functionals: the weight of each (point, pixel) pair, summed
     over the 4 slots, keyed by point x npix + pixel; pairs of null weight are left out."""
@@ -79,13 +75,17 @@ def _functional_difference(actual: dict[int, float], expected: dict[int, float])
 
 
 def _samples(nside: int) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-    """Dense samples of the sphere: uniform points, points near and at the poles, the pixel
-    centres, points on the ring colatitudes, and longitudes outside [0, 2π)."""
+    """Samples of the sphere covering every case of the interpolation: uniform points, points
+    near and at the poles (north of the first ring and south of the last), the pixel centres,
+    points on every ring colatitude, the boundaries of the base faces (the meridians φ = kπ/4 and
+    the colatitudes cos θ = ±2/3), and longitudes outside [0, 2π)."""
     rng = np.random.default_rng(165 + nside)
-    n = 2000
-    cap = rng.uniform(0.0, 0.3, 300)
+    n = 200
     rings, _ = spec.spec_rings(nside)
+    cap = rng.uniform(0.0, rings[0] * 1.5, 50)
     theta_c, phi_c = spec.spec_pixel_centres(nside)
+    meridians = np.arange(8) * math.pi / 4
+    belt = np.arccos([2.0 / 3.0, -2.0 / 3.0])
     theta = np.concatenate(
         [
             np.arccos(rng.uniform(-1.0, 1.0, n)),
@@ -93,16 +93,20 @@ def _samples(nside: int) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
             math.pi - cap,
             [0.0, 0.0, math.pi, math.pi],
             theta_c,
-            np.repeat(rings, 8),
+            rings,
+            np.arccos(rng.uniform(-1.0, 1.0, meridians.size)),
+            np.repeat(belt, 8),
         ]
     )
     phi = np.concatenate(
         [
             rng.uniform(0.0, 2.0 * math.pi, n),
-            rng.uniform(0.0, 2.0 * math.pi, 600),
+            rng.uniform(0.0, 2.0 * math.pi, 100),
             [0.0, 1.0, 0.0, 4.0],
             phi_c,
-            rng.uniform(-2.0 * math.pi, 4.0 * math.pi, 8 * rings.size),
+            rng.uniform(-2.0 * math.pi, 4.0 * math.pi, rings.size),
+            meridians,
+            rng.uniform(0.0, 2.0 * math.pi, 16),
         ]
     )
     return theta, phi
@@ -114,8 +118,6 @@ def _samples(nside: int) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
 @pytest.mark.parametrize("nside", [1, 2, 4, 8, 16, 32])
 def test_pixel_centres_equal_healpy(nside: int) -> None:
     """M-DATA-HPX: the NESTED pixel centres, against ``healpy.pix2ang(nest=True)``."""
-    healpy = _healpy()
-
     theta, phi = spec.spec_pixel_centres(nside)
     expected_theta, expected_phi = healpy.pix2ang(nside, np.arange(12 * nside**2), nest=True)
     np.testing.assert_allclose(theta, expected_theta, rtol=0, atol=GEOMETRY_RTOL)
@@ -128,8 +130,6 @@ def test_pixel_centres_equal_healpy(nside: int) -> None:
 def test_rings_are_the_ring_ordering(nside: int) -> None:
     """M-CONV-HPX, step 3: the rings, their pixels by increasing longitude, are HEALPix's RING
     ordering, against ``healpy.ring2nest``."""
-    healpy = _healpy()
-
     theta, pixels = spec.spec_rings(nside)
     assert theta.shape == (4 * nside - 1,)
     assert np.all(np.diff(theta) > 0)
@@ -142,8 +142,6 @@ def test_interpolation_equals_healpy(nside: int) -> None:
     """M-CONV-HPX, step 3: the bilinear interpolation, against
     ``healpy.get_interp_weights(nest=True)``, as linear functionals, on dense samples with the
     poles, the pixel centres and the ring colatitudes; the weights sum to 1."""
-    healpy = _healpy()
-
     theta, phi = _samples(nside)
     index, weight = spec.spec_interp_weights(nside, theta, phi)
     assert index.shape == weight.shape == (4, theta.size)
