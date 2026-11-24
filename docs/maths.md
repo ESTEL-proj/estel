@@ -505,7 +505,7 @@ Q_b(\rho) = \int_0^\rho 2\pi \rho'\, g_b(\rho')^2\, d\rho'
 
 **`nan_mask`** (periodic, missing data):
 
-- each map (each batch element and channel) has its missing pixels filled with the mean of its pixels valid in that map, then is band-filtered;
+- each map (each batch element and channel) has its missing pixels filled with the mean of its pixels valid in that map, then is band-filtered; STL accepts missing pixels that differ per map, ESTEL one mask shared by every map (M-DATA-2D) **⚠ OP-98**;
 - a pixel is observed only if it is valid in every batch element and channel; the estimate sums over these pixels only:
 
 ```latex
@@ -518,7 +518,7 @@ The filling leaks into neighbouring pixels through the filtering. **⚠ OP-7** *
 
 **`pbc_nan_mask`** (non-periodic, missing data): as `pbc_mask`, with M\_b multiplied by the observed mask O (as in `nan_mask`) in the sum and in its prefactor, N\_pix / Σ\_n M\_b[n] O[n]; a bin whose product is null everywhere raises a `ValueError`. **Checked:** to 1.1e-15, for each mask and each crop mode.
 
-**Data with missing pixels** given to `fft` or `pbc_mask` raise a `ValueError` at `apply`. **Checked:** a scattering operator built on data without NaN fails so on data with NaN.
+**Data with missing pixels** given to `fft` or `pbc_mask` raise a `ValueError` at `apply`. **Checked:** a scattering operator built on data without NaN fails so on data with NaN. In ESTEL the missing pixels are static, known when the operator is built: the error comes at construction. **⚠ OP-98**
 
 #### Choice of estimator
 
@@ -656,6 +656,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-94 | The default channel pairs of the spectrum: inside STL's scattering operator, those of the statistics (every pair c₁ ≤ c₂, M-CHAN); STL's spectrum operator alone, the auto spectra only | decided on #148: `cross_matrix=None` means every pair c₁ ≤ c₂ on `SpectrumOperator` as on `STOperator`; the parity cases pass the matrix explicitly | differs |
 | OP-95 | The legacy windows of the spectrum (§1.9), the Littlewood-Paley windows of STL v1.x, have compact support: when J\_PS is large or J\_min > 0, a bin holds no Fourier mode, Z\_b = 0 and its coefficient is NaN (0 / 0), with a border of 0. Checked: 44 of 229 configurations (16 to 128 pixels, every J\_PS and J\_min), for example 32 × 32 with J\_PS = 5 or 64 × 64 with J\_PS = 6 (one bin each); never at the default J with J\_min = 0 | decided on #148: the legacy windows are not transferred (Part II, §10) | closed |
 | OP-97 | Sizes: the spectrum requires even sizes (OP-20), the scattering loop sizes divisible by 2^(J−1) (OP-8). How to accept sizes as general as possible for every statistic | to take up after 1.0.0 (LF61) | open |
+| OP-98 | The missing pixels of the spectrum: STL's spectrum operator reads them from the NaN of each map at `apply`, so that they may differ per batch element and channel, and `fft` or `pbc_mask` fail at `apply` on data with NaN. ESTEL's missing pixels are one static mask shared by every map (M-DATA-2D, OP-26): data whose missing pixels differ per map are out of reach (the configuration `nan_per_map` of `spectrum_2d`: given the union of its missing pixels, ESTEL equals the oracle to 1.2e-15, and STL's values differ by up to 29 %), and a forced `fft` or `pbc_mask` with missing pixels raises at construction | ESTEL keeps one static mask in 1.0.0; masks per map are LF54 (PR #161) | differs |
 
 ## 2. 1D
 
