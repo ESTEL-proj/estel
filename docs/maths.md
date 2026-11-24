@@ -377,6 +377,8 @@ With `norm="self"` (STL's `store_ref`; the default), the reference is the statis
 
 **Other values of `norm`.** `norm="none"` (STL's `vanilla`) computes the statistics without any normalisation. `norm` must be given: `None` in both the constructor and `apply` is an error. With `norm="self"`, passing a reference to `apply` is an error.
 
+**`SpectrumOperator`** (Part II, §12.8) normalises its spectrum in the same way, with the same `norm` and `ref_batch_mean`: PS divided by σᴾˢ\_{c₁}(b) σᴾˢ\_{c₂}(b), the reference being its own spectrum with `norm="self"` (decision of 24 November 2026). STL's spectrum operator normalises nothing, as `norm="none"`.
+
 **Order of operations.** `apply` normalises first, then applies, in this order and only if requested, `iso`, `angular_fourier`, `scale_cosine` and the flattening. Normalising after any reduction is an error.
 
 Gradients through the reference follow from the mode (LF21, closed; OP-18): with `norm="self"` the reference is part of the computation and gradients flow through it; with `norm="ref"` it is a constant, through which no gradient flows.
