@@ -21,7 +21,15 @@ of the synthesis loss (`gradient_tp.py`). The 2D power spectrum of T4.3 has thre
 `master`: the spectrum operator, its four estimators, its automatic choice, its bins and the
 options kept on #148 (`spectrum_2d.py`); the statistics with the spectrum, its reference and the
 flat vectors (`statistics_ps_2d.py`); and the loss of the first 20 iterations of a periodic
-synthesis with the spectrum in the loss (`synthesis_ps_2d.py`).
+synthesis with the spectrum in the loss (`synthesis_ps_2d.py`). HEALPix has three cases on
+`HealpixUpdate` (T5.3): healpix-analyse's convolution and decimation as dense matrices at `nside`
+4 and as responses to random maps at `nside` 8 and 16, full sky and a disc (`operators_hpx.py`);
+the statistics, their normalisations and reductions, with the masks and reweighting maps of the
+masked configurations (`statistics_hpx.py`); and the loss of the first 20 iterations of a
+full-sky synthesis, without the band limit and the spectrum (`synthesis_hpx.py`). They share the
+settings of [`cases/_healpix.py`](cases/_healpix.py): the sphere, healpix-analyse's geometry
+cache disabled, and the kernel of `HealPixConv` kept in float64 by a run-time replacement of its
+`set_kernel` (Part II, §14.2; maths.md OP-45, OP-46).
 
 ## The container
 
@@ -92,7 +100,9 @@ compared with ESTEL on every PR, in float64, without Docker.
 
 - **A case** is a script of [`cases/`](cases) that names its STL environment (`STL_ENV`: `master`,
   `2d1d` or `healpix`), its parameters and seeded inputs (`PARAMETERS`), and returns its results
-  as float64 or complex128 NumPy arrays (`run()`). It imports STL, never `estel`.
+  as float64 or complex128 NumPy arrays (`run()`). It imports STL, never `estel`. A file of
+  `cases/` whose name starts with `_` is a helper, not a case: `make parity-fixtures` skips it,
+  and the cases import it by its path (`_healpix.py`).
 - **Packed grids.** The full grids of tensor-product statistics are mostly NaN, and S4 alone
   would take megabytes (issue #127). So `scattering_tp` and `statistics_tp` store S1 to S4 (and
   the S2 reference) packed, as three arrays:

@@ -1093,6 +1093,210 @@
     },
     "sha256": "055bb25c139a01f4d6432bc1e99044f4c3474072c0ab947074e05ff383b0ce4e"
   },
+  "operators_hpx.npz": {
+    "case": "tools/stl_parity/cases/operators_hpx.py",
+    "stl_branch": "HealpixUpdate",
+    "stl_commit": "90eb1a954e71abb7af621b10e70b0456e8a86b4e",
+    "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
+    "parameters": {
+      "L": 4,
+      "K": 5,
+      "dense_nside": 4,
+      "nsides": [
+        8,
+        16
+      ],
+      "n_maps": 3,
+      "seeds": {
+        "full_8": 80,
+        "disc_8": 81,
+        "full_16": 160,
+        "disc_16": 161
+      },
+      "disc_centre_deg": {
+        "colatitude": 80.0,
+        "longitude": 30.0
+      },
+      "disc_radius_deg": 30.0,
+      "stl_settings": {
+        "torch_default_dtype": "float64",
+        "wavelet_op_kwargs": {
+          "ellipsoid": "sphere",
+          "conv_cache_dir": null
+        },
+        "kernel": "float64: HealPixConv.set_kernel replaced at run time by a function that calls it, then copies the float64 kernel into its weights (tools/stl_parity/cases/_healpix.py, keep_kernel_float64); STL and healpix-analyse unchanged on disk"
+      }
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "conv_4": {
+        "dtype": "complex128",
+        "shape": [
+          4,
+          192,
+          192
+        ]
+      },
+      "disc_16_cell_ids": {
+        "dtype": "float64",
+        "shape": [
+          209
+        ]
+      },
+      "disc_16_conv": {
+        "dtype": "complex128",
+        "shape": [
+          3,
+          4,
+          209
+        ]
+      },
+      "disc_16_down": {
+        "dtype": "float64",
+        "shape": [
+          3,
+          63
+        ]
+      },
+      "disc_16_down_cell_ids": {
+        "dtype": "float64",
+        "shape": [
+          63
+        ]
+      },
+      "disc_16_maps": {
+        "dtype": "float64",
+        "shape": [
+          3,
+          209
+        ]
+      },
+      "disc_8_cell_ids": {
+        "dtype": "float64",
+        "shape": [
+          50
+        ]
+      },
+      "disc_8_conv": {
+        "dtype": "complex128",
+        "shape": [
+          3,
+          4,
+          50
+        ]
+      },
+      "disc_8_down": {
+        "dtype": "float64",
+        "shape": [
+          3,
+          15
+        ]
+      },
+      "disc_8_down_cell_ids": {
+        "dtype": "float64",
+        "shape": [
+          15
+        ]
+      },
+      "disc_8_maps": {
+        "dtype": "float64",
+        "shape": [
+          3,
+          50
+        ]
+      },
+      "down_4": {
+        "dtype": "float64",
+        "shape": [
+          48,
+          192
+        ]
+      },
+      "down_4_cell_ids": {
+        "dtype": "float64",
+        "shape": [
+          48
+        ]
+      },
+      "full_16_cell_ids": {
+        "dtype": "float64",
+        "shape": [
+          3072
+        ]
+      },
+      "full_16_conv": {
+        "dtype": "complex128",
+        "shape": [
+          3,
+          4,
+          3072
+        ]
+      },
+      "full_16_down": {
+        "dtype": "float64",
+        "shape": [
+          3,
+          768
+        ]
+      },
+      "full_16_down_cell_ids": {
+        "dtype": "float64",
+        "shape": [
+          768
+        ]
+      },
+      "full_16_maps": {
+        "dtype": "float64",
+        "shape": [
+          3,
+          3072
+        ]
+      },
+      "full_8_cell_ids": {
+        "dtype": "float64",
+        "shape": [
+          768
+        ]
+      },
+      "full_8_conv": {
+        "dtype": "complex128",
+        "shape": [
+          3,
+          4,
+          768
+        ]
+      },
+      "full_8_down": {
+        "dtype": "float64",
+        "shape": [
+          3,
+          192
+        ]
+      },
+      "full_8_down_cell_ids": {
+        "dtype": "float64",
+        "shape": [
+          192
+        ]
+      },
+      "full_8_maps": {
+        "dtype": "float64",
+        "shape": [
+          3,
+          768
+        ]
+      },
+      "kernel": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          25
+        ]
+      }
+    },
+    "sha256": "7fb2741c560e7f84d357dde03fcda4c172ac3cb3c3240d97b254c0ad7a0b195a"
+  },
   "plan_1d.npz": {
     "case": "tools/stl_parity/cases/plan_1d.py",
     "stl_branch": "2D+1D",
@@ -9035,6 +9239,2279 @@
     },
     "sha256": "06e747371cbc9139d5bdd92edfbab9aaaf2eb943348f78872987d150653c29bd"
   },
+  "statistics_hpx.npz": {
+    "case": "tools/stl_parity/cases/statistics_hpx.py",
+    "stl_branch": "HealpixUpdate",
+    "stl_commit": "90eb1a954e71abb7af621b10e70b0456e8a86b4e",
+    "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
+    "parameters": {
+      "L": 4,
+      "threshold": 0.33,
+      "domains": {
+        "disc": {
+          "colatitude_deg": 80.0,
+          "longitude_deg": 30.0,
+          "radius_deg": 26.0
+        },
+        "large_disc": {
+          "colatitude_deg": 80.0,
+          "longitude_deg": 30.0,
+          "radius_deg": 40.0
+        }
+      },
+      "masks": {
+        "disc_scatter": {
+          "colatitude_deg": 60.0,
+          "longitude_deg": 200.0,
+          "radius_deg": 20.0,
+          "seed": 1,
+          "scatter_fraction": 0.003
+        },
+        "hole": {
+          "colatitude_deg": 70.0,
+          "longitude_deg": 40.0,
+          "radius_deg": 3.0,
+          "seed": 2,
+          "scatter_fraction": 0.0
+        }
+      },
+      "configs": {
+        "full_8": {
+          "nside": 8,
+          "J": 2,
+          "Nb": 2,
+          "Nc": 1,
+          "seed": 30,
+          "ref_seed": 40,
+          "norm_batch_mean": false,
+          "harmonics_angle": 2,
+          "harmonics_scale": 2,
+          "dj": 2
+        },
+        "full_16_cross": {
+          "nside": 16,
+          "J": 3,
+          "Nb": 1,
+          "Nc": 2,
+          "seed": 31,
+          "ref_seed": 41,
+          "norm_batch_mean": false,
+          "harmonics_angle": 3,
+          "harmonics_scale": 3,
+          "dj": 3
+        },
+        "disc_16": {
+          "nside": 16,
+          "J": 3,
+          "Nb": 1,
+          "Nc": 1,
+          "seed": 32,
+          "ref_seed": 42,
+          "domain": "disc",
+          "norm_batch_mean": false,
+          "harmonics_angle": 4,
+          "harmonics_scale": 2,
+          "dj": 3
+        },
+        "nan_16": {
+          "nside": 16,
+          "J": 3,
+          "Nb": 2,
+          "Nc": 1,
+          "seed": 33,
+          "ref_seed": 43,
+          "mask": "disc_scatter",
+          "norm_batch_mean": true,
+          "harmonics_angle": 2,
+          "harmonics_scale": 3,
+          "dj": 2
+        },
+        "disc_nan_16": {
+          "nside": 16,
+          "J": 3,
+          "Nb": 1,
+          "Nc": 1,
+          "seed": 34,
+          "ref_seed": 44,
+          "domain": "large_disc",
+          "mask": "hole",
+          "mask_from_nan": true,
+          "norm_batch_mean": false,
+          "harmonics_angle": 3,
+          "harmonics_scale": 3,
+          "dj": 3
+        }
+      },
+      "stl_settings": {
+        "torch_default_dtype": "float64",
+        "wavelet_op_kwargs": {
+          "ellipsoid": "sphere",
+          "conv_cache_dir": null
+        },
+        "kernel": "float64: HealPixConv.set_kernel replaced at run time by a function that calls it, then copies the float64 kernel into its weights (tools/stl_parity/cases/_healpix.py, keep_kernel_float64); STL and healpix-analyse unchanged on disk"
+      }
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "disc_16_angular_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "disc_16_angular_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "disc_16_cell_ids": {
+        "dtype": "float64",
+        "shape": [
+          154
+        ]
+      },
+      "disc_16_cell_ids_1": {
+        "dtype": "float64",
+        "shape": [
+          44
+        ]
+      },
+      "disc_16_cell_ids_2": {
+        "dtype": "float64",
+        "shape": [
+          15
+        ]
+      },
+      "disc_16_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          154
+        ]
+      },
+      "disc_16_iso_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3
+        ]
+      },
+      "disc_16_iso_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3
+        ]
+      },
+      "disc_16_iso_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          4
+        ]
+      },
+      "disc_16_iso_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "disc_16_iso_angular_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          4
+        ]
+      },
+      "disc_16_iso_angular_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "disc_16_iso_angular_scale_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "disc_16_iso_angular_scale_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "disc_16_iso_scale_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "disc_16_iso_scale_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "disc_16_load_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "disc_16_load_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "disc_16_load_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "disc_16_load_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "disc_16_load_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "disc_16_load_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "disc_16_ref_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          154
+        ]
+      },
+      "disc_16_s2_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "disc_16_store_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "disc_16_store_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "disc_16_store_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "disc_16_store_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "disc_16_store_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "disc_16_store_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "disc_16_vanilla_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "disc_16_vanilla_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "disc_16_vanilla_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "disc_16_vanilla_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "disc_16_vanilla_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "disc_16_vanilla_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "disc_16_var_ref": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "disc_16_vector": {
+        "dtype": "float64",
+        "shape": [
+          1498
+        ]
+      },
+      "disc_16_vector_reduced": {
+        "dtype": "float64",
+        "shape": [
+          336
+        ]
+      },
+      "disc_nan_16_angular_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          3
+        ]
+      },
+      "disc_nan_16_angular_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3
+        ]
+      },
+      "disc_nan_16_cell_ids": {
+        "dtype": "float64",
+        "shape": [
+          359
+        ]
+      },
+      "disc_nan_16_cell_ids_1": {
+        "dtype": "float64",
+        "shape": [
+          100
+        ]
+      },
+      "disc_nan_16_cell_ids_2": {
+        "dtype": "float64",
+        "shape": [
+          30
+        ]
+      },
+      "disc_nan_16_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          359
+        ]
+      },
+      "disc_nan_16_iso_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3
+        ]
+      },
+      "disc_nan_16_iso_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3
+        ]
+      },
+      "disc_nan_16_iso_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          4
+        ]
+      },
+      "disc_nan_16_iso_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "disc_nan_16_iso_angular_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3
+        ]
+      },
+      "disc_nan_16_iso_angular_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          3,
+          3
+        ]
+      },
+      "disc_nan_16_iso_angular_scale_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3
+        ]
+      },
+      "disc_nan_16_iso_angular_scale_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          3,
+          3
+        ]
+      },
+      "disc_nan_16_iso_scale_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          4
+        ]
+      },
+      "disc_nan_16_iso_scale_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "disc_nan_16_layer1_0": {
+        "dtype": "float64",
+        "shape": [
+          359
+        ]
+      },
+      "disc_nan_16_layer1_1": {
+        "dtype": "float64",
+        "shape": [
+          100
+        ]
+      },
+      "disc_nan_16_layer1_2": {
+        "dtype": "float64",
+        "shape": [
+          30
+        ]
+      },
+      "disc_nan_16_layer2_0_0": {
+        "dtype": "float64",
+        "shape": [
+          359
+        ]
+      },
+      "disc_nan_16_layer2_1_0": {
+        "dtype": "float64",
+        "shape": [
+          100
+        ]
+      },
+      "disc_nan_16_layer2_1_1": {
+        "dtype": "float64",
+        "shape": [
+          100
+        ]
+      },
+      "disc_nan_16_layer2_2_0": {
+        "dtype": "float64",
+        "shape": [
+          30
+        ]
+      },
+      "disc_nan_16_layer2_2_1": {
+        "dtype": "float64",
+        "shape": [
+          30
+        ]
+      },
+      "disc_nan_16_layer2_2_2": {
+        "dtype": "float64",
+        "shape": [
+          30
+        ]
+      },
+      "disc_nan_16_load_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "disc_nan_16_load_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "disc_nan_16_load_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "disc_nan_16_load_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "disc_nan_16_load_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "disc_nan_16_load_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "disc_nan_16_mask": {
+        "dtype": "float64",
+        "shape": [
+          359
+        ]
+      },
+      "disc_nan_16_ref_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          359
+        ]
+      },
+      "disc_nan_16_reweight_smooth_1": {
+        "dtype": "float64",
+        "shape": [
+          100
+        ]
+      },
+      "disc_nan_16_reweight_smooth_2": {
+        "dtype": "float64",
+        "shape": [
+          30
+        ]
+      },
+      "disc_nan_16_reweight_wav_1_0": {
+        "dtype": "float64",
+        "shape": [
+          100
+        ]
+      },
+      "disc_nan_16_reweight_wav_2_0": {
+        "dtype": "float64",
+        "shape": [
+          30
+        ]
+      },
+      "disc_nan_16_reweight_wav_2_1": {
+        "dtype": "float64",
+        "shape": [
+          30
+        ]
+      },
+      "disc_nan_16_s2_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "disc_nan_16_smooth_0": {
+        "dtype": "float64",
+        "shape": [
+          359
+        ]
+      },
+      "disc_nan_16_smooth_1": {
+        "dtype": "float64",
+        "shape": [
+          100
+        ]
+      },
+      "disc_nan_16_smooth_2": {
+        "dtype": "float64",
+        "shape": [
+          30
+        ]
+      },
+      "disc_nan_16_store_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "disc_nan_16_store_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "disc_nan_16_store_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "disc_nan_16_store_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "disc_nan_16_store_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "disc_nan_16_store_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "disc_nan_16_vanilla_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "disc_nan_16_vanilla_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "disc_nan_16_vanilla_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "disc_nan_16_vanilla_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "disc_nan_16_vanilla_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "disc_nan_16_vanilla_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "disc_nan_16_var_ref": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "disc_nan_16_vector": {
+        "dtype": "float64",
+        "shape": [
+          700
+        ]
+      },
+      "disc_nan_16_vector_reduced": {
+        "dtype": "float64",
+        "shape": [
+          96
+        ]
+      },
+      "disc_nan_16_wav_1_0": {
+        "dtype": "float64",
+        "shape": [
+          100
+        ]
+      },
+      "disc_nan_16_wav_2_0": {
+        "dtype": "float64",
+        "shape": [
+          30
+        ]
+      },
+      "disc_nan_16_wav_2_1": {
+        "dtype": "float64",
+        "shape": [
+          30
+        ]
+      },
+      "full_16_cross_angular_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3
+        ]
+      },
+      "full_16_cross_angular_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3
+        ]
+      },
+      "full_16_cross_cell_ids": {
+        "dtype": "float64",
+        "shape": [
+          3072
+        ]
+      },
+      "full_16_cross_cell_ids_1": {
+        "dtype": "float64",
+        "shape": [
+          768
+        ]
+      },
+      "full_16_cross_cell_ids_2": {
+        "dtype": "float64",
+        "shape": [
+          192
+        ]
+      },
+      "full_16_cross_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2,
+          3072
+        ]
+      },
+      "full_16_cross_iso_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3
+        ]
+      },
+      "full_16_cross_iso_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3
+        ]
+      },
+      "full_16_cross_iso_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          4
+        ]
+      },
+      "full_16_cross_iso_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "full_16_cross_iso_angular_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3
+        ]
+      },
+      "full_16_cross_iso_angular_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          3
+        ]
+      },
+      "full_16_cross_iso_angular_scale_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3
+        ]
+      },
+      "full_16_cross_iso_angular_scale_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          3
+        ]
+      },
+      "full_16_cross_iso_scale_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          4
+        ]
+      },
+      "full_16_cross_iso_scale_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "full_16_cross_load_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "full_16_cross_load_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "full_16_cross_load_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "full_16_cross_load_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "full_16_cross_load_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "full_16_cross_load_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "full_16_cross_ref_field": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2,
+          3072
+        ]
+      },
+      "full_16_cross_s2_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "full_16_cross_store_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "full_16_cross_store_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "full_16_cross_store_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "full_16_cross_store_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "full_16_cross_store_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "full_16_cross_store_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "full_16_cross_vanilla_S1": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "full_16_cross_vanilla_S2": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          4
+        ]
+      },
+      "full_16_cross_vanilla_S3": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "full_16_cross_vanilla_S4": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "full_16_cross_vanilla_mean": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "full_16_cross_vanilla_var": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "full_16_cross_var_ref": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          2
+        ]
+      },
+      "full_16_cross_vector": {
+        "dtype": "float64",
+        "shape": [
+          5964
+        ]
+      },
+      "full_16_cross_vector_reduced": {
+        "dtype": "float64",
+        "shape": [
+          886
+        ]
+      },
+      "full_8_angular_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2
+        ]
+      },
+      "full_8_angular_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2
+        ]
+      },
+      "full_8_cell_ids": {
+        "dtype": "float64",
+        "shape": [
+          768
+        ]
+      },
+      "full_8_cell_ids_1": {
+        "dtype": "float64",
+        "shape": [
+          192
+        ]
+      },
+      "full_8_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1,
+          768
+        ]
+      },
+      "full_8_iso_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2
+        ]
+      },
+      "full_8_iso_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2
+        ]
+      },
+      "full_8_iso_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          4
+        ]
+      },
+      "full_8_iso_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          4,
+          4
+        ]
+      },
+      "full_8_iso_angular_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          2
+        ]
+      },
+      "full_8_iso_angular_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2,
+          2
+        ]
+      },
+      "full_8_iso_angular_scale_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          2
+        ]
+      },
+      "full_8_iso_angular_scale_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2,
+          2
+        ]
+      },
+      "full_8_iso_scale_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          4
+        ]
+      },
+      "full_8_iso_scale_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          4,
+          4
+        ]
+      },
+      "full_8_load_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          4
+        ]
+      },
+      "full_8_load_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          4
+        ]
+      },
+      "full_8_load_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          4,
+          4
+        ]
+      },
+      "full_8_load_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          4,
+          4,
+          4
+        ]
+      },
+      "full_8_load_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "full_8_load_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "full_8_ref_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1,
+          768
+        ]
+      },
+      "full_8_s2_ref": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          2,
+          4
+        ]
+      },
+      "full_8_store_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          4
+        ]
+      },
+      "full_8_store_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          4
+        ]
+      },
+      "full_8_store_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          4,
+          4
+        ]
+      },
+      "full_8_store_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          4,
+          4,
+          4
+        ]
+      },
+      "full_8_store_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "full_8_store_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "full_8_vanilla_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          4
+        ]
+      },
+      "full_8_vanilla_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          4
+        ]
+      },
+      "full_8_vanilla_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          4,
+          4
+        ]
+      },
+      "full_8_vanilla_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          2,
+          2,
+          2,
+          4,
+          4,
+          4
+        ]
+      },
+      "full_8_vanilla_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "full_8_vanilla_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "full_8_var_ref": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "full_8_vector": {
+        "dtype": "float64",
+        "shape": [
+          1252
+        ]
+      },
+      "full_8_vector_reduced": {
+        "dtype": "float64",
+        "shape": [
+          100
+        ]
+      },
+      "nan_16_angular_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          3,
+          2,
+          2
+        ]
+      },
+      "nan_16_angular_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          3,
+          3,
+          2,
+          2,
+          2
+        ]
+      },
+      "nan_16_cell_ids": {
+        "dtype": "float64",
+        "shape": [
+          3072
+        ]
+      },
+      "nan_16_cell_ids_1": {
+        "dtype": "float64",
+        "shape": [
+          768
+        ]
+      },
+      "nan_16_cell_ids_2": {
+        "dtype": "float64",
+        "shape": [
+          192
+        ]
+      },
+      "nan_16_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1,
+          3072
+        ]
+      },
+      "nan_16_iso_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3
+        ]
+      },
+      "nan_16_iso_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3
+        ]
+      },
+      "nan_16_iso_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          3,
+          4
+        ]
+      },
+      "nan_16_iso_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "nan_16_iso_angular_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          3,
+          2
+        ]
+      },
+      "nan_16_iso_angular_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          3,
+          3,
+          2,
+          2
+        ]
+      },
+      "nan_16_iso_angular_scale_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          2,
+          2
+        ]
+      },
+      "nan_16_iso_angular_scale_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          2,
+          2,
+          2,
+          2
+        ]
+      },
+      "nan_16_iso_scale_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          2,
+          4
+        ]
+      },
+      "nan_16_iso_scale_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          2,
+          2,
+          4,
+          4
+        ]
+      },
+      "nan_16_layer1_0": {
+        "dtype": "float64",
+        "shape": [
+          3072
+        ]
+      },
+      "nan_16_layer1_1": {
+        "dtype": "float64",
+        "shape": [
+          768
+        ]
+      },
+      "nan_16_layer1_2": {
+        "dtype": "float64",
+        "shape": [
+          192
+        ]
+      },
+      "nan_16_layer2_0_0": {
+        "dtype": "float64",
+        "shape": [
+          3072
+        ]
+      },
+      "nan_16_layer2_1_0": {
+        "dtype": "float64",
+        "shape": [
+          768
+        ]
+      },
+      "nan_16_layer2_1_1": {
+        "dtype": "float64",
+        "shape": [
+          768
+        ]
+      },
+      "nan_16_layer2_2_0": {
+        "dtype": "float64",
+        "shape": [
+          192
+        ]
+      },
+      "nan_16_layer2_2_1": {
+        "dtype": "float64",
+        "shape": [
+          192
+        ]
+      },
+      "nan_16_layer2_2_2": {
+        "dtype": "float64",
+        "shape": [
+          192
+        ]
+      },
+      "nan_16_load_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "nan_16_load_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "nan_16_load_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "nan_16_load_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "nan_16_load_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "nan_16_load_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "nan_16_mask": {
+        "dtype": "float64",
+        "shape": [
+          3072
+        ]
+      },
+      "nan_16_ref_field": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1,
+          3072
+        ]
+      },
+      "nan_16_reweight_smooth_1": {
+        "dtype": "float64",
+        "shape": [
+          768
+        ]
+      },
+      "nan_16_reweight_smooth_2": {
+        "dtype": "float64",
+        "shape": [
+          192
+        ]
+      },
+      "nan_16_reweight_wav_1_0": {
+        "dtype": "float64",
+        "shape": [
+          768
+        ]
+      },
+      "nan_16_reweight_wav_2_0": {
+        "dtype": "float64",
+        "shape": [
+          192
+        ]
+      },
+      "nan_16_reweight_wav_2_1": {
+        "dtype": "float64",
+        "shape": [
+          192
+        ]
+      },
+      "nan_16_s2_ref": {
+        "dtype": "complex128",
+        "shape": [
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "nan_16_smooth_0": {
+        "dtype": "float64",
+        "shape": [
+          3072
+        ]
+      },
+      "nan_16_smooth_1": {
+        "dtype": "float64",
+        "shape": [
+          768
+        ]
+      },
+      "nan_16_smooth_2": {
+        "dtype": "float64",
+        "shape": [
+          192
+        ]
+      },
+      "nan_16_store_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "nan_16_store_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "nan_16_store_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "nan_16_store_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "nan_16_store_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "nan_16_store_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "nan_16_vanilla_S1": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "nan_16_vanilla_S2": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          4
+        ]
+      },
+      "nan_16_vanilla_S3": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          3,
+          4,
+          4
+        ]
+      },
+      "nan_16_vanilla_S4": {
+        "dtype": "complex128",
+        "shape": [
+          2,
+          1,
+          1,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ]
+      },
+      "nan_16_vanilla_mean": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "nan_16_vanilla_var": {
+        "dtype": "float64",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      "nan_16_var_ref": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "nan_16_vector": {
+        "dtype": "float64",
+        "shape": [
+          2372
+        ]
+      },
+      "nan_16_vector_reduced": {
+        "dtype": "float64",
+        "shape": [
+          76
+        ]
+      },
+      "nan_16_wav_1_0": {
+        "dtype": "float64",
+        "shape": [
+          768
+        ]
+      },
+      "nan_16_wav_2_0": {
+        "dtype": "float64",
+        "shape": [
+          192
+        ]
+      },
+      "nan_16_wav_2_1": {
+        "dtype": "float64",
+        "shape": [
+          192
+        ]
+      }
+    },
+    "sha256": "a6fe9b9ae0a1d21aae9331cf408e473a259bc7c6236effa9c16e20e20f4d81b0"
+  },
   "statistics_ps_2d.npz": {
     "case": "tools/stl_parity/cases/statistics_ps_2d.py",
     "stl_branch": "master",
@@ -11194,6 +13671,77 @@
       }
     },
     "sha256": "099d17b51f41e08c3e400c5d8167996b7e01b938b4a8371bc80799a164bd47c0"
+  },
+  "synthesis_hpx.npz": {
+    "case": "tools/stl_parity/cases/synthesis_hpx.py",
+    "stl_branch": "HealpixUpdate",
+    "stl_commit": "90eb1a954e71abb7af621b10e70b0456e8a86b4e",
+    "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
+    "parameters": {
+      "nside": 16,
+      "J": 3,
+      "L": 4,
+      "target_seed": 62,
+      "spectral_index": 2.0,
+      "lognormal_scale": 0.8,
+      "seed": 26,
+      "max_iter": 20,
+      "history_size": 50,
+      "lr": 1.0,
+      "mean_field": true,
+      "compute_PS": false,
+      "prefilter_Nyquist": false,
+      "stl_settings": {
+        "torch_default_dtype": "float64",
+        "wavelet_op_kwargs": {
+          "ellipsoid": "sphere",
+          "conv_cache_dir": null
+        },
+        "kernel": "float64: HealPixConv.set_kernel replaced at run time by a function that calls it, then copies the float64 kernel into its weights (tools/stl_parity/cases/_healpix.py, keep_kernel_float64); STL and healpix-analyse unchanged on disk"
+      }
+    },
+    "torch_default_dtype": "float64",
+    "arrays": {
+      "counts": {
+        "dtype": "float64",
+        "shape": [
+          2
+        ]
+      },
+      "evaluations": {
+        "dtype": "float64",
+        "shape": [
+          25
+        ]
+      },
+      "field": {
+        "dtype": "float64",
+        "shape": [
+          3072
+        ]
+      },
+      "losses": {
+        "dtype": "float64",
+        "shape": [
+          20
+        ]
+      },
+      "start": {
+        "dtype": "float64",
+        "shape": [
+          1,
+          1,
+          3072
+        ]
+      },
+      "target": {
+        "dtype": "float64",
+        "shape": [
+          3072
+        ]
+      }
+    },
+    "sha256": "5c11d93b8ced2185fa7761265cfc696b98003d860a65c0ac1249a6d9fa79717e"
   },
   "synthesis_ps_2d.npz": {
     "case": "tools/stl_parity/cases/synthesis_ps_2d.py",
