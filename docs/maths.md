@@ -2,7 +2,7 @@
 
 [Back to the overview](transfer/overview.md)
 
-**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it, and checked numerically by the oracle `estel._spec`, which agrees with ESTEL to the parity tolerance (task T2.6); ESTEL itself agrees with STL's fixtures. Section 3 (tensor products) is checked against STL's code (task T3.0), and numerically by the oracle, which agrees with STL's parity fixtures to the parity tolerance (tasks T3.3 and T3.4). Section 4 (HEALPix) is checked against STL's code, and numerically where it says so (task T5.0). Section 1.9 (the power spectrum) is checked against STL's code, entry by entry, and numerically in the parity container (task T4.0). Section 5 (syntheses) is checked against STL's code for periodic syntheses, and numerically where it says so (task T6.0); its non-periodic and masked parts come after 1.0.0 (Part III, §16, LF47). It has no oracle: the syntheses are validated against STL's trajectory and by their own tests (task T6.1; Part IV, §22).
+**Status:** draft, 16 November 2026. Sections 1 (planar 2D, reviewed against `master`) and 2 (1D) are written from the STL code by reading it, and checked numerically by the oracle `estel._spec`, which agrees with ESTEL to the parity tolerance (task T2.6); ESTEL itself agrees with STL's fixtures. Section 3 (tensor products) is checked against STL's code (task T3.0), and numerically by the oracle, which agrees with STL's parity fixtures to the parity tolerance (tasks T3.3 and T3.4). Section 4 (HEALPix) is checked against STL's code, and numerically where it says so (task T5.0), its scattering loop against that of `master` and against section 1 (task T5.2). Section 1.9 (the power spectrum) is checked against STL's code, entry by entry, and numerically in the parity container (task T4.0). Section 5 (syntheses) is checked against STL's code for periodic syntheses, and numerically where it says so (task T6.0), and for full-sky HEALPix syntheses without the prefilter and without the spectrum (task T5.2); its non-periodic and masked parts come after 1.0.0 (Part III, §16, LF47). It has no oracle: the syntheses are validated against STL's trajectory and by their own tests (task T6.1; Part IV, §22).
 
 **Role of this file.** This file is the reference version of the mathematics of step 1; it changes only through pull requests that a maintainer requests and merges.
 
@@ -950,9 +950,47 @@ The rule of §1.11 applies. OP-4, OP-8, OP-13 and OP-34 also concern tensor prod
 
 ## 4. HEALPix
 
-**Status:** 17 November 2026 (task T5.0). Every entry is checked against the code of STL `HealpixUpdate` and of healpix-analyse, and numerically, in the parity container, where an entry says "Checked": the data conventions, the wavelet, the convolution on the full sky and on a partial sky, the gauges, the downsampling, the masks and the defaults. The numerical checks run in float64, at `nside` 8 and 16 (64 for the gauges), with `ellipsoid="sphere"` and the cache of healpix-analyse disabled unless said; their references are written in NumPy from the definitions below, with healpy for the pixel centres and the bilinear interpolation. Not checked: the scattering loop of `HealpixUpdate` against that of `master` (T5.2), the angular spectrum (LF24). The model of STL-Dev-MPI's `CLAUDE.md` §3 (commit `d397650`) was read, not run, and agrees with this section: the bilinear interpolation of the 4 nearest pixels, the gauge `"cosmo"`, the decimation by a Gaussian of radius 3 fine pixels with σ = radius / 2 and weights of sum 1, dg(j) = j by default, and the form of S1 to S4; its patch-local engine with hand-written reverse passes is not transferred in step 1 (Part II, §10; T5.1).
+**Status:** 17 November 2026 (task T5.0); the scattering loop on 24 November 2026 (task T5.2). Every entry is checked against the code of STL `HealpixUpdate` and of healpix-analyse, and numerically, in the parity container, where an entry says "Checked": the data conventions, the wavelet, the convolution on the full sky and on a partial sky, the gauges, the downsampling, the masks and the defaults. The numerical checks run in float64, at `nside` 8 and 16 (64 for the gauges), with `ellipsoid="sphere"` and the cache of healpix-analyse disabled unless said; their references are written in NumPy from the definitions below, with healpy for the pixel centres and the bilinear interpolation. The scattering loop of `HealpixUpdate` is checked against that of `master` and against section 1 (T5.2, "Scattering loop" below). Not checked: the angular spectrum (LF24). The model of STL-Dev-MPI's `CLAUDE.md` §3 (commit `d397650`) was read, not run, and agrees with this section: the bilinear interpolation of the 4 nearest pixels, the gauge `"cosmo"`, the decimation by a Gaussian of radius 3 fine pixels with σ = radius / 2 and weights of sum 1, dg(j) = j by default, and the form of S1 to S4; its patch-local engine with hand-written reverse passes is not transferred in step 1 (Part II, §10; T5.1).
 
-**Source:** STL-Dev `HealpixUpdate` at `90eb1a9` (`STL_Healpix_Kernel_Torch.py`), and healpix-analyse at `aac5e26` (`convol.py`, `down.py`, `healpix_interp.py`), which holds the definitions of the convolution and of the downsampling. `TorchGeometry.py` of the same branch reproduces that geometry in vectorised code, for a sphere and the gauges `"phi"` and `"cosmo"` only; it is the code ESTEL ports (Part II, §9.3). The scattering loop, the statistics, the normalisation, the reductions and the flattening are those of section 1: `ST_Operator.py` of `HealpixUpdate` differs from that of `master` in the indexing of the pixel axes (one axis instead of two), in the options of the spectrum and in methods that the loop does not call. **[to verify, T5.2]** that the two loops compute the same statistics.
+**Source:** STL-Dev `HealpixUpdate` at `90eb1a9` (`STL_Healpix_Kernel_Torch.py`), and healpix-analyse at `aac5e26` (`convol.py`, `down.py`, `healpix_interp.py`), which holds the definitions of the convolution and of the downsampling. `TorchGeometry.py` of the same branch reproduces that geometry in vectorised code, for a sphere and the gauges `"phi"` and `"cosmo"` only; it is the code ESTEL ports (Part II, §9.3). The scattering loop, the statistics, the normalisation, the reductions and the flattening are those of section 1, read from `ST_Operator.py` and `ST_Statistics.py` of the same branch (T5.2).
+
+**Scattering loop** (task T5.2). `ST_Operator.py` of `HealpixUpdate` differs from that of `master` by 116 changed lines, `ST_Statistics.py` by 7. Block by block:
+
+| Changed block | Does the loop reach it? | Can it change a value? |
+| --- | --- | --- |
+| `wavelet_op_kwargs`, a new constructor argument passed to `get_wavelet_op` | at construction | only through the options it carries (the ellipsoid and the cache: OP-45, OP-46). Without it, the operator is the default one |
+| `spectrum_method` renamed `power_spectrum_method`; the spectrum operator built only with `compute_PS=True`, and an error at `apply` if the spectrum is asked without one | no: spectrum only | no value of S1 to S4 |
+| ten new methods (`build_plan`, `apply_pyramid`, `apply_patched`, `apply_local` and their reverse passes): the pyramid engine (Part II, §10) | no: `apply` calls none of them | no |
+| two new fields of `ST_Statistics`, `data_example` and `pix_shape`, filled by `apply` | yes | no: the syntheses read them, the statistics do not |
+| six index expressions of the loop: `x[:, c, :, :, :]` becomes `x[:, c]`, `x[:, :, None, :, :, :]` becomes `x[:, :, None]`, and so on (two of them in the variant with fewer convolutions, not transferred) | yes | no: on planar arrays the trailing axes are implicit and the result is the same. This change is what lets the loop run on one pixel axis |
+| an assertion message, a comment translated | — | no |
+
+What the loop calls outside these files changes in the same way: `torch_backend.maskmean` accepts any set of trailing axes (`dim=-1` on HEALPix, the same sums for `(-2, -1)`), and the base data class infers `N0` through `_infer_N0` (the trailing axes for planar data, `nside` for HEALPix).
+
+**Checked, the two loops.** The `ST_Operator.py` of `master`, loaded in the environment of `HealpixUpdate`, and that of `HealpixUpdate`, on the same 2D kernel, give the same statistics bit for bit (difference 0), at 32 × 32, J = 3: periodic, two maps of two channels; non-periodic; a mask of 42 NaN; without normalisation, and with `norm="self"` followed by `iso`, `angular_fourier` and `scale_cosine`. On HEALPix data the loop of `master` raises `IndexError` (too many indices) at the first S1.
+
+**Checked, the loop against section 1.** A reference written in NumPy from section 1 (M-MEAN to M-S4, M-CHAN), fed with the geometry of `HealpixUpdate`'s own wavelet operator: its healpix-analyse convolutions and decimations (`_get_conv`, `_get_down`), its masks and its reweighting maps. The masked downsampling is that of M-DOWN-MASK, and the means are taken over the masks of M-MASK, the union for every covariance. The normalisation, the reductions and the flattening of the reference are those of the oracle `estel._spec` (M-NORM to M-FLAT), applied to its statistics. Seven cases, with L = 4, the sphere, the cache disabled and `compute_PS=False`:
+
+| Case | Sky | `nside` | Maps × channels | J | Missing data, pairs |
+| --- | --- | --- | --- | --- | --- |
+| A | full | 8 | 2 × 1 | 2 | — |
+| B | full | 16 | 1 × 1 | 3 | — |
+| C | disc of 357 pixels (`cell_ids`) | 16 | 1 × 1 | 3 | — |
+| D | full | 16 | 1 × 1 | 3 | 90 NaN, the mask inferred |
+| E | full | 8 | 2 × 2 | 2 | every pair c₁ ≤ c₂ |
+| F | full | 8 | 1 × 2 | 2 | `cross_matrix` without the auto statistics of channel 0 |
+| G | full | 16 | 1 × 2 | 3 | the 90 pixels of D, the mask given |
+
+In each case the comparison covers:
+
+- the statistics without normalisation, and with `standardize=True`, with `mean_pre_std` and `std_pre_std`;
+- `norm="self"` and `norm="ref"` (a second field normalised by the reference of the first), each with and without `ref_batch_mean`;
+- `iso`; `angular_fourier`; `iso` with `angular_fourier` and `scale_cosine`; `iso` with `scale_cosine`;
+- the four vectors of `to_flatten` (complex and real, with and without `mean_along_batch`).
+
+S1 to S4, `var` and the vectors have their NaN at the same entries as the reference, and differ from it by at most 1.0e-15 of the largest coefficient of the family; `mean` differs by at most 6e-17. With missing data (D, G), STL takes the covariance S3 over the mask of its deeper argument (M-MASK), and the reference over the union: they agree, so the layer-2 mask of (j₂, j₃) contains the layer-1 mask of j₃ there. The NaN of the field enter the first convolution as they are, and reach no mean.
+
+**Source of the loop:** `ST_Operator.__init__`, `apply`; `ST_Statistics.__init__`; `torch_backend.maskmean`; `Base_DataClass._infer_N0`.
 
 ### 4.0 Data — M-DATA-HPX
 
@@ -1058,7 +1096,7 @@ x^{(d+1)}[n_0] = \frac{\sum_{\gamma \le \rho} e^{-\gamma^2 / 2\sigma^2}\, x^{(d)
 
 ### 4.6 Open points found in the HEALPix code
 
-The rule of §1.11 applies. OP-90 to OP-92 come from the check of T5.0. OP-45 is decided: ESTEL computes on the sphere only. OP-46, OP-50 and OP-90 to OP-92 were decided on 24 November 2026 (Part IV, §22).
+The rule of §1.11 applies. OP-90 to OP-92 come from the check of T5.0; the check of the scattering loop (T5.2) found none. OP-45 is decided: ESTEL computes on the sphere only. OP-46, OP-50 and OP-90 to OP-92 were decided on 24 November 2026 (Part IV, §22).
 
 | # | Point | Proposal | Status |
 | --- | --- | --- | --- |
@@ -1075,11 +1113,21 @@ The rule of §1.11 applies. OP-90 to OP-92 come from the check of T5.0. OP-45 is
 
 ## 5. Syntheses
 
-**Status:** 17 November 2026 (task T6.0). For periodic syntheses, the only ones of 1.0.0 (Part IV, §22, "Periodic syntheses only in 1.0.0"; LF47), every entry is checked against STL's code (`Synthesis.py` and what it calls), and numerically, in the parity container, where an entry says "Checked": the Nyquist pre-filter, the start, the target, the weights and the value of the loss, the result, the operators and the settings passed to L-BFGS. The comparison of whole syntheses comes with T6.1. The non-periodic and masked parts are not checked; they are marked "after 1.0.0 (Part III, §16, LF47)".
+**Status:** 17 November 2026 (task T6.0). For periodic syntheses, the only ones of 1.0.0 (Part IV, §22, "Periodic syntheses only in 1.0.0"; LF47), every entry is checked against STL's code (`Synthesis.py` and what it calls), and numerically, in the parity container, where an entry says "Checked": the Nyquist pre-filter, the start, the target, the weights and the value of the loss, the result, the operators and the settings passed to L-BFGS. The comparison of whole syntheses comes with T6.1. The non-periodic and masked parts are not checked; they are marked "after 1.0.0 (Part III, §16, LF47)". For full-sky HEALPix syntheses, without the prefilter and without the spectrum (OP-77), every entry is checked against the code of `HealpixUpdate` and numerically where it says "HEALPix" (task T5.2, 24 November 2026).
 
-**Source:** STL-Dev `master` at `8eaf769`, `Synthesis.py`. A synthesis looks for a field u whose statistics match those of a target. Step 1 does not compare synthesised fields with STL's (Part II, §14.3), except in the one comparison of T6.1; this section fixes the definitions.
+**Source:** STL-Dev `master` at `8eaf769`, `Synthesis.py`; for HEALPix, STL-Dev `HealpixUpdate` at `90eb1a9`, `Synthesis.py`. A synthesis looks for a field u whose statistics match those of a target. Step 1 does not compare synthesised fields with STL's (Part II, §14.3), except in the one comparison of T6.1; this section fixes the definitions.
 
 **Levels.** `Synthesis.py` has two levels. The user-level functions (`synthesize_from_maps`, `synthesize_from_stats`) build the operators (M-SYN-OPS) and call the mid-level ones (`optimize_from_maps`, `optimize_from_stats`), which build the target, the running field and the loss, and call L-BFGS. Two defaults differ between the levels: the seed (26 at the user level, none at the mid level) and the spectrum (in the loss at the user level, not at the mid level of `optimize_from_maps`). This section gives the user level.
+
+**HEALPix** (task T5.2). `Synthesis.py` of `HealpixUpdate` differs from that of `master` by 2203 changed lines. Most of them are two new syntheses by patches, not transferred, and the decision on them is pending on #163. In the functions of the two levels above, the changes only carry the geometry, and the formulas do not change:
+
+- the number of pixel axes is read from the data (`NDIM_PIX`, one on HEALPix) instead of being 2;
+- the fields of the synthesis are built from the target, or from the statistics' copy of the data (`new_like`), so that they carry its `nside` and its `cell_ids`;
+- from statistics, the shape of the running field is read from `pix_shape`, Npix on HEALPix, instead of `N0`;
+- the prefilter goes through the data type (`apply_bandlimit`): on a full HEALPix sky, a round trip through the spherical-harmonic transform; on a partial sky, nothing (OP-77);
+- `synthesize_from_maps` takes `compute_PS` (None by default), decides it before any spectrum operator is built, and raises an error for `compute_PS=True` on data with NaN.
+
+The numerical checks run in float64, in the parity container, on full skies at `nside` 8 (J = 2, L = 4), with `prefilter_Nyquist=False` and `compute_PS=False`. The optimisation is replaced by the identity unless said. They run on the sphere with the cache disabled: the defaults of the HEALPix wavelet operator are changed at run time for this purpose, since the user level gives no other way (M-SYN-OPS). They also run with STL's defaults where said.
 
 ### 5.1 Target — M-SYN-TARGET
 
@@ -1099,6 +1147,8 @@ From statistics: the target is a statistics object computed beforehand with `nor
 
 - STL reweights the target's statistics in place. From statistics, the object of the caller is therefore modified: S3 and S4 stay multiplied by their weights, `mean_pre_std` and `std_pre_std` are replaced by their batch means if `mean_field=True`, and `compute_PS` is set to False if the spectrum is not used. A second synthesis from the same object has another target. **⚠ OP-70**
 - **Checked** (32 × 32, J = 3, L = 4; 1, 2 and 3 targets; 1 and 2 channels; `mean_field` True and False): μ and σ as above (3 targets of different amplitudes: STL 1.857454, the formula 1.857454, the mean of the standard deviations 1.728709); |mean| ≤ 2.4e-17 and var = 1 exactly for one target; after one synthesis from statistics, the caller's S3 and S4 are multiplied by 3.5 and 12.25, and a second call starts from a loss of 1.6e2 instead of 0.96.
+- **HEALPix.** As above, with one pixel axis: a target `(Npix,)` is `(1, 1, Npix)`, `(Nc, Npix)` is `(1, Nc, Npix)`, and `(Nb, Nc, Npix)` stays a batch. The means of the standardisation are plain means over the pixels (M-DATA-HPX).
+  - **Checked** (1, 2 and 3 targets; 1 and 2 channels; `mean_field` True and False): μ and σ are those of the formula above. For 3 targets of different amplitudes, STL's σ is 2.142642, and so is the formula's; the mean of the standard deviations is 1.993640. For one target, |mean| is 6.9e-18 and var − 1 is −1.1e-16. After one synthesis from statistics, the caller's S3 are multiplied by 3.5 (OP-70).
 - **Source:** `optimize_from_maps`, `optimize_from_stats`, `standardize`.
 
 ### 5.2 Running field — M-SYN-INIT
@@ -1110,6 +1160,8 @@ From statistics: the target is a statistics object computed beforehand with `nor
 - **Randomness:** STL seeds the global generator of PyTorch (`seed`, 26 by default in the user-level functions, no seeding by default in the mid-level ones), then draws the whole batch in one call, `torch.randn((nbatch, Nc, N1, N2))`, in the dtype and on the device of the running operator; nothing else is drawn between the seeding and this call. ESTEL uses explicit keys (Part I, §3.1, rule 5). **⚠ OP-55**
 - **Taper.** An earlier list of open points mentioned a Tukey taper of the Gaussian start on non-periodic axes. STL's syntheses at the frozen commits apply none; the only cosine taper is the border mask of the spectrum estimator. **[to verify]** whether it comes from another code base (STL-Dev-MPI) and should be reproduced. After 1.0.0 (Part III, §16, LF47).
 - **Checked** (same cases as M-SYN-TARGET): the start of a default synthesis is the pre-filter of `torch.randn((nbatch, Nc, N1, N2))` drawn after `torch.manual_seed(26)`, to 8.9e-16; its variance is 0.77 to 0.78 at 32 × 32, where the filter keeps 795 modes of 1024.
+- **HEALPix.** Shape `(nbatch, Nc, Npix)`. From maps, PyTorch's generator draws other numbers between the seeding and the start. healpix-analyse's convolution (`HealPixConv`) draws its learnable weights when it is built (`kaiming_uniform_`, L × 2 × K² = 200 uniform numbers), and `set_kernel` then overwrites them. STL builds each convolution at its first use, and the target's statistics build the J convolutions of the target operator after the seeding. So, from maps, the start is drawn after J × 200 uniform draws. From statistics, the running operator builds its convolutions after the start, which is then drawn right after the seeding, as above. **⚠ OP-99**
+  - **Checked:** from maps, in the six cases of M-SYN-LOSS, the start equals `torch.randn((nbatch, Nc, Npix))` drawn after `torch.manual_seed(26)` and J × 200 uniform draws (difference 0). A `randn` right after the seeding differs from it by up to 5.3. From statistics, the start equals that plain `randn` (difference 0).
 - **Source:** `ScatteringMatchModel.__init__`, `optimize_from_maps`, `optimize_from_stats`.
 
 ### 5.3 Nyquist pre-filter — M-SYN-NYQ
@@ -1126,7 +1178,7 @@ In the 2D Fourier plane, with integer frequencies (k₁, k₂), where kᵢ runs 
 - It removes the corners of the frequency square, which no wavelet covers (OP-32). It keeps a fraction of the modes that tends to π/4 for a large square field: 195 of 256 at 16 × 16, 795 of 1024 at 32 × 32.
 - For a rectangular field, the radius is that of the shorter side, in mode numbers on both axes: on the longer axis the cut is at a lower spatial frequency. **⚠ OP-54**
 - **Checked:** against the definition above written in NumPy, on 16 × 16, 32 × 32, 16 × 24, 24 × 16, 15 × 15, 15 × 20 and a `(2, 3, 16, 16)` batch: largest difference 8.9e-16. Modes on the circle kept and corners removed (16 × 16); idempotent to 5e-16; mean unchanged to 3e-17; on 16 × 24, the largest kept mode number on the long axis is 8.
-- **HEALPix.** `HealpixUpdate` band-limits HEALPix maps through the spherical-harmonic transform of healpix-analyse, not by this filter; ESTEL synthesises full-sky HEALPix fields without a prefilter, and without the spectrum in the loss. **⚠ OP-77**
+- **HEALPix.** `HealpixUpdate` band-limits HEALPix maps through the spherical-harmonic transform of healpix-analyse, not by this filter; ESTEL synthesises full-sky HEALPix fields without a prefilter, and without the spectrum in the loss. **⚠ OP-77** With `prefilter_Nyquist=True`, the data type does the band-limit (`apply_bandlimit`): `HEALPixSHT.map2alm`, then `alm2map`, on a full sky only. A partial sky is returned unchanged. Not checked numerically: it is out of the scope of 1.0.0.
 - **Source:** `apply_nyquist_filter`.
 
 ### 5.4 Loss — M-SYN-LOSS
@@ -1144,6 +1196,15 @@ With Φ(u) the flattened statistics of the running field, computed with `norm="r
 - **Batch.** With `mean_field=True`, every family is averaged over the batch, for the target and for the running fields, before the comparison: the number of running fields need not be that of the targets. With `mean_field=False`, the sum also runs over the batch, and the two numbers must be equal.
 - **From statistics.** When the target is given as statistics rather than as fields, the same loss, divided by the target's Nb (not by `nbatch`) if `mean_field=True`. The factor does not move the minimum, but it scales the gradient, hence the first step of L-BFGS and what its tolerances mean. **⚠ OP-71**
 - **Checked** (same cases as M-SYN-TARGET): the value STL gives to L-BFGS at the start equals the formula above, computed from statistics obtained without `Synthesis.py`, to 5e-16 relative in the four cases from maps (for one target: 5.3935191911, on 768 complex coefficients: 1, 1, 12, 12, 96, 640 and 6 for `mean`, `var`, S1, S2, S3, S4 and PS) and to 3e-16 in the two from statistics, with the division by Nb. Without the weights the loss would be 2.51 instead of 5.39. With two channels: the complex form (3038 coefficients) and the complete real vector (6076) give the same loss to 1e-16, and `to_flatten(flatten_complex=True)` (5982) a loss 4.9 % smaller; with one channel the two agree to 2e-16. The gradient at the start is finite.
+- **HEALPix.** The same loss. Φ holds `mean`, `var`, S1 to S4, without PS (`compute_PS=False`, OP-77).
+  - **Checked** on six cases from maps:
+    - one target in a batch of 1, and in a batch of 2;
+    - 3 targets for 2 running fields;
+    - 2 targets with `mean_field=False`;
+    - one target of 2 channels;
+    - 2 targets of 2 channels with `mean_field=False`.
+
+    The value STL gives to L-BFGS at the start equals the formula, computed from statistics obtained without `Synthesis.py`, to 8e-16 relative. For one channel at `nside` 8 there are 322 complex coefficients: 1, 1, 8, 8, 48 and 256 for `mean`, `var`, S1, S2, S3 and S4. The check from statistics (`mean_field` True and False) agrees to 0, with the division by Nb. With two channels, the complex form (1268 coefficients) and the complete real vector (2536) give the same loss (5.647983115), and `to_flatten(flatten_complex=True)` (2484) gives 4.9595, 12 % less. The gradient at the start is finite. With the target operator's settings, the loss at the standardised target itself is 0.
 - **Source:** `ScatteringMatchModel.forward`, `reweight`, `optimize_from_maps`, `optimize_from_stats`.
 
 ### 5.5 Optimiser — M-SYN-LBFGS
@@ -1164,6 +1225,8 @@ L-BFGS of PyTorch (`torch.optim.LBFGS`), in one call of `step`, on one parameter
 - **Stopping.** PyTorch stops at the first of: `max_iter` iterations, `max_eval` evaluations of the loss, or one of the two tolerances. The cap on evaluations can come first: with `max_iter=7`, a run stopped after 4 iterations and 8 evaluations. The number STL prints as "iterations of synthesis" is the number of evaluations of the loss. **⚠ OP-74**
 - These are the values that the `lbfgs` primitive of ESTEL leaves open (issue #28).
 - **Checked:** the settings of the optimiser that a default `synthesize_from_maps` builds (PyTorch 2.15.0) are those of the table, with `max_eval` = 125, and 8, 12 and 37 for `max_iter` = 7, 10 and 30; one parameter of shape `(2, 1, 32, 32)` for two running fields, one call of `step`; a default run made 100 iterations and 104 evaluations, and STL printed 104.
+- **HEALPix.** `optimize_lbfgs` is the same in `HealpixUpdate`.
+  - **Checked:** a HEALPix synthesis from maps with `max_iter=7` builds L-BFGS with the settings of the table and `max_eval` = 8. It ran 8 evaluations of the loss, and STL printed 8. The loss went from 1.42 to 0.34, and the result is finite.
 - **Source:** `optimize_lbfgs`.
 
 ### 5.6 Result — M-SYN-OUT
@@ -1174,6 +1237,14 @@ The optimised field is de-standardised, x = u σ + μ (M-STD), its missing pixel
 - **From statistics:** only if the statistics were computed with `standardize=True`; μ and σ are then `mean_pre_std` and `std_pre_std`, averaged over the batch if `mean_field=True`. Here σ is a mean of standard deviations, unlike from maps. **⚠ OP-72**
 - **Axes.** The batch axis is removed if `nbatch` = 1. The channel axis is removed, from maps, if the target was given as a 2D array, and kept otherwise, even with one channel; from statistics, if Nc = 1. **⚠ OP-75**
 - **Checked:** with the optimisation replaced by the identity, the result equals u σ + μ with μ and σ recomputed from the definitions above, to 2e-15 (from maps: five cases; from statistics: `mean_field` True and False). Shapes from maps: a `(N, N)` target gives `(N, N)` for `nbatch` = 1 and `(2, N, N)` for 2; `(1, N, N)` gives `(1, N, N)`; `(3, 1, N, N)` with `nbatch` = 2 gives `(2, 1, N, N)`. From statistics with Nc = 1 and `nbatch` = 2: `(2, N, N)`.
+- **From statistics without standardisation.** With `mean_field=True`, the default, statistics computed with `standardize=False` make the synthesis fail before it starts. STL averages `mean_pre_std` over the batch, but that field is `None`, so it raises `AttributeError`. This holds in both branches: `master` on a 2D field, `HealpixUpdate` on a HEALPix field. The rule above, no de-standardisation, is reached only with `mean_field=False`. **⚠ OP-100**
+- **HEALPix.** The same rules, with one pixel axis. The result is built on the target's geometry (`new_like`).
+  - **Checked:** with the optimisation replaced by the identity, the result equals u σ + μ to 1.3e-15, in the six cases of M-SYN-LOSS and from statistics with `mean_field` True and False. Shapes from maps:
+    - `(Npix,)` gives `(Npix,)` for `nbatch` = 1, and `(2, Npix)` for 2;
+    - `(2, Npix)`, two channels, gives `(2, Npix)` for `nbatch` = 1;
+    - `(3, 1, Npix)` with `nbatch` = 2 gives `(2, 1, Npix)`.
+
+    From statistics with Nc = 1 and `nbatch` = 2: `(2, Npix)`.
 - **Source:** `optimize_from_maps`, `optimize_from_stats`, `unstandardize`.
 
 ### 5.7 Operators — M-SYN-OPS
@@ -1185,6 +1256,11 @@ The user-level functions build two operators, one for the target and one for the
 - **Spectrum.** Used in the loss only if neither field has NaN: always in the periodic case of 1.0.0, with the `fft` estimator (M-PS-2D). The number of bins is the smaller of the two fields' defaults. From statistics, also only if the target's statistics hold a spectrum; the running operator then takes J and the number of bins of the target's statistics, and in STL not J\_min. **⚠ OP-76**
 - **Reference.** The target operator's reference (`var_ref`, `S2_ref_sqrt_chan_diag` and, with the spectrum, `PS_ref_sqrt_chan_diag`) is copied into the running operator; from statistics, it is read from the target's statistics.
 - **Checked** (targets of 32 × 32, 64 × 32 and 48 × 48, periodic): both operators have J = 3 (the default), L = 4, bump-steerable wavelets, 6 bins, J\_PS = 3, the `fft` estimator and the spectrum in the loss; they are two objects, and the running one holds the target's three reference arrays; the seed is 26, the pre-filter on, the weights 3.5 and 12.25. From statistics computed with J = 2: the running operator has J = 2, the same 4 bins and the target's reference. From statistics computed with L = 8: STL raises a size error (4 against 8).
+- **HEALPix.**
+  - **What the user level passes.** On a full sky, J is the default of M-DEF-HPX. From maps, the user level passes J, `has_fewer_convolutions` and `compute_PS`, and the number of bins only with the spectrum: L, the wavelet type and K are the defaults of M-DEF-HPX. The running operator also gets `replace_nan_value=None`. With `compute_PS=False`, no spectrum operator is built. With `compute_PS=None`, the default, a full sky without NaN has the spectrum in the loss (the angular spectrum, 14 bins at `nside` 8), which ESTEL leaves out (OP-77).
+  - **No `wavelet_op_kwargs`.** STL's user-level syntheses build their operators without `wavelet_op_kwargs`, from maps and from statistics alike. On HEALPix they therefore always run on the `"WGS84"` ellipsoid with healpix-analyse's cache on, and nothing changes it. From statistics, this holds even when the statistics were computed with other settings: the running operator, like L in OP-76, does not take the geometry of the statistics. With the cache, in a new process, the target operator computes its interpolation weights in float64, and the running operator reads them back from the cache in float32 (OP-46): at the standardised target, the loss is 1.1e-15 instead of 0 (`nside` 8). This is a precision of OP-45 and OP-46, not a new open point. ESTEL computes on the sphere (OP-45), and the comparison of T5.3 and T5.8 calls the mid level with operators built on the sphere and without the cache.
+  - **`running_shape` fails on HEALPix.** A running field of another resolution is wrapped in the target's geometry (`new_like` in `ScatteringMatchModel`), which then fails. **⚠ OP-101**
+  - **Checked:** in the six cases of M-SYN-LOSS, both operators have J = 2, L = 4, the wavelet type `"HealpixWavelet"` and `compute_PS=False`, with no spectrum operator. They are two objects, and the running one holds the target's `var_ref` and `S2_ref_sqrt_chan_diag`. The seed is 26 and the weights are 3.5 and 12.25. With STL's defaults, both operators are on `"WGS84"` with the cache on, and so is the running operator from statistics. A target at `nside` 8 with `running_shape=(3072,)` raises `ValueError: Expected 768 pixels, got 3072.`
 - **Source:** `synthesize_from_maps`, `synthesize_from_stats`.
 
 ### 5.8 What ESTEL adds
@@ -1193,7 +1269,7 @@ Checkpoints (Part II, §9.2 and §12.9): the state of the optimiser, the running
 
 ### 5.9 Open points found in the synthesis code
 
-The rule of §1.11 applies. OP-39 also concerns syntheses; for the loss it is closed (Part IV, §22, "The vector of the synthesis loss"; M-SYN-LOSS). OP-70 to OP-76 come from the check of T6.0.
+The rule of §1.11 applies. OP-39 also concerns syntheses; for the loss it is closed (Part IV, §22, "The vector of the synthesis loss"; M-SYN-LOSS). OP-70 to OP-76 come from the check of T6.0, and OP-99 to OP-101 from that of T5.2.
 
 | # | Point | Proposal | Status |
 | --- | --- | --- | --- |
@@ -1211,3 +1287,6 @@ The rule of §1.11 applies. OP-39 also concerns syntheses; for the loss it is cl
 | OP-75 | From maps the channel axis of the result is removed only if the target was a 2D array; from statistics, whenever Nc = 1 | reproduce in 1.0.0; one rule for both entries after step 1 (LF58) | later (LF58) |
 | OP-76 | `synthesize_from_stats` builds the running operator with the default L and wavelet type, whatever those of the target's statistics: it fails for statistics computed with another L. With the spectrum it takes J and the number of bins of the statistics, not J\_min: from statistics computed with J\_min > 0, the running spectrum has other bins than the target's, and the synthesis runs without error (checked on 24 November 2026: J\_min 1 for the target, 0 for the running operator) | ESTEL takes every setting of the operator from the statistics, J\_min of the spectrum included; confirmed | differs |
 | OP-77 | On HEALPix data, `HealpixUpdate` band-limits the target and the start of a synthesis through the spherical-harmonic transform of healpix-analyse (`HEALPixSHT.map2alm`, then `alm2map`), and puts the angular power spectrum in the loss by default (`compute_PS=None`, True without NaN); ESTEL 1.0.0 ports neither the transform nor the HEALPix spectra (Part II, §9.3; LF24) | ESTEL synthesises full-sky HEALPix fields without the prefilter and without the spectrum; the comparison with STL runs `HealpixUpdate` with `prefilter_Nyquist=False` and `compute_PS=False` (T5.2, T5.8); both come with a spherical-harmonic transform (LF24) | differs |
+| OP-99 | On HEALPix, a synthesis from maps draws its start after other numbers of PyTorch's global generator. Each `HealPixConv` draws its learnable weights when it is built (`kaiming_uniform_`, 200 numbers for L = 4 and K = 5), and `set_kernel` then overwrites them. The target operator builds its J convolutions after the seeding, so the start depends on how many convolutions were built before it (measured: a plain `randn` after the seed differs from STL's start by up to 5.3). From statistics, the start follows the seeding directly | ESTEL takes an explicit key (OP-55). The comparison of T5.8 starts from STL's start, stored by T5.3 (#164) | differs |
+| OP-100 | `synthesize_from_stats` with `mean_field=True`, the default, fails on statistics computed with `standardize=False`: it averages `mean_pre_std`, which is `None` (`AttributeError`), in `master` (2D) and `HealpixUpdate` (HEALPix) alike. With `mean_field=False` the field is returned without de-standardisation (M-SYN-OUT; read from the code) | ESTEL runs the synthesis and returns the field without de-standardisation, whatever `mean_field`, as M-SYN-OUT describes. To confirm | open |
+| OP-101 | On HEALPix, `running_shape` (a running field of another resolution) fails: the running field is wrapped in the target's geometry (`new_like`). Measured: a target at `nside` 8 with `running_shape=(3072,)` raises `ValueError: Expected 768 pixels, got 3072.` STL has no working HEALPix synthesis at another depth | ESTEL keeps `running_shape` for planar fields, and refuses it on HEALPix with a clear error in 1.0.0. A synthesis at another depth would be a card in the queue. To decide on #163 | open |
