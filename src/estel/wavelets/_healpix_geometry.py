@@ -18,7 +18,9 @@ is ported from `TorchGeometry`"):
    :func:`_get_interpol_ring`, :func:`interp_weights_nested`, ported as is (F23, above);
 3. the rotations of the stencil, the gauge ``"cosmo"`` only: :func:`rotation_matrices`;
 4. the stencil and its binding on a partial sky: :func:`local_kernel_grid`,
-   :func:`_bind_support`;
+   :func:`_bind_support`, with the rule decided by the maintainer on 24 November 2026 (issue
+   #26), which differs from STL at the ill-conditioned points of the edge (an open point of
+   maths.md §4.6, written by T5.4);
 5. the decimation: :func:`centres_lonlat`, :func:`_haversine`, and :func:`healpix_decimation`,
    the port of ``smooth_decimation_csr``, whose search of the candidate fine pixels is ESTEL's
    own (:func:`_cone_pairs`), exact and in NumPy, where STL uses healpix-geo.
@@ -40,7 +42,7 @@ the pixel axis of a map ``x`` of shape ``(..., Npix)`` whose pixels are ``cell_i
   ``(L · Npix, K², 4)``. Row ``r = g · Npix + k`` is gauge ``g`` at pixel ``cell_ids[k]``;
   column ``p = (v + c) K + (u + c)`` the stencil point (u, v); the last axis the 4 neighbours of
   the bilinear interpolation, ``index`` their positions in ``cell_ids`` and ``weight`` their
-  renormalised weights (0 for a neighbour outside ``cell_ids``, whose index is then 0). Then::
+  renormalised weights (0 for an absent neighbour, whose index is then 0). Then::
 
       z = gather_weighted(x, -1, index, weight)       # (..., L · Npix, K²): the interpolated
       y = z @ W                                       # stencil values; W the kernel (K², )
@@ -96,6 +98,11 @@ MAX_DEPTH = 13
 
 _JRLL = np.array((2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4), dtype=np.int64)
 _JPLL = np.array((1, 3, 5, 7, 0, 2, 4, 6, 1, 3, 5, 7), dtype=np.int64)
+
+_ABSENT_WEIGHT = 1e-12
+"""A neighbour whose interpolation weight is below this counts as absent in the binding on a
+partial sky (decision of 24 November 2026 on issue #26; an open point of maths.md §4.6, written
+by T5.4): the threshold of the support test of M-MASK-HPX."""
 
 _CONE_CHUNK = 1 << 14
 """Coarse pixels searched at once by :func:`_cone_pairs`: bounds its temporary arrays."""
@@ -509,14 +516,23 @@ def _bind_support(
     ids: NDArray[np.int64],
     kernel_size: int,
 ) -> tuple[NDArray[np.int64], NDArray[np.float64], NDArray[np.bool_]]:
-    """Bind the neighbours ``(L, N, P, 4)`` on the pixels ``ids`` (ascending), as
-    healpix-analyse's ``_bind_support_batched`` (maths.md M-CONV-HPX, partial sky; OP-50).
+    """Bind the neighbours ``(L, N, P, 4)`` on the pixels ``ids`` (ascending): the partial-sky
+    rule of maths.md M-CONV-HPX (OP-50), as decided on 24 November 2026 (issue #26).
 
-    A neighbour outside ``ids`` is dropped, and the weights of the others renormalised to sum
-    to 1. A stencil point with no neighbour in ``ids`` takes the neighbours of the stencil
-    centre of its pixel and gauge. A point whose present neighbours all have weight 0 gives
-    weight 1 to its first neighbour if present. Returns the positions in ``ids`` (0 where
-    absent), the weights, and the stencil points that had no neighbour in ``ids``.
+    A neighbour counts as absent when it is outside ``ids`` or when its interpolation weight is
+    below :data:`_ABSENT_WEIGHT` (1e-12, the threshold of the support test of M-MASK-HPX). The
+    weights of the remaining neighbours of a stencil point are renormalised to sum to 1
+    exactly, with no floor on their sum. A stencil point with no remaining neighbour takes the
+    neighbours of the stencil centre of its pixel and gauge, which reads the pixel itself.
+
+    **This differs from STL** (healpix-analyse's ``_bind_support_batched`` and
+    ``TorchGeometry.bind_support``) at the ill-conditioned points of the edge (an open point
+    of maths.md §4.6, written by T5.4): there STL keeps neighbours of weight 0 or of rounding
+    size, divides by ``max(sum, 1e-12)``, and so returns values set by the rounding of the
+    interpolation weights. Everywhere else, and on the full sky, the result is STL's to rounding.
+
+    Returns the positions in ``ids`` (0 where absent), the weights, and the stencil points that
+    had no remaining neighbour.
     """
     n_ids = ids.size
 
@@ -525,18 +541,24 @@ def _bind_support(
         found: NDArray[np.bool_] = np.asarray(ids[pos] == idx)
         return pos, found
 
-    _, present = lookup(index)
+    _, found = lookup(index)
+    present = found & (weight >= _ABSENT_WEIGHT)
     empty: NDArray[np.bool_] = ~np.asarray(present.any(axis=-1))  # (L, N, P)
     centre = (kernel_size // 2) * (kernel_size + 1)
     index = np.where(empty[..., None], index[:, :, centre : centre + 1], index)
     weight = np.where(empty[..., None], weight[:, :, centre : centre + 1], weight)
-    pos, present = lookup(index)
-    w = weight * present
-    first = np.where(w.sum(axis=-1) == 0, present[..., 0].astype(w.dtype), w[..., 0])
-    w = np.concatenate([first[..., None], w[..., 1:]], axis=-1)
-    w_norm = w / np.maximum(w.sum(axis=-1, keepdims=True), 1e-12)
+    pos, found = lookup(index)
+    present = found & (weight >= _ABSENT_WEIGHT)
+    w = np.where(present, weight, 0.0)
+    total = w.sum(axis=-1, keepdims=True)
+    if not np.all(total > 0):
+        # The stencil centre is the pixel centre, read with weight 1 by the pixel itself.
+        raise RuntimeError(
+            "healpix_stencils: a stencil centre reads no pixel of cell_ids; this is a bug of "
+            "ESTEL, please report it with cell_ids and depth."
+        )
     positions: NDArray[np.int64] = np.where(present, pos, 0)
-    return positions, w_norm, empty
+    return positions, w / total, empty
 
 
 @dataclass(frozen=True, eq=False)
@@ -564,7 +586,9 @@ def healpix_stencils(
     sky; ``depth``: log2(nside) of the level, 0 to :data:`MAX_DEPTH`; ``L``: the number of
     gauges of ``"cosmo"``; ``kernel_size``: K, odd. The kernel is not in the tables: it is the
     same at every level and for every gauge (M-WAV-HPX, :func:`healpix_kernel_weights`). On a
-    partial sky, the rule of M-CONV-HPX (OP-50). Layout: the module docstring.
+    partial sky, the rule of M-CONV-HPX (OP-50) as decided on issue #26, which differs from STL
+    at the ill-conditioned points of the edge (:func:`_bind_support`). Layout: the
+    module docstring.
     """
     depth = _check_depth(depth)
     ids = _check_cell_ids(cell_ids, depth)

@@ -21,8 +21,10 @@ import pytest
 from estel.wavelets._healpix_bank import healpix_kernel_weights
 from estel.wavelets._healpix_geometry import (
     MAX_DEPTH,
+    _bind_support,
     _cone_pairs,
     _haversine,
+    _stencil_interpolation,
     centres_lonlat,
     healpix_decimation,
     healpix_stencils,
@@ -249,6 +251,26 @@ def test_stencil_layout_and_dtypes() -> None:
         tables.index[:, 12] == np.tile(np.arange(n_pix), n_gauges)[:, None]
     )
     np.testing.assert_allclose(centre.sum(axis=-1), 1.0, atol=1e-12)
+
+
+@pytest.mark.maths("M-CONV-HPX")
+def test_partial_sky_rule() -> None:
+    """The rule decided on issue #26: a neighbour of weight below 1e-12 counts as
+    absent, the remaining weights sum to 1 exactly, and a stencil point without a remaining
+    neighbour reads the stencil centre: the pixel itself, with weight 1."""
+    depth = 4
+    ids = _disc(depth, 1.4, 0.5, 0.3)
+    index, weight = _stencil_interpolation(ids, depth, 4, 5)
+    positions, bound, empty = _bind_support(index, weight, ids, 5)
+    assert empty.any()
+    np.testing.assert_allclose(bound.sum(axis=-1), 1.0, rtol=0, atol=1e-15)
+    assert np.all((bound == 0) | (bound >= 1e-12))
+    np.testing.assert_array_equal(positions[bound == 0], 0)
+    absent = ~np.isin(index, ids) | (weight < 1e-12)
+    np.testing.assert_array_equal(empty, absent.all(axis=-1))
+    pixel = np.broadcast_to(np.arange(ids.size)[None, :, None], empty.shape)
+    reads_itself = (bound * (positions == pixel[..., None])).sum(axis=-1)
+    np.testing.assert_allclose(reads_itself[empty], 1.0, atol=1e-12)
 
 
 def test_deepest_level_fits_int32() -> None:

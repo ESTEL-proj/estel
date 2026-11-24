@@ -9,11 +9,12 @@ will apply them (``gather_weighted``, then ``segment_sum`` for the decimation; t
 the docstring of ``_healpix_geometry``), written in NumPy, and compared with the tolerances of
 Part II, §14.3. The tables equal healpix-analyse's as operators, not entry by entry (OP-92).
 
-On the discs, the partial-sky rule of M-CONV-HPX (OP-50) is discontinuous in the interpolation
-weights at the level of rounding, at a few stencil points of the edge, where the port and
-healpix-analyse round differently: the disc is compared on the other rows, and on every row in a
-test marked ``xfail`` until the maintainer decides (issue #26, comment of T5.1:
-https://github.com/ESTEL-proj/estel/issues/26#issuecomment-7133822975).
+On the discs, STL's partial-sky rule (M-CONV-HPX, OP-50) is set by interpolation weights at the
+level of rounding at a few stencil points of the edge; ESTEL applies the well-posed rule decided
+by the maintainer (a neighbour of weight below 1e-12 counts as absent; an open point of maths.md
+§4.6, written by T5.4), which differs from STL there. The discs are compared with the fixtures
+on every row that is not ill-conditioned, with the definition of that decision (point 2 of
+https://github.com/ESTEL-proj/estel/issues/26#issuecomment-7134295984).
 """
 
 from __future__ import annotations
@@ -38,8 +39,9 @@ from tests.parity._compare import assert_parity, load_fixture, read_manifest
 CASE = "operators_hpx"
 DOMAINS = ["full_8", "disc_8", "full_16", "disc_16"]
 _ILL_CONDITIONED = 1e-12
-"""A weight below this is at the level of rounding (the clamp of STL's binding, M-CONV-HPX)."""
-_DECISION = "https://github.com/ESTEL-proj/estel/issues/26#issuecomment-7133822975"
+"""A weight below this is at the level of rounding (decision on issue #26, point 1)."""
+EXCLUDED_ROWS = {"disc_8": 16, "disc_16": 14}
+"""The ill-conditioned (gauge, pixel) rows of each disc, of 200 and 836."""
 
 
 @functools.cache
@@ -83,9 +85,10 @@ def _well_conditioned_rows(name: str) -> tuple[NDArray[np.bool_], NDArray[np.boo
     """The (gauge, pixel) rows whose binding does not depend on weights at the level of rounding,
     ``(L, Npix)``, and the stencil points with no neighbour in ``cell_ids``, ``(L, Npix, K²)``.
 
-    A stencil point is ill-conditioned when none of its neighbours in ``cell_ids`` has a weight
-    ≥ 1e-12 and one of its 4 neighbours has a weight < 1e-12, whose pixel is then arbitrary
-    (OP-92): the clamp of the binding, or the choice of an empty point, rests on rounding.
+    A row is ill-conditioned when one of its stencil points has no neighbour in ``cell_ids``
+    with a weight ≥ 1e-12, while one of its 4 neighbours, in ``cell_ids`` or not, has a weight
+    < 1e-12 (decision on issue #26, point 2): STL's value there is set by rounding,
+    whichever slot the rounding gives the near-zero weight (OP-92).
     """
     _, depth, ids = _grid(name)
     parameters = read_manifest()[f"{CASE}.npz"]["parameters"]
@@ -148,24 +151,12 @@ def test_convolution_responses_equal_stl_on_the_full_sky(name: str) -> None:
 @pytest.mark.parametrize("name", ["disc_8", "disc_16"])
 def test_convolution_responses_equal_stl_on_a_disc(name: str) -> None:
     """The partial-sky rule (OP-50): renormalised weights at the truncated pixels, and the
-    stencil points without a neighbour, which read the pixel itself. Compared on the rows whose
-    binding is well conditioned (module docstring)."""
+    stencil points without a neighbour, which read the pixel itself. Compared on every row that
+    is not ill-conditioned (module docstring; decision on issue #26)."""
     stencils, _ = _tables(name)
     rows, empty = _well_conditioned_rows(name)
     assert empty.sum() > 500  # the rule of the empty point is exercised
-    assert rows.mean() > 0.9
+    assert rows.size - rows.sum() == EXCLUDED_ROWS[name]
     expected = _fixture()[f"{name}_conv"]
     actual = _convolve(stencils, _fixture()[f"{name}_maps"])
     assert_parity(actual[:, rows], expected[:, rows], scale=float(np.abs(expected).max()))
-
-
-@pytest.mark.maths("M-CONV-HPX")
-@pytest.mark.xfail(
-    strict=True,
-    reason="partial-sky binding at weights of rounding size differs from healpix-analyse: "
-    f"maintainer's decision pending, {_DECISION}",
-)
-@pytest.mark.parametrize("name", ["disc_8", "disc_16"])
-def test_convolution_responses_equal_stl_on_every_row_of_a_disc(name: str) -> None:
-    stencils, _ = _tables(name)
-    assert_parity(_convolve(stencils, _fixture()[f"{name}_maps"]), _fixture()[f"{name}_conv"])
