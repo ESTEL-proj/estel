@@ -3,8 +3,9 @@
 :class:`Objective` holds what is fixed during a run: the running data's metadata, the plan
 and filters of the running operator, the target's reference and its flattened statistics.
 Called on the running field u, it computes the statistics of u with ``norm="ref"`` and the
-target's reference, weights S3 and S4, flattens them in the complex form of M-FLAT
-(``STStatistics._to_complex_vector``) and returns the pure loss of ``estel.functional``.
+target's reference, the power spectrum last when the plan holds it, weights S3 and S4,
+flattens them in the complex form of M-FLAT (``STStatistics._to_complex_vector``) and returns
+the pure loss of ``estel.functional``.
 """
 
 from __future__ import annotations
@@ -42,7 +43,8 @@ class Objective:
     """The plan of the running operator, with ``norm="ref"``."""
     filters: STFilters
     reference: _NormReference
-    """The target's reference (``var_ref``, ``S2_ref_sqrt_chan_diag``), a constant."""
+    """The target's reference (``var_ref``, ``S2_ref_sqrt_chan_diag`` and, with the spectrum,
+    ``PS_ref_sqrt_chan_diag``), a constant."""
     target: Any
     """The target's flattened, weighted statistics, a constant."""
     mean_field: bool

@@ -3,10 +3,10 @@
 
 A synthesis looks for fields u whose statistics match those of a target, with STL's settings:
 the Nyquist pre-filter, the standardisation of the target, the Gaussian start, the weighted
-loss on the complex form of the flattened statistics and PyTorch's L-BFGS (M-SYN-TARGET to
-M-SYN-OPS). What ESTEL adds is checkpoints (maths.md §5.8). In 1.0.0 the fields are periodic,
-planar 2D and without missing values (LF47), and syntheses run on the PyTorch backend only
-(LF1); the 2D power spectrum joins the loss with T4.5.
+loss on the complex form of the flattened statistics, the 2D power spectrum included, and
+PyTorch's L-BFGS (M-SYN-TARGET to M-SYN-OPS). What ESTEL adds is checkpoints (maths.md §5.8). In
+1.0.0 the fields are periodic, planar 2D and without missing values (LF47), and syntheses run on
+the PyTorch backend only (LF1).
 
 The driver is not traced code: it reads the losses and the counts of the optimizer to write
 checkpoints and to stop. The loss itself is pure (``estel.synthesis._loss``).
@@ -19,7 +19,7 @@ import importlib.metadata
 import os
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -29,9 +29,11 @@ from .._reference import STATISTICS_REFERENCE, SYNTHESIS_REFERENCE
 from ..backend import _registry
 from ..backend._protocol import Backend, LbfgsState
 from ..data._base import Data, geometry_class
+from ..data._moments import Standardized
 from ..scattering._operator import STOperator
-from ..scattering._plan import PlanarPlan
+from ..scattering._plan import PlanarPlan, build_spectrum_plan
 from ..statistics._arrays import device_of
+from ..statistics._grid import FAMILIES
 from ..statistics._statistics import _NO_REDUCTION, STStatistics
 from ..wavelets._operator import default_scales
 from . import _checkpoints
@@ -44,6 +46,8 @@ TOLERANCE_CHANGE = 1e-15
 # The options of the operators a synthesis takes from st_kwargs: J only, as STL's user level
 # (maths.md M-SYN-OPS); L and the rest are the defaults, and the synthesis sets the others.
 ST_KWARGS = ("J",)
+# The families of the statistics of a synthesis, without the power spectrum (M-SYN-LOSS).
+_FAMILIES = tuple(name for name in FAMILIES if name != "PS")
 # The settings a resumed run must share with the run that wrote its checkpoint.
 _SAME_RUN = (
     "entry",
@@ -55,6 +59,7 @@ _SAME_RUN = (
     "L",
     "lr",
     "history_size",
+    "spectrum",
     "target_sha256",
 )
 
@@ -135,8 +140,10 @@ class SynthesisResult:
     @property
     def manifest(self) -> dict[str, Any]:
         """The settings of the run: the entry, the backend, dtype and device, the seed, the
-        shapes, the operator's J and L, the settings of L-BFGS, the weights, the versions of
-        ESTEL and of its references, and the checkpoint the run was resumed from."""
+        shapes, the operator's J and L, the power spectrum in the loss (``spectrum``: its
+        number of bins, J, J_min and estimator, or ``None`` without it), the settings of
+        L-BFGS, the weights, the versions of ESTEL and of its references, and the checkpoint the
+        run was resumed from."""
         return dict(self._manifest)
 
     def __repr__(self) -> str:
@@ -192,9 +199,12 @@ def synthesize_from_maps(
         Compare the statistics averaged over the batch (True, the default), so that
         ``n_batch`` may differ from the target's Nb; or map by map (M-SYN-TARGET, M-SYN-LOSS).
     compute_PS:
-        Whether the 2D power spectrum enters the loss: True by default in STL, for periodic
-        fields (M-SYN-OPS). The syntheses with the spectrum come in task T4.5: pass
-        ``compute_PS=False``.
+        Whether the 2D power spectrum enters the loss, as the last family of its vector
+        (M-SYN-OPS, M-SYN-LOSS): ``None`` (the default) and True put it in, as STL's
+        ``synthesize_from_maps`` for periodic fields; False leaves it out, as STL's
+        ``optimize_from_maps``. Both operators then take J and the number of bins: the smaller
+        of the defaults of the target and of the synthesised fields, each from its own size,
+        whatever J; J_min is 0 and the estimator ``fft``.
     max_iter:
         The iterations of L-BFGS of the whole run, those before ``resume_from`` included; the
         evaluations of the loss are capped at ⌊5 x ``max_iter`` / 4⌋ (M-SYN-LBFGS, OP-74).
@@ -228,7 +238,7 @@ def synthesize_from_maps(
     data, ndim = _target_data(target)
     backend = _check_backend(data.backend)
     _check_periodic(data, "target")
-    _check_loss_compute_ps(compute_PS)
+    with_spectrum = _check_loss_compute_ps(compute_PS)
     options = _st_options(st_kwargs)
     n_batch = _positive_int("n_batch", n_batch)
     _check_flag("mean_field", mean_field)
@@ -240,41 +250,27 @@ def synthesize_from_maps(
         )
     shape = _running_shape(running_shape, data)
     dtype = default_dtype()
-
-    # The target (M-SYN-TARGET): pre-filtered, standardised, then its statistics with
-    # norm="self", reweighted and flattened.
-    filtered = nyquist_filter(backend, data.array)
-    standardized = standardize_target(backend, filtered, mean_field)
-    target_data = data.with_array(standardized.x)
-    running = _running_data(data, (n_batch, data.n_channels, *shape), backend)
-    J = options.get("J")  # noqa: N806 (maths.md notation)
-    if J is None:
-        J = min(default_scales(target_data), default_scales(running))  # noqa: N806
-    target_op = STOperator(target_data, J, norm="self", ref_batch_mean=mean_field, compute_PS=False)
-    target_stats = target_op.apply(target_data)
-    target_vector = backend.stop_gradient(flatten(target_stats, mean_field, False))
-    reference = target_stats._reference
-    assert reference is not None  # norm="self"
-    running_op = STOperator(running, J, norm="ref", compute_PS=False)
-    objective = Objective(
-        template=running,
-        plan=running_op.plan,
-        filters=running_op.filters,
-        reference=reference,
-        target=target_vector,
-        mean_field=mean_field,
-        keep_batch_dim=False,
-        divisor=1,
+    setup = _maps_setup(
+        backend, data, (n_batch, data.n_channels, *shape), mean_field, with_spectrum, options
     )
+    running = setup.running
     settings = {
         **_settings(
-            "maps", backend, dtype, running, running_op, mean_field, max_iter, history_size, lr
+            "maps",
+            backend,
+            dtype,
+            running,
+            setup.running_op,
+            mean_field,
+            max_iter,
+            history_size,
+            lr,
         ),
-        "target_sha256": _sha256(backend, target_vector),
+        "target_sha256": _sha256(backend, setup.objective.target),
     }
     u, losses, n_evals, converged, written, start = _optimize(
         backend,
-        objective,
+        setup.objective,
         running,
         init,
         seed,
@@ -283,9 +279,64 @@ def synthesize_from_maps(
         checkpoint_dir,
         resume_from,
     )
-    field = unstandardize(u, standardized.mean, standardized.std)
+    field = unstandardize(u, setup.standardized.mean, setup.standardized.std)
     field = _drop_axes(field, n_batch, drop_channel=ndim == 2)
     return _result(field, losses, n_evals, converged, written, settings, start, resume_from)
+
+
+class _MapsSetup(NamedTuple):
+    """What ``synthesize_from_maps`` builds before L-BFGS: the loss, the two operators, the
+    running data and the standardisation of the target."""
+
+    objective: Objective
+    target_op: STOperator
+    running_op: STOperator
+    running: Data
+    standardized: Standardized
+
+
+def _maps_setup(
+    backend: Backend,
+    data: Data,
+    running_shape: tuple[int, ...],
+    mean_field: bool,
+    with_spectrum: bool,
+    options: Mapping[str, Any],
+) -> _MapsSetup:
+    """The target and the operators of a synthesis from maps (M-SYN-TARGET, M-SYN-OPS): the
+    target pre-filtered, standardised, then its statistics with ``norm="self"``, reweighted and
+    flattened; the running operator with ``norm="ref"`` and the target's reference. Both take J
+    and, with the spectrum, the number of bins: the smaller of the two fields' defaults, each
+    from its own size, whatever J (STL: the smaller ``get_CS_op().n_bins``); J_min 0, and the
+    estimator ``fft`` of periodic fields."""
+    filtered = nyquist_filter(backend, data.array)
+    standardized = standardize_target(backend, filtered, mean_field)
+    target_data = data.with_array(standardized.x)
+    running = _running_data(data, running_shape, backend)
+    J = options.get("J")  # noqa: N806 (maths.md notation)
+    if J is None:
+        J = min(default_scales(target_data), default_scales(running))  # noqa: N806
+    spectrum: dict[str, Any] = (
+        {"compute_PS": True, "n_bins": min(_default_n_bins(target_data), _default_n_bins(running))}
+        if with_spectrum
+        else {"compute_PS": False}
+    )
+    target_op = STOperator(target_data, J, norm="self", ref_batch_mean=mean_field, **spectrum)
+    target_stats = target_op.apply(target_data)
+    reference = target_stats._reference
+    assert reference is not None  # norm="self"
+    running_op = STOperator(running, J, norm="ref", **spectrum)
+    objective = Objective(
+        template=running,
+        plan=running_op.plan,
+        filters=running_op.filters,
+        reference=reference,
+        target=backend.stop_gradient(flatten(target_stats, mean_field, False)),
+        mean_field=mean_field,
+        keep_batch_dim=False,
+        divisor=1,
+    )
+    return _MapsSetup(objective, target_op, running_op, running, standardized)
 
 
 def synthesize_from_stats(
@@ -306,11 +357,16 @@ def synthesize_from_stats(
     """Synthesise ``n_batch`` periodic fields whose statistics match ``stats`` (maths.md
     section 5; STL's ``synthesize_from_stats``).
 
-    ``stats`` are 2D statistics computed with ``norm="self"``, neither reduced nor selected;
-    their normalisation, ``ref_batch_mean`` and standardisation are those the caller chose
-    (M-SYN-TARGET). The synthesised fields are periodic and without missing values, whatever
-    the data of ``stats`` (LF47). Every option of the running operator, J, L and the channel
-    pairs, comes from ``stats`` (OP-76). ``stats`` are not modified (OP-70).
+    ``stats`` are 2D statistics computed with ``norm="self"``, not reduced, holding exactly the
+    families ``mean``, ``var``, S1 to S4, and the power spectrum ``PS`` or not; their
+    normalisation, ``ref_batch_mean`` and standardisation are those the caller chose
+    (M-SYN-TARGET). The spectrum enters the loss if and only if ``stats`` hold it (M-SYN-OPS);
+    to synthesise without it from statistics that hold it, pass
+    ``stats.select(["mean", "var", "S1", "S2", "S3", "S4"])``. The synthesised fields are
+    periodic and without missing values, whatever the data of ``stats`` (LF47). Every option of
+    the running operator, J, L, the channel pairs and, with the spectrum, its number of bins and
+    J_min, comes from ``stats`` (OP-76); the estimator of the spectrum is ``fft``. ``stats`` are
+    not modified (OP-70).
 
     With ``mean_field=True`` (the default) the loss compares the batch means and is divided by
     the Nb of ``stats`` (OP-71); with ``mean_field=False``, ``n_batch`` must be that Nb. If
@@ -320,20 +376,13 @@ def synthesize_from_stats(
 
     ``init`` is ``None`` or ``"gaussian"`` for a Gaussian start drawn with ``seed``, or an
     array that broadcasts to ``(n_batch, Nc, N1, N2)``. The other parameters are those of
-    :func:`synthesize_from_maps`. The power spectrum joins with T4.5: statistics that hold it
-    raise.
+    :func:`synthesize_from_maps`.
     """
     _refuse_tensor_product(stats, "synthesize_from_stats", "stats")
     if not isinstance(stats, STStatistics):
         raise TypeError(
             f"synthesize_from_stats takes STStatistics, got {type(stats).__name__}; to start "
             "from maps, use estel.synthesize_from_maps."
-        )
-    if "PS" in stats._layout.names:
-        raise NotImplementedError(
-            "synthesize_from_stats: these statistics hold the 2D power spectrum, and the "
-            "syntheses with the spectrum come in task T4.5. Compute the statistics of the target "
-            "with STOperator(..., compute_PS=False)."
         )
     if stats._plan.geometry._geometry == "tensor_prod":
         raise NotImplementedError(
@@ -355,12 +404,14 @@ def synthesize_from_stats(
             'a synthesis needs the reference of norm="self" (M-SYN-TARGET). Compute them '
             'with STOperator(..., norm="self").'
         )
-    complete = {g.name for g in stats._grids} == {"mean", "var", "S1", "S2", "S3", "S4"}
-    if stats._reductions != _NO_REDUCTION or not complete:
+    families = {g.name for g in stats._grids}
+    with_spectrum = "PS" in families
+    if stats._reductions != _NO_REDUCTION or families - {"PS"} != set(_FAMILIES):
         raise ValueError(
             "synthesize_from_stats: these statistics are reduced or selected; a synthesis "
-            "compares the full statistics of M-SYN-LOSS. Pass the statistics as "
-            "STOperator.apply returns them."
+            "compares the full statistics of M-SYN-LOSS: mean, var, S1 to S4, and the power "
+            "spectrum PS or not. Pass the statistics as STOperator.apply returns them, or, to "
+            f"leave the spectrum out of the loss, stats.select({list(_FAMILIES)})."
         )
     n_batch = _positive_int("n_batch", n_batch)
     _check_flag("mean_field", mean_field)
@@ -389,13 +440,19 @@ def synthesize_from_stats(
         True,
         backend.name,
     )
+    # With the spectrum, its number of bins and J_min are those of the statistics (OP-76); its J
+    # is the operator's, and the estimator of the periodic running fields is fft.
+    spectrum: dict[str, Any] = {"compute_PS": False}
+    if with_spectrum:
+        assert plan.spectrum is not None  # statistics that hold PS have the plan of its spectrum
+        spectrum = {"compute_PS": True, "n_bins": plan.spectrum.n_bins, "Jmin": plan.spectrum.Jmin}
     running_op = STOperator(
         template,
         plan.J,
         plan.L,
         norm="ref",
         cross_matrix=plan.cross_matrix,
-        compute_PS=False,
+        **spectrum,
     )
     target_vector = backend.stop_gradient(flatten(stats, mean_field, True))
     objective = Objective(
@@ -601,15 +658,20 @@ def _check_periodic(data: Data, what: str) -> None:
         )
 
 
-def _check_loss_compute_ps(compute_ps: object) -> None:
+def _check_loss_compute_ps(compute_ps: object) -> bool:
+    """Whether the spectrum enters the loss: by default in the periodic syntheses of 1.0.0
+    (maths.md M-SYN-OPS)."""
     if compute_ps is not None and not isinstance(compute_ps, bool | np.bool_):
         raise TypeError(f"compute_PS={compute_ps!r}: pass True, False or None (the default).")
-    if compute_ps is None or compute_ps:
-        raise NotImplementedError(
-            "compute_PS: the 2D power spectrum enters the loss of periodic syntheses by default "
-            "(maths.md M-SYN-OPS), and the syntheses with the spectrum come in task T4.5. Pass "
-            "compute_PS=False."
-        )
+    return compute_ps is None or bool(compute_ps)
+
+
+def _default_n_bins(data: Data) -> int:
+    """The number of bins of the spectrum of an operator built on ``data`` with its defaults
+    (maths.md §1.9, "Number of bins"): J_PS the spectrum's own default, ⌊log₂ N_max⌋ - 1, and
+    J_min 0. STL's ``get_CS_op().n_bins``, of which a synthesis takes the smaller (M-SYN-OPS),
+    whatever the J of the synthesis."""
+    return build_spectrum_plan(data.shape[2:], data.ndim, None, None, 0).n_bins
 
 
 def _check_flag(name: str, value: object) -> None:
@@ -683,6 +745,7 @@ def _settings(
 ) -> dict[str, Any]:
     if not isinstance(lr, int | float) or isinstance(lr, bool) or not lr > 0:
         raise ValueError(f"lr={lr!r}: pass a positive step size (STL's: 1.0).")
+    spectrum = cast(PlanarPlan, operator.plan).spectrum  # syntheses are of planar 2D data
     return {
         "entry": entry,
         "backend": backend.name,
@@ -691,6 +754,7 @@ def _settings(
         "mean_field": bool(mean_field),
         "J": operator.J,
         "L": operator.L,
+        "spectrum": None if spectrum is None else spectrum.content(),
         "lr": float(lr),
         "max_iter": max_iter,
         "history_size": _positive_int("history_size", history_size),

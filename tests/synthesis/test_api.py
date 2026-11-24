@@ -1,12 +1,13 @@
-"""The synthesis API (Part II, §12.9; Part I, §5.1, "Synthesis"; task T6.1, issue #28; maths.md
-section 5): a synthesis runs, writes checkpoints and resumes from them, and refuses what 1.0.0
-does not synthesise, with errors that say what to do.
+"""The synthesis API (Part II, §12.9; Part I, §5.1, "Synthesis"; tasks T6.1 and T4.5, issues #28
+and #152; maths.md section 5): a synthesis runs, with the power spectrum in its loss or not,
+writes checkpoints and resumes from them, and refuses what 1.0.0 does not synthesise, with
+errors that say what to do.
 
-Step 1 tests the API only (Part I, §5.1); the one comparison with STL is
+Step 1 tests the API only (Part I, §5.1); the comparisons with STL are in
 ``tests/parity/test_synthesis.py``. The cases are the smallest that run the whole loss: 16 x 16
-pixels, J = 2, a few iterations, in float64, and one run of each entry in float32. On the JAX
-backend, which has no L-BFGS before step 2 (LF1), every test checks the error a synthesis raises
-there instead.
+pixels (32 x 32 where the number of bins of the spectrum needs it), J = 2 or 3, a few
+iterations, in float64, and one run of each entry in float32. On the JAX backend, which has no
+L-BFGS before step 2 (LF1), every test checks the error a synthesis raises there instead.
 """
 
 from __future__ import annotations
@@ -26,10 +27,13 @@ from estel.synthesis._api import _running_data, _start
 from estel.synthesis._init import nyquist_filter, standardize_target
 
 pytestmark = pytest.mark.maths(
-    "M-SYN-TARGET", "M-SYN-INIT", "M-SYN-NYQ", "M-SYN-LOSS", "M-SYN-LBFGS", "M-SYN-OUT"
+    "M-SYN-TARGET", "M-SYN-INIT", "M-SYN-NYQ", "M-SYN-LOSS", "M-SYN-LBFGS", "M-SYN-OUT", "M-SYN-OPS"
 )
 N = 16
 SMALL: dict[str, Any] = {"compute_PS": False, "st_kwargs": {"J": 2}, "seed": 3}
+WITH_PS: dict[str, Any] = {**SMALL, "compute_PS": None}
+"""The default of STL's user level: the power spectrum in the loss, 4 bins at 16 x 16 with J = 2
+(M-SYN-OPS)."""
 
 
 @pytest.fixture(autouse=True)
@@ -89,26 +93,29 @@ def test_from_maps_runs_and_reports(backend: Backend) -> None:
 def test_checkpoints_are_written_and_resume_the_same_run(backend: Backend, tmp_path: Path) -> None:
     """Checkpoints every 2 iterations and at the end; a run resumed from one continues the
     same trajectory, bit for bit, with the same evaluation budget (maths.md §5.8; the state
-    argument of Backend.lbfgs, decision 4 on #28); a checkpoint at max_iter is the result."""
+    argument of Backend.lbfgs, decision 4 on #28); a checkpoint at max_iter is the result. With
+    the spectrum in the loss, the default."""
     if _unavailable(backend):
         return
     target = _maps()[0, 0]
-    whole = estel.synthesize_from_maps(target, max_iter=5, **SMALL)
+    whole = estel.synthesize_from_maps(target, max_iter=5, **WITH_PS)
     run = estel.synthesize_from_maps(
-        target, max_iter=5, checkpoint_every=2, checkpoint_dir=tmp_path, **SMALL
+        target, max_iter=5, checkpoint_every=2, checkpoint_dir=tmp_path, **WITH_PS
     )
     names = [Path(p).name for p in run.checkpoints]
     assert names[0] == "checkpoint_000002.npz"
     assert names[-1] == f"checkpoint_{run.n_iter:06d}.npz"
     np.testing.assert_array_equal(run.losses, whole.losses)
     resumed = estel.synthesize_from_maps(
-        target, max_iter=5, resume_from=run.checkpoints[0], **SMALL
+        target, max_iter=5, resume_from=run.checkpoints[0], **WITH_PS
     )
     np.testing.assert_array_equal(resumed.losses, whole.losses)
     np.testing.assert_array_equal(backend.to_numpy(resumed.field), backend.to_numpy(whole.field))
     assert resumed.n_evals == whole.n_evals
     assert resumed.manifest["resumed_from"] == run.checkpoints[0]
-    final = estel.synthesize_from_maps(target, max_iter=5, resume_from=run.checkpoints[-1], **SMALL)
+    final = estel.synthesize_from_maps(
+        target, max_iter=5, resume_from=run.checkpoints[-1], **WITH_PS
+    )
     np.testing.assert_array_equal(final.losses, whole.losses)
     np.testing.assert_array_equal(backend.to_numpy(final.field), backend.to_numpy(whole.field))
 
@@ -131,7 +138,12 @@ def test_from_stats_leaves_them_unchanged(backend: Backend) -> None:
     assert abs(field.mean() - 1.0) < 1.0  # the units of the data, not the standardised ones
 
 
-def _stats(n_batch: int = 2, ref_batch_mean: bool = True, standardize: bool = True) -> Any:
+def _stats(
+    n_batch: int = 2,
+    ref_batch_mean: bool = True,
+    standardize: bool = True,
+    compute_ps: bool = False,
+) -> Any:
     data = Data2D(_maps(n_batch=n_batch), pbc=True)
     operator = STOperator(
         data,
@@ -139,7 +151,7 @@ def _stats(n_batch: int = 2, ref_batch_mean: bool = True, standardize: bool = Tr
         norm="self",
         ref_batch_mean=ref_batch_mean,
         standardize=standardize,
-        compute_PS=False,
+        compute_PS=compute_ps,
     )
     return operator.apply(data)
 
@@ -148,17 +160,17 @@ def test_float32_from_maps_resumes(
     backend: Backend, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """From maps in float32, the default dtype: a short run with checkpoints that ends finite,
-    in float32, and a resume that continues it bit for bit. That a run with checkpoints equals
-    the run without is checked in float64 only."""
+    in float32, and a resume that continues it bit for bit, with the spectrum in the loss. That a
+    run with checkpoints equals the run without is checked in float64 only."""
     monkeypatch.setattr(_config, "_dtype", "float32")
     if _unavailable(backend):
         return
     target = _maps()[0, 0]
     run = estel.synthesize_from_maps(
-        target, max_iter=4, checkpoint_every=2, checkpoint_dir=tmp_path, **SMALL
+        target, max_iter=4, checkpoint_every=2, checkpoint_dir=tmp_path, **WITH_PS
     )
     resumed = estel.synthesize_from_maps(
-        target, max_iter=4, resume_from=run.checkpoints[0], **SMALL
+        target, max_iter=4, resume_from=run.checkpoints[0], **WITH_PS
     )
     for result in (run, resumed):
         field = np.asarray(backend.to_numpy(result.field))
@@ -170,11 +182,14 @@ def test_float32_from_maps_resumes(
 
 
 def test_float32_from_stats_runs(backend: Backend, monkeypatch: pytest.MonkeyPatch) -> None:
-    """From statistics in float32: a short run that ends finite, in float32."""
+    """From statistics in float32 that hold the spectrum: a short run that ends finite, in
+    float32, with the spectrum in the loss."""
     monkeypatch.setattr(_config, "_dtype", "float32")
     if _unavailable(backend):
         return
-    from_stats = estel.synthesize_from_stats(_stats(), n_batch=1, max_iter=2)
+    from_stats = estel.synthesize_from_stats(_stats(compute_ps=True), n_batch=1, max_iter=2)
+    assert from_stats.manifest["spectrum"] is not None
+    assert np.all(np.isfinite(from_stats.losses))
     field = np.asarray(backend.to_numpy(from_stats.field))
     assert field.dtype == np.float32
     assert np.all(np.isfinite(field))
@@ -237,7 +252,7 @@ def _masked() -> np.ndarray:
 MAPS_ERRORS: dict[str, tuple[type[Exception], str, Any, dict[str, Any]]] = {
     "not-periodic": (ValueError, "LF47", lambda: Data2D(_maps(), pbc=False), {}),
     "masked": (ValueError, "LF47", lambda: Data2D(_masked(), pbc=True), {}),
-    "power-spectrum": (NotImplementedError, "T4.5", _maps, {"compute_PS": None}),
+    "compute-ps": (TypeError, "pass True, False or None", _maps, {"compute_PS": 1}),
     "n-batch": (ValueError, "n_batch", _maps, {"mean_field": False, "n_batch": 2}),
     "st-kwargs": (ValueError, r"takes \['J'\] only", _maps, {"st_kwargs": {"J": 2, "L": 4}}),
     "checkpoint-dir": (ValueError, "go together", _maps, {"checkpoint_every": 2}),
@@ -249,8 +264,8 @@ MAPS_ERRORS: dict[str, tuple[type[Exception], str, Any, dict[str, Any]]] = {
 
 @pytest.mark.parametrize("case", sorted(MAPS_ERRORS))
 def test_maps_errors_say_what_to_do(backend: Backend, case: str) -> None:
-    """Non-periodic and masked targets (LF47), the power spectrum before T4.5, and settings
-    that do not fit, each with an error that says what to do (golden rule 8)."""
+    """Non-periodic and masked targets (LF47) and settings that do not fit, each with an error
+    that says what to do (golden rule 8)."""
     if _unavailable(backend):
         return
     error, match, target, options = MAPS_ERRORS[case]
@@ -307,7 +322,12 @@ STATS_ERRORS: dict[str, tuple[type[Exception], str, Any, int]] = {
         3,
     ),
     "maps": (TypeError, "synthesize_from_maps", _maps, 1),
-    "power-spectrum": (NotImplementedError, r"T4\.5.*compute_PS=False", _spectrum_stats, 1),
+    "selected": (
+        ValueError,
+        r"reduced or selected.*stats\.select\(\['mean', 'var', 'S1', 'S2', 'S3', 'S4'\]\)",
+        lambda: _spectrum_stats().select(["mean", "var", "S1", "S2", "S3", "PS"]),
+        1,
+    ),
 }
 
 
@@ -328,3 +348,96 @@ def test_stats_errors_say_what_to_do(backend: Backend, case: str) -> None:
 def test_results_are_not_built() -> None:
     with pytest.raises(TypeError, match="returned by"):
         estel.SynthesisResult()
+
+
+# ---------------------------------------------------------------- the power spectrum (T4.5)
+
+SPECTRUM = {"n_bins": 4, "J": 2, "Jmin": 0, "method": "fft"}
+"""The spectrum of a synthesis of 16 x 16 fields with J = 2: J_PS = J, the default number of
+bins of 16 x 16, max(4, round(3 (2 - 1))) = 4, J_min 0 and ``fft`` (maths.md §1.9, M-SYN-OPS)."""
+
+
+def test_compute_ps_puts_the_spectrum_in_the_loss(backend: Backend) -> None:
+    """``compute_PS`` None (the default) and True put the spectrum in the loss, as STL's
+    ``synthesize_from_maps``; False leaves it out, as ``optimize_from_maps`` (M-SYN-OPS). The
+    manifest records it, and the spectrum changes the loss. On JAX, the error of T6.1."""
+    if "lbfgs" in getattr(backend, "not_provided", frozenset()):
+        with pytest.raises(NotImplementedError, match="torch backend"):
+            estel.synthesize_from_maps(_maps()[0, 0], max_iter=1, st_kwargs={"J": 2})
+        return
+    target = _maps()[0, 0]
+    runs = {
+        flag: estel.synthesize_from_maps(target, max_iter=2, **{**SMALL, "compute_PS": flag})
+        for flag in (None, True, False)
+    }
+    assert runs[None].manifest["spectrum"] == runs[True].manifest["spectrum"] == SPECTRUM
+    assert runs[False].manifest["spectrum"] is None
+    np.testing.assert_array_equal(runs[None].losses, runs[True].losses)
+    assert np.all(np.isfinite(runs[True].losses))
+    assert not np.array_equal(runs[True].losses, runs[False].losses)
+
+
+@pytest.mark.parametrize(
+    ("running_shape", "n_bins"),
+    [((32, 32), 6), ((16, 32), 4)],
+)
+def test_number_of_bins_is_the_smaller_default(
+    backend: Backend, running_shape: tuple[int, int], n_bins: int
+) -> None:
+    """The number of bins is the smaller of the defaults of the target and of the synthesised
+    fields, each from its own size, whatever J (M-SYN-OPS): a 32 x 32 target with J = 2 takes
+    6 bins, the default of 32 x 32 (J = 3), not the 4 of J = 2; with fields of 16 x 32, 4."""
+    if _unavailable(backend):
+        return
+    target = np.random.default_rng(2).standard_normal((32, 32))
+    result = estel.synthesize_from_maps(
+        target, running_shape=running_shape, max_iter=1, st_kwargs={"J": 2}
+    )
+    assert result.manifest["spectrum"] == {**SPECTRUM, "n_bins": n_bins}
+
+
+def test_from_stats_with_the_spectrum_takes_its_settings(backend: Backend) -> None:
+    """From statistics that hold the spectrum, computed with J_min = 1, the running operator
+    takes J, the number of bins and J_min of the statistics, and the estimator ``fft`` (OP-76);
+    from the same statistics without PS (``select``), the spectrum is not in the loss."""
+    if _unavailable(backend):
+        return
+    data = Data2D(_maps(n_batch=2), pbc=True)
+    stats = STOperator(
+        data, 3, norm="self", ref_batch_mean=True, standardize=True, n_bins=5, Jmin=1
+    ).apply(data)
+    result = estel.synthesize_from_stats(stats, n_batch=1, max_iter=2)
+    assert result.manifest["spectrum"] == {"n_bins": 5, "J": 3, "Jmin": 1, "method": "fft"}
+    assert np.all(np.isfinite(result.losses))
+    families = ["mean", "var", "S1", "S2", "S3", "S4"]
+    without = estel.synthesize_from_stats(stats.select(families), n_batch=1, max_iter=2)
+    assert without.manifest["spectrum"] is None
+    assert not np.array_equal(without.losses, result.losses)
+
+
+def test_checkpoint_of_another_compute_ps_is_refused(backend: Backend, tmp_path: Path) -> None:
+    """The settings of a run record the spectrum: a checkpoint written with it does not resume
+    a run without it, nor the converse; each resumes a run with its own settings."""
+    if _unavailable(backend):
+        return
+    target = _maps()[0, 0]
+    options = {**SMALL, "compute_PS": True}
+    with_ps = estel.synthesize_from_maps(
+        target, max_iter=1, checkpoint_every=1, checkpoint_dir=tmp_path / "with", **options
+    )
+    without = estel.synthesize_from_maps(
+        target, max_iter=1, checkpoint_every=1, checkpoint_dir=tmp_path / "without", **SMALL
+    )
+    for written, other in ((with_ps, SMALL), (without, options)):
+        with pytest.raises(ValueError, match="another run: spectrum"):
+            estel.synthesize_from_maps(
+                target, max_iter=2, resume_from=written.checkpoints[-1], **other
+            )
+    resumed = estel.synthesize_from_maps(
+        target, max_iter=2, resume_from=with_ps.checkpoints[-1], **options
+    )
+    assert resumed.manifest["spectrum"] == SPECTRUM
+    resumed = estel.synthesize_from_maps(
+        target, max_iter=2, resume_from=without.checkpoints[-1], **SMALL
+    )
+    assert resumed.manifest["spectrum"] is None
