@@ -39,6 +39,10 @@ dev = [
     "towncrier>=24.8",
     # Tier 0 runs the whole suite on the experimental JAX backend too (Part I, §3.1).
     "jax>=0.5",
+    # Test-only (Part I, §1.5): the HEALPix geometry of T5.1 and the oracle of T5.4 are
+    # compared with healpy in the tests, never imported by ESTEL. Pinned: the latest release
+    # with wheels for Linux x86-64 and macOS arm64 (T5.3, issue #164).
+    "healpy==1.20.1",
 ]
 
 [tool.hatch.build.targets.wheel]
