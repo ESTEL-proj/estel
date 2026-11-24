@@ -19,7 +19,7 @@ Fast tier: the geometry against healpy, and the operators at ``nside`` 4 and 8. 
 operators at ``nside`` 16, the masks and the statistics, as the oracle is naive by design.
 
 **The edge of a partial sky** (OP-110, decisions of the maintainer on #165). At a stencil point
-that falls on a pixel longitude or on a ring, one interpolation weight is null in exact
+that falls on a pixel longitude or on a ring, one interpolation weight is zero in exact
 arithmetic and of rounding size in practice; on a partial sky STL's result there is set by its
 rounding, while the oracle drops every neighbour of weight below 10⁻¹² (M-CONV-HPX). So:
 
@@ -54,8 +54,24 @@ from tests.parity._compare import assert_parity, load_fixture, read_manifest
 pytestmark = pytest.mark.maths(
     "M-DATA-HPX", "M-CONV-HPX", "M-WAV-HPX", "M-DOWN-HPX", "M-MASK-HPX", "M-DEF-HPX"
 )
-GEOMETRY_RTOL = 1e-12
-"""The agreement asked of the oracle's geometry with healpy (decision 3 on #165)."""
+# Tolerances (rule C10). The comparisons with STL's fixtures use the parity tolerances of Part II,
+# §14.3, through ``assert_parity``. ``tests/tolerances.toml`` holds the tolerances of statistics
+# against reference values and has no entry for geometry, so the other comparisons use the
+# absolute tolerances below, each with its reason.
+GEOMETRY_ATOL = 1e-12
+"""Absolute tolerance on angles (radians) and interpolation weights (in [0, 1]) against healpy:
+the agreement decision 3 on #165 asks for."""
+ROUNDING_ATOL = 1e-14
+"""Absolute tolerance on identities that hold exactly but for float64 rounding, on quantities of
+order 1 summed over at most 100 terms (sums of weights, rotations, the kernel's symmetries):
+about 50 ulps of 1."""
+MIRROR_ATOL = 1e-13
+"""Absolute tolerance of the mirror relation of the gauge ``"cosmo"`` on convolutions of a unit
+white noise (order 1, 100 interpolated terms per value); maths M-CONV-HPX measured 4e-14 on
+STL's tables."""
+POLE_DISTANCE = 1e-6
+"""The colatitude of the points that probe the limit of the gauge ``"cosmo"`` at the poles: the
+u axis is then within about that distance of its limit."""
 ILL_CONDITIONED = {"full_8": 0, "disc_8": 16, "full_16": 0, "disc_16": 14}
 """The number of ill-conditioned (gauge, pixel) rows of each domain of ``operators_hpx``,
 left out of the comparison with STL (OP-110)."""
@@ -63,7 +79,7 @@ left out of the comparison with STL (OP-110)."""
 
 def _functional(index: NDArray[Any], weight: NDArray[Any], npix: int) -> dict[int, float]:
     """The interpolation as linear functionals: the weight of each (point, pixel) pair, summed
-    over the 4 slots, keyed by point x npix + pixel; pairs of null weight are left out."""
+    over the 4 slots, keyed by point x npix + pixel; pairs of zero weight are left out."""
     keys = (np.arange(index.shape[1]) * npix + index).reshape(-1)
     unique, inverse = np.unique(keys, return_inverse=True)
     sums = np.bincount(inverse, weights=weight.reshape(-1))
@@ -120,8 +136,8 @@ def test_pixel_centres_equal_healpy(nside: int) -> None:
     """M-DATA-HPX: the NESTED pixel centres, against ``healpy.pix2ang(nest=True)``."""
     theta, phi = spec.spec_pixel_centres(nside)
     expected_theta, expected_phi = healpy.pix2ang(nside, np.arange(12 * nside**2), nest=True)
-    np.testing.assert_allclose(theta, expected_theta, rtol=0, atol=GEOMETRY_RTOL)
-    np.testing.assert_allclose(phi, expected_phi, rtol=0, atol=GEOMETRY_RTOL)
+    np.testing.assert_allclose(theta, expected_theta, rtol=0, atol=GEOMETRY_ATOL)
+    np.testing.assert_allclose(phi, expected_phi, rtol=0, atol=GEOMETRY_ATOL)
     some = np.array([0, 12 * nside**2 - 1, 5 * nside**2 + 1])
     assert np.array_equal(spec.spec_pixel_centres(nside, some)[0], theta[some])
 
@@ -145,13 +161,13 @@ def test_interpolation_equals_healpy(nside: int) -> None:
     theta, phi = _samples(nside)
     index, weight = spec.spec_interp_weights(nside, theta, phi)
     assert index.shape == weight.shape == (4, theta.size)
-    np.testing.assert_allclose(weight.sum(axis=0), 1.0, rtol=0, atol=1e-14)
-    assert np.all(weight >= -1e-15)
+    np.testing.assert_allclose(weight.sum(axis=0), 1.0, rtol=0, atol=ROUNDING_ATOL)
+    assert np.all(weight >= -ROUNDING_ATOL)
     expected_index, expected_weight = healpy.get_interp_weights(nside, theta, phi, nest=True)
     npix = 12 * nside**2
     actual = _functional(index, weight, npix)
     expected = _functional(expected_index, expected_weight, npix)
-    assert _functional_difference(actual, expected) <= GEOMETRY_RTOL
+    assert _functional_difference(actual, expected) <= GEOMETRY_ATOL
 
 
 def test_rotation_carries_the_stencil_axes() -> None:
@@ -168,13 +184,13 @@ def test_rotation_carries_the_stencil_axes() -> None:
     )
     e_phi = np.stack([-np.sin(phi), np.cos(phi), np.zeros(50)], -1)
     c, s = np.cos(alpha)[:, None], np.sin(alpha)[:, None]
-    np.testing.assert_allclose(rotation[..., 2], n, atol=1e-15)
-    np.testing.assert_allclose(rotation[..., 0], c * e_theta + s * e_phi, atol=1e-15)
-    np.testing.assert_allclose(rotation[..., 1], -s * e_theta + c * e_phi, atol=1e-15)
+    np.testing.assert_allclose(rotation[..., 2], n, atol=ROUNDING_ATOL)
+    np.testing.assert_allclose(rotation[..., 0], c * e_theta + s * e_phi, atol=ROUNDING_ATOL)
+    np.testing.assert_allclose(rotation[..., 1], -s * e_theta + c * e_phi, atol=ROUNDING_ATOL)
     np.testing.assert_allclose(
-        rotation @ np.swapaxes(rotation, -1, -2), np.eye(3)[None].repeat(50, 0), atol=1e-15
+        rotation @ np.swapaxes(rotation, -1, -2), np.eye(3)[None].repeat(50, 0), atol=ROUNDING_ATOL
     )
-    np.testing.assert_allclose(np.linalg.det(rotation), 1.0, atol=1e-14)
+    np.testing.assert_allclose(np.linalg.det(rotation), 1.0, atol=ROUNDING_ATOL)
 
 
 def test_stencil_and_gauge_cosmo() -> None:
@@ -191,11 +207,13 @@ def test_stencil_and_gauge_cosmo() -> None:
     assert colatitude[12] == 0.0
 
     phi = np.linspace(0, 2 * math.pi, 9)
-    for theta, sign in ((1e-6, 1.0), (math.pi - 1e-6, -1.0)):
+    for theta, sign in ((POLE_DISTANCE, 1.0), (math.pi - POLE_DISTANCE, -1.0)):
         angles = spec.spec_gauge_angles(np.full(9, theta), phi, 4)
         assert angles.shape == (4, 9)
         u_axis = spec.spec_rotation(theta, phi, angles[0])[..., 0]
-        np.testing.assert_allclose(u_axis, np.tile([sign, 0.0, 0.0], (9, 1)), atol=1e-5)
+        np.testing.assert_allclose(
+            u_axis, np.tile([sign, 0.0, 0.0], (9, 1)), atol=10 * POLE_DISTANCE
+        )
     # The equator follows the northern rule.
     assert spec.spec_gauge_angles(math.pi / 2, 1.0, 2).tolist() == [-1.0, -1.0 + math.pi / 2]
 
@@ -217,7 +235,7 @@ def test_mirror_through_the_equator_conjugates_the_convolution() -> None:
         spec.spec_conv_hpx(x[mirror], tables, kernel),
     )
     off = np.abs(theta - math.pi / 2) > 1e-9
-    np.testing.assert_allclose(y_mirrored[:, off], np.conj(y[:, mirror][:, off]), atol=1e-13)
+    np.testing.assert_allclose(y_mirrored[:, off], np.conj(y[:, mirror][:, off]), atol=MIRROR_ATOL)
     assert np.abs(y_mirrored[:, ~off] - np.conj(y[:, mirror][:, ~off])).max() > 1e-3
 
 
@@ -233,11 +251,11 @@ def test_kernel_equals_the_fixture() -> None:
     """M-WAV-HPX: the kernel, its sum, the sum of its moduli and its two symmetries."""
     kernel = spec.spec_wavelet_hpx()
     assert_parity(kernel, _operators()["kernel"].reshape(-1))
-    assert abs(kernel.sum()) < 1e-15
-    assert np.abs(kernel).sum() == pytest.approx(1.0, abs=1e-15)
+    assert abs(kernel.sum()) < ROUNDING_ATOL
+    assert np.abs(kernel).sum() == pytest.approx(1.0, abs=ROUNDING_ATOL)
     grid = kernel.reshape(5, 5)  # [v, u]
-    np.testing.assert_allclose(grid[:, ::-1], np.conj(grid), atol=1e-18)
-    np.testing.assert_allclose(grid[::-1, :], grid, atol=1e-18)
+    np.testing.assert_allclose(grid[:, ::-1], np.conj(grid), atol=ROUNDING_ATOL)
+    np.testing.assert_allclose(grid[::-1, :], grid, atol=ROUNDING_ATOL)
 
 
 def test_dense_operators_equal_the_fixture() -> None:
@@ -251,13 +269,14 @@ def test_dense_operators_equal_the_fixture() -> None:
     matrix, coarse = spec.spec_decimation_hpx(4)
     assert_parity(matrix, fixture["down_4"])
     assert np.array_equal(coarse, fixture["down_4_cell_ids"].astype(np.int64))
-    np.testing.assert_allclose(matrix.sum(axis=1), 1.0, rtol=0, atol=1e-15)
+    np.testing.assert_allclose(matrix.sum(axis=1), 1.0, rtol=0, atol=ROUNDING_ATOL)
 
 
 def _ill_conditioned(nside: int, cell_ids: NDArray[np.int64]) -> NDArray[np.bool_]:
-    """The ill-conditioned (gauge, pixel) rows, ``(L, Npix)`` (OP-110; decision 2 on #165): one
-    of the row's stencil points has no neighbour in ``cell_ids`` with a weight of at least
-    10⁻¹², while one of its 4 neighbours, in ``cell_ids`` or not, has a weight below 10⁻¹²."""
+    """The ill-conditioned (gauge, pixel) rows, ``(L, Npix)``, as the row OP-110 of maths §4.6
+    defines them (decision 2 on #165): one of the row's stencil points has no neighbour in
+    ``cell_ids`` with a weight of at least 10⁻¹², while one of its 4 neighbours, in ``cell_ids``
+    or not, has a weight below 10⁻¹²."""
     neighbours, weights = spec.spec_interp_weights(
         nside, *spec.spec_stencil_points(nside, cell_ids)
     )
@@ -397,7 +416,9 @@ def test_statistics_equal_the_fixture(name: str) -> None:
     reference, the reductions and the vectors of every full-sky configuration of
     ``statistics_hpx``, the NaN at the same positions; the partial skies ``disc_16`` and
     ``disc_nan_16`` are left to T5.6 (OP-110, see the module docstring). The masked configuration
-    runs on the fields with their NaN and the mask given, as STL builds its operator.
+    runs on the fields with their NaN and the mask given, as STL builds its operator. The
+    statistics are also computed through the whole of ``spec_apply_hpx`` with ``norm="self"``,
+    the reductions and the flattening.
 
     Slow: the oracle loops over the coefficients of J = 3 at ``nside`` 16 (decision 4 on #165).
     """
@@ -451,6 +472,29 @@ def test_statistics_equal_the_fixture(name: str) -> None:
     assert_parity(planar.spec_flatten(stored, flatten_complex=True), expected("vector"))
     reduced = reduce(True, True, True)
     assert_parity(planar.spec_flatten(reduced, flatten_complex=True), expected("vector_reduced"))
+
+    # The whole of apply (M-ORDER) with norm="self", the reductions and the flattening.
+    self_options = {**options, "norm": "self", "ref_batch_mean": config["norm_batch_mean"]}
+    applied = spec.spec_apply_hpx(expected("field"), flatten=True, **self_options)
+    assert_parity(applied["reference"]["sigma"], expected("s2_ref"))
+    for family in planar.FAMILIES:
+        scale = float(np.sqrt(np.max(vanilla["var"]))) if family == "mean" else None
+        assert_parity(applied[family], expected(f"store_{family}"), scale=scale)
+    assert_parity(applied["vector"], expected("vector"))
+    applied = spec.spec_apply_hpx(
+        expected("field"),
+        iso=True,
+        angular_fourier=True,
+        angular_harmonics=config["harmonics_angle"],
+        scale_cosine=True,
+        scale_harmonics=config["harmonics_scale"],
+        dj=config["dj"],
+        flatten=True,
+        **self_options,
+    )
+    for family in ("S3", "S4"):
+        assert_parity(applied[family], expected(f"iso_angular_scale_{family}"))
+    assert_parity(applied["vector"], expected("vector_reduced"))
 
 
 # ---------------------------------------------------------------------- data and defaults
