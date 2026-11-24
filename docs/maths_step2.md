@@ -2,7 +2,7 @@
 
 [Back to the overview](transfer/overview.md) · [Mathematics of step 1](maths.md)
 
-**Status:** proposals, 16 November 2026. Step 2 is described in prose in Part III of the specification (§19 and §20); this file gives the definitions that an implementation and an oracle need. Nothing here is decided unless the decision log (Part IV, §22) records it, and nothing here describes what ESTEL 1.0.0 computes: that is `docs/maths.md`.
+**Status:** proposals, 16 November 2026. Step 2 is described in prose in Part III of the specification (§19 and §20); this file gives the definitions that an implementation and an oracle need. Nothing here is decided unless one of the decision logs records it (Part IV, §22, or, from 20 November 2026, `docs/register/decisions.md`), and nothing here describes what ESTEL 1.0.0 computes: that is `docs/maths.md`.
 
 **Role of this file.** Like `docs/maths.md`, it changes only through pull requests that a maintainer requests and merges. Its IDs are defined here; `tools/check_maths_ids.py` checks those of `docs/maths.md` only.
 
@@ -59,14 +59,11 @@ At a level, let A₁, …, A\_P be the maps whose moments are needed, and w the 
 m_i = \langle A_i \rangle_w, \qquad G_{ik} = \langle A_i\, \overline{A_k} \rangle_w
 ```
 
-the covariance, in the two modes of `center`, is
+the covariance is
 
 ```latex
-C^{\text{self}}_{ik} = G_{ik} - m_i\, \overline{m_k}, \qquad
-C^{\text{ref}}_{ik} = G_{ik} - m_i\, \overline{\mu_k} - \mu_i\, \overline{m_k} + \mu_i\, \overline{\mu_k}
+C_{ik} = G_{ik} - m_i\, \overline{m_k}
 ```
-
-where μ are the first moments of the reference.
 
 - **Rule.** C\_ik = G\_ik, with no correction, when the plan proves that m\_i = 0 or m\_k = 0: the last filter of that map is band-pass and w is full. Otherwise the correction is applied.
 - **Cost.** One sum per map for m, and an outer product on arrays of coefficients.
@@ -78,11 +75,11 @@ where μ are the first moments of the reference.
 | white noise, 1024² | up to 2,170 | 2e-4 | 8e-8 | 8e-8 |
 | white noise, 2048², J = 5 | up to 550 | 8e-5 | 4e-8 | 4e-8 |
 
-  (errors relative to the scale of the covariance.) So the method of Part III, §20.11, rule 1 is chosen with LF33, the most efficient that keeps the precision; for example:
+  (errors relative to the scale of the covariance.) So the method of Part III, §20.11, rule 1 is mixed (decided, 23 November 2026; LF33), the most efficient that keeps the precision:
   - band-pass maps with a border or a mask: the mean is small, the coefficients are corrected;
-  - maps that end with a low-pass filter: the maps are centred, with a mean computed in float64. They live at the coarsest level, so this is free.
-- **Bias.** With `self`, the estimator is biased by a factor of order 1 − 1/N\_eff, with N\_eff the number of independent samples in w. It is not corrected.
-- **Gradients.** With `self`, they flow through m. With `ref`, μ is a constant.
+  - maps that end with a low-pass filter: the maps are centred, with a mean computed in float64, then corrected for their small residual mean, which keeps the centring exact on whatever windows LF57 sets. They live at the coarsest level, so this is free.
+- **Bias.** The estimator is biased by a factor of order 1 − 1/N\_eff, with N\_eff the number of independent samples in w. It is not corrected.
+- **Gradients.** They flow through m.
 - **Statistics.** S2\[j, ℓ\] = C between the band map and itself; S3\[j₁, ℓ₁; j, ℓ\] = C between an arm and the band map; S4 = C between two arms. S1 is a first moment and is unchanged.
 - **Orders of magnitude** of the correction relative to the covariance: OP-36.
 
@@ -121,7 +118,7 @@ hold every S4 and every S3 of that band and orientation: S4\[j₁, ℓ₁, j₂,
 
 ## 6.4 Low-pass filter in every family — M-LP2
 
-*Decided in principle (LF6; Part III, §20.1, §20.10, §20.11). Several choices below are open.*
+*Decided in principle (LF6; Part III, §20.1, §20.10, §20.11); the combinations and the half-pixel shift decided on 23 November 2026 (LF6). One choice below is open.*
 
 - **Index.** In every geometry, the low-pass filter is the scale j = J, after the wavelets j = 0 … J−1, with one orientation.
 - **Realisation.** The smoothing kernel applied at level J−1, **without the final downsampling** (decided, 13 November 2026). For a map y at level J−1:
@@ -142,10 +139,8 @@ S_4[j_1,\ell_1,j_2,\ell_2; J] = \mathrm{Cov}\big(\Phi\, D\, U_{j_1,\ell_1} x,\ \
 ```
 
   All are centred: their last filter is a low-pass filter (M-COV). The first moment of Φ D U\_{j₁,ℓ₁} x is S1\[j₁, ℓ₁\] up to window effects.
-- **Open: which combinations.** Two sets were counted in the STOC deliverable (§5):
-  - **restricted:** the low-pass filter as the last filter only, as above: +0.3 to +3.5 % coefficients;
-  - **all combinations:** also as a first filter, with arms U\_J = |Φ x|: +38 to +112 %.
-- **Open: the half-pixel shift.** The smoothing kernel has an even size, so Φ y is shifted by half a pixel with respect to y (OP-2). For a mean this has no effect on a periodic domain; with a window it moves the border by one pixel. To settle with the centred kernels of LF25.
+- **Which combinations** (decided, 23 November 2026; LF6). All combinations: the low-pass filter may replace any wavelet of S3 and S4, as the last filter, as above, or as a first filter, with arms U\_J = |Φ x|, in each block independently, the mixed scales of tensor products included. Counted with the formulas of M-IDX-TP: plain 2D with J = 4 and L = 4 gains 196 coefficients, 1,474 → 1,670; the 2D+1D and 2D+1D+1D cases of the STOC deliverable (§5) gain 38.2 % and 111.8 %. The formulas of the low-pass filter as a first filter are written by LF6's task 1. The fully low-passed field alone in tensor products is LF66.
+- **The half-pixel shift** (decided, 23 November 2026; LF6). The smoothing kernel has an even size, so Φ y is shifted by half a pixel with respect to y (OP-2). For a mean this has no effect on a periodic domain; with a window, the outputs that read the padding are 2 at the start of each axis and 3 at the end, so a crop of the same width on both sides either keeps a contaminated pixel or drops a clean one. The 6-tap kernel and the padding of M-DOWN, 2 before and 3 after, are kept without the final downsampling: no periodic mean moves, and with a window the crop counts each side apart (LF60). Centred kernels come with LF25 (step 2b).
 - **Open: a dedicated kernel φ.** It remains possible (Part III, §20.10); the plan describes the realisation.
 
 ## 6.5 Canonical coefficient set — M-CANON
