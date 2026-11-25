@@ -85,10 +85,10 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 | [LF32](LF32.md) | Orientation reductions made complete and correct | 2a.2 | — | Mathematical choice |
 | [LF53](LF53.md) | Complex cross-channel terms kept | 2a.2 | — | Mathematical choice |
 | [LF63](LF63.md) | Tensor-product orientations beyond one 2D block | 2a.2 | — | Mathematical choice |
-| [LF49](LF49.md) | Isotropic radial binning on rectangular images | 2a.3 | radial frequency of a mode on rectangular images (OP-6); whether the synthesis pre-filter (OP-54) is included | Mathematical choice |
-| [LF58](LF58.md) | One loss function for both synthesis entries | 2a.4 | one named concept for mean_field; one standardisation for both entries (OP-72); normalisation of the loss (OP-71); rule for the channel axis of the result (OP-75) | Mathematical choice |
-| [LF59](LF59.md) | Running field of a synthesis standardised | 2a.4 | start standardised, or the running field at every evaluation (OP-73); per running field or over the running batch | Mathematical choice |
-| [LF64](LF64.md) | Nyquist pre-filter on rectangular fields | 2a.4 | the cut on rectangular fields, consistent with the binning chosen in LF49 | Mathematical choice |
+| [LF49](LF49.md) | Isotropic radial binning on rectangular images | 2a.3 | — | Mathematical choice |
+| [LF58](LF58.md) | One loss function for both synthesis entries | 2a.4 | — | Mathematical choice |
+| [LF59](LF59.md) | Running field of a synthesis standardised | 2a.4 | — | Mathematical choice |
+| [LF64](LF64.md) | Nyquist pre-filter on rectangular fields | 2a.4 | — | Mathematical choice |
 | [LF1](LF1.md) | JAX backend | 2a.X | devices covered by the stable guarantee; JAX tests on every pull request once stable | Structure |
 | [LF10](LF10.md) | v1.6.0 spectrum estimators in every geometry | 2a.X | generalised directly with LF23, or after the spectra of 2D+1D; periodicity per block in tensor products; NaN-aware estimators on tensor products before LF8 | New feature |
 | [LF11](LF11.md) | Plotting, diagnostics, gaussianise, surrogates | 2a.X | scope of the improved plotting and diagnostics; what gaussianise computes; what a surrogate is | New feature |
@@ -115,7 +115,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 
 ## Step 2b
 
-18 entries: 10 need a human, 8 can be treated.
+19 entries: 11 need a human, 8 can be treated.
 
 ### Needs a human
 
@@ -131,6 +131,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 | [LF47](LF47.md) | Non-periodic and masked syntheses | — | — | New feature |
 | [LF50](LF50.md) | Robust width factor of the 2D wavelets | — | — | Mathematical choice |
 | [LF56](LF56.md) | Weights of the synthesis loss | — | — | Mathematical choice |
+| [LF70](LF70.md) | Preconditioned syntheses | — | the default or an option, from the benchmark; A from the binned spectrum or from S2 when the statistics hold no spectrum | Optimisation |
 
 ### Can be treated
 
@@ -147,7 +148,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 
 ## Step 3
 
-16 entries: 10 need a human, 6 can be treated.
+17 entries: 11 need a human, 6 can be treated.
 
 ### Needs a human
 
@@ -163,6 +164,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 | [LF45](LF45.md) | Sibling operators | — | — | New feature |
 | [LF66](LF66.md) | The fully low-passed field alone in tensor products | — | when it is needed, and whether it replaces LF6's set in tensor products or is offered beside it | New feature |
 | [LF68](LF68.md) | Angular and scale transforms on tensor products | — | block by block, or another definition if LF27 changes the order of product scales | Mathematical choice |
+| [LF69](LF69.md) | Statistics beyond the Nyquist disk | — | the radial bins and the wavelets that cover the corners, and the sample variance they accept; whether the scale space of the synthesis model then extends beyond the disk (LF59) | New feature |
 
 ### Can be treated
 
