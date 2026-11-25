@@ -53,7 +53,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 
 ## Queue
 
-5 entries: 5 need a human, 0 can be treated.
+8 entries: 8 need a human, 0 can be treated.
 
 ### Needs a human
 
@@ -61,6 +61,9 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 | --- | --- | --- | --- | --- |
 | [LF65](LF65.md) | The full-grid view replaced by labelled tables | — | what replaces `full_grid` for reading coefficients by their labels: a labelled table, the xarray export of LF13, or both; whether `full_grid` is removed (a major version) or kept for small cases | New feature |
 | [LF67](LF67.md) | The edge of a partial HEALPix sky | — | how the pixels whose stencil or decimation is truncated at the edge of a partial sky are treated: left out of the means, weighted, or marked; whether the treatment is the default or an option | New feature |
+| [LF71](LF71.md) | An explicit normalisation reference | — | the form of an explicit reference: statistics passed to the call only, or a reference object of its own; whether `norm="self"` keeps storing its reference in the operator; whether building a reference computes scattering statistics, or takes them from statistics already computed | New feature |
+| [LF72](LF72.md) | The HEALPix geometry cached on disk | — | where the cache lives: an option of `STOperator`, an environment variable or a default directory; its key and its invalidation: depth, `cell_ids`, L, K, the mask, the version of the tables; on or off by default; the dtype stored | Optimisation |
+| [LF73](LF73.md) | A cheaper gradient of the HEALPix convolution | — | whether a rule through `custom_jvp`, and its PyTorch counterpart, keeps the second order on both backends; the memory of the transposed tables; whether the Rust engine (LF3) makes it unnecessary | Optimisation |
 | [W5](W5.md) | Notation of the maths tab harmonised | — | for each remark R-N01 to R-N18 of issue #71 except R-N10: its recommendation, or another choice; the single table of symbols (R-N18) | Work that is not a feature |
 | [W6](W6.md) | Vocabulary of the code harmonised | — | for each remark R-V01 to R-V10 of issue #72: its recommendation, or another choice | Work that is not a feature |
 | [W7](W7.md) | Structure of maths.md and of the specification | — | for each remark R-S03, R-S04, R-S06 and R-S09 of issue #73: its recommendation, or another choice; whether the remarks apply to the transfer document, archived after 1.0.0, or to `docs/maths.md` and the reference document only | Work that is not a feature |
