@@ -7,7 +7,7 @@ in ``tests/spec/test_healpix_scattering.py``. These tests run on the run's backe
 left out and refused with LF24 (decision 2 on #167), the data ``apply`` refuses (another partial
 sky of the same size: decision 4), the advice of the OP-3 messages, the statistics through a
 file and back to their operator (decision 5), and, for task T5.7, the stencils gathered by
-batches.
+batches and the tables of a masked operator built once.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from estel import DataHealpix, STOperator, STStatistics, _config
 from estel.backend._registry import current_backend
 from estel.data import _healpix
 from estel.io import _schema
+from estel.wavelets import _healpix_operator
 
 pytestmark = pytest.mark.maths("M-DATA-HPX", "M-DEF-HPX", "M-MEAN")
 DISC = np.arange(40, 150)
@@ -208,3 +209,41 @@ def test_stencils_gathered_by_batches_equal_one_batch(monkeypatch: pytest.Monkey
     scale = np.abs(whole_gradient).max()
     np.testing.assert_allclose(batched_gradient, whole_gradient, rtol=0, atol=1e-5 * scale)
 
+
+def test_a_masked_operator_builds_the_tables_of_a_level_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The masks of the plan and the filters share the tables of each level (task T5.7): a
+    masked operator builds the stencils and the decimation of a level once, and its plan keeps
+    none of them once the filters are built; filters built again from the plan build theirs."""
+    builds: list[tuple[str, int]] = []
+
+    def counted(name: str) -> Any:
+        build = getattr(_healpix_operator, name)
+
+        def wrapper(cell_ids: Any, depth: int, **kwargs: Any) -> Any:
+            builds.append((name, depth))
+            return build(cell_ids, depth, **kwargs)
+
+        return wrapper
+
+    for name in ("healpix_stencils", "healpix_decimation"):
+        monkeypatch.setattr(_healpix_operator, name, counted(name))
+    data = DataHealpix(_field((192,)), mask=_hole(192))
+    operator = _operator(data, 2)
+    assert sorted(builds) == [
+        ("healpix_decimation", 2),
+        ("healpix_stencils", 1),
+        ("healpix_stencils", 2),
+    ]
+    handed = operator.plan.wavelets._tables
+    assert handed is not None
+    assert not handed.stencils
+    assert not handed.decimation
+    builds.clear()
+    STOperator.from_statistics(operator.apply(data))
+    assert sorted(builds) == [
+        ("healpix_decimation", 2),
+        ("healpix_stencils", 1),
+        ("healpix_stencils", 2),
+    ]

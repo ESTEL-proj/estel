@@ -14,8 +14,10 @@ the first layer, as M-DOWN-MASK). The tables of T5.1 (``healpix_stencils``,
 ``healpix_decimation``) are built in NumPy float64 when the filters are built, one set per level,
 cast at once to the operator's dtype (indices int32), and the float64 arrays are dropped: at
 ``nside`` 128 the stencils of one level take 900 MiB in float64 (#168). With missing values the
-plan builds the same tables once more, level by level, for the support test and the decimated
-fractions of the masks, and keeps none of them.
+plan builds them first, for the support test and the decimated fractions of the masks, and hands
+them over to the filters of the operator, which take them instead of building them again
+(:class:`_TablesHandOver`; task T5.7): the tables of a level are built once in an operator.
+Nothing is shared between operators.
 
 **The rules of HEALPix** (maths.md M-MASK-HPX, M-DEF-HPX): no border (β = 0 on the full sky and
 on a partial sky, OP-50); the support of a pixel is what its interpolation reads, above 10⁻¹²
@@ -26,8 +28,7 @@ L = 4 gauges, K = 5.
 
 from __future__ import annotations
 
-import functools
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from numbers import Integral
 from typing import Any, NamedTuple
 
@@ -50,6 +51,7 @@ from ._banks import _check_n_orientations
 from ._healpix_bank import HEALPIX_GAUGES, _check_kernel_size, healpix_kernel_weights
 from ._healpix_geometry import (
     HealpixDecimation,
+    HealpixStencils,
     _check_depth,
     healpix_decimation,
     healpix_stencils,
@@ -71,6 +73,9 @@ class HealpixWaveletPlan(WaveletPlan):
     """log₂ ``nside`` of the data at full resolution."""
     cell_ids: _StaticCellIds | None = None
     """The NESTED pixels of a partial sky, or ``None`` on the full sky."""
+    _tables: _TablesHandOver | None = field(default=None, repr=False)
+    """With missing values, the tables the masks were built from, until the filters of the
+    operator take them (:class:`_TablesHandOver`); not part of the plan's identity."""
 
     def bank(self) -> NDArray[np.complex128]:
         """The kernel of M-WAV-HPX on the flattened stencil, ``(K², )``, complex128: one kernel
@@ -89,6 +94,20 @@ class HealpixWaveletPlan(WaveletPlan):
         self, backend_name: str, dtype: FloatDType, device: Any
     ) -> HealpixWaveletFilters:
         return build_healpix_wavelet_filters(self, backend_name, dtype, device)
+
+
+class _TablesHandOver:
+    """The NumPy tables of each level that the masks of a plan were built from, held until the
+    filters of the operator take them, once each: the tables of a level are built once in an
+    operator instead of twice (task T5.7, issue #168). Emptied as the filters are built, so a
+    plan keeps no tables once its operator has its filters; filters built again from the same
+    plan (``from_statistics``) build their own."""
+
+    __slots__ = ("decimation", "stencils")
+
+    def __init__(self) -> None:
+        self.stencils: dict[int, HealpixStencils] = {}
+        self.decimation: dict[int, HealpixDecimation] = {}
 
 
 class HealpixWaveletFilters(NamedTuple):
@@ -159,9 +178,12 @@ def build_healpix_wavelet_plan(
     scale_levels = tuple(range(n_scales))
     levels = scale_levels
     level_shapes = tuple((data._n_pixels(d),) for d in levels)
-    masks = None
+    masks, tables = None, None
     if data.mask is not None:
-        masks = _healpix_masks(data.mask, depth, static_ids, scale_levels, n_gauges, size, data.pbc)
+        tables = _TablesHandOver()
+        masks = _healpix_masks(
+            data.mask, depth, static_ids, scale_levels, n_gauges, size, data.pbc, tables
+        )
     static_mask = None if data.mask is None else _StaticMask(data.mask)
     return HealpixWaveletPlan(
         geometry=DataHealpix,
@@ -182,6 +204,7 @@ def build_healpix_wavelet_plan(
         _key=(DataHealpix, n_scales, n_gauges, size, depth, static_ids, static_mask, "healpix"),
         depth=depth,
         cell_ids=static_ids,
+        _tables=tables,
     )
 
 
@@ -212,22 +235,27 @@ def _healpix_masks(
     n_gauges: int,
     size: int,
     pbc: bool,
+    tables: _TablesHandOver,
 ) -> MaskMaps:
-    """The masks and reweighting maps of M-MASK-HPX, from the tables of each level, built one
-    level at a time and dropped (module docstring)."""
+    """The masks and reweighting maps of M-MASK-HPX, from the tables of each level, built once
+    and kept in ``tables`` for the filters (module docstring)."""
 
     def ids(level: int) -> NDArray[np.int64] | None:
         return None if static_ids is None else static_ids.at_level(level)
 
-    @functools.lru_cache(maxsize=1)  # the masks need one level of stencils at a time
     def stencils(level: int) -> tuple[NDArray[np.int32], NDArray[np.float64]]:
-        tables = healpix_stencils(ids(level), depth - level, L=n_gauges, kernel_size=size)
-        shape = (n_gauges, tables.index.shape[0] // n_gauges, -1)  # (L, Npix, K² · 4)
-        return tables.index.reshape(shape), tables.weight.reshape(shape)
+        if level not in tables.stencils:
+            tables.stencils[level] = healpix_stencils(
+                ids(level), depth - level, L=n_gauges, kernel_size=size
+            )
+        found = tables.stencils[level]
+        shape = (n_gauges, found.index.shape[0] // n_gauges, -1)  # (L, Npix, K² · 4)
+        return found.index.reshape(shape), found.weight.reshape(shape)
 
-    @functools.cache
     def decimation(level: int) -> HealpixDecimation:
-        return healpix_decimation(ids(level), depth - level)
+        if level not in tables.decimation:
+            tables.decimation[level] = healpix_decimation(ids(level), depth - level)
+        return tables.decimation[level]
 
     def support(level: int, invalid: BoolMap) -> BoolMap:
         index, weight = stencils(level)
@@ -264,13 +292,15 @@ def build_healpix_wavelet_filters(
 ) -> HealpixWaveletFilters:
     """The arrays of ``plan`` on the backend ``backend_name``: the tables of T5.1 of each level,
     built in float64 and cast once to ``dtype`` on ``device``, indices int32 (Part I, §3.1,
-    rules 4 and 7; OP-46); the float64 tables are not kept."""
+    rules 4 and 7; OP-46); the float64 tables are not kept. The tables the masks of the plan
+    were built from are taken from it, once (:class:`_TablesHandOver`)."""
     backend = _registry.backend_named(backend_name)
+    handed = plan._tables or _TablesHandOver()
     kernel = plan.bank()
     pairs = backend.asarray(np.stack([kernel.real, kernel.imag], axis=-1), dtype, device)
 
     def conv(level: int) -> HealpixConvTables:
-        tables = healpix_stencils(
+        tables = handed.stencils.pop(level, None) or healpix_stencils(
             plan.level_cell_ids(level),
             plan.depth - level,
             L=plan.L,
@@ -284,7 +314,9 @@ def build_healpix_wavelet_filters(
         )
 
     def down(level: int) -> HealpixDownTables:
-        tables = healpix_decimation(plan.level_cell_ids(level), plan.depth - level)
+        tables = handed.decimation.pop(level, None) or healpix_decimation(
+            plan.level_cell_ids(level), plan.depth - level
+        )
         return HealpixDownTables(
             index=backend.asarray(tables.index, "int32", device),
             weight=backend.asarray(tables.weight, dtype, device),
@@ -292,9 +324,12 @@ def build_healpix_wavelet_filters(
         )
 
     field_down, modulus_down = downsample_maps_of(plan, backend_name, dtype, device)
-    return HealpixWaveletFilters(
+    filters = HealpixWaveletFilters(
         conv=tuple(conv(d) for d in plan.levels),
         down=tuple(down(d) for d in plan.wavelet_levels[:-1]),
         field_down=field_down,
         modulus_down=modulus_down,
     )
+    handed.stencils.clear()  # what the filters did not take: the plan keeps no tables
+    handed.decimation.clear()
+    return filters
