@@ -1,0 +1,142 @@
+{
+  "schema": 3,
+  "date": "2026-11-25",
+  "machine": "apple-m3",
+  "estel_commit": "65c8c290648e963484065cd3fcb90817d940c35c",
+  "main": {
+    "ref": "origin/main",
+    "commit": "710ba4748106011f03b15538cbc04ad042695ce5"
+  },
+  "estel_uncommitted_changes": false,
+  "backend": "torch",
+  "settings": {
+    "dtype": "float32",
+    "device": "cpu",
+    "threads": 4,
+    "warmup": 1,
+    "repeats": 3
+  },
+  "cases": {
+    "healpix-masked-128": {
+      "name": "healpix-masked-128",
+      "shape": [
+        196608
+      ],
+      "channels": 1,
+      "J": 6,
+      "L": 4,
+      "pbc": true,
+      "seed": 10,
+      "target_seed": 11,
+      "mask_seed": 12,
+      "mask_holes": [],
+      "blocks": [],
+      "geometry": "healpix",
+      "mask_discs": [
+        21,
+        19,
+        16,
+        13,
+        10
+      ]
+    }
+  },
+  "environments": {
+    "native": {
+      "cpu": "Apple M3",
+      "architecture": "arm64",
+      "cores": 8,
+      "memory_bytes": 25769803776,
+      "os": "macOS-26.6.2-arm64-arm-64bit",
+      "python": "3.11.18",
+      "power": {
+        "source": "AC Power",
+        "low_power_mode": false
+      },
+      "versions": {
+        "numpy": "2.4.6",
+        "torch": "2.15.0"
+      }
+    }
+  },
+  "runs": [
+    {
+      "case": "healpix-masked-128",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "e09eaa9e650ab24622e1cbdc1c5d2eb619ea2361694434c493ac4bf328656e0a",
+      "build_seconds": 60.78203279199079,
+      "build_peak_rss_bytes": 12610699264,
+      "forward_seconds": 1.2822563746012747,
+      "forward_runs": [
+        1.2785544591024518,
+        1.2822563746012747,
+        1.3108304156921804
+      ],
+      "forward_first_seconds": 1.2561893328092992,
+      "first_apply_seconds": 1.3032975001260638,
+      "gradient_seconds": 7.297908124979585,
+      "gradient_runs": [
+        7.297908124979585,
+        7.294460541103035,
+        7.379349458962679
+      ],
+      "gradient_first_seconds": 7.980388833209872,
+      "peak_rss_bytes": 12610699264,
+      "baseline_rss_bytes": 213221376,
+      "coefficients": 5170,
+      "loss": 0.00023120074183680117,
+      "tree": "main",
+      "check": "ESTEL only: STL is not measured on HEALPix here; its check against STL is the parity tests of HEALPix (T5.6), and STL's HEALPix times come with the benchmark of step 2 (LF62)"
+    },
+    {
+      "case": "healpix-masked-128",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "e09eaa9e650ab24622e1cbdc1c5d2eb619ea2361694434c493ac4bf328656e0a",
+      "build_seconds": 25.100039165932685,
+      "build_peak_rss_bytes": 3432448000,
+      "forward_seconds": 1.0538372504524887,
+      "forward_runs": [
+        1.0781477084383368,
+        1.0538372504524887,
+        1.042887708172202
+      ],
+      "forward_first_seconds": 0.9933056253939867,
+      "first_apply_seconds": 0.9915117910131812,
+      "gradient_seconds": 6.650176958180964,
+      "gradient_runs": [
+        6.744662583805621,
+        6.624833749607205,
+        6.650176958180964
+      ],
+      "gradient_first_seconds": 7.288376207929105,
+      "peak_rss_bytes": 5806358528,
+      "baseline_rss_bytes": 211173376,
+      "coefficients": 5170,
+      "loss": 0.00023120094556361437,
+      "check": "ESTEL only: STL is not measured on HEALPix here; its check against STL is the parity tests of HEALPix (T5.6), and STL's HEALPix times come with the benchmark of step 2 (LF62)",
+      "check_main": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 2.879729812230097e-07,
+          "S2": 2.2980412415673377e-07,
+          "S3": 3.4226939585515105e-07,
+          "S4": 2.598559687660055e-07
+        },
+        "gradient_relative_difference": 2.6600384766742007e-06,
+        "gradient_rtol": 0.0001
+      }
+    }
+  ]
+}
