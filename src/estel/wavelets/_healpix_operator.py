@@ -45,6 +45,7 @@ from ..data._masks import (
     RealMap,
     build_mask_maps_with,
 )
+from . import _healpix_geometry
 from ._banks import _check_n_orientations
 from ._healpix_bank import HEALPIX_GAUGES, _check_kernel_size, healpix_kernel_weights
 from ._healpix_geometry import (
@@ -231,12 +232,17 @@ def _healpix_masks(
     def support(level: int, invalid: BoolMap) -> BoolMap:
         index, weight = stencils(level)
         bad = invalid.astype(np.float64)
-        touched: BoolMap = np.logical_or.reduce(
-            [  # one gauge at a time bounds the temporaries
-                (bad[index[g]] * weight[g]).sum(axis=-1) > HEALPIX_SUPPORT_THRESHOLD
-                for g in range(n_gauges)
-            ]
-        )
+        touched: BoolMap = np.empty(index.shape[1], dtype=bool)
+        # One gauge and one batch of pixels at a time bound the temporaries (task T5.7).
+        batch = _healpix_geometry._STENCIL_BATCH
+        for begin in range(0, touched.size, batch):
+            rows = slice(begin, begin + batch)
+            touched[rows] = np.logical_or.reduce(
+                [
+                    (bad[index[g, rows]] * weight[g, rows]).sum(axis=-1) > HEALPIX_SUPPORT_THRESHOLD
+                    for g in range(n_gauges)
+                ]
+            )
         return touched
 
     def decimate(level: int, values: RealMap) -> RealMap:

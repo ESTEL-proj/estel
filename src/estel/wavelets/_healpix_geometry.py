@@ -23,8 +23,10 @@ code the geometry of healpix-analyse ``aac5e26`` (``HealPixConv``, ``HealPixDown
 sphere. Blocks 1 and 2, which ``TorchGeometry`` transcribes from HEALPix C++ (GPL-2), were
 rewritten from the published sources above, not ported (Part I, §1.5; Part IV, §21, F23).
 
-Not ported: the pixel batches (T5.7), the cast of the kernel through float32 (maths.md OP-46),
-``TorchConv`` and everything torch. Only the sphere: ESTEL has no ellipsoid (OP-45).
+The stencils are built by batches of output pixels (:data:`_STENCIL_BATCH`; task T5.7), as
+the candidate search of the decimation is (:data:`_CONE_CHUNK`). Not ported: the cast of the
+kernel through float32 (maths.md OP-46), ``TorchConv`` and everything torch. Only the sphere:
+ESTEL has no ellipsoid (OP-45).
 
 The tables are built once, in NumPy, when the plan is built (tag N of Part II, §12); they are
 static, never traced and never differentiated. Every weight is float64, cast by the plan to the
@@ -106,6 +108,13 @@ MAX_DEPTH = 13
 
 _CONE_CHUNK = 1 << 14
 """Coarse pixels searched at once by :func:`_cone_pairs`: bounds its temporary arrays."""
+
+_STENCIL_BATCH = 1 << 10
+"""Output pixels whose stencils :func:`healpix_stencils` builds at once (task T5.7, issue #168):
+the NumPy temporaries of the interpolation, about 30 arrays of L · K² · 4 entries per pixel,
+are bounded by a batch (0.11 GB with L = 4 and K = 5) instead of growing with the map (22 GB
+at ``nside`` 128). From 256 to 4096 pixels a batch, the build takes the same time. The tables
+do not depend on it."""
 
 
 # ---------------------------------------------------------------------------------------------
@@ -328,12 +337,19 @@ def healpix_stencils(
     ids = _pixels(cell_ids, depth)
     n_gauges = _check_n_orientations(L)
     size = _check_kernel_size(kernel_size)
-    index, weight = _stencil_interpolation(ids, depth, n_gauges, size)
-    pos, w_norm, _ = _bind_support(index, weight, ids, size)
-    shape = (n_gauges * ids.size, size * size, 4)
+    # Built by batches of output pixels (:data:`_STENCIL_BATCH`): each pixel's stencil depends
+    # on that pixel and on ``ids`` only, so the tables equal those built at once, bit for bit.
+    shape = (n_gauges, ids.size, size * size, 4)
+    index = np.empty(shape, dtype=np.int32)
+    weight = np.empty(shape, dtype=np.float64)
+    for begin in range(0, ids.size, _STENCIL_BATCH):
+        batch = slice(begin, begin + _STENCIL_BATCH)
+        found, found_weight = _stencil_interpolation(ids[batch], depth, n_gauges, size)
+        index[:, batch], weight[:, batch], _ = _bind_support(found, found_weight, ids, size)
+    rows = (n_gauges * ids.size, size * size, 4)
     return HealpixStencils(
-        index=pos.reshape(shape).astype(np.int32),
-        weight=w_norm.reshape(shape),
+        index=index.reshape(rows),
+        weight=weight.reshape(rows),
         n_gauges=n_gauges,
         kernel_size=size,
     )

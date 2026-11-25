@@ -18,6 +18,7 @@ import healpy as hp  # type: ignore[import-untyped]
 import numpy as np
 import pytest
 
+from estel import DataHealpix
 from estel.wavelets import _healpix_geometry
 from estel.wavelets._healpix_bank import healpix_kernel_weights
 from estel.wavelets._healpix_geometry import (
@@ -37,6 +38,7 @@ from estel.wavelets._healpix_geometry import (
     xyf2ang,
     xyf2nest,
 )
+from estel.wavelets._healpix_operator import build_healpix_wavelet_plan
 
 
 def _pixels(depth: int) -> np.ndarray:
@@ -257,6 +259,45 @@ def test_stencil_layout_and_dtypes() -> None:
         tables.index[:, 12] == np.tile(np.arange(n_pix), n_gauges)[:, None]
     )
     np.testing.assert_allclose(centre.sum(axis=-1), 1.0, atol=1e-12)
+
+
+@pytest.mark.maths("M-CONV-HPX")
+@pytest.mark.parametrize("sky", ["full", "disc"])
+def test_stencils_built_by_batches_equal_one_batch(
+    sky: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The stencils built by batches of output pixels (task T5.7) equal, bit for bit, those
+    built at once: 7 pixels a batch at ``nside`` 4, on the full sky and on a disc."""
+    depth = 2
+    ids = None if sky == "full" else _disc(depth, 1.4, 0.5, 0.9)
+    whole = healpix_stencils(ids, depth)
+    monkeypatch.setattr(_healpix_geometry, "_STENCIL_BATCH", 7)
+    batched = healpix_stencils(ids, depth)
+    np.testing.assert_array_equal(batched.index, whole.index)
+    np.testing.assert_array_equal(batched.weight, whole.weight)
+    assert batched.index.dtype == np.int32
+    assert batched.weight.dtype == np.float64
+
+
+@pytest.mark.maths("M-MASK-HPX")
+def test_masks_built_by_batches_equal_one_batch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The support test of the masks, by batches of pixels (task T5.7), gives the masks and
+    the reweighting maps of one batch, bit for bit: 7 pixels a batch at ``nside`` 4."""
+    mask = np.zeros(192, dtype=bool)
+    mask[[5, 6, 70, 71, 140]] = True
+    data = DataHealpix(np.ones(192), mask=mask)
+    whole = build_healpix_wavelet_plan(data, 2, kernel_size=5).masks
+    monkeypatch.setattr(_healpix_geometry, "_STENCIL_BATCH", 7)
+    batched = build_healpix_wavelet_plan(data, 2, kernel_size=5).masks
+    assert whole is not None
+    assert batched is not None
+    for name in ("smooth_invalid", "smooth_reweight", "wav_invalid", "wav_reweight", "layer1",
+                 "layer2"):  # fmt: skip
+        expected, actual = getattr(whole, name), getattr(batched, name)
+        assert actual.keys() == expected.keys()
+        for key in expected:
+            np.testing.assert_array_equal(actual[key], expected[key])
+    assert any(m.any() for m in whole.layer2.values())
 
 
 @pytest.mark.maths("M-CONV-HPX")
