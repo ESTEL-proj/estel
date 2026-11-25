@@ -693,7 +693,7 @@ class TestSparse:
         assert y[0, 0] == 0.5
         assert np.isnan(y[1, 0])
 
-    @pytest.mark.parametrize("batch_rows", [1, 3, 4, 9])
+    @pytest.mark.parametrize("batch_rows", [1, 2, 3])  # below the 4 rows: several batches
     def test_gather_weighted_by_batches_equals_one_batch(
         self, backend: Backend, dtype: DType, batch_rows: int
     ) -> None:

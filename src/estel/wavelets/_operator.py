@@ -282,11 +282,15 @@ class WaveletPlan:
         ``ValueError`` when the geometry has no bank with ``L`` orientations."""
         return wavelet_bank(self.ndim, self.L, self.kernel_size)
 
-    def _build_filters(self, backend_name: str, dtype: FloatDType, device: Any) -> Any:
+    def _build_filters(
+        self, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
+    ) -> Any:
         """The arrays of this plan on the backend ``backend_name``, cast once to ``dtype`` on
         ``device``: a hook, so that the operator and the ``STPlan`` build the filters of every
         geometry with one call (planar: :func:`build_wavelet_filters`; HEALPix:
-        ``_healpix_operator.build_healpix_wavelet_filters``)."""
+        ``_healpix_operator.build_healpix_wavelet_filters``). ``tables``: those
+        :func:`build_wavelet_plan_with_tables` returned with this plan, or ``None``; 1D and 2D
+        plans have none."""
         return build_wavelet_filters(self, backend_name, dtype, device)
 
     def border(self, history: History, level: int) -> int:
@@ -369,6 +373,18 @@ def build_wavelet_plan(
     *,
     kernel_size: int = KERNEL_SIZE,
 ) -> WaveletPlan:
+    """The plan of :func:`build_wavelet_plan_with_tables`, without its tables."""
+    return build_wavelet_plan_with_tables(data, J, L, wavelet, kernel_size=kernel_size)[0]
+
+
+def build_wavelet_plan_with_tables(
+    data: Data,
+    J: int | None = None,  # noqa: N803 (maths.md notation)
+    L: int | None = None,  # noqa: N803
+    wavelet: str | None = None,
+    *,
+    kernel_size: int = KERNEL_SIZE,
+) -> tuple[WaveletPlan, Any]:
     """The :class:`WaveletPlan` of wavelets with ``J`` scales and ``L`` orientations on data
     with the geometry, spatial shape, ``pbc`` and mask of ``data``; its values are not read.
 
@@ -385,6 +401,10 @@ def build_wavelet_plan(
     HEALPix data get a ``HealpixWaveletPlan`` (``_healpix_operator``), with their own defaults
     and rules (maths.md M-DEF-HPX, M-MASK-HPX): the plan of each geometry is chosen here, once,
     and everything after it goes through the hooks of the plan and of its filters.
+
+    Beside the plan, the NumPy tables built with it, a value that only its own
+    :meth:`WaveletPlan._build_filters` reads (``tables=``), so that the operator builds them once
+    (task T5.7): the tables of a masked HEALPix plan, ``None`` otherwise.
     """
     if not isinstance(data, Data):
         raise TypeError(
@@ -393,9 +413,9 @@ def build_wavelet_plan(
         )
     if isinstance(data, DataHealpix):
         # Imported here: the HEALPix plan subclasses WaveletPlan, defined in this module.
-        from ._healpix_operator import build_healpix_wavelet_plan
+        from ._healpix_operator import build_healpix_wavelet_plan_with_tables
 
-        return build_healpix_wavelet_plan(data, J, L, wavelet, kernel_size=kernel_size)
+        return build_healpix_wavelet_plan_with_tables(data, J, L, wavelet, kernel_size=kernel_size)
     if isinstance(data, DataTensorProd):
         raise TypeError(
             "STOperator takes single-domain data, not a DataTensorProd: the scattering operator of "
@@ -405,7 +425,7 @@ def build_wavelet_plan(
     _check_wavelet(wavelet)
     n_scales = _check_scales(J, data.shape[2:])
     n_orientations = _check_n_orientations(default_orientations(data) if L is None else L)
-    return _wavelet_plan(
+    plan = _wavelet_plan(
         type(data),
         data.shape[2:],
         cast(bool, data.pbc),  # one boolean: a tensor product raised above
@@ -415,6 +435,7 @@ def build_wavelet_plan(
         wavelet or WAVELETS[0],
         _check_size(kernel_size),
     )
+    return plan, None
 
 
 def _check_wavelet(wavelet: object) -> None:
@@ -623,8 +644,8 @@ class WaveletOperator:
         *,
         kernel_size: int = KERNEL_SIZE,
     ) -> None:
-        plan = build_wavelet_plan(data, J, L, wavelet, kernel_size=kernel_size)
-        filters = plan._build_filters(data.backend, default_dtype(), default_device())
+        plan, tables = build_wavelet_plan_with_tables(data, J, L, wavelet, kernel_size=kernel_size)
+        filters = plan._build_filters(data.backend, default_dtype(), default_device(), tables)
         self._bind(data, plan, filters)
 
     def _bind(self, data: Data, plan: WaveletPlan, filters: WaveletFilters | None) -> None:

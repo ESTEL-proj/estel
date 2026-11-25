@@ -86,7 +86,7 @@ shape = [49152]     # 12 · 4^6 pixels
 channels = 1
 J = 5
 L = 4
-pbc = true          # a full sky
+pbc = true          # required for HEALPix by the harness: a full sky (DataHealpix.pbc)
 seed = 10
 target_seed = 11
 # Missing pixels: discs of these angular radii, in degrees, placed without overlap by a seeded

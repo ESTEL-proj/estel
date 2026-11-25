@@ -16,10 +16,11 @@ cast at once to the operator's dtype (indices int32), and the float64 arrays are
 ``nside`` 128 the stencils of one level take 900 MiB in float64 (#168). The kernel of M-WAV-HPX
 is folded into the stencils (:func:`_fold_kernel`; task T5.7): each row reads its distinct
 pixels once, as real pairs. With missing values the
-plan builds them first, for the support test and the decimated fractions of the masks, and hands
-them over to the filters of the operator, which take them instead of building them again
-(:class:`_TablesHandOver`; task T5.7): the tables of a level are built once in an operator.
-Nothing is shared between operators.
+plan builds them first, for the support test and the decimated fractions of the masks, and
+returns them beside the plan, as a value (:class:`HealpixPlanTables`; task T5.7): the
+constructor of the operator passes them to the builder of its filters, which reads them instead
+of building them again, so the tables of a level are built once in an operator. The plan holds
+none of them, and nothing is shared between operators.
 
 **The rules of HEALPix** (maths.md M-MASK-HPX, M-DEF-HPX): no border (β = 0 on the full sky and
 on a partial sky, OP-50); the support of a pixel is what its interpolation reads, above 10⁻¹²
@@ -30,8 +31,11 @@ L = 4 gauges, K = 5.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import functools
+from collections.abc import Mapping
+from dataclasses import dataclass
 from numbers import Integral
+from types import MappingProxyType
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -75,9 +79,6 @@ class HealpixWaveletPlan(WaveletPlan):
     """log₂ ``nside`` of the data at full resolution."""
     cell_ids: _StaticCellIds | None = None
     """The NESTED pixels of a partial sky, or ``None`` on the full sky."""
-    _tables: _TablesHandOver | None = field(default=None, repr=False)
-    """With missing values, the tables the masks were built from, until the filters of the
-    operator take them (:class:`_TablesHandOver`); not part of the plan's identity."""
 
     def bank(self) -> NDArray[np.complex128]:
         """The kernel of M-WAV-HPX on the flattened stencil, ``(K², )``, complex128: one kernel
@@ -93,23 +94,22 @@ class HealpixWaveletPlan(WaveletPlan):
         return None if self.cell_ids is None else self.cell_ids.at_level(level)
 
     def _build_filters(
-        self, backend_name: str, dtype: FloatDType, device: Any
+        self, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
     ) -> HealpixWaveletFilters:
-        return build_healpix_wavelet_filters(self, backend_name, dtype, device)
+        return build_healpix_wavelet_filters(self, backend_name, dtype, device, tables)
 
 
-class _TablesHandOver:
-    """The NumPy tables of each level that the masks of a plan were built from, held until the
-    filters of the operator take them, once each: the tables of a level are built once in an
-    operator instead of twice (task T5.7, issue #168). Emptied as the filters are built, so a
-    plan keeps no tables once its operator has its filters; filters built again from the same
-    plan (``from_statistics``) build their own."""
+class HealpixPlanTables(NamedTuple):
+    """The NumPy tables, float64, that the masks of a plan were built from, by level (task T5.7,
+    issue #168): returned beside the plan by :func:`build_healpix_wavelet_plan_with_tables`, a
+    value that the constructor of the operator passes to the builder of its filters, so that the
+    tables of a level are built once in an operator instead of twice. Read-only mappings; the
+    plan does not hold them."""
 
-    __slots__ = ("decimation", "stencils")
-
-    def __init__(self) -> None:
-        self.stencils: dict[int, HealpixStencils] = {}
-        self.decimation: dict[int, HealpixDecimation] = {}
+    stencils: Mapping[int, HealpixStencils]
+    """The stencils of each scale level, as :func:`healpix_stencils` gives them."""
+    decimation: Mapping[int, HealpixDecimation]
+    """The decimation from each level the masks downsample, as :func:`healpix_decimation`."""
 
 
 class HealpixWaveletFilters(NamedTuple):
@@ -158,8 +158,22 @@ def build_healpix_wavelet_plan(
     *,
     kernel_size: int,
 ) -> HealpixWaveletPlan:
+    """The plan of :func:`build_healpix_wavelet_plan_with_tables`, without its tables."""
+    return build_healpix_wavelet_plan_with_tables(data, J, L, wavelet, kernel_size=kernel_size)[0]
+
+
+def build_healpix_wavelet_plan_with_tables(
+    data: DataHealpix,
+    J: int | None = None,  # noqa: N803 (maths.md notation)
+    L: int | None = None,  # noqa: N803
+    wavelet: str | None = None,
+    *,
+    kernel_size: int,
+) -> tuple[HealpixWaveletPlan, HealpixPlanTables | None]:
     """The :class:`HealpixWaveletPlan` of ``data`` with ``J`` scales and ``L`` gauges: J by
-    default max(1, depth - 1), L = 4, K = 5 (maths.md M-DEF-HPX); its values are not read.
+    default max(1, depth - 1), L = 4, K = 5 (maths.md M-DEF-HPX); its values are not read. With
+    missing values, also the tables its masks were built from (:class:`HealpixPlanTables`),
+    for the filters of the same operator; ``None`` without.
 
     Raises when J is not an integer in 1 … depth + 1 (each scale one level coarser, down to
     ``nside`` 1: the bound STL accepts), when L is not an integer ≥ 1, when K is not odd and
@@ -182,12 +196,11 @@ def build_healpix_wavelet_plan(
     level_shapes = tuple((data._n_pixels(d),) for d in levels)
     masks, tables = None, None
     if data.mask is not None:
-        tables = _TablesHandOver()
-        masks = _healpix_masks(
-            data.mask, depth, static_ids, scale_levels, n_gauges, size, data.pbc, tables
+        masks, tables = _healpix_masks(
+            data.mask, depth, static_ids, scale_levels, n_gauges, size, data.pbc
         )
     static_mask = None if data.mask is None else _StaticMask(data.mask)
-    return HealpixWaveletPlan(
+    plan = HealpixWaveletPlan(
         geometry=DataHealpix,
         J=n_scales,
         L=n_gauges,
@@ -206,8 +219,8 @@ def build_healpix_wavelet_plan(
         _key=(DataHealpix, n_scales, n_gauges, size, depth, static_ids, static_mask, "healpix"),
         depth=depth,
         cell_ids=static_ids,
-        _tables=tables,
     )
+    return plan, tables
 
 
 def _check_healpix_scales(value: object, depth: int) -> int:
@@ -237,27 +250,25 @@ def _healpix_masks(
     n_gauges: int,
     size: int,
     pbc: bool,
-    tables: _TablesHandOver,
-) -> MaskMaps:
-    """The masks and reweighting maps of M-MASK-HPX, from the tables of each level, built once
-    and kept in ``tables`` for the filters (module docstring)."""
+) -> tuple[MaskMaps, HealpixPlanTables]:
+    """The masks and reweighting maps of M-MASK-HPX, from the tables of each level, each built
+    once, and those tables, for the filters of the operator (module docstring)."""
 
     def ids(level: int) -> NDArray[np.int64] | None:
         return None if static_ids is None else static_ids.at_level(level)
 
+    @functools.cache
+    def built_stencils(level: int) -> HealpixStencils:
+        return healpix_stencils(ids(level), depth - level, L=n_gauges, kernel_size=size)
+
+    @functools.cache
+    def decimation(level: int) -> HealpixDecimation:
+        return healpix_decimation(ids(level), depth - level)
+
     def stencils(level: int) -> tuple[NDArray[np.int32], NDArray[np.float64]]:
-        if level not in tables.stencils:
-            tables.stencils.update(
-                {level: healpix_stencils(ids(level), depth - level, L=n_gauges, kernel_size=size)}
-            )
-        found = tables.stencils[level]
+        found = built_stencils(level)
         shape = (n_gauges, found.index.shape[0] // n_gauges, -1)  # (L, Npix, K² · 4)
         return found.index.reshape(shape), found.weight.reshape(shape)
-
-    def decimation(level: int) -> HealpixDecimation:
-        if level not in tables.decimation:
-            tables.decimation.update({level: healpix_decimation(ids(level), depth - level)})
-        return tables.decimation[level]
 
     def support(level: int, invalid: BoolMap) -> BoolMap:
         index, weight = stencils(level)
@@ -284,35 +295,47 @@ def _healpix_masks(
         summed = np.bincount(tables.segment_ids, weights=gathered, minlength=tables.num_segments)
         return np.asarray(summed, dtype=np.float64)
 
-    return build_mask_maps_with(
+    masks = build_mask_maps_with(
         mask, scale_levels, support, decimate, threshold=DataHealpix._nan_threshold, pbc=pbc
     )
+    # The levels the masks read (every scale level, and the steps between them), each from the
+    # cache: nothing is built here.
+    tables = HealpixPlanTables(
+        stencils=MappingProxyType({d: built_stencils(d) for d in scale_levels}),
+        decimation=MappingProxyType({d: decimation(d) for d in range(max(scale_levels))}),
+    )
+    return masks, tables
 
 
 # ---------------------------------------------------------------------- the arrays
 
 
 def build_healpix_wavelet_filters(
-    plan: HealpixWaveletPlan, backend_name: str, dtype: FloatDType, device: Any
+    plan: HealpixWaveletPlan,
+    backend_name: str,
+    dtype: FloatDType,
+    device: Any,
+    tables: HealpixPlanTables | None = None,
 ) -> HealpixWaveletFilters:
     """The arrays of ``plan`` on the backend ``backend_name``: the tables of T5.1 of each level,
     built in float64 and cast once to ``dtype`` on ``device``, indices int32 (Part I, §3.1,
-    rules 4 and 7; OP-46); the float64 tables are not kept. The tables the masks of the plan
-    were built from are taken from it, once (:class:`_TablesHandOver`)."""
+    rules 4 and 7; OP-46); the float64 tables are not kept. ``tables``, the tables the masks of
+    ``plan`` were built from (:class:`HealpixPlanTables`), are read instead of built again;
+    without them (``from_statistics``), every table is built here."""
     backend = _registry.backend_named(backend_name)
-    handed = plan._tables or _TablesHandOver()
+    handed = tables or HealpixPlanTables(stencils={}, decimation={})
     kernel = plan.bank()
     # The kernel is folded into the tables (_fold_kernel): the product with it is the identity.
     identity = backend.asarray(np.eye(2), dtype, device)
 
     def conv(level: int) -> HealpixConvTables:
-        tables = handed.stencils.pop(level, None) or healpix_stencils(
+        found = handed.stencils.get(level) or healpix_stencils(
             plan.level_cell_ids(level),
             plan.depth - level,
             L=plan.L,
             kernel_size=plan.kernel_size,
         )
-        index, weight = _fold_kernel(tables, kernel, dtype)
+        index, weight = _fold_kernel(found, kernel, dtype)
         shape = (plan.L, plan.level_shapes[level][0], *index.shape[1:])
         return HealpixConvTables(
             index=backend.asarray(index.reshape(shape), "int32", device),
@@ -321,25 +344,22 @@ def build_healpix_wavelet_filters(
         )
 
     def down(level: int) -> HealpixDownTables:
-        tables = handed.decimation.pop(level, None) or healpix_decimation(
+        found = handed.decimation.get(level) or healpix_decimation(
             plan.level_cell_ids(level), plan.depth - level
         )
         return HealpixDownTables(
-            index=backend.asarray(tables.index, "int32", device),
-            weight=backend.asarray(tables.weight, dtype, device),
-            segment_ids=backend.asarray(tables.segment_ids, "int32", device),
+            index=backend.asarray(found.index, "int32", device),
+            weight=backend.asarray(found.weight, dtype, device),
+            segment_ids=backend.asarray(found.segment_ids, "int32", device),
         )
 
     field_down, modulus_down = downsample_maps_of(plan, backend_name, dtype, device)
-    filters = HealpixWaveletFilters(
+    return HealpixWaveletFilters(
         conv=tuple(conv(d) for d in plan.levels),
         down=tuple(down(d) for d in plan.wavelet_levels[:-1]),
         field_down=field_down,
         modulus_down=modulus_down,
     )
-    handed.stencils.clear()  # what the filters did not take: the plan keeps no tables
-    handed.decimation.clear()
-    return filters
 
 
 _FOLD_BATCH = 1 << 14

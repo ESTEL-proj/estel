@@ -59,8 +59,10 @@ SCHEMA = 3  # 2: the runs of ``main`` (``tree``) and the check against them (``c
 COMPARE_ROUNDS = 5
 # What a comparison measures: the name of its ratio, and the value in a run.
 COMPARE_MEASURES = ("build", "forward", "gradient", "memory", "build_peak", "peak")
-# The measures the criterion reads: the times, and the memory of the computation.
-VERDICT_MEASURES = ("build", "forward", "gradient", "memory")
+# The measures the criterion reads (issue #91, decision 1): the times of the forward pass and of
+# the gradient, and the memory of the computation. The build is measured and printed, not read
+# here: on 2D cases it takes milliseconds, and its ratios are noise (issue #168, decision 3).
+VERDICT_MEASURES = ("forward", "gradient", "memory")
 # A change is kept when a time ratio is below 1 in every round on at least one case and above
 # this in no round on any case (issue #91, decision 1).
 COMPARE_LOSS = 1.05
@@ -467,7 +469,10 @@ def _can_run(source: Path, case: Case) -> bool:
         init = source / "estel" / "__init__.py"
         return init.is_file() and "STOperatorTensorProd" in init.read_text()
     if case.healpix:
-        return (source / "estel" / "wavelets" / "_healpix_operator.py").is_file()
+        # STOperator on HEALPix came with T5.6 (#181), which gave DataHealpix the metadata of
+        # its statistics files; the HEALPix wavelets alone (T5.5, #177) cannot run the case.
+        data = source / "estel" / "data" / "_healpix.py"
+        return data.is_file() and "def _meta_content" in data.read_text()
     return True
 
 
@@ -505,8 +510,9 @@ def comparison_ratios(rounds: list[tuple[dict[str, Any], dict[str, Any]]]) -> di
 def comparison_verdict(ratios: dict[str, dict[str, Any]]) -> dict[str, list[str]]:
     """What the criterion of issue #91 (decision 1) reads in the ratios of every case: the
     measures, ``case: measure``, whose ratio is below 1 in every round (a gain), and those whose
-    ratio is above ``COMPARE_LOSS`` in at least one round (a loss); for the time measures, the
-    build included, and for the memory of the computation."""
+    ratio is above ``COMPARE_LOSS`` in at least one round (a loss); for the times of the forward
+    pass and of the gradient, and for the memory of the computation (:data:`VERDICT_MEASURES`).
+    """
     gains, losses = [], []
     for case, of_case in ratios.items():
         for measure in VERDICT_MEASURES:

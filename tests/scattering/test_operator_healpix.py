@@ -12,6 +12,7 @@ batches and the tables of a masked operator built once.
 
 from __future__ import annotations
 
+import dataclasses
 import warnings
 from pathlib import Path
 from typing import Any, cast
@@ -23,6 +24,7 @@ from numpy.typing import NDArray
 from estel import DataHealpix, STOperator, STStatistics, _config
 from estel.backend._registry import current_backend
 from estel.data import _healpix
+from estel.functional import _scattering
 from estel.io import _schema
 from estel.wavelets import _healpix_operator
 
@@ -185,37 +187,57 @@ def test_statistics_go_through_a_file_and_back_to_their_operator(tmp_path: Path)
         rebuilt.apply(other)
 
 
-def test_stencils_gathered_by_batches_equal_one_batch(monkeypatch: pytest.MonkeyPatch) -> None:
+# Batches against one batch: the starting values of Part I, §5.2 (docs/agents/testing.md),
+# (rtol, atol) with atol relative to the largest value, as the conformance suite of the backends
+# uses them; tests/tolerances.toml does not exist yet (T8.1). The gradient sums the contributions
+# of each row in another order, and on JAX the compiled program of the batches may order the sums
+# of a row differently: rounding only. On PyTorch the statistics are equal bit for bit.
+ROUNDING = {"float32": (1e-4, 1e-6), "float64": (1e-10, 1e-12)}
+
+
+def test_stencils_gathered_by_batches_equal_one_batch(
+    monkeypatch: pytest.MonkeyPatch, dtype: str
+) -> None:
     """The stencils interpolated by batches of rows inside ``gather_weighted`` (task T5.7)
-    give the statistics of one batch, bit for bit, and their gradient to rounding: 50 rows a
-    batch at ``nside`` 4 (768 rows at level 0, 192 at level 1), a masked full sky, J = 2."""
+    give the statistics of one batch (bit for bit on PyTorch) and their gradient to rounding:
+    50 rows a batch at ``nside`` 4 (768 rows at level 0, 192 at level 1), a masked full sky,
+    J = 2. A new
+    operator after each setting, and the compiled loop dropped (``_loop.cache_clear()``): on JAX
+    an equal plan would otherwise reuse the program of the other setting."""
     backend = current_backend()
     data = DataHealpix(_field((192,)), mask=_hole(192))
-    operator = _operator(data, 2)
 
-    def loss(array: Any) -> Any:
-        return backend.xp.sum(operator.apply(data.with_array(array)).to_vector() ** 2)
+    def run(rows: int) -> tuple[NDArray[Any], NDArray[Any]]:
+        monkeypatch.setattr(_healpix, "_STENCIL_BATCH_ROWS", rows)
+        _scattering._loop.cache_clear()
+        operator = _operator(data, 2)
 
-    def run() -> tuple[NDArray[Any], NDArray[Any]]:
+        def loss(array: Any) -> Any:
+            return backend.xp.sum(operator.apply(data.with_array(array)).to_vector() ** 2)
+
         _, gradient = backend.value_and_grad(loss)(data.array)
         vector = backend.to_numpy(operator.apply(data).to_vector())
         return vector, backend.to_numpy(gradient)
 
-    monkeypatch.setattr(_healpix, "_STENCIL_BATCH_ROWS", 1 << 20)
-    whole, whole_gradient = run()
-    monkeypatch.setattr(_healpix, "_STENCIL_BATCH_ROWS", 50)
-    batched, batched_gradient = run()
-    np.testing.assert_array_equal(batched, whole)
+    whole, whole_gradient = run(1 << 20)
+    batched, batched_gradient = run(50)
+    _scattering._loop.cache_clear()  # no program of the patched setting outlives the test
+    rtol, atol = ROUNDING[dtype]
+    if backend.name == "torch":
+        np.testing.assert_array_equal(batched, whole)
+    else:
+        np.testing.assert_allclose(batched, whole, rtol=rtol, atol=atol * np.abs(whole).max())
     scale = np.abs(whole_gradient).max()
-    np.testing.assert_allclose(batched_gradient, whole_gradient, rtol=0, atol=1e-5 * scale)
+    np.testing.assert_allclose(batched_gradient, whole_gradient, rtol=0, atol=atol * scale)
 
 
 def test_a_masked_operator_builds_the_tables_of_a_level_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The masks of the plan and the filters share the tables of each level (task T5.7): a
-    masked operator builds the stencils and the decimation of a level once, and its plan keeps
-    none of them once the filters are built; filters built again from the plan build theirs."""
+    masked operator builds the stencils and the decimation of a level once, its plan holds none
+    of them (they pass from the plan's construction to the filters' as a value), and filters
+    built again from the plan build theirs."""
     builds: list[tuple[str, int]] = []
 
     def counted(name: str) -> Any:
@@ -238,10 +260,8 @@ def test_a_masked_operator_builds_the_tables_of_a_level_once(
     ]
     wavelets = cast(Any, operator.plan).wavelets
     assert isinstance(wavelets, _healpix_operator.HealpixWaveletPlan)
-    handed = wavelets._tables
-    assert handed is not None
-    assert not handed.stencils
-    assert not handed.decimation
+    held = [getattr(wavelets, f.name) for f in dataclasses.fields(wavelets)]
+    assert not any(isinstance(v, _healpix_operator.HealpixPlanTables) for v in held)
     builds.clear()
     STOperator.from_statistics(operator.apply(data))
     assert sorted(builds) == [

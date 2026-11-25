@@ -270,9 +270,11 @@ class Backend(Protocol):
         Batches:
             ``batch_rows``, internal (task T5.7, issue #168): the rows ``p`` computed at once.
             The gathered values ``(..., P, Q, M)`` are then never materialised whole, only
-            ``batch_rows`` rows of them at a time. The values are those of one batch, exactly;
-            the gradient with respect to ``x`` sums the batches' contributions, equal to one
-            batch's to rounding. ``None`` (the default): every row at once.
+            ``batch_rows`` rows of them at a time. The values are those of one batch, exactly
+            when the primitive runs on its own; inside a compiled program (``jax.jit``) the
+            compiler may order the sums of a row differently, to rounding. The gradient with
+            respect to ``x`` sums the batches' contributions, equal to one batch's to rounding.
+            ``None`` (the default): every row at once.
         Edge cases:
             Shape or dtype mismatches raise ``ValueError`` or ``TypeError``; ``batch_rows``
             below 1 raises ``ValueError``. Index values are

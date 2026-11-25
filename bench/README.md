@@ -18,7 +18,7 @@ power spectrum, `norm="none"`; the planar ones are 2D:
 | `planar-cross` | 256 × 256, two channels with their cross terms | 6, 4 | periodic | none |
 | `planar-open` | 512 × 512, one channel | 7, 4 | non-periodic | none |
 | `tensor-prod-2d1d-64` | 2D+1D, 64 × 64 × 32, one channel (ESTEL only) | (4, 3), (4, 2) | periodic | none |
-| `healpix-masked-64` | HEALPix full sky, `nside` 64, 49,152 pixels, one channel (ESTEL only) | 5, 4 | none (full sky) | 10.0 %, five discs of radii 21° to 10° |
+| `healpix-masked-64` | HEALPix full sky, `nside` 64, 49,152 pixels, one channel (ESTEL only) | 5, 4 | none (full sky, `pbc = true`) | 10.0 %, five discs of radii 21° to 10° |
 
 **Tensor products** (task T3.2, issue #23). A case with `blocks` (for example
 `blocks = ["2D", "1D"]`, `shape = [N, N, T]`) is a tensor product, with one `J`, `L` and `pbc` per
@@ -32,7 +32,8 @@ T3.5 (issue #128), once the slow path of `conv_axes` along a 1D block was gone; 
 in `results/`.
 
 **HEALPix** (task T5.7, issue #168). A case with `geometry = "healpix"` is a full sky of
-`shape = [12 · 4^depth]` pixels, in the NESTED ordering, run through `STOperator` on
+`shape = [12 · 4^depth]` pixels, with `pbc = true`, which the harness requires and which means a full
+sky (`DataHealpix.pbc`; a partial sky is not a case), in the NESTED ordering, run through `STOperator` on
 `DataHealpix`, with its missing pixels in discs of the angular radii `mask_discs` (in degrees),
 centred on directions drawn by a seeded draw, without overlap. Like a tensor product it is
 measured on **ESTEL only**: its check against STL is replaced by the parity tests of HEALPix
@@ -169,7 +170,9 @@ then the timed runs, their median). Per round and case it takes the ratios B / A
 the build, of the forward time, of the time with the gradient, of the memory of the computation
 (peak minus baseline), of the peak memory once the operator is built and of the peak memory, and
 it prints their median and their range over the rounds, with the measures whose ratio is below 1
-in every round and those above 1.05 in some round (the times and the memory of the computation). Every run is checked
+in every round and those above 1.05 in some round (the times of the forward pass and of the
+gradient, and the memory of the computation: the build is printed, not read by this criterion,
+since on 2D cases it takes milliseconds and its ratios are noise). Every run is checked
 against STL's statistics, and B against the statistics and the gradient of A, as above. The
 results go to `results/<date>-<machine>-compare.json`. It needs STL's statistics of a container
 run on the same inputs, and no container itself.
