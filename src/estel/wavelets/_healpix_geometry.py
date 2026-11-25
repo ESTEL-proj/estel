@@ -339,13 +339,20 @@ def healpix_stencils(
     size = _check_kernel_size(kernel_size)
     # Built by batches of output pixels (:data:`_STENCIL_BATCH`): each pixel's stencil depends
     # on that pixel and on ``ids`` only, so the tables equal those built at once, bit for bit.
-    shape = (n_gauges, ids.size, size * size, 4)
-    index = np.empty(shape, dtype=np.int32)
-    weight = np.empty(shape, dtype=np.float64)
+    # Each batch is cast to int32 before it is kept; the weights are joined first, then the
+    # positions, so that each list is dropped once joined.
+    indices, weights = [], []
     for begin in range(0, ids.size, _STENCIL_BATCH):
-        batch = slice(begin, begin + _STENCIL_BATCH)
-        found, found_weight = _stencil_interpolation(ids[batch], depth, n_gauges, size)
-        index[:, batch], weight[:, batch], _ = _bind_support(found, found_weight, ids, size)
+        found, found_weight = _stencil_interpolation(
+            ids[begin : begin + _STENCIL_BATCH], depth, n_gauges, size
+        )
+        positions, bound, _ = _bind_support(found, found_weight, ids, size)
+        indices.append(positions.astype(np.int32))
+        weights.append(bound)
+    weight = np.concatenate(weights, axis=1)
+    del weights
+    index = np.concatenate(indices, axis=1)
+    del indices
     rows = (n_gauges * ids.size, size * size, 4)
     return HealpixStencils(
         index=index.reshape(rows),

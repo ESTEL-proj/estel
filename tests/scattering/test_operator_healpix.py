@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -236,7 +236,9 @@ def test_a_masked_operator_builds_the_tables_of_a_level_once(
         ("healpix_stencils", 1),
         ("healpix_stencils", 2),
     ]
-    handed = operator.plan.wavelets._tables
+    wavelets = cast(Any, operator.plan).wavelets
+    assert isinstance(wavelets, _healpix_operator.HealpixWaveletPlan)
+    handed = wavelets._tables
     assert handed is not None
     assert not handed.stencils
     assert not handed.decimation

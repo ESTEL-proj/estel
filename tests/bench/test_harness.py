@@ -70,7 +70,9 @@ def test_cases_file_holds_the_six_cases() -> None:
     # T5.7 (issue #168, decision 2): a HEALPix full sky at nside 64, J = 5, ESTEL only, with
     # about 10 % of missing pixels in discs.
     sky = cases["healpix-masked-64"]
-    assert sky.healpix and sky.estel_only and not sky.tensor_prod
+    assert sky.healpix
+    assert sky.estel_only
+    assert not sky.tensor_prod
     assert (sky.shape, sky.depth, sky.J, sky.L, sky.channels) == ((49152,), 6, 5, 4, 1)
     assert not any(case.estel_only for name, case in cases.items() if name.startswith("planar"))
 
@@ -170,7 +172,8 @@ def test_harness_measures_a_tiny_healpix_sky(
     inputs = read_inputs(path)
     assert (inputs.case, inputs.digest) == (case, digest)
     assert inputs.field.shape == (1, 1, 192)
-    assert inputs.mask is not None and 0 < inputs.mask.sum() < 192 // 4
+    assert inputs.mask is not None
+    assert 0 < inputs.mask.sum() < 192 // 4
     measurements, arrays = measure("estel", inputs, warmup=1, repeats=1)
     assert measurements["build_seconds"] > 0
     assert 0 < measurements["build_peak_rss_bytes"] <= measurements["peak_rss_bytes"]

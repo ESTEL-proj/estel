@@ -247,8 +247,8 @@ def _healpix_masks(
 
     def stencils(level: int) -> tuple[NDArray[np.int32], NDArray[np.float64]]:
         if level not in tables.stencils:
-            tables.stencils[level] = healpix_stencils(
-                ids(level), depth - level, L=n_gauges, kernel_size=size
+            tables.stencils.update(
+                {level: healpix_stencils(ids(level), depth - level, L=n_gauges, kernel_size=size)}
             )
         found = tables.stencils[level]
         shape = (n_gauges, found.index.shape[0] // n_gauges, -1)  # (L, Npix, K² · 4)
@@ -256,24 +256,27 @@ def _healpix_masks(
 
     def decimation(level: int) -> HealpixDecimation:
         if level not in tables.decimation:
-            tables.decimation[level] = healpix_decimation(ids(level), depth - level)
+            tables.decimation.update({level: healpix_decimation(ids(level), depth - level)})
         return tables.decimation[level]
 
     def support(level: int, invalid: BoolMap) -> BoolMap:
         index, weight = stencils(level)
         bad = invalid.astype(np.float64)
-        touched: BoolMap = np.empty(index.shape[1], dtype=bool)
-        # One gauge and one batch of pixels at a time bound the temporaries (task T5.7).
         batch = _healpix_geometry._STENCIL_BATCH
-        for begin in range(0, touched.size, batch):
-            rows = slice(begin, begin + batch)
-            touched[rows] = np.logical_or.reduce(
+
+        def touched(rows: slice) -> BoolMap:
+            # One gauge and one batch of pixels at a time bound the temporaries (task T5.7).
+            found: BoolMap = np.logical_or.reduce(
                 [
                     (bad[index[g, rows]] * weight[g, rows]).sum(axis=-1) > HEALPIX_SUPPORT_THRESHOLD
                     for g in range(n_gauges)
                 ]
             )
-        return touched
+            return found
+
+        return np.concatenate(
+            [touched(slice(begin, begin + batch)) for begin in range(0, index.shape[1], batch)]
+        )
 
     def decimate(level: int, values: RealMap) -> RealMap:
         tables = decimation(level)
@@ -353,8 +356,8 @@ def _fold_kernel(
     row, the rows padded with weight 0: the real part on the first entry of the second axis,
     the imaginary part on the second, the same pixels on both. ``gather_weighted`` then gives
     the convolution as real pairs at once; the values change by rounding only (M-CONV-HPX).
-    The sums are made in float64, by batches of :data:`_FOLD_BATCH` rows, and stored in
-    ``dtype``, the operator's: the weights are cast once."""
+    The sums are made in float64, by batches of :data:`_FOLD_BATCH` rows, each stored in
+    ``dtype``, the operator's, then joined: the weights are cast once."""
     rows, q, m = tables.index.shape
     flat_index = tables.index.reshape(rows, q * m)
     flat_weight = tables.weight.reshape(rows, q * m)
@@ -367,20 +370,28 @@ def _fold_kernel(
 
     width = max(int(distinct(part).max()) for part in batches)
     folded = np.repeat(kernel, m)  # W[p] for each entry (p, m)
-    out_index = np.zeros((rows, 2, width), dtype=np.int32)
-    out_weight = np.zeros((rows, 2, width), dtype=dtype)
-    for part in batches:
+
+    def fold(part: slice) -> tuple[NDArray[np.int32], NDArray[np.floating[Any]]]:
         index, weight = flat_index[part], flat_weight[part]
         n = index.shape[0]
         order = np.argsort(index, axis=1, kind="stable")
         by_pixel = np.take_along_axis(index, order, axis=1)
-        first = np.ones(by_pixel.shape, dtype=bool)
-        first[:, 1:] = by_pixel[:, 1:] != by_pixel[:, :-1]
+        first = np.concatenate(
+            [np.ones((n, 1), dtype=bool), by_pixel[:, 1:] != by_pixel[:, :-1]], axis=1
+        )
         slots = (np.arange(n)[:, None] * width + np.cumsum(first, axis=1) - 1).ravel()
         values = (np.take_along_axis(weight, order, axis=1) * folded[order]).ravel()
-        pixels = np.zeros(n * width, dtype=np.int32)
-        pixels[slots] = by_pixel.ravel()
-        out_index[part] = pixels.reshape(n, 1, width)
-        out_weight[part, 0] = np.bincount(slots, values.real, n * width).reshape(n, width)
-        out_weight[part, 1] = np.bincount(slots, values.imag, n * width).reshape(n, width)
+        # The entries of a slot share their pixel: their sum over their count is that pixel,
+        # exactly (int32 values in float64); an empty slot, padding, reads pixel 0.
+        counts = np.maximum(np.bincount(slots, minlength=n * width), 1)
+        pixels = np.bincount(slots, by_pixel.ravel().astype(np.float64), n * width) / counts
+        pairs = np.stack(
+            [np.bincount(slots, values.real, n * width), np.bincount(slots, values.imag, n * width)]
+        ).astype(dtype)  # (2, n · width)
+        found_index = np.broadcast_to(pixels.astype(np.int32).reshape(n, 1, width), (n, 2, width))
+        return found_index, pairs.reshape(2, n, width).transpose(1, 0, 2)
+
+    parts = [fold(part) for part in batches]
+    out_weight = np.concatenate([weight for _, weight in parts])
+    out_index = np.concatenate([index for index, _ in parts])
     return out_index, out_weight
