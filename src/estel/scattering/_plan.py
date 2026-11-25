@@ -219,7 +219,7 @@ class SpectrumAdvice(NamedTuple):
     :func:`build_spectrum_plan`, so that the shared code compares no operator name."""
 
     not_2d: str
-    """After data that are not 2D (:data:`LATER_SPECTRA`: LF23, LF24)."""
+    """After data that are not 2D (:func:`spectrum_2d_only`: LF23, LF24)."""
     odd_size: str
     """After an odd size (OP-20)."""
     jmin: str
@@ -234,24 +234,16 @@ SCATTERING_SPECTRUM_ADVICE = SpectrumAdvice(
 """The advice of ``STOperator``, which can leave the spectrum out (``compute_PS=False``)."""
 
 
-LATER_SPECTRA: Mapping[str, tuple[str, str]] = MappingProxyType(
-    {
-        "1d": ("1D data", "LF23"),
-        "healpix": ("HEALPix data", "LF24"),
-        "tensor_prod": ("tensor products", "LF23"),
-    }
-)
-"""The geometries whose power spectrum comes after ESTEL 1.0.0, by the tag they declare
-(``Data._geometry``): how the messages name their data, and the card of the register that brings
-it, LF23 for 1D data and tensor products, LF24 for the angular spectrum of HEALPix data. ESTEL
-1.0.0 computes the spectrum of 2D data only (maths.md §1.9)."""
-
-
-def later_spectrum(geometry: type[Data]) -> str:
-    """The end of the messages that refuse the power spectrum of ``geometry``, a geometry of
-    :data:`LATER_SPECTRA`: "for <its data> it comes later (<its card>)"."""
-    words, card = LATER_SPECTRA[geometry._geometry]
-    return f"for {words} it comes later ({card})"
+def spectrum_2d_only(received: str, advice: str) -> str:
+    """The one message that refuses the power spectrum of data that are not 2D, the same for
+    every geometry (Part II, §12.6; the amendment to decision 2 on #167): ``received`` is the
+    name of the class of the data, for display only, and ``advice`` what to do next (golden
+    rule 8)."""
+    return (
+        f"the data are a {received}, which has no power spectrum in ESTEL 1.0.0: it computes "
+        "power spectra of 2D data only; those of 1D data and of tensor products come later "
+        f"(LF23), and those of HEALPix data too (LF24). {advice}"
+    )
 
 
 def build_spectrum_plan(
@@ -266,7 +258,7 @@ def build_spectrum_plan(
     advice: SpectrumAdvice | None = None,
 ) -> SpectrumPlan:
     """The :class:`SpectrumPlan` of 2D data of ``spatial_shape`` (maths.md §1.9), ``geometry``
-    the Data subclass of the data, tested by the tag it declares (``Data._geometry``): J_PS is
+    the Data subclass of the data, whose declared tag (``Data._geometry``) must be 2D: J_PS is
     ``J``, the J given to the operator, or ⌊log₂ N_max⌋ - 1 with N_max = ⌊min(N₁, N₂)/2⌋ when it is
     ``None``; the estimator is ``method``, or with ``"auto"`` the choice of §1.9 from ``pbc`` and
     the missing pixels of ``mask``. Raises a clear error on data that are not 2D (LF23, LF24), on an
@@ -279,10 +271,7 @@ def build_spectrum_plan(
     default that of ``STOperator``, whose plan :func:`build_plan` builds."""
     hint = SCATTERING_SPECTRUM_ADVICE if advice is None else advice
     if geometry._geometry != "2d":
-        raise ValueError(
-            f"the power spectrum is computed on 2D data only in ESTEL 1.0.0; "
-            f"{later_spectrum(geometry)}: {hint.not_2d}"
-        )
+        raise ValueError(spectrum_2d_only(geometry.__name__, hint.not_2d))
     if any(n % 2 for n in spatial_shape):
         raise ValueError(
             f"the power spectrum requires even sizes, and the data are {tuple(spatial_shape)} "
@@ -530,17 +519,19 @@ class _PlanFields:
     """The pairs of :attr:`s3_pairs` whose S3 has no valid pixel (OP-3)."""
     empty_s4_triples: tuple[tuple[int, int, int], ...]
     """The triples of :attr:`s4_triples` whose S4 has no valid pixel (OP-3)."""
+    meta: tuple[Any, ...]
+    """The static metadata of the data beyond the mask and ``pbc``, ``Data._meta()`` of the
+    example: ``()`` for 1D and 2D data, ``(depth, cell_ids)`` for ``DataHealpix``. The data
+    given to the plan must have the same (:meth:`PlanarPlan._check_data`), and the files store it
+    (``Data._meta_content``). The equality and the hash of plans rest on the wavelet plan
+    (``wavelets._key``, in ``_key``), which holds the same metadata; ``meta`` is what
+    ``_check_data`` and the files read."""
     _key: tuple[Any, ...] = field(repr=False)
     spectrum: SpectrumPlan | None = None
     """The power spectrum of the statistics (maths.md §1.9), or ``None`` when they do not hold
     it (``compute_PS=False``, or data that are not 2D). The loop computes it with the estimators
     of ``SpectrumOperator`` (``spectra._estimators``) on the field after the standardisation, and
     writes it after the values of the loop, the last floats of the buffer (task T4.1)."""
-    meta: tuple[Any, ...] = ()
-    """The static metadata of the data beyond the mask and ``pbc``, ``Data._meta()`` of the
-    example: ``()`` for 1D and 2D data, ``(depth, cell_ids)`` for ``DataHealpix``. The data
-    given to the plan must have the same (:meth:`PlanarPlan._check_data`), and the files store it
-    (``Data._meta_content``)."""
 
 
 class PlanarPlan(_PlanFields, STPlan):
@@ -570,11 +561,12 @@ class PlanarPlan(_PlanFields, STPlan):
                 "STOperator for these data."
             )
         if data._meta() != self.meta:
+            content, arrays = type(data)._meta_content(data._meta())
             raise ValueError(
                 f"the data ({type(data).__name__}, spatial shape {tuple(data.shape[2:])}) lie on "
-                "other pixels than those the plan was built for: their static metadata differ "
-                "(for DataHealpix, depth or cell_ids, another partial sky of the same size). The "
-                "plan is static: build a new STOperator for these data."
+                f"other pixels than those the plan was built for: their "
+                f"{', '.join([*content, *arrays])} differ. The plan is static: build a new "
+                "STOperator for these data."
             )
 
     def _build_filters(self, backend_name: str, dtype: FloatDType, device: Any) -> PlanarFilters:
@@ -638,7 +630,7 @@ def build_plan(
     norm: str = "none",
     ref_batch_mean: bool = False,
     standardize: bool = False,
-    compute_PS: bool = False,  # noqa: N803 (STL's name)
+    compute_PS: bool | None = False,  # noqa: N803 (STL's name)
     n_bins: int | None = None,
     Jmin: int = 0,  # noqa: N803 (STL's name)
     spectrum_method: str = "auto",
@@ -658,7 +650,8 @@ def build_plan(
     listing them (their coefficients are NaN, OP-3), and once when a border is too large for the
     grid and is reduced (M-BORDER, OP-13).
 
-    With ``compute_PS``, the statistics also hold the 2D power spectrum, with ``n_bins`` bins,
+    With ``compute_PS``, the statistics also hold the 2D power spectrum (``None``: on 2D data
+    only, the default of ``STOperator``), with ``n_bins`` bins,
     J_min ``Jmin`` and the estimator ``spectrum_method`` (maths.md §1.9;
     :func:`build_spectrum_plan`); without it, ``n_bins``, ``Jmin`` and ``spectrum_method`` keep
     their defaults (decision on #148). ``spectrum_advice`` is the advice of the operator that
@@ -704,7 +697,7 @@ def build_plan(
         {key: (histories, level) for key, (_, histories, level) in means.items()}
     )
     weights = {key: w for key, w in candidates.items() if w is not None}
-    _check_empty(means, weights, data._geometry)
+    _check_empty(means, weights)
     s3 = {(j2, j3): weights[("S3", j2, j3)] for j2, j3 in s3_pairs if ("S3", j2, j3) in weights}
     s4 = {t: weights[("S4", *t)] for t in s4_triples if ("S4", *t) in weights}
 
@@ -746,6 +739,7 @@ def build_plan(
         empty_scales=tuple(j for j in scales if ("S1", j) not in weights),
         empty_s3_pairs=tuple(p for p in s3_pairs if ("S3", *p) not in weights),
         empty_s4_triples=tuple(t for t in s4_triples if ("S4", *t) not in weights),
+        meta=data._meta(),
         _key=(
             wavelets,
             data.n_channels,
@@ -756,7 +750,6 @@ def build_plan(
             spectrum,
         ),
         spectrum=spectrum,
-        meta=data._meta(),
     )
 
 
@@ -770,11 +763,20 @@ def _spectrum(
     advice: SpectrumAdvice | None = None,
 ) -> SpectrumPlan | None:
     """The :class:`SpectrumPlan` of :func:`build_plan`, or ``None`` without ``compute_PS``, whose
-    options must then keep their defaults (decision on #148); on data without a spectrum in
-    1.0.0 (:data:`LATER_SPECTRA`), the error names the card that brings it (LF23, LF24)."""
-    if not isinstance(compute_ps, bool | np.bool_):
-        raise TypeError(f"compute_PS={compute_ps!r}: pass True or False.")
-    if not compute_ps:
+    options must then keep their defaults (decision on #148). ``compute_PS=None`` means the
+    default: the spectrum on 2D data, none on other data, where ESTEL 1.0.0 has none (Part II,
+    §12.6), and where ``compute_PS=True`` or a spectrum option raises :func:`spectrum_2d_only`."""
+    if compute_ps is not None and not isinstance(compute_ps, bool | np.bool_):
+        raise TypeError(f"compute_PS={compute_ps!r}: pass True, False or None (the default).")
+    two_d = wavelets.geometry._geometry == "2d"
+    if compute_ps and not two_d:
+        raise ValueError(
+            "compute_PS=True: "
+            + spectrum_2d_only(
+                wavelets.geometry.__name__, "Pass compute_PS=False, or leave it to None."
+            )
+        )
+    if not (two_d if compute_ps is None else compute_ps):
         changed = [
             f"{name}={value!r}"
             for name, value, default in (
@@ -784,11 +786,14 @@ def _spectrum(
             )
             if value is not default and value != default
         ]
-        if changed and wavelets.geometry._geometry in LATER_SPECTRA:
+        if changed and not two_d:
             raise ValueError(
-                f"{', '.join(changed)}: these options act only on the power spectrum, which "
-                f"ESTEL 1.0.0 computes on 2D data only; {later_spectrum(wavelets.geometry)}. "
-                "Leave them to their defaults."
+                f"{', '.join(changed)}: "
+                + spectrum_2d_only(
+                    wavelets.geometry.__name__,
+                    "These options act only on the power spectrum, with compute_PS=True; leave "
+                    "them to their defaults.",
+                )
             )
         if changed:
             raise ValueError(
@@ -1140,34 +1145,20 @@ def _mean_family(key: Any) -> str:
     return "moments" if key == "moments" else str(key[0])
 
 
-_EMPTY_MEAN_ADVICE: Mapping[str, str] = MappingProxyType(
-    {
-        "healpix": (
-            "Use a smaller J, or data with fewer missing pixels (the mask grows by the support "
-            "of the stencil at each layer, maths.md M-MASK-HPX)."
-        ),
-    }
-)
-"""The advice of the OP-3 messages of a geometry, by its tag (``Data._geometry``), when it
-differs from that of 1D and 2D data, :data:`_GRID_EMPTY_MEAN_ADVICE`."""
-_GRID_EMPTY_MEAN_ADVICE = (
-    "Use a smaller J, data with fewer missing values, or pbc=True if the data are periodic "
-    "(the mask grows by the wavelet footprint at each layer, and the border crop with depth)."
-)
-
-
 def _check_empty(
-    means: Mapping[Any, tuple[str, tuple[History, ...], int]],
-    weights: Mapping[Any, MeanWeights],
-    geometry: str,
+    means: Mapping[Any, tuple[str, tuple[History, ...], int]], weights: Mapping[Any, MeanWeights]
 ) -> None:
     """Raise if a whole family has no mean with a valid pixel; otherwise warn once, listing the
-    means that have none, whose coefficients are NaN (M-MEAN, OP-3). ``geometry`` is the tag of
-    the data (``Data._geometry``), which chooses the advice."""
+    means that have none, whose coefficients are NaN (M-MEAN, OP-3). One advice for every
+    geometry (the amendment to decision 2 on #167)."""
     empty = [key for key in means if key not in weights]
     if not empty:
         return
-    advice = _EMPTY_MEAN_ADVICE.get(geometry, _GRID_EMPTY_MEAN_ADVICE)
+    advice = (
+        "Use a smaller J or data with fewer missing values: the mask grows at each layer, and, on "
+        "1D and 2D data that are not periodic, the border crop grows with depth (pbc=True if "
+        "they are periodic)."
+    )
     for family, name in _FAMILIES.items():
         members = [key for key in means if _mean_family(key) == family]
         if members and all(key not in weights for key in members):

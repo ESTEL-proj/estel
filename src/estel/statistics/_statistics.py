@@ -983,11 +983,13 @@ def _spectrum_operator_plan(spec: dict[str, Any], arrays: dict[str, NDArray[Any]
     from ..spectra._plan import build_spectrum_operator_plan  # the spectra import statistics
 
     cls = geometry_class(spec["geometry"])
-    mask = arrays.get("plan__mask")
-    example = cls(
-        np.zeros((1, spec["n_channels"], *spec["spatial_shape"])),
-        mask=None if mask is None else mask.astype(bool),
-        pbc=bool(spec["pbc"]),
+    prefix = "plan__"
+    example = cls._example_from_content(
+        spec["n_channels"],
+        tuple(spec["spatial_shape"]),
+        bool(spec["pbc"]),
+        {},  # SpectrumOperator takes 2D data only, which have no metadata (Data._meta_content)
+        {k[len(prefix) :]: v for k, v in arrays.items() if k.startswith(prefix)},
     )
     spectrum = spec["spectrum"]
     return build_spectrum_operator_plan(
@@ -1011,12 +1013,10 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
     elif "blocks" in spec:
         plan = _tensor_prod_plan(spec, arrays["plan__cross_matrix"].astype(bool))
     else:
-        mask = arrays.get("plan__mask")
         prefix = "plan__"
         example = cls._example_from_content(
             spec["n_channels"],
             tuple(spec["spatial_shape"]),
-            None if mask is None else mask.astype(bool),
             bool(spec["pbc"]),
             spec["meta"],
             {k[len(prefix) :]: v for k, v in arrays.items() if k.startswith(prefix)},

@@ -54,11 +54,10 @@ CROSS_MATRIX = np.array([[1, 1, 0], [0, 0, 1], [0, 0, 1]], dtype=bool)
 OPTIONS: dict[str, dict[str, Any]] = {
     "standardize": {"nc": 2, "standardize": True},
     "cross_matrix": {"nc": 3, "cross_matrix": CROSS_MATRIX},
-    "ref": {"nc": 2},
     "ref_batch_mean": {"nc": 2, "ref_batch_mean": True},
 }
-"""The options of the cases at ``nside`` 4; ``ref`` and ``ref_batch_mean`` are ``norm="ref"``
-with a reference taken without and with the batch mean."""
+"""The options of the cases at ``nside`` 4. Every case runs ``norm="ref"`` with a reference taken
+without the batch mean (``_check``); ``ref_batch_mean`` takes it with the batch mean."""
 SKIES = {"full": None, "partial": np.arange(40, 150)}
 """The pixels at ``nside`` 4: the full sky, and a partial sky across the north cap and the
 equatorial faces."""
@@ -201,8 +200,7 @@ def test_partial_skies_equal_the_oracle(name: str) -> None:
     (decision 3 on #26 and #165). ``disc_nan_16`` holds NaN in a single map, and its mask is
     inferred by both from them.
 
-    Slow: ``nside`` 16, which decision 7 on #167 puts in the full tier, with the oracle's naive
-    tables (decision 4 on #165); each case takes 0.1 to 0.3 s of CPU locally."""
+    Slow: decision 7 on #167 puts the cases of ``nside`` 16 in the full tier."""
     fixture, config = _statistics(), _configuration(name)
     nside = config["nside"]
     cell_ids = fixture[f"{name}_cell_ids"].astype(np.int64)

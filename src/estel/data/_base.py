@@ -170,15 +170,16 @@ class Data:
         cls,
         n_channels: int,
         spatial_shape: tuple[int, ...],
-        mask: NDArray[np.bool_] | None,
         pbc: bool,
         content: dict[str, Any],
         arrays: dict[str, NDArray[Any]],
     ) -> Data:
         """An example of the data a file describes (``STStatistics.load``), zeros of one map of
         ``n_channels`` channels, built by the constructor, which checks it: the spatial shape,
-        the mask and ``pbc``, and the metadata of :meth:`_meta_content`, its JSON ``content``
-        and its ``arrays`` by name."""
+        ``pbc``, the metadata of :meth:`_meta_content`, its JSON ``content``, and the plan's
+        ``arrays`` by name, the mask (``"mask"``, when values are missing) and the arrays of
+        :meth:`_meta_content`."""
+        mask = arrays["mask"].astype(bool) if "mask" in arrays else None
         return cls(np.zeros((1, n_channels, *spatial_shape)), mask=mask, pbc=pbc)
 
     def _set_meta(self, meta: tuple[Any, ...]) -> None:

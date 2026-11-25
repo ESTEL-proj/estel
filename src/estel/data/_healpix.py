@@ -227,7 +227,6 @@ class DataHealpix(Data):
         cls,
         n_channels: int,
         spatial_shape: tuple[int, ...],
-        mask: NDArray[np.bool_] | None,
         pbc: bool,
         content: dict[str, Any],
         arrays: dict[str, NDArray[Any]],
@@ -236,7 +235,7 @@ class DataHealpix(Data):
         ``cell_ids``, which it checks; ``pbc`` must follow them (M-DATA-HPX)."""
         example = cls(
             np.zeros((1, n_channels, *spatial_shape)),
-            mask=mask,
+            mask=arrays["mask"].astype(bool) if "mask" in arrays else None,
             depth=content["depth"],
             cell_ids=arrays.get("cell_ids"),
         )

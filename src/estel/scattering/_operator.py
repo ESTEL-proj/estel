@@ -39,7 +39,6 @@ from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
 from ._filters import PlanarFilters, STFilters, TensorProdFilters
 from ._plan import (
-    LATER_SPECTRA,
     SCATTERING_SPECTRUM_ADVICE,
     PlanarPlan,
     SpectrumAdvice,
@@ -47,7 +46,7 @@ from ._plan import (
     TensorProdPlan,
     build_plan,
     build_tensor_prod_statistics_plan,
-    later_spectrum,
+    spectrum_2d_only,
 )
 
 _WIDE = ("float64", "complex128")
@@ -153,7 +152,7 @@ class STOperator:
             norm=norm,
             ref_batch_mean=ref_batch_mean,
             standardize=standardize,
-            compute_PS=_compute_ps(compute_PS, data),
+            compute_PS=compute_PS,  # None: the default of the geometry, resolved by the plan
             n_bins=n_bins,
             Jmin=Jmin,
             spectrum_method=spectrum_method,
@@ -355,8 +354,10 @@ class STOperatorTensorProd(STOperator):
             raise TypeError(f"compute_PS={compute_PS!r}: pass None (the default) or False.")
         if compute_PS:
             raise ValueError(
-                "compute_PS=True: tensor products have no power spectrum in ESTEL 1.0.0; it "
-                "comes later (LF23). Pass compute_PS=False, or leave it to None."
+                "compute_PS=True: "
+                + spectrum_2d_only(
+                    type(data).__name__, "Pass compute_PS=False, or leave it to None."
+                )
             )
         plan = build_tensor_prod_statistics_plan(
             data,
@@ -430,19 +431,3 @@ def _warn_channels_without_auto(plan: PlanarPlan | TensorProdPlan) -> None:
             UserWarning,
             stacklevel=3,
         )
-
-
-def _compute_ps(compute_ps: object, data: Data) -> bool:
-    """Whether the statistics hold the power spectrum: ``compute_PS``, True by default for 2D
-    data; the geometries of ``LATER_SPECTRA``, tested by their tag, have none in 1.0.0: 1D data
-    (LF23) and HEALPix data (LF24)."""
-    if compute_ps is not None and not isinstance(compute_ps, bool | np.bool_):
-        raise TypeError(f"compute_PS={compute_ps!r}: pass True, False or None (the default).")
-    if data._geometry in LATER_SPECTRA:
-        if compute_ps:
-            raise ValueError(
-                f"compute_PS=True: ESTEL 1.0.0 computes power spectra of 2D data only; "
-                f"{later_spectrum(type(data))}. Pass compute_PS=False, or leave it to None."
-            )
-        return False
-    return True if compute_ps is None else bool(compute_ps)

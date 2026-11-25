@@ -472,6 +472,8 @@ def test_scattering_operators_of_planar_data_refuse_a_tensor_product() -> None:
     product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[True, True])
     with pytest.raises(TypeError, match=r"a tensor product is STOperatorTensorProd"):
         STOperator(product)
+    with pytest.raises(TypeError, match=r"a tensor product is STOperatorTensorProd"):
+        STOperator(product, compute_PS=True)  # before any check of the spectrum
 
 
 # ---------------------------------------------------------------------- pytree (Part I, §2.3)
