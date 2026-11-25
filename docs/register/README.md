@@ -115,7 +115,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 
 ## Step 2b
 
-18 entries: 10 need a human, 8 can be treated.
+19 entries: 11 need a human, 8 can be treated.
 
 ### Needs a human
 
@@ -131,6 +131,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 | [LF47](LF47.md) | Non-periodic and masked syntheses | — | — | New feature |
 | [LF50](LF50.md) | Robust width factor of the 2D wavelets | — | — | Mathematical choice |
 | [LF56](LF56.md) | Weights of the synthesis loss | — | — | Mathematical choice |
+| [LF70](LF70.md) | Preconditioned syntheses | — | the default or an option, from the benchmark; A from the binned spectrum or from S2 when the statistics hold no spectrum | Optimisation |
 
 ### Can be treated
 
