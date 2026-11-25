@@ -307,7 +307,7 @@ def build_healpix_wavelet_filters(
             L=plan.L,
             kernel_size=plan.kernel_size,
         )
-        index, weight = _fold_kernel(tables, kernel)
+        index, weight = _fold_kernel(tables, kernel, dtype)
         shape = (plan.L, plan.level_shapes[level][0], *index.shape[1:])
         return HealpixConvTables(
             index=backend.asarray(index.reshape(shape), "int32", device),
@@ -342,43 +342,43 @@ _FOLD_BATCH = 1 << 14
 
 
 def _fold_kernel(
-    tables: HealpixStencils, kernel: NDArray[np.complex128]
-) -> tuple[NDArray[np.int32], NDArray[np.float64]]:
+    tables: HealpixStencils, kernel: NDArray[np.complex128], dtype: str = "float64"
+) -> tuple[NDArray[np.int32], NDArray[np.floating[Any]]]:
     """The stencils of a level with the kernel folded in (task T5.7, trial 4): for each row
     (gauge, pixel), the K² · 4 entries merged into the distinct pixels they read, each with
     Σ W[p] · w[p, m] over its entries, as real pairs (Part I, §3.1, rule 6). Returns ``index``
     and ``weight`` of shape ``(L · Npix, 2, M)``, M the largest number of distinct pixels of a
     row, the rows padded with weight 0: the real part on the first entry of the second axis,
     the imaginary part on the second, the same pixels on both. ``gather_weighted`` then gives
-    the convolution as real pairs at once; the values change by rounding only (M-CONV-HPX)."""
+    the convolution as real pairs at once; the values change by rounding only (M-CONV-HPX).
+    The sums are made in float64, by batches of :data:`_FOLD_BATCH` rows, and stored in
+    ``dtype``, the operator's: the weights are cast once."""
     rows, q, m = tables.index.shape
+    flat_index = tables.index.reshape(rows, q * m)
+    flat_weight = tables.weight.reshape(rows, q * m)
+    batches = [slice(begin, begin + _FOLD_BATCH) for begin in range(0, rows, _FOLD_BATCH)]
+
+    def distinct(part: slice) -> NDArray[np.intp]:
+        by_pixel = np.sort(flat_index[part], axis=1)
+        counts: NDArray[np.intp] = (by_pixel[:, 1:] != by_pixel[:, :-1]).sum(axis=1) + 1
+        return counts
+
+    width = max(int(distinct(part).max()) for part in batches)
     folded = np.repeat(kernel, m)  # W[p] for each entry (p, m)
-    parts: list[tuple[NDArray[np.int32], NDArray[np.float64]]] = []
-    for begin in range(0, rows, _FOLD_BATCH):
-        index = tables.index[begin : begin + _FOLD_BATCH].reshape(-1, q * m)
-        weight = tables.weight[begin : begin + _FOLD_BATCH].reshape(-1, q * m)
+    out_index = np.zeros((rows, 2, width), dtype=np.int32)
+    out_weight = np.zeros((rows, 2, width), dtype=dtype)
+    for part in batches:
+        index, weight = flat_index[part], flat_weight[part]
         n = index.shape[0]
         order = np.argsort(index, axis=1, kind="stable")
         by_pixel = np.take_along_axis(index, order, axis=1)
         first = np.ones(by_pixel.shape, dtype=bool)
         first[:, 1:] = by_pixel[:, 1:] != by_pixel[:, :-1]
-        group = np.cumsum(first, axis=1) - 1  # the rank of each entry's pixel in its row
-        width = int(group[:, -1].max()) + 1
-        slots = (np.arange(n)[:, None] * width + group).ravel()
+        slots = (np.arange(n)[:, None] * width + np.cumsum(first, axis=1) - 1).ravel()
         values = (np.take_along_axis(weight, order, axis=1) * folded[order]).ravel()
         pixels = np.zeros(n * width, dtype=np.int32)
         pixels[slots] = by_pixel.ravel()
-        pairs = np.stack(
-            [np.bincount(slots, values.real, n * width), np.bincount(slots, values.imag, n * width)]
-        )
-        parts.append((pixels.reshape(n, width), pairs.reshape(2, n, width)))
-    width = max(part[0].shape[1] for part in parts)
-    out_index = np.zeros((rows, 2, width), dtype=np.int32)
-    out_weight = np.zeros((rows, 2, width), dtype=np.float64)
-    begin = 0
-    for pixels, pairs in parts:
-        n, w = pixels.shape
-        out_index[begin : begin + n, :, :w] = pixels[:, None]
-        out_weight[begin : begin + n, :, :w] = pairs.transpose(1, 0, 2)
-        begin += n
+        out_index[part] = pixels.reshape(n, 1, width)
+        out_weight[part, 0] = np.bincount(slots, values.real, n * width).reshape(n, width)
+        out_weight[part, 1] = np.bincount(slots, values.imag, n * width).reshape(n, width)
     return out_index, out_weight
