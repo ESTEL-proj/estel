@@ -257,14 +257,13 @@ def test_a_complex_map_is_convolved_and_decimated_part_by_part(backend: Backend)
         np.testing.assert_allclose(backend.to_numpy(function(z)), expected)
 
 
-@pytest.mark.maths("M-MASK-HPX")
-def test_no_border_and_the_hooks_healpix_does_not_have() -> None:
+@pytest.mark.maths("M-MASK-HPX", "M-SYN-NYQ")
+def test_no_border_no_pre_filter_and_the_hooks_healpix_does_not_have() -> None:
     data = DataHealpix(_field(DISC.size), depth=2, cell_ids=DISC)
     np.testing.assert_array_equal(data._crop_weights(1, 3), np.ones(6))
     with pytest.raises(NotImplementedError, match="M-LP"):
         data._lowpass(data.array, None, 0)
-    with pytest.raises(NotImplementedError, match="OP-77"):
-        data._nyquist_filter(data.array)
+    assert data._nyquist_filter(data.array) is data.array  # no pre-filter in 1.0.0 (OP-77)
     with pytest.raises(NotImplementedError, match="LF24"):
         data._spectrum_geometry()
 

@@ -753,6 +753,22 @@ def build_plan(
     )
 
 
+def resolve_compute_ps(compute_ps: object, geometry: type[Data]) -> bool:
+    """Whether an operator on data of the class ``geometry`` computes the power spectrum, from
+    its ``compute_PS``: ``None`` (the default) means the spectrum on 2D data and none on other
+    data, where ESTEL 1.0.0 has none (Part II, §12.6); True on other data raises
+    :func:`spectrum_2d_only`. The one rule of ``STOperator`` and of the syntheses (M-SYN-OPS)."""
+    if compute_ps is not None and not isinstance(compute_ps, bool | np.bool_):
+        raise TypeError(f"compute_PS={compute_ps!r}: pass True, False or None (the default).")
+    two_d = geometry._geometry == "2d"
+    if compute_ps and not two_d:
+        raise ValueError(
+            "compute_PS=True: "
+            + spectrum_2d_only(geometry.__name__, "Pass compute_PS=False, or leave it to None.")
+        )
+    return two_d if compute_ps is None else bool(compute_ps)
+
+
 def _spectrum(
     wavelets: WaveletPlan,
     J: int | None,  # noqa: N803 (maths.md notation)
@@ -766,17 +782,8 @@ def _spectrum(
     options must then keep their defaults (decision on #148). ``compute_PS=None`` means the
     default: the spectrum on 2D data, none on other data, where ESTEL 1.0.0 has none (Part II,
     §12.6), and where ``compute_PS=True`` or a spectrum option raises :func:`spectrum_2d_only`."""
-    if compute_ps is not None and not isinstance(compute_ps, bool | np.bool_):
-        raise TypeError(f"compute_PS={compute_ps!r}: pass True, False or None (the default).")
     two_d = wavelets.geometry._geometry == "2d"
-    if compute_ps and not two_d:
-        raise ValueError(
-            "compute_PS=True: "
-            + spectrum_2d_only(
-                wavelets.geometry.__name__, "Pass compute_PS=False, or leave it to None."
-            )
-        )
-    if not (two_d if compute_ps is None else compute_ps):
+    if not resolve_compute_ps(compute_ps, wavelets.geometry):
         changed = [
             f"{name}={value!r}"
             for name, value, default in (

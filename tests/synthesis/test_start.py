@@ -24,8 +24,9 @@ import pytest
 import estel
 from estel import Data2D, _config
 from estel.backend._protocol import Backend
+from estel.data._planar import nyquist_filter, nyquist_mask
 from estel.synthesis._api import _running_data, _start
-from estel.synthesis._init import gaussian_start, nyquist_filter, nyquist_mask
+from estel.synthesis._init import gaussian_start
 
 pytestmark = pytest.mark.maths("M-SYN-INIT", "M-SYN-NYQ")
 SIGMAS = 5.0

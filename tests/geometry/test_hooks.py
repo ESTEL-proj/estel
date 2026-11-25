@@ -182,6 +182,22 @@ def test_mother_class_hooks_say_to_override() -> None:
         Data._crop_weights(None, 0, 0)  # type: ignore[arg-type]
 
 
+@pytest.mark.maths("M-SYN-NYQ")
+def test_pre_filter_of_syntheses_is_the_hook_of_2d_data(backend: Backend) -> None:
+    """``_nyquist_filter`` (Part II, §12.4): the filter of M-SYN-NYQ on 2D data; on 1D data,
+    which have no synthesis in ESTEL 1.0.0, the hook of the mother class, whose error says what
+    to synthesise instead."""
+    from estel.data._planar import nyquist_filter
+
+    x = backend.asarray(np.random.default_rng(0).standard_normal((1, 1, 8, 8)), "float64")
+    data = Data2D(x, pbc=True)
+    np.testing.assert_array_equal(
+        backend.to_numpy(data._nyquist_filter(x)), backend.to_numpy(nyquist_filter(backend, x))
+    )
+    with pytest.raises(NotImplementedError, match=r"Data1D has no pre-filter.*Synthesise"):
+        Data1D(np.zeros(8), pbc=True)._nyquist_filter(x)
+
+
 @pytest.mark.maths("M-BORDER")
 @pytest.mark.parametrize("ndim", sorted(GEOMETRIES))
 @pytest.mark.parametrize(("level", "border"), [(0, 0), (0, 2), (1, 3), (2, 1)])

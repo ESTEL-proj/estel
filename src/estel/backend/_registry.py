@@ -242,6 +242,15 @@ def _check_device(name: str, module: ModuleType, device: str, caller: str) -> No
 # ------------------------------------------------------------------ mixing backends
 
 
+def device_of(x: Any) -> Any:
+    """The device of ``x``, or ``None`` (the backend's default device) when the array does not
+    say, as inside a JAX trace."""
+    try:
+        return getattr(x, "device", None)
+    except Exception:  # a tracer may refuse to name its device
+        return None
+
+
 def backend_of(x: object) -> str | None:
     """The backend ``x`` belongs to: ``"torch"`` for a ``torch.Tensor``, ``"jax"`` for a
     ``jax.Array`` (tracers included), ``None`` for anything else, NumPy arrays included.

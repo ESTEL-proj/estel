@@ -4,7 +4,7 @@ The two classes share everything but the number of spatial axes and the threshol
 masked downsampling (maths.md M-DOWN-MASK, OP-12): STL's 1D class inherits from its 2D class
 and differs only there (STL `2D+1D`, `STL_1D_Kernel_Torch`). Their geometry hooks ``_conv``,
 ``_downsample`` and ``_crop_weights`` are the same functions, written for any number of planar
-axes.
+axes. ``Data2D`` alone has the pre-filter of syntheses, ``nyquist_filter`` (maths.md M-SYN-NYQ).
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ..backend import _registry
-from ..backend._protocol import PadMode
+from ..backend._protocol import Backend, PadMode
 from ._base import Data, DownsampleWeights
 from ._moments import _is_complex
 
@@ -238,6 +238,33 @@ def _planar_crop_weights_along(
     return np.pad(inner, width)
 
 
+# ---------------------------------------------------------------------- the pre-filter of syntheses
+
+
+def nyquist_mask(shape: tuple[int, int]) -> NDArray[np.bool_]:
+    """The modes kept by the pre-filter (M-SYN-NYQ): k₁² + k₂² ≤ (min(N₁, N₂)/2)², with the
+    integer frequencies of the discrete Fourier transform, -Nᵢ/2 included for even Nᵢ."""
+    n1, n2 = shape
+    k1 = np.fft.fftfreq(n1, d=1.0 / n1)
+    k2 = np.fft.fftfreq(n2, d=1.0 / n2)
+    radius = min(n1, n2) / 2
+    kept: NDArray[np.bool_] = k1[:, None] ** 2 + k2[None, :] ** 2 <= radius**2
+    return kept
+
+
+def nyquist_filter(backend: Backend, x: Any) -> Any:
+    """``x`` with its modes above the Nyquist circle set to 0, on the last two axes (M-SYN-NYQ;
+    STL's ``apply_nyquist_filter``): the real part of the inverse transform of the masked
+    transform. The mask is static, built in NumPy from the spatial shape."""
+    xp = backend.xp
+    axes = (-2, -1)
+    shape = (int(x.shape[-2]), int(x.shape[-1]))
+    spectrum = xp.fft.fftn(x, axes=axes)
+    kept = backend.asarray(nyquist_mask(shape), "bool", _registry.device_of(spectrum))
+    filtered = xp.where(kept, spectrum, xp.zeros_like(spectrum))
+    return xp.real(xp.fft.ifftn(filtered, axes=axes))
+
+
 class Data2D(Data):
     """2D planar data, shape ``(Nb, Nc, N1, N2)``.
 
@@ -252,6 +279,10 @@ class Data2D(Data):
 
     def __init__(self, array: Any, mask: Any = None, *, pbc: bool) -> None:
         super().__init__(array, mask, pbc=pbc)
+
+    def _nyquist_filter(self, x: Any) -> Any:
+        """The pre-filter of M-SYN-NYQ: :func:`nyquist_filter` on the two spatial axes."""
+        return nyquist_filter(_registry.backend_named(self._backend), x)
 
     _conv = _planar_conv
     _downsample = _planar_downsample
