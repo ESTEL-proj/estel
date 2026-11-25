@@ -17,7 +17,6 @@ from __future__ import annotations
 import pytest
 import torch
 
-from estel import Data2D
 from estel.backend._protocol import Backend
 from tests.differentiation._cases import (
     CASES,
@@ -49,9 +48,9 @@ def test_gradcheck_of_the_smallest_case(backend: Backend) -> None:
 @pytest.mark.slow
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case.name)
 def test_gradcheck_and_gradgradcheck(case: Case, backend: Backend) -> None:
-    """First order in both modes, then the double backward, on every configuration. In 2D the
-    double backward is checked in ``fast_mode``, along random directions rather than entry by
-    entry of its Jacobian, which would take a minute.
+    """First order in both modes, then the double backward, on every configuration. In 2D and
+    on HEALPix the double backward is checked in ``fast_mode``, along random directions rather
+    than entry by entry of its Jacobian, which would take a minute.
 
     Slow: the full Jacobian of every coefficient, and second-order gradients through the whole
     loop (Part I, §5.4)."""
@@ -59,7 +58,7 @@ def test_gradcheck_and_gradgradcheck(case: Case, backend: Backend) -> None:
     assert torch.autograd.gradcheck(
         function, (x,), check_forward_ad=True, eps=EPS, atol=ATOL, rtol=RTOL
     )
-    fast_mode = case.cls is Data2D
+    fast_mode = case.cls._geometry != "1d"
     assert torch.autograd.gradgradcheck(
         function, (x,), fast_mode=fast_mode, eps=EPS, atol=ATOL, rtol=RTOL
     )

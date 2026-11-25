@@ -148,6 +148,10 @@ class DataHealpix(Data):
         Reserved for step 2 (LF34): ``None`` only.
 
     ``pbc`` is a read-only property, True on a full sky and False with ``cell_ids``.
+
+    ``ndim`` is 1: it counts the spatial axes of the array, and the pixels lie on one axis,
+    though the sphere is a 2D surface. The geometry is tested by its tag, ``_geometry``
+    (``"healpix"``), never by ``ndim``.
     """
 
     ndim: ClassVar[int] = 1
@@ -210,6 +214,38 @@ class DataHealpix(Data):
 
     def _rebuild_advice(self) -> str:
         return "DataHealpix(array, mask=data.mask, depth=data.depth, cell_ids=data.cell_ids)"
+
+    @classmethod
+    def _meta_content(cls, meta: tuple[Any, ...]) -> tuple[dict[str, Any], dict[str, NDArray[Any]]]:
+        """``depth`` as a JSON parameter, and ``cell_ids`` as an int64 array on a partial sky."""
+        depth, cell_ids = meta
+        arrays = {} if cell_ids is None else {"cell_ids": np.asarray(cell_ids.cell_ids)}
+        return {"depth": int(depth)}, arrays
+
+    @classmethod
+    def _example_from_content(
+        cls,
+        n_channels: int,
+        spatial_shape: tuple[int, ...],
+        pbc: bool,
+        content: dict[str, Any],
+        arrays: dict[str, NDArray[Any]],
+    ) -> Data:
+        """The example of the file built by the constructor, from its ``depth`` and its
+        ``cell_ids``, which it checks; ``pbc`` must follow them (M-DATA-HPX)."""
+        example = cls(
+            np.zeros((1, n_channels, *spatial_shape)),
+            mask=arrays["mask"].astype(bool) if "mask" in arrays else None,
+            depth=content["depth"],
+            cell_ids=arrays.get("cell_ids"),
+        )
+        if example.pbc != pbc:
+            raise ValueError(
+                f"the file describes HEALPix data with pbc={pbc}, but its cell_ids give "
+                f"pbc={example.pbc} (True on the full sky only, M-DATA-HPX): the file is "
+                "inconsistent; recompute the statistics and save them again."
+            )
+        return example
 
     # ------------------------------------------------------------------ accessors
 

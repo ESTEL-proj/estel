@@ -398,7 +398,7 @@ def build_wavelet_plan(
         return build_healpix_wavelet_plan(data, J, L, wavelet, kernel_size=kernel_size)
     if isinstance(data, DataTensorProd):
         raise TypeError(
-            "STOperator takes 1D and 2D data, not a DataTensorProd: the scattering operator of "
+            "STOperator takes single-domain data, not a DataTensorProd: the scattering operator of "
             "a tensor product is STOperatorTensorProd, with one J and one L per block (maths.md "
             "§3)."
         )

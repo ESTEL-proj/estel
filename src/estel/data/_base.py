@@ -60,8 +60,11 @@ class Data:
 
     @property
     def ndim(self) -> int:
-        """The number of spatial axes: a class constant of a single geometry (``Data1D.ndim``,
-        ``Data2D.ndim``), those of every block for a tensor product (``DataTensorProd.ndim``)."""
+        """The number of spatial axes of the array: a class constant of a single geometry
+        (``Data1D.ndim``, ``Data2D.ndim``, ``DataHealpix.ndim``), those of every block for a
+        tensor product (``DataTensorProd.ndim``). It counts axes and does not name the geometry:
+        ``DataHealpix.ndim`` is 1, its pixels lying on one axis, though the sphere is a 2D
+        surface. The geometry is the tag the class declares, ``_geometry``."""
         raise NotImplementedError
 
     _nan_threshold: ClassVar[float]
@@ -154,6 +157,30 @@ class Data:
         :meth:`_from_parts` needs, with them, to rebuild an object of this class. A geometry
         with more metadata overrides it and :meth:`_set_meta`; planar data have none."""
         return ()
+
+    @classmethod
+    def _meta_content(cls, meta: tuple[Any, ...]) -> tuple[dict[str, Any], dict[str, NDArray[Any]]]:
+        """The metadata ``meta`` of :meth:`_meta` for a file (``estel.io``): JSON parameters,
+        and arrays by name, which :meth:`_example_from_content` reads back. 1D and 2D data have
+        none."""
+        return {}, {}
+
+    @classmethod
+    def _example_from_content(
+        cls,
+        n_channels: int,
+        spatial_shape: tuple[int, ...],
+        pbc: bool,
+        content: dict[str, Any],
+        arrays: dict[str, NDArray[Any]],
+    ) -> Data:
+        """An example of the data a file describes (``STStatistics.load``), zeros of one map of
+        ``n_channels`` channels, built by the constructor, which checks it: the spatial shape,
+        ``pbc``, the metadata of :meth:`_meta_content`, its JSON ``content``, and the plan's
+        ``arrays`` by name, the mask (``"mask"``, when values are missing) and the arrays of
+        :meth:`_meta_content`."""
+        mask = arrays["mask"].astype(bool) if "mask" in arrays else None
+        return cls(np.zeros((1, n_channels, *spatial_shape)), mask=mask, pbc=pbc)
 
     def _set_meta(self, meta: tuple[Any, ...]) -> None:
         """Set the metadata of :meth:`_meta` on a new object (from :meth:`_set`)."""

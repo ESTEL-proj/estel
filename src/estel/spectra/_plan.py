@@ -35,6 +35,7 @@ from ..scattering._plan import (
     _cross_matrix,
     build_spectrum_plan,
     channel_pairs,
+    spectrum_2d_only,
 )
 from ..statistics._layout import Layout, spectrum_layout, spectrum_pairs
 from ..statistics._normalization import (
@@ -197,10 +198,9 @@ def build_spectrum_operator_plan(
             f"SpectrumOperator takes a Data object, such as estel.Data2D, got "
             f"{type(data).__name__}."
         )
-    if data._geometry == "tensor_prod":
+    if data._geometry != "2d":
         raise ValueError(
-            "SpectrumOperator: tensor products have no power spectrum in ESTEL 1.0.0; it comes "
-            "later (LF23). Pass estel.Data2D data."
+            "SpectrumOperator: " + spectrum_2d_only(type(data).__name__, advice.not_2d)
         )
     if J is not None and (isinstance(J, bool) or not isinstance(J, int | np.integer)):
         raise TypeError(f"J={J!r}: pass an integer, or None for ⌊log₂ N_max⌋ - 1 (maths.md §1.9).")
@@ -209,7 +209,7 @@ def build_spectrum_operator_plan(
     spatial = tuple(int(n) for n in data.shape[2:])
     spectrum = build_spectrum_plan(
         spatial,
-        data.ndim,
+        type(data),
         J,
         n_bins,
         Jmin,

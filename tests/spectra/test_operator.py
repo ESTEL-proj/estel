@@ -21,6 +21,7 @@ import estel
 from estel import (
     Data1D,
     Data2D,
+    DataHealpix,
     DataTensorProd,
     SpectrumOperator,
     STOperator,
@@ -113,6 +114,7 @@ def test_norm_self_keeps_the_reference() -> None:
             "LF23",
             id="tensor-product",
         ),
+        pytest.param(lambda: DataHealpix(_field((1, 1, 48))), {}, ValueError, "LF24", id="healpix"),
         pytest.param(
             lambda: _data(), {"method": "anafast"}, ValueError, "'auto', 'fft'", id="method"
         ),
@@ -277,11 +279,11 @@ def test_save_and_load_round_trip(
         _numpy(loaded._reference.ps_sqrt), _numpy(stats._reference.ps_sqrt)
     )
     np.testing.assert_array_equal(loaded.bin_centers, stats.bin_centers)
-    old = tmp_path / "version6.npz"
-    monkeypatch.setattr(_schema, "SCHEMA_VERSION", 6)
+    old = tmp_path / "version7.npz"
+    monkeypatch.setattr(_schema, "SCHEMA_VERSION", 7)
     stats.save(old)
     monkeypatch.undo()
-    with pytest.raises(ValueError, match=r"schema version 6.*reads version 7"):
+    with pytest.raises(ValueError, match=r"schema version 7.*reads version 8"):
         STStatistics.load(old)
 
 

@@ -671,7 +671,7 @@ def _default_n_bins(data: Data) -> int:
     (maths.md §1.9, "Number of bins"): J_PS the spectrum's own default, ⌊log₂ N_max⌋ - 1, and
     J_min 0. STL's ``get_CS_op().n_bins``, of which a synthesis takes the smaller (M-SYN-OPS),
     whatever the J of the synthesis."""
-    return build_spectrum_plan(data.shape[2:], data.ndim, None, None, 0).n_bins
+    return build_spectrum_plan(data.shape[2:], type(data), None, None, 0).n_bins
 
 
 def _check_flag(name: str, value: object) -> None:

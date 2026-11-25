@@ -78,7 +78,7 @@ class STFilters:
     Get it from ``STOperator.filters`` or ``STOperatorTensorProd.filters`` and pass it, with the
     operator's plan, to ``estel.functional.scattering``. Its arrays are on the operator's
     backend, dtype and device; it has no public field. The filters of each geometry are a
-    subclass, internal to ESTEL, and a named tuple: :class:`PlanarFilters` for 1D and 2D data,
+    subclass, internal to ESTEL, and a named tuple: :class:`PlanarFilters` for single-domain data,
     :class:`TensorProdFilters` for tensor products, and the filters of ``SpectrumOperator``
     (``spectra._plan``). Its one hook, :attr:`_any_array`, gives their backend and dtype; the
     plan builds them (``STPlan._build_filters``; issue #144).
@@ -94,8 +94,8 @@ class STFilters:
 
 
 class PlanarFilters(_FilterFields, STFilters):
-    """The :class:`STFilters` of 1D and 2D planar data (``STOperator.filters``), built by
-    :func:`build_filters`; its fields are those of ``_FilterFields``."""
+    """The :class:`STFilters` of single-domain data, 1D, 2D and HEALPix (``STOperator.filters``),
+    built by :func:`build_filters`; its fields are those of ``_FilterFields``."""
 
     __slots__ = ()
 

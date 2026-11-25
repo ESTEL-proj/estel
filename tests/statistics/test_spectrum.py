@@ -251,12 +251,12 @@ def test_save_and_load_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     np.testing.assert_array_equal(
         _numpy(loaded._reference.ps_sqrt), _numpy(stats._reference.ps_sqrt)
     )
-    old = tmp_path / "version6.npz"
-    monkeypatch.setattr(_schema, "SCHEMA_VERSION", 6)
+    old = tmp_path / "version7.npz"
+    monkeypatch.setattr(_schema, "SCHEMA_VERSION", 7)
     stats.save(old)
     monkeypatch.undo()
-    assert _schema.SCHEMA_VERSION == 7
-    with pytest.raises(ValueError, match=r"schema version 6.*reads version 7"):
+    assert _schema.SCHEMA_VERSION == 8
+    with pytest.raises(ValueError, match=r"schema version 7.*reads version 8"):
         STStatistics.load(old)
 
 
