@@ -401,7 +401,8 @@ class Data:
         implements it (2D: the filter of M-SYN-NYQ; HEALPix: none in ESTEL 1.0.0, OP-77)."""
         raise NotImplementedError(
             f"{type(self).__name__} has no pre-filter of syntheses: the syntheses of ESTEL 1.0.0 "
-            "are of 2D data and of full-sky HEALPix fields (maths.md section 5)."
+            "are of 2D data and of full-sky HEALPix fields (maths.md section 5). Synthesise "
+            "estel.Data2D or estel.DataHealpix maps instead."
         )
 
     # The same three operations along given axes of an array, for a geometry that is a block of

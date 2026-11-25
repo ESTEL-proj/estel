@@ -129,6 +129,9 @@ def _follows_stl(backend: Backend, monkeypatch: pytest.MonkeyPatch, case: str, i
         f"regenerate the fixture or loosen the tolerance: report it on issue {issue}."
     )
     assert result.manifest["L"] == p["L"]
+    # synthesis_hpx records prefilter_Nyquist=False (OP-77); the 2D fixtures ran with STL's
+    # default, True, which their manifest entries do not record.
+    assert result.manifest["prefilter_nyquist"] == p.get("prefilter_Nyquist", True)
     field = backend.to_numpy(result.field)
     if healpix:
         # A DataHealpix target keeps its channel axis, (1, Npix); STL, given an array, returns

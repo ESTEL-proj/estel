@@ -260,7 +260,7 @@ def nyquist_filter(backend: Backend, x: Any) -> Any:
     axes = (-2, -1)
     shape = (int(x.shape[-2]), int(x.shape[-1]))
     spectrum = xp.fft.fftn(x, axes=axes)
-    kept = backend.asarray(nyquist_mask(shape), "bool", getattr(spectrum, "device", None))
+    kept = backend.asarray(nyquist_mask(shape), "bool", _registry.device_of(spectrum))
     filtered = xp.where(kept, spectrum, xp.zeros_like(spectrum))
     return xp.real(xp.fft.ifftn(filtered, axes=axes))
 

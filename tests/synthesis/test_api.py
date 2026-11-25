@@ -25,6 +25,7 @@ from estel import Data1D, Data2D, DataHealpix, STOperator, _config
 from estel.backend._protocol import Backend
 from estel.data._planar import nyquist_filter
 from estel.statistics._arrays import device_of
+from estel.synthesis import _checkpoints
 from estel.synthesis._api import _running_data, _start
 from estel.synthesis._init import standardize_target
 
@@ -45,6 +46,15 @@ def _float64(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _maps(n_batch: int = 1, n_channels: int = 1, seed: int = 0) -> np.ndarray:
     return np.random.default_rng(seed).standard_normal((n_batch, n_channels, N, N)) * 2.0 + 1.0
+
+
+DEPTH = 2
+"""``nside`` 4, 192 pixels: the smallest full sky with two scales (J ≤ depth + 1)."""
+
+
+def _sky(n_batch: int = 1, n_channels: int = 1, seed: int = 0) -> np.ndarray:
+    shape = (n_batch, n_channels, 12 * 4**DEPTH)
+    return np.random.default_rng(seed).standard_normal(shape) * 2.0 + 1.0
 
 
 def _unavailable(backend: Backend) -> bool:
@@ -268,11 +278,16 @@ MAPS_ERRORS: dict[str, tuple[type[Exception], str, Any, dict[str, Any]]] = {
     "masked": (ValueError, "LF47", lambda: Data2D(_masked(), pbc=True), {}),
     "healpix-partial-sky": (
         ValueError,
-        r"a partial sky .*LF47.*without cell_ids",
+        r"the target is not periodic.*full HEALPix sky without cell_ids.*LF47",
         _partial_sky,
         {},
     ),
-    "healpix-masked-sky": (ValueError, r"a masked sky.*LF47.*without NaN", _masked_sky, {}),
+    "healpix-masked-sky": (
+        ValueError,
+        r"the target has missing values.*full HEALPix sky without cell_ids.*LF47",
+        _masked_sky,
+        {},
+    ),
     "healpix-compute-ps": (
         ValueError,
         r"compute_PS=True: the data are a DataHealpix.*LF24",
@@ -373,7 +388,7 @@ STATS_ERRORS: dict[str, tuple[type[Exception], str, Any, dict[str, Any]]] = {
     ),
     "healpix-partial-sky": (
         ValueError,
-        r"these statistics are of a partial sky .*LF47.*without cell_ids",
+        r"the data of these statistics is not periodic.*without cell_ids.*LF47.*statistics",
         lambda: _statistics_of(_partial_sky()),
         {},
     ),
@@ -507,18 +522,14 @@ def test_checkpoint_of_another_compute_ps_is_refused(backend: Backend, tmp_path:
 
 # ---------------------------------------------------------------- full HEALPix skies (T5.8)
 
-DEPTH = 2
-"""``nside`` 4, 192 pixels: the smallest full sky with two scales (J ≤ depth + 1)."""
-
-
-def _sky(n_batch: int = 1, n_channels: int = 1, seed: int = 0) -> np.ndarray:
-    shape = (n_batch, n_channels, 12 * 4**DEPTH)
-    return np.random.default_rng(seed).standard_normal(shape) * 2.0 + 1.0
-
 
 @pytest.mark.parametrize(
     ("n_channels", "mean_field", "n_batch", "shape"),
-    [(1, True, 1, (1, 192)), (1, True, 2, (2, 1, 192)), (2, False, 2, (2, 2, 192))],
+    [
+        pytest.param(1, True, 1, (1, 192), id="one-field"),
+        pytest.param(1, True, 2, (2, 1, 192), id="two-fields"),
+        pytest.param(2, False, 2, (2, 2, 192), id="two-channels-map-by-map"),
+    ],
 )
 def test_healpix_from_maps(
     backend: Backend, n_channels: int, mean_field: bool, n_batch: int, shape: tuple[int, ...]
@@ -545,15 +556,25 @@ def test_healpix_from_maps(
 
 @pytest.mark.parametrize(
     ("n_channels", "mean_field", "standardize", "shape"),
-    [(1, True, True, (192,)), (2, False, False, (2, 2, 192))],
+    [
+        pytest.param(1, True, True, (192,), id="standardized-mean-field"),
+        pytest.param(1, True, False, (192,), id="not-standardized-mean-field"),
+        pytest.param(2, False, False, (2, 2, 192), id="not-standardized-two-channels-map-by-map"),
+    ],
 )
 def test_healpix_from_stats(
-    backend: Backend, n_channels: int, mean_field: bool, standardize: bool, shape: tuple[int, ...]
+    backend: Backend,
+    tmp_path: Path,
+    n_channels: int,
+    mean_field: bool,
+    standardize: bool,
+    shape: tuple[int, ...],
 ) -> None:
     """From the statistics of a full sky: the running fields have their depth (``plan.meta``)
-    and every setting of their operator (OP-76); the channel axis dropped for Nc = 1 (OP-75);
-    de-standardised only with ``standardize=True``, else in the units of the statistics
-    (OP-100)."""
+    and every setting of their operator (OP-76); the channel axis dropped for Nc = 1 (OP-75).
+    The result is the running field u of the last checkpoint, u sigma + μ with ``standardize=True``
+    (sigma and μ averaged over the batch with ``mean_field``, M-SYN-OUT, OP-72), u itself
+    otherwise, in the units of the statistics, whatever ``mean_field`` (OP-100)."""
     if _unavailable(backend):
         return
     data = DataHealpix(_sky(n_batch=2, n_channels=n_channels))
@@ -561,12 +582,31 @@ def test_healpix_from_stats(
         data, 2, norm="self", ref_batch_mean=mean_field, standardize=standardize
     ).apply(data)
     n_batch = 1 if mean_field else 2
-    result = estel.synthesize_from_stats(stats, n_batch=n_batch, mean_field=mean_field, max_iter=2)
+    result = estel.synthesize_from_stats(
+        stats,
+        n_batch=n_batch,
+        mean_field=mean_field,
+        max_iter=2,
+        checkpoint_every=2,
+        checkpoint_dir=tmp_path,
+    )
     assert tuple(result.field.shape) == shape
     assert (result.manifest["J"], result.manifest["spectrum"]) == (2, None)
     assert np.all(np.isfinite(result.losses))
-    field = np.asarray(backend.to_numpy(result.field))
-    assert (abs(field.mean() - 1.0) < 1.0) == standardize  # the data's units with standardize
+    expected = _checkpoints.load(result.checkpoints[-1]).field  # u, (n_batch, Nc, Npix)
+    if standardize:
+        assert stats._standardization is not None
+        mean, std = (np.asarray(backend.to_numpy(a)) for a in stats._standardization)
+        if mean_field:
+            mean, std = mean.mean(axis=0), std.mean(axis=0)
+        expected = expected * std[..., None] + mean[..., None]
+    else:
+        assert stats._standardization is None
+    if n_channels == 1:
+        expected = expected[:, 0]
+    if n_batch == 1:
+        expected = expected[0]
+    np.testing.assert_allclose(backend.to_numpy(result.field), expected, rtol=1e-12, atol=0)
 
 
 def test_healpix_checkpoints_resume_the_same_run(backend: Backend, tmp_path: Path) -> None:

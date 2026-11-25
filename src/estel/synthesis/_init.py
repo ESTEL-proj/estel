@@ -14,17 +14,6 @@ from ..backend._protocol import Backend, DType
 from ..data._moments import Standardized
 
 
-def _spatial_axes(x: Any) -> tuple[int, ...]:
-    """The spatial axes of ``x``, ``(Nb, Nc, *spatial)``: every axis after the channel axis."""
-    return tuple(range(2, len(x.shape)))
-
-
-def _per_map(value: Any, n_spatial: int) -> Any:
-    """``value``, of shape ``(..., Nc)``, with ``n_spatial`` axes of length 1 after it, to
-    broadcast over the maps."""
-    return value[(..., *(None,) * n_spatial)]
-
-
 def standardize_target(backend: Backend, x: Any, mean_field: bool) -> Standardized:
     """The standardisation of the target (M-SYN-TARGET, M-STD; STL's ``standardize``), ``x``
     being ``(Nb, Nc, *spatial)``: μ and sigma are ``(1, Nc)`` with ``mean_field``, else
@@ -36,23 +25,24 @@ def standardize_target(backend: Backend, x: Any, mean_field: bool) -> Standardiz
     those of each map.
     """
     xp = backend.xp
-    axes = _spatial_axes(x)
+    axes = tuple(range(2, len(x.shape)))  # every axis after the channel axis
+    expand = (Ellipsis, *([None] * len(axes)))
     mean = xp.mean(x, axis=axes)  # (Nb, Nc)
     if mean_field:
         mean = xp.mean(mean, axis=0, keepdims=True)
-    centered = x - _per_map(mean, len(axes))
+    centered = x - mean[expand]
     var = xp.mean(centered * centered, axis=axes)
     if mean_field:
         var = xp.mean(var, axis=0, keepdims=True)
     std = xp.sqrt(var)
-    return Standardized(x=centered / _per_map(std, len(axes)), mean=mean, std=std)
+    return Standardized(x=centered / std[expand], mean=mean, std=std)
 
 
 def unstandardize(u: Any, mean: Any, std: Any) -> Any:
     """x = u sigma + μ (M-SYN-OUT, M-STD), ``u`` being ``(Nb, Nc, *spatial)`` and μ and sigma of
     shape ``(1, Nc)``, ``(Nb, Nc)`` or ``(Nc,)``."""
-    n_spatial = len(u.shape) - 2
-    return u * _per_map(std, n_spatial) + _per_map(mean, n_spatial)
+    expand = (Ellipsis, *([None] * (len(u.shape) - 2)))
+    return u * std[expand] + mean[expand]
 
 
 def gaussian_start(backend: Backend, seed: int, shape: tuple[int, ...], dtype: DType) -> Any:

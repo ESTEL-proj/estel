@@ -20,13 +20,8 @@ def backend_object_of(x: Any) -> Backend:
     return _registry.backend_named(name)
 
 
-def device_of(x: Any) -> Any:
-    """The device of ``x``, or ``None`` (the backend's default device) when the array does not
-    say, as inside a JAX trace."""
-    try:
-        return getattr(x, "device", None)
-    except Exception:  # a tracer may refuse to name its device
-        return None
+device_of = _registry.device_of
+"""The device of an array (``_registry.device_of``, in L0 so that the data classes use it too)."""
 
 
 def dtype_name(x: Any) -> DType:

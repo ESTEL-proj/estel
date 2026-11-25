@@ -258,7 +258,7 @@ def test_a_complex_map_is_convolved_and_decimated_part_by_part(backend: Backend)
 
 
 @pytest.mark.maths("M-MASK-HPX", "M-SYN-NYQ")
-def test_no_border_and_the_hooks_healpix_does_not_have() -> None:
+def test_no_border_no_pre_filter_and_the_hooks_healpix_does_not_have() -> None:
     data = DataHealpix(_field(DISC.size), depth=2, cell_ids=DISC)
     np.testing.assert_array_equal(data._crop_weights(1, 3), np.ones(6))
     with pytest.raises(NotImplementedError, match="M-LP"):

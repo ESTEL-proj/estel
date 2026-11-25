@@ -36,7 +36,7 @@ from ..scattering._plan import PlanarPlan, build_spectrum_plan, resolve_compute_
 from ..statistics._arrays import device_of
 from ..statistics._grid import FAMILIES
 from ..statistics._statistics import _NO_REDUCTION, STStatistics
-from ..wavelets._operator import default_scales
+from ..wavelets._operator import build_wavelet_plan, default_scales
 from . import _checkpoints
 from ._init import gaussian_start, standardize_target, unstandardize
 from ._loss import WEIGHTS, Objective, flatten
@@ -249,7 +249,7 @@ def synthesize_from_maps(
     _refuse_tensor_product(target, "synthesize_from_maps", "target")
     data, ndim = _target_data(target)
     backend = _check_backend(data.backend)
-    _check_periodic(data, "the target is")
+    _check_periodic(data, "the target")
     with_ps = resolve_compute_ps(compute_PS, type(data))
     options = _st_options(st_kwargs)
     n_batch = _positive_int("n_batch", n_batch)
@@ -320,9 +320,10 @@ def _maps_setup(
     statistics with ``norm="self"``, reweighted and flattened; the running operator with
     ``norm="ref"`` and the target's reference. Both take J and, with the spectrum, the number of
     bins: the smaller of the two fields' defaults, each from its own size, whatever J (STL: the
-    smaller ``get_CS_op().n_bins``); J_min 0, and the estimator ``fft`` of periodic fields. With
-    the target's shape, the default J is that of the geometry, as ``STOperator`` computes it
-    (M-DEF, M-DEF-HPX)."""
+    smaller ``get_CS_op().n_bins``); J_min 0, and the estimator ``fft`` of periodic fields. J is
+    resolved before the operators are built, and both, with their spectrum, receive it: with the
+    target's shape, the default of the geometry, as its wavelet plan computes it (M-DEF,
+    M-DEF-HPX)."""
     filtered = data._nyquist_filter(data.array)
     standardized = standardize_target(backend, filtered, mean_field)
     target_data = data.with_array(standardized.x)
@@ -331,6 +332,9 @@ def _maps_setup(
     if J is None and running.shape[2:] != target_data.shape[2:]:
         # Another running shape, on 2D data only (OP-101): the smaller of the two defaults.
         J = min(default_scales(target_data), default_scales(running))  # noqa: N806
+    elif J is None:
+        # The default J of the geometry (M-DEF, M-DEF-HPX), as STOperator computes it.
+        J = build_wavelet_plan(target_data).J  # noqa: N806
     spectrum: dict[str, Any] = (
         {"compute_PS": True, "n_bins": min(_default_n_bins(target_data), _default_n_bins(running))}
         if with_spectrum
@@ -340,7 +344,6 @@ def _maps_setup(
     target_stats = target_op.apply(target_data)
     reference = target_stats._reference
     assert reference is not None  # norm="self"
-    J = cast(int, target_op.J)  # noqa: N806 (one geometry: an int)
     running_op = STOperator(running, J, norm="ref", **spectrum)
     objective = Objective(
         template=running,
@@ -462,7 +465,7 @@ def synthesize_from_stats(
         backend.name,
         plan.meta,
     )
-    _check_periodic(template, "these statistics are of")
+    _check_periodic(template, "the data of these statistics")
     # With the spectrum, its number of bins and J_min are those of the statistics (OP-76); its J
     # is the operator's, and the estimator of the periodic running fields is fft.
     spectrum: dict[str, Any] = {"compute_PS": False}
@@ -677,21 +680,16 @@ def _check_backend(name: str) -> Backend:
 
 def _check_periodic(data: Data, subject: str) -> None:
     """Syntheses of 1.0.0 are periodic and without missing values (LF47): 2D data with
-    ``pbc=True``, HEALPix data of the full sky. ``subject`` begins the message: "the target
-    is", "these statistics are of"."""
+    ``pbc=True``, HEALPix data of the full sky. One message for every geometry and both
+    entries; ``subject`` names what is checked: "the target", "the data of these
+    statistics"."""
     if data.pbc and data.mask is None:
         return
-    if data._geometry == "healpix":
-        raise ValueError(
-            f"{subject} {'a partial sky (cell_ids)' if not data.pbc else 'a masked sky'}: "
-            "HEALPix syntheses of ESTEL 1.0.0 are of the full sky, without missing values; "
-            "partial-sky and masked syntheses come later (LF47). Pass a full sky, without "
-            "cell_ids and without NaN."
-        )
+    problem = "is not periodic (pbc=False)" if not data.pbc else "has missing values"
     raise ValueError(
-        f"{subject} {'not periodic' if not data.pbc else 'masked'}: syntheses of ESTEL "
-        "1.0.0 are periodic, without missing values; non-periodic and masked syntheses "
-        "come later (LF47). Pass periodic data (pbc=True) without NaN."
+        f"{subject} {problem}: syntheses of ESTEL 1.0.0 take 2D data with pbc=True or a full "
+        "HEALPix sky without cell_ids, without missing values; non-periodic, partial-sky and "
+        "masked syntheses come later (LF47). Pass such maps, or the statistics of such maps."
     )
 
 
@@ -798,7 +796,8 @@ def _settings(
         "tolerance_grad": TOLERANCE_GRAD,
         "tolerance_change": TOLERANCE_CHANGE,
         "weights": dict(WEIGHTS),
-        # The pre-filter of M-SYN-NYQ, of 2D data; none on HEALPix in 1.0.0 (OP-77).
+        # The pre-filter of M-SYN-NYQ, on 2D data only, tested on the tag as the spectrum: no
+        # band-limit on HEALPix in 1.0.0 (OP-77); LF24 updates this line when it brings one.
         "prefilter_nyquist": running._geometry == "2d",
     }
 
