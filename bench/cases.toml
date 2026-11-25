@@ -73,3 +73,23 @@ L = [4, 2]
 pbc = [true, true]
 seed = 8
 target_seed = 9
+
+[cases.healpix-masked-64]
+# Added with task T5.7 (issue #168, decision 2): a HEALPix full sky at nside 64 (depth 6), NESTED,
+# J = 5 (the default of maths.md M-DEF-HPX), L = 4 gauges, one channel, with about 10 % of
+# missing pixels in five discs, so that the masks, whose tables the operator builds, are
+# measured. The field is a white noise averaged over neighbouring pixels (bench/README.md).
+# ESTEL only: its check against STL is the parity tests of HEALPix (T5.6); STL's HEALPix times
+# come with the benchmark of step 2 (LF62).
+geometry = "healpix"
+shape = [49152]     # 12 · 4^6 pixels
+channels = 1
+J = 5
+L = 4
+pbc = true          # a full sky
+seed = 10
+target_seed = 11
+# Missing pixels: discs of these angular radii, in degrees, placed without overlap by a seeded
+# draw.
+mask_seed = 12
+mask_discs = [21, 19, 16, 13, 10]

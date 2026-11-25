@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import time
 import warnings
+from collections.abc import Callable
 from typing import Any, cast
 
 import numpy as np
@@ -39,18 +40,23 @@ BLOCKS = {"2D": estel.Data2D, "1D": estel.Data1D}
 
 
 def _data(inputs: Inputs, field: NDArray[Any]) -> estel.Data:
-    """The data of a case: ``Data2D``, or the ``DataTensorProd`` of its blocks (task T3.2)."""
+    """The data of a case: ``Data2D``, the ``DataTensorProd`` of its blocks (task T3.2), or a
+    ``DataHealpix`` full sky (task T5.7)."""
     case = inputs.case
     if case.tensor_prod:
         blocks = [BLOCKS[name] for name in case.blocks]
         return estel.DataTensorProd(field, blocks, pbc=list(cast(Any, case.pbc)))
+    if case.healpix:
+        return estel.DataHealpix(field, mask=inputs.mask)
     return estel.Data2D(field, mask=inputs.mask, pbc=bool(case.pbc))
 
 
 class Run:
     """The operator, the data and the loss of a case, built once; the two measured calls."""
 
-    def __init__(self, inputs: Inputs) -> None:
+    def __init__(self, inputs: Inputs, built: Callable[[], None] | None = None) -> None:
+        """``built``, if given, is called once the operator is built (the peak memory of the
+        build); the construction of the operator is timed in ``build_seconds``."""
         case = inputs.case
         self._backend = current_backend()
         self.data = _data(inputs, inputs.field)
@@ -61,10 +67,14 @@ class Run:
             warnings.simplefilter("ignore", UserWarning)
             self.operator: Any
             J, L = cast(Any, case.J), cast(Any, case.L)  # noqa: N806 (maths.md notation)
+            start = time.perf_counter()
             if case.tensor_prod:
                 self.operator = estel.STOperatorTensorProd(self.data, list(J), list(L), norm="none")
             else:
                 self.operator = estel.STOperator(self.data, J, L, norm="none", compute_PS=False)
+            self.build_seconds = time.perf_counter() - start
+        if built is not None:
+            built()
         target_data = _data(inputs, inputs.target_field)
         # The first call of the operator: on JAX it compiles the loop (task T2.13).
         start = time.perf_counter()

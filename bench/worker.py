@@ -79,18 +79,24 @@ def measure(
     is timed apart (``forward_first_seconds``, ``gradient_first_seconds``), and so is the very
     first call of the operator, made on the second field when the run is built
     (``first_apply_seconds``): on JAX these hold the compilation of the gradient and of the
-    forward pass. The baseline is the
+    forward pass. The construction of the operator is timed apart (``build_seconds``), and
+    the peak resident memory is read once it is built (``build_peak_rss_bytes``; task T5.7). The
+    baseline is the
     resident memory once the library and the inputs are loaded, just before the operator is
     built: the peak minus the baseline is the memory of the computation itself. Returns the
     measurements and the results of the last runs as NumPy arrays."""
     module = importlib.import_module(LIBRARIES[library])
     baseline = rss_bytes()
-    run = module.Run(inputs)
+    build_peak: list[int] = []
+    run = module.Run(inputs, built=lambda: build_peak.append(peak_rss_bytes()))
     forward, statistics_, forward_first = timed(run.forward, warmup, repeats)
     gradient, loss_and_gradient, gradient_first = timed(run.gradient, warmup, repeats)
     peak = peak_rss_bytes()
     arrays: dict[str, NDArray[Any]] = run.arrays(statistics_, loss_and_gradient)
     measurements = {
+        # The construction of the operator, timed apart, and the peak once it is built (#168).
+        "build_seconds": run.build_seconds,
+        "build_peak_rss_bytes": build_peak[0],
         "forward_seconds": statistics.median(forward),
         "forward_runs": forward,
         "forward_first_seconds": forward_first,
