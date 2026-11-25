@@ -13,7 +13,9 @@ and the masks and reweighting maps of M-MASK-HPX (one family for the field and o
 the first layer, as M-DOWN-MASK). The tables of T5.1 (``healpix_stencils``,
 ``healpix_decimation``) are built in NumPy float64 when the filters are built, one set per level,
 cast at once to the operator's dtype (indices int32), and the float64 arrays are dropped: at
-``nside`` 128 the stencils of one level take 900 MiB in float64 (#168). With missing values the
+``nside`` 128 the stencils of one level take 900 MiB in float64 (#168). The kernel of M-WAV-HPX
+is folded into the stencils (:func:`_fold_kernel`; task T5.7): each row reads its distinct
+pixels once, as real pairs. With missing values the
 plan builds them first, for the support test and the decimated fractions of the masks, and hands
 them over to the filters of the operator, which take them instead of building them again
 (:class:`_TablesHandOver`; task T5.7): the tables of a level are built once in an operator.
