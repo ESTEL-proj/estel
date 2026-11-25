@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 
 from estel import DataHealpix
-from estel.wavelets import _healpix_geometry
+from estel.wavelets import _healpix_geometry, _healpix_operator
 from estel.wavelets._healpix_bank import healpix_kernel_weights
 from estel.wavelets._healpix_geometry import (
     MAX_DEPTH,
@@ -298,6 +298,32 @@ def test_masks_built_by_batches_equal_one_batch(monkeypatch: pytest.MonkeyPatch)
         for key in expected:
             np.testing.assert_array_equal(actual[key], expected[key])
     assert any(m.any() for m in whole.layer2.values())
+
+
+@pytest.mark.maths("M-CONV-HPX")
+@pytest.mark.parametrize("sky", ["full", "disc"])
+def test_kernel_folded_into_the_stencils(sky: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The kernel folded into the stencils (task T5.7): each row reads its distinct pixels
+    once, with Σ W[p] w[p, m], as real pairs; the convolution equals the stencils then the
+    kernel to rounding, and a fold by batches (7 rows) equals one batch, bit for bit."""
+    depth = 2
+    ids = None if sky == "full" else _disc(depth, 1.4, 0.5, 0.9)
+    tables = healpix_stencils(ids, depth)
+    kernel = healpix_kernel_weights(kernel_size=5)
+    index, weight = _healpix_operator._fold_kernel(tables, kernel)
+    rows, width = tables.index.shape[0], index.shape[-1]
+    assert index.shape == weight.shape == (rows, 2, width)
+    assert index.dtype == np.int32
+    np.testing.assert_array_equal(index[:, 0], index[:, 1])
+    assert width <= 45 < tables.index.shape[1] * tables.index.shape[2]
+    x = np.random.default_rng(0).standard_normal(int(tables.index.max()) + 1)
+    expected = (x[tables.index] * tables.weight).sum(axis=-1) @ kernel
+    folded = (x[index] * weight).sum(axis=-1)
+    np.testing.assert_allclose(folded[:, 0] + 1j * folded[:, 1], expected, rtol=0, atol=1e-14)
+    monkeypatch.setattr(_healpix_operator, "_FOLD_BATCH", 7)
+    batched = _healpix_operator._fold_kernel(tables, kernel)
+    np.testing.assert_array_equal(batched[0], index)
+    np.testing.assert_array_equal(batched[1], weight)
 
 
 @pytest.mark.maths("M-CONV-HPX")

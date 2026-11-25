@@ -297,7 +297,8 @@ def build_healpix_wavelet_filters(
     backend = _registry.backend_named(backend_name)
     handed = plan._tables or _TablesHandOver()
     kernel = plan.bank()
-    pairs = backend.asarray(np.stack([kernel.real, kernel.imag], axis=-1), dtype, device)
+    # The kernel is folded into the tables (_fold_kernel): the product with it is the identity.
+    identity = backend.asarray(np.eye(2), dtype, device)
 
     def conv(level: int) -> HealpixConvTables:
         tables = handed.stencils.pop(level, None) or healpix_stencils(
@@ -306,11 +307,12 @@ def build_healpix_wavelet_filters(
             L=plan.L,
             kernel_size=plan.kernel_size,
         )
-        shape = (plan.L, plan.level_shapes[level][0], *tables.index.shape[1:])
+        index, weight = _fold_kernel(tables, kernel)
+        shape = (plan.L, plan.level_shapes[level][0], *index.shape[1:])
         return HealpixConvTables(
-            index=backend.asarray(tables.index.reshape(shape), "int32", device),
-            weight=backend.asarray(tables.weight.reshape(shape), dtype, device),
-            kernel=pairs,
+            index=backend.asarray(index.reshape(shape), "int32", device),
+            weight=backend.asarray(weight.reshape(shape), dtype, device),
+            kernel=identity,
         )
 
     def down(level: int) -> HealpixDownTables:
@@ -333,3 +335,50 @@ def build_healpix_wavelet_filters(
     handed.stencils.clear()  # what the filters did not take: the plan keeps no tables
     handed.decimation.clear()
     return filters
+
+
+_FOLD_BATCH = 1 << 14
+"""Rows of the stencil tables folded at once by :func:`_fold_kernel`: bounds its temporaries."""
+
+
+def _fold_kernel(
+    tables: HealpixStencils, kernel: NDArray[np.complex128]
+) -> tuple[NDArray[np.int32], NDArray[np.float64]]:
+    """The stencils of a level with the kernel folded in (task T5.7, trial 4): for each row
+    (gauge, pixel), the K² · 4 entries merged into the distinct pixels they read, each with
+    Σ W[p] · w[p, m] over its entries, as real pairs (Part I, §3.1, rule 6). Returns ``index``
+    and ``weight`` of shape ``(L · Npix, 2, M)``, M the largest number of distinct pixels of a
+    row, the rows padded with weight 0: the real part on the first entry of the second axis,
+    the imaginary part on the second, the same pixels on both. ``gather_weighted`` then gives
+    the convolution as real pairs at once; the values change by rounding only (M-CONV-HPX)."""
+    rows, q, m = tables.index.shape
+    folded = np.repeat(kernel, m)  # W[p] for each entry (p, m)
+    parts: list[tuple[NDArray[np.int32], NDArray[np.float64]]] = []
+    for begin in range(0, rows, _FOLD_BATCH):
+        index = tables.index[begin : begin + _FOLD_BATCH].reshape(-1, q * m)
+        weight = tables.weight[begin : begin + _FOLD_BATCH].reshape(-1, q * m)
+        n = index.shape[0]
+        order = np.argsort(index, axis=1, kind="stable")
+        by_pixel = np.take_along_axis(index, order, axis=1)
+        first = np.ones(by_pixel.shape, dtype=bool)
+        first[:, 1:] = by_pixel[:, 1:] != by_pixel[:, :-1]
+        group = np.cumsum(first, axis=1) - 1  # the rank of each entry's pixel in its row
+        width = int(group[:, -1].max()) + 1
+        slots = (np.arange(n)[:, None] * width + group).ravel()
+        values = (np.take_along_axis(weight, order, axis=1) * folded[order]).ravel()
+        pixels = np.zeros(n * width, dtype=np.int32)
+        pixels[slots] = by_pixel.ravel()
+        pairs = np.stack(
+            [np.bincount(slots, values.real, n * width), np.bincount(slots, values.imag, n * width)]
+        )
+        parts.append((pixels.reshape(n, width), pairs.reshape(2, n, width)))
+    width = max(part[0].shape[1] for part in parts)
+    out_index = np.zeros((rows, 2, width), dtype=np.int32)
+    out_weight = np.zeros((rows, 2, width), dtype=np.float64)
+    begin = 0
+    for pixels, pairs in parts:
+        n, w = pixels.shape
+        out_index[begin : begin + n, :, :w] = pixels[:, None]
+        out_weight[begin : begin + n, :, :w] = pairs.transpose(1, 0, 2)
+        begin += n
+    return out_index, out_weight
