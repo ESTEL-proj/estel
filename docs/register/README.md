@@ -89,13 +89,13 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 | [LF32](LF32.md) | Orientation reductions made complete and correct | 2a.2 | — | Mathematical choice |
 | [LF53](LF53.md) | Complex cross-channel terms kept | 2a.2 | — | Mathematical choice |
 | [LF63](LF63.md) | Tensor-product orientations beyond one 2D block | 2a.2 | — | Mathematical choice |
-| [LF8](LF8.md) | NaN masks in tensor products | 2a.3 | per-block valid weights multiplied, or the observed-sample mask with per-block border crops (§20.3) | New feature |
+| [LF8](LF8.md) | NaN masks in tensor products | 2a.3 | — | New feature |
 | [LF49](LF49.md) | Isotropic radial binning on rectangular images | 2a.3 | — | Mathematical choice |
 | [LF58](LF58.md) | One loss function for both synthesis entries | 2a.4 | — | Mathematical choice |
 | [LF59](LF59.md) | Running field of a synthesis standardised | 2a.4 | — | Mathematical choice |
 | [LF64](LF64.md) | Nyquist pre-filter on rectangular fields | 2a.4 | — | Mathematical choice |
-| [LF10](LF10.md) | v1.6.0 spectrum estimators in every geometry | 2a.X | — | New feature |
-| [LF11](LF11.md) | Plotting, diagnostics, gaussianise, surrogates | 2a.X | the generator of `gaussianise`, after the comparison: the default, one function with `method=` or several, the names | New feature |
+| [LF10](LF10.md) | v1.6.0 spectrum estimators in every geometry | 2a.X | N_max on blocks of different sizes and dimensions; J_PS on blocks of different sizes and dimensions; the joint bins of a tensor product; the border β_b on 1D and product blocks (its J₀ Hankel transform is 2D) | New feature |
+| [LF11](LF11.md) | Plotting, diagnostics and gaussianise | 2a.X | the generator of `gaussianise`, after the comparison: the default, one function with `method=` or several, the names | New feature |
 
 ### Can be treated
 

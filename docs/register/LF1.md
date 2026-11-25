@@ -44,7 +44,7 @@ JAX backend
 
 ## Why
 
-`jit`, `vmap`, TPU and GPU, functional ecosystem
+`jit`, `vmap`, GPU, functional ecosystem
 
 ## Builds on (reserved in 1.0.0)
 
