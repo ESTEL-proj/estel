@@ -1,5 +1,5 @@
-"""``STOperator``: the scattering operator of one planar domain (Part II, §12.6; tasks T2.4,
-T2.5).
+"""``STOperator``: the scattering operator of one domain, 1D, 2D or HEALPix (Part II, §12.6;
+tasks T2.4, T2.5, T5.6).
 
 An operator is a frozen plan plus a pure function (Part I, §2.3): ``STOperator(data, ...)``
 builds the static plan (``build_plan``) and the filters (``build_filters``), cast once to the
@@ -39,6 +39,7 @@ from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
 from ._filters import PlanarFilters, STFilters, TensorProdFilters
 from ._plan import (
+    LATER_SPECTRA,
     SCATTERING_SPECTRUM_ADVICE,
     PlanarPlan,
     SpectrumAdvice,
@@ -46,26 +47,30 @@ from ._plan import (
     TensorProdPlan,
     build_plan,
     build_tensor_prod_statistics_plan,
+    later_spectrum,
 )
 
 _WIDE = ("float64", "complex128")
 
 
 class STOperator:
-    """The scattering operator of 1D and 2D planar data: the scattering statistics mean, var
-    and S1 to S4 (maths.md §1.6 to 1.8, §2.3 to 2.4).
+    """The scattering operator of single-domain data, 1D, 2D and HEALPix: the scattering
+    statistics mean, var and S1 to S4 (maths.md §1.6 to 1.8, §2.3 to 2.4, §4).
 
     Parameters
     ----------
     data:
-        An example of the data, ``estel.Data1D`` or ``estel.Data2D``: its geometry, spatial
-        shape, ``pbc``, mask and number of channels fix the operator; its values are not read.
+        An example of the data, ``estel.Data1D``, ``estel.Data2D`` or ``estel.DataHealpix``: its
+        geometry, spatial shape, ``pbc``, mask and number of channels fix the operator, and on
+        HEALPix its ``depth`` and ``cell_ids``; its values are not read.
     J:
         The number of scales; by default ⌊log₂ min N⌋ - 2 (M-DEF, M-DEF-1D). The spatial sizes
-        must be divisible by 2^(J-1) (OP-8).
+        must be divisible by 2^(J-1) (OP-8). On HEALPix, max(1, depth - 1), with
+        1 ≤ J ≤ depth + 1 (M-DEF-HPX).
     L:
         The number of orientations; by default 4 in 2D and 1 in 1D. In 1D, L is 1 or 2 (the
-        second filter is the conjugate of the first, M-WAV-1D).
+        second filter is the conjugate of the first, M-WAV-1D). On HEALPix, the number of gauges,
+        4 by default (M-DEF-HPX).
     norm:
         ``"self"`` (the default): normalise the statistics by themselves, and keep the
         reference; ``"ref"``: normalise by the reference of other statistics; ``"none"``: no
@@ -83,7 +88,8 @@ class STOperator:
         triangle (M-CHAN, M-DEF). Every channel must appear in at least one pair (OP-30).
     compute_PS:
         Whether the statistics hold the 2D power spectrum, the family ``"PS"`` (maths.md §1.9):
-        True by default for 2D data, unavailable for 1D data in 1.0.0 (LF23). It is computed
+        True by default for 2D data, unavailable for 1D data (LF23) and HEALPix data (LF24) in
+        1.0.0, where ``None`` (the default) leaves it out and True raises. It is computed
         on the field after the standardisation, with the channel pairs of ``cross_matrix``, by
         the estimators of ``SpectrumOperator``, with J_PS the J of the operator; it needs even
         sizes (OP-20) and J ≥ 2 + Jmin (OP-93).
@@ -95,7 +101,7 @@ class STOperator:
         The estimator of the spectrum, as ``method`` of ``SpectrumOperator``: ``"auto"`` (the
         default), ``"fft"``, ``"pbc_mask"``, ``"nan_mask"`` or ``"pbc_nan_mask"``. ``n_bins``,
         ``Jmin`` and ``spectrum_method`` act only with the spectrum: another value than their
-        default without it raises.
+        default without it raises, naming LF23 or LF24 on data without a spectrum.
     engine:
         The engine that runs the computation (Part II, §9.4): ``"python"``, the only engine of
         1.0.0.
@@ -147,7 +153,7 @@ class STOperator:
             norm=norm,
             ref_batch_mean=ref_batch_mean,
             standardize=standardize,
-            compute_PS=_compute_ps(compute_PS, data.ndim),
+            compute_PS=_compute_ps(compute_PS, data),
             n_bins=n_bins,
             Jmin=Jmin,
             spectrum_method=spectrum_method,
@@ -249,12 +255,13 @@ class STOperator:
         """The statistics of ``data`` (maths.md §1.6 to 1.8, §3), as ``STStatistics``.
 
         ``data`` must have the geometry, spatial shape, ``pbc``, mask and number of channels of
-        the example the operator was built from (for a tensor product, its blocks, their sizes
-        and ``pbc``), its backend, and its dtype; the batch size may differ. ``ref`` is for
-        ``norm="ref"`` only: statistics of the same geometry computed with ``norm="self"``,
-        whose reference normalises these; without it, the operator uses the reference it holds
-        (from :meth:`from_statistics`). With ``norm="self"`` the operator keeps the reference of
-        the result, replacing the one it held, with a ``UserWarning``.
+        the example the operator was built from (on HEALPix, its ``depth`` and ``cell_ids``; for
+        a tensor product, its blocks, their sizes and ``pbc``), its backend, and its dtype; the
+        batch size may differ. ``ref`` is for ``norm="ref"`` only: statistics of the same
+        geometry computed with ``norm="self"``, whose reference normalises these; without it,
+        the operator uses the reference it holds (from :meth:`from_statistics`). With
+        ``norm="self"`` the operator keeps the reference of the result, replacing the one it
+        held, with a ``UserWarning``.
         """
         name = type(self).__name__
         stats, self._reference = apply_operator(
@@ -322,7 +329,7 @@ class STOperatorTensorProd(STOperator):
 
     _plan_type = TensorProdPlan
     _other_statistics = (
-        "these are the statistics of planar data: use STOperator.from_statistics(stats)."
+        "these are the statistics of single-domain data: use STOperator.from_statistics(stats)."
     )
 
     def __init__(
@@ -425,16 +432,17 @@ def _warn_channels_without_auto(plan: PlanarPlan | TensorProdPlan) -> None:
         )
 
 
-def _compute_ps(compute_ps: object, ndim: int) -> bool:
+def _compute_ps(compute_ps: object, data: Data) -> bool:
     """Whether the statistics hold the power spectrum: ``compute_PS``, True by default for 2D
-    data; 1D data have none in 1.0.0 (LF23)."""
+    data; the geometries of ``LATER_SPECTRA``, tested by their tag, have none in 1.0.0: 1D data
+    (LF23) and HEALPix data (LF24)."""
     if compute_ps is not None and not isinstance(compute_ps, bool | np.bool_):
         raise TypeError(f"compute_PS={compute_ps!r}: pass True, False or None (the default).")
-    if ndim != 2:
+    if data._geometry in LATER_SPECTRA:
         if compute_ps:
             raise ValueError(
-                f"compute_PS=True: ESTEL 1.0.0 computes power spectra of 2D data only; for "
-                f"{ndim}D data they come later (LF23). Pass compute_PS=False, or leave it to None."
+                f"compute_PS=True: ESTEL 1.0.0 computes power spectra of 2D data only; "
+                f"{later_spectrum(type(data))}. Pass compute_PS=False, or leave it to None."
             )
         return False
     return True if compute_ps is None else bool(compute_ps)

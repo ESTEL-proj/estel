@@ -1012,10 +1012,14 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
         plan = _tensor_prod_plan(spec, arrays["plan__cross_matrix"].astype(bool))
     else:
         mask = arrays.get("plan__mask")
-        example = cls(
-            np.zeros((1, spec["n_channels"], *spec["spatial_shape"])),
-            mask=None if mask is None else mask.astype(bool),
-            pbc=bool(spec["pbc"]),
+        prefix = "plan__"
+        example = cls._example_from_content(
+            spec["n_channels"],
+            tuple(spec["spatial_shape"]),
+            None if mask is None else mask.astype(bool),
+            bool(spec["pbc"]),
+            spec["meta"],
+            {k[len(prefix) :]: v for k, v in arrays.items() if k.startswith(prefix)},
         )
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)  # OP-3 and OP-13 were shown when computed

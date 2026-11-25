@@ -7,9 +7,11 @@ and the imaginary part of each complex one (``complex_to_real_pairs`` of the ful
 positions the static layout marks present), and the moments removed by ``standardize``.
 ``to_vector`` would hide the imaginary parts of S1 and S2 (M-FLAT).
 
-The cases are the smallest data that run the whole loop, J = 2. Together they cover 1D and 2D,
-``pbc`` on and off, missing values, two channels with their cross terms, ``standardize``, a
-batch, and the three normalisations (M-NORM). With ``norm="self"`` the reference is part of
+The cases are the smallest data that run the whole loop, J = 2. Together they cover 1D, 2D and
+HEALPix (task T5.6: the full sky at ``nside`` 4, and a partial sky of 80 pixels at ``nside`` 8
+with 2 missing pixels, the smallest where every mean keeps a valid pixel), ``pbc`` on
+and off, missing values, two channels with their cross terms, ``standardize``, a batch, and the
+three normalisations (M-NORM). With ``norm="self"`` the reference is part of
 the function, so its derivative is part of what is checked; with ``norm="ref"`` the reference
 comes from other data and is fixed.
 """
@@ -25,7 +27,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 import estel
-from estel import Data, Data1D, Data2D, STOperator, STStatistics
+from estel import Data, Data1D, Data2D, DataHealpix, STOperator, STStatistics
 from estel.backend._protocol import Backend
 
 Function = Callable[[Any], Any]
@@ -33,14 +35,18 @@ Function = Callable[[Any], Any]
 
 @dataclass(frozen=True)
 class Case:
-    """One configuration: the data (batch, channels and spatial shape), and the operator."""
+    """One configuration: the data (batch, channels and spatial shape), and the operator. On
+    HEALPix, ``pbc`` follows ``cell_ids`` (True on the full sky), and ``depth`` is that of the
+    map."""
 
     name: str
-    cls: type[Data2D] | type[Data1D]
+    cls: type[Data2D] | type[Data1D] | type[DataHealpix]
     shape: tuple[int, ...]
     pbc: bool
     masked: bool = False
     options: dict[str, Any] = field(default_factory=dict)
+    depth: int | None = None
+    cell_ids: tuple[int, ...] | None = None
 
 
 SMALLEST = Case("1d-pbc", Data1D, (1, 1, 8), pbc=True, options={"norm": "none"})
@@ -80,6 +86,19 @@ CASES = (
         options={"norm": "self", "ref_batch_mean": True},
     ),
     Case("2d-open-cross-ref", Data2D, (1, 2, 8, 8), pbc=False, options={"norm": "ref", "L": 2}),
+    Case(
+        "healpix-full-none", DataHealpix, (1, 1, 192), pbc=True, depth=2, options={"norm": "none"}
+    ),
+    Case(
+        "healpix-partial-mask-self",
+        DataHealpix,
+        (1, 1, 80),
+        pbc=False,
+        masked=True,
+        depth=3,
+        cell_ids=tuple(range(80)),  # base face 0 and part of face 1, nside 8
+        options={"norm": "self"},
+    ),
 )
 J = 2
 
@@ -96,11 +115,14 @@ def data_of(case: Case, seed: int = 0) -> Data:
     if case.masked:
         mask = np.zeros(case.shape[2:], dtype=bool)
         mask[(slice(3, 5),) * case.cls.ndim] = True
+    if issubclass(case.cls, DataHealpix):
+        values = field_of(case, seed)
+        return DataHealpix(values, mask=mask, depth=case.depth, cell_ids=case.cell_ids)
     return case.cls(field_of(case, seed), mask=mask, pbc=case.pbc)
 
 
 def operator_of(case: Case, data: Data, **options: Any) -> STOperator:
-    defaults: dict[str, Any] = {"compute_PS": False if data.ndim == 2 else None}
+    defaults: dict[str, Any] = {"compute_PS": False if data._geometry == "2d" else None}
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13: tested with the plan
         return STOperator(data, J, **{**defaults, **case.options, **options})

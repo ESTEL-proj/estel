@@ -209,7 +209,7 @@ def build_spectrum_operator_plan(
     spatial = tuple(int(n) for n in data.shape[2:])
     spectrum = build_spectrum_plan(
         spatial,
-        data.ndim,
+        type(data),
         J,
         n_bins,
         Jmin,
