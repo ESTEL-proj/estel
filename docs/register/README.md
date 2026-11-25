@@ -86,9 +86,9 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 | [LF53](LF53.md) | Complex cross-channel terms kept | 2a.2 | — | Mathematical choice |
 | [LF63](LF63.md) | Tensor-product orientations beyond one 2D block | 2a.2 | — | Mathematical choice |
 | [LF49](LF49.md) | Isotropic radial binning on rectangular images | 2a.3 | radial frequency of a mode on rectangular images (OP-6); whether the synthesis pre-filter (OP-54) is included | Mathematical choice |
-| [LF58](LF58.md) | One loss function for both synthesis entries | 2a.4 | one named concept for mean_field; one standardisation for both entries (OP-72); normalisation of the loss (OP-71); rule for the channel axis of the result (OP-75) | Mathematical choice |
-| [LF59](LF59.md) | Running field of a synthesis standardised | 2a.4 | start standardised, or the running field at every evaluation (OP-73); per running field or over the running batch | Mathematical choice |
-| [LF64](LF64.md) | Nyquist pre-filter on rectangular fields | 2a.4 | the cut on rectangular fields, consistent with the binning chosen in LF49 | Mathematical choice |
+| [LF58](LF58.md) | One loss function for both synthesis entries | 2a.4 | one named concept for mean_field; one standardisation for both entries (OP-72); rule for the channel axis of the result (OP-75) | Mathematical choice |
+| [LF59](LF59.md) | Running field of a synthesis standardised | 2a.4 | start standardised, or the running field at every evaluation (OP-73) | Mathematical choice |
+| [LF64](LF64.md) | Nyquist pre-filter on rectangular fields | 2a.4 | — | Mathematical choice |
 | [LF1](LF1.md) | JAX backend | 2a.X | devices covered by the stable guarantee; JAX tests on every pull request once stable | Structure |
 | [LF10](LF10.md) | v1.6.0 spectrum estimators in every geometry | 2a.X | generalised directly with LF23, or after the spectra of 2D+1D; periodicity per block in tensor products; NaN-aware estimators on tensor products before LF8 | New feature |
 | [LF11](LF11.md) | Plotting, diagnostics, gaussianise, surrogates | 2a.X | scope of the improved plotting and diagnostics; what gaussianise computes; what a surrogate is | New feature |
