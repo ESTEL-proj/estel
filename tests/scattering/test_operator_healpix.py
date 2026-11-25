@@ -5,8 +5,9 @@ Values are compared with STL in ``tests/parity/test_healpix_statistics.py`` and 
 in ``tests/spec/test_healpix_scattering.py``. These tests run on the run's backend and dtype, at
 ``nside`` 2 to 8, and check what parity does not: the defaults of M-DEF-HPX, the power spectrum
 left out and refused with LF24 (decision 2 on #167), the data ``apply`` refuses (another partial
-sky of the same size: decision 4), the advice of the OP-3 messages, and the statistics through a
-file and back to their operator (decision 5).
+sky of the same size: decision 4), the advice of the OP-3 messages, the statistics through a
+file and back to their operator (decision 5), and, for task T5.7, the stencils gathered by
+batches.
 """
 
 from __future__ import annotations
@@ -20,6 +21,8 @@ import pytest
 from numpy.typing import NDArray
 
 from estel import DataHealpix, STOperator, STStatistics, _config
+from estel.backend._registry import current_backend
+from estel.data import _healpix
 from estel.io import _schema
 
 pytestmark = pytest.mark.maths("M-DATA-HPX", "M-DEF-HPX", "M-MEAN")
@@ -179,3 +182,29 @@ def test_statistics_go_through_a_file_and_back_to_their_operator(tmp_path: Path)
     other = DataHealpix(_field((DISC.size,)), _hole(DISC.size), depth=2, cell_ids=DISC + 1)
     with pytest.raises(ValueError, match="build a new STOperator"):
         rebuilt.apply(other)
+
+
+def test_stencils_gathered_by_batches_equal_one_batch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The stencils interpolated by batches of rows inside ``gather_weighted`` (task T5.7)
+    give the statistics of one batch, bit for bit, and their gradient to rounding: 50 rows a
+    batch at ``nside`` 4 (768 rows at level 0, 192 at level 1), a masked full sky, J = 2."""
+    backend = current_backend()
+    data = DataHealpix(_field((192,)), mask=_hole(192))
+    operator = _operator(data, 2)
+
+    def loss(array: Any) -> Any:
+        return backend.xp.sum(operator.apply(data.with_array(array)).to_vector() ** 2)
+
+    def run() -> tuple[NDArray[Any], NDArray[Any]]:
+        _, gradient = backend.value_and_grad(loss)(data.array)
+        vector = backend.to_numpy(operator.apply(data).to_vector())
+        return vector, backend.to_numpy(gradient)
+
+    monkeypatch.setattr(_healpix, "_STENCIL_BATCH_ROWS", 1 << 20)
+    whole, whole_gradient = run()
+    monkeypatch.setattr(_healpix, "_STENCIL_BATCH_ROWS", 50)
+    batched, batched_gradient = run()
+    np.testing.assert_array_equal(batched, whole)
+    scale = np.abs(whole_gradient).max()
+    np.testing.assert_allclose(batched_gradient, whole_gradient, rtol=0, atol=1e-5 * scale)
+

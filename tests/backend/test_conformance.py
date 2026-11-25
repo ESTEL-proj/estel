@@ -270,6 +270,23 @@ LINEAR_CASES = [
         ),
         lambda w, dt: np_gather_weighted(X_GW(dt), 1, GW_INDEX, w),
     ),
+    # By batches of rows (task T5.7): 3 rows, then 1.
+    Linear(
+        "gather-weighted-in-x-by-batches",
+        (2, 7, 3),
+        lambda b, x, dt: b.gather_weighted(
+            x, 1, index_array(b, GW_INDEX), _asarray(b, GW_WEIGHT(dt), dt), batch_rows=3
+        ),
+        lambda x, dt: np_gather_weighted(x, 1, GW_INDEX, GW_WEIGHT(dt)),
+    ),
+    Linear(
+        "gather-weighted-in-weight-by-batches",
+        (4, 2, 3),
+        lambda b, w, dt: b.gather_weighted(
+            _asarray(b, X_GW(dt), dt), -2, index_array(b, GW_INDEX, "int32"), w, batch_rows=3
+        ),
+        lambda w, dt: np_gather_weighted(X_GW(dt), 1, GW_INDEX, w),
+    ),
     Linear(
         "segment-sum",
         (3, 8),
@@ -676,6 +693,17 @@ class TestSparse:
         assert y[0, 0] == 0.5
         assert np.isnan(y[1, 0])
 
+    @pytest.mark.parametrize("batch_rows", [1, 3, 4, 9])
+    def test_gather_weighted_by_batches_equals_one_batch(
+        self, backend: Backend, dtype: DType, batch_rows: int
+    ) -> None:
+        """Batches of rows (task T5.7) give the values of one batch, bit for bit."""
+        x = backend.asarray(X_GW(dtype), dtype)
+        index, weight = index_array(backend, GW_INDEX), backend.asarray(GW_WEIGHT(dtype), dtype)
+        whole = backend.to_numpy(backend.gather_weighted(x, 1, index, weight))
+        batched = backend.gather_weighted(x, 1, index, weight, batch_rows=batch_rows)
+        np.testing.assert_array_equal(backend.to_numpy(batched), whole)
+
     def test_gather_weighted_rejects(self, backend: Backend, dtype: DType) -> None:
         x = backend.asarray(np.ones((3, 4)), dtype)
         index = index_array(backend, np.zeros((2, 1, 3), dtype=int))
@@ -692,6 +720,10 @@ class TestSparse:
         weight = backend.asarray(np.ones((2, 1, 3)), other)
         with pytest.raises(TypeError, match="share one dtype"):
             backend.gather_weighted(x, 1, index, weight)
+        with pytest.raises(ValueError, match="batch_rows must be at least 1"):
+            backend.gather_weighted(
+                x, 1, index, backend.asarray(np.ones((2, 1, 3)), dtype), batch_rows=0
+            )
 
     def test_segment_sum_empty_segment_and_zero_segments(
         self, backend: Backend, dtype: DType

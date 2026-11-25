@@ -17,8 +17,10 @@ The geometry hooks apply the static tables of each level that the wavelet operat
 * ``_crop_weights``: no border (M-MASK-HPX), every pixel of the level.
 
 Each application is one function of a range of output pixels (:func:`_stencil_rows`,
-:func:`_decimation_rows`), called here once on all of them, so that the pixel batches of T5.7
-can split it without changing the hooks or the plan.
+:func:`_decimation_rows`), called here once on all of them. The stencils are gathered by
+batches of :data:`_STENCIL_BATCH_ROWS` rows inside the L0 primitive (``gather_weighted``,
+``batch_rows``; task T5.7), so that the interpolated values of the stencils are never
+materialised whole; the decimation, whose gathered values are its output, is gathered at once.
 
 ``data`` does not import ``wavelets``: the tables come in as :class:`HealpixConvTables` and
 :class:`HealpixDownTables`, named tuples of backend arrays, built by the wavelet operator.
@@ -393,18 +395,28 @@ class DataHealpix(Data):
 
 # ---------------------------------------------------------------------- application of tables
 
+_STENCIL_BATCH_ROWS = 1 << 14
+"""Rows of the stencil tables (gauge, pixel) that ``gather_weighted`` interpolates at once
+(task T5.7, issue #168): the interpolated values, K² · 4 per row and map, are materialised one
+batch at a time. An internal constant, not an option (Part IV, §22); STL's ``TorchConv`` works
+by 16384 pixels too."""
+
 
 def _stencil_rows(backend: Any, x: Any, tables: HealpixConvTables, pixels: slice) -> Any:
     """The convolution of the real map ``x``, ``(..., Npix)``, at the output pixels ``pixels``
     of the level, as real pairs ``(..., L, n, 2)``, n the number of these pixels (M-CONV-HPX,
     step 4): the stencil values interpolated with ``gather_weighted``, then one real product
-    with the kernel's real and imaginary parts. One function of a range of output pixels, so
-    that pixel batches (T5.7) can call it on parts."""
+    with the kernel's real and imaginary parts. The stencils are interpolated by batches of
+    :data:`_STENCIL_BATCH_ROWS` rows, inside ``gather_weighted`` (task T5.7)."""
     xp = backend.xp
     index, weight = tables.index[:, pixels], tables.weight[:, pixels]
     n_l, n, q, m = (int(s) for s in index.shape)
     z = backend.gather_weighted(
-        x, -1, xp.reshape(index, (n_l * n, q, m)), xp.reshape(weight, (n_l * n, q, m))
+        x,
+        -1,
+        xp.reshape(index, (n_l * n, q, m)),
+        xp.reshape(weight, (n_l * n, q, m)),
+        batch_rows=_STENCIL_BATCH_ROWS,
     )  # (..., L · n, K²)
     y = xp.matmul(z, tables.kernel)  # (..., L · n, 2)
     return xp.reshape(y, (*tuple(int(s) for s in y.shape[:-2]), n_l, n, 2))
@@ -421,7 +433,7 @@ def _decimation_rows(
     """The decimation of the real map ``x``, ``(..., Npix)``, at ``num_segments`` coarse
     pixels from ``first_segment`` on, whose entries of the CSR tables are ``entries``
     (M-DOWN-HPX): ``gather_weighted`` then ``segment_sum``. One function of a range of output
-    pixels, so that pixel batches (T5.7) can call it on parts."""
+    pixels; not batched, since its gathered values are its output (task T5.7, issue #168)."""
     z = backend.gather_weighted(x, -1, tables.index[entries], tables.weight[entries])[..., 0]
     segments = tables.segment_ids[entries]
     if first_segment:
