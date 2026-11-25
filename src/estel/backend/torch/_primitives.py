@@ -73,6 +73,18 @@ def _tensor(x: Any, what: str) -> torch.Tensor:
     return x
 
 
+def _gather_rows(
+    x: torch.Tensor, ax: int, index: torch.Tensor, weight: torch.Tensor
+) -> torch.Tensor:
+    """``gather_weighted`` on the rows of ``index`` and ``weight``, checked, at once."""
+    p, q, m = index.shape
+    post = x.shape[ax + 1 :]
+    taken = torch.index_select(x, ax, index.reshape(-1))
+    taken = taken.reshape(*x.shape[:ax], p, q, m, *post)
+    w = weight.reshape(p, q, m, *([1] * len(post)))
+    return (taken * w).sum(dim=ax + 2)
+
+
 def _real(value: Any, what: str) -> torch.Tensor:
     x = _tensor(value, what)
     if x.dtype in _COMPLEX:
@@ -322,7 +334,13 @@ class TorchBackend:
     # ------------------------------------------------------------ sparse operations
 
     def gather_weighted(
-        self, x: torch.Tensor, axis: int, index: torch.Tensor, weight: torch.Tensor
+        self,
+        x: torch.Tensor,
+        axis: int,
+        index: torch.Tensor,
+        weight: torch.Tensor,
+        *,
+        batch_rows: int | None = None,
     ) -> torch.Tensor:
         x = _real(x, "x")
         weight = _real(weight, "weight")
@@ -334,12 +352,20 @@ class TorchBackend:
                 "shape (P, Q, M): a padded CSR stencil."
             )
         ax = _axis(axis, x.ndim)
-        p, q, m = index.shape
-        post = x.shape[ax + 1 :]
-        taken = torch.index_select(x, ax, index.reshape(-1))
-        taken = taken.reshape(*x.shape[:ax], p, q, m, *post)
-        w = weight.reshape(p, q, m, *([1] * len(post)))
-        return (taken * w).sum(dim=ax + 2)
+        rows = int(index.shape[0])
+        if batch_rows is not None and batch_rows < 1:
+            raise ValueError(
+                f"batch_rows must be at least 1, or None for every row; got {batch_rows}."
+            )
+        if batch_rows is None or batch_rows >= rows:
+            return _gather_rows(x, ax, index, weight)
+        parts = [
+            _gather_rows(
+                x, ax, index[begin : begin + batch_rows], weight[begin : begin + batch_rows]
+            )
+            for begin in range(0, rows, batch_rows)
+        ]
+        return torch.cat(parts, dim=ax)
 
     def segment_sum(
         self, x: torch.Tensor, axis: int, segment_ids: torch.Tensor, num_segments: int

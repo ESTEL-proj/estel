@@ -122,10 +122,11 @@ def window(weights: MeanWeights, array: Any) -> Any:
 
 
 def build_filters(
-    plan: PlanarPlan, backend_name: str, dtype: FloatDType, device: Any
+    plan: PlanarPlan, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
 ) -> PlanarFilters:
     """The filters of ``plan`` on the backend ``backend_name``, cast once to ``dtype`` on
-    ``device`` (Part I, §3.1, rules 4 and 7)."""
+    ``device`` (Part I, §3.1, rules 4 and 7); ``tables``, those the plan was built with
+    (``build_plan_with_tables``), go to the filters of its wavelets."""
     backend = _registry.backend_named(backend_name)
 
     def real(a: NDArray[Any]) -> Any:
@@ -138,7 +139,7 @@ def build_filters(
         return backend.asarray(np.asarray(a, dtype=bool), "bool", device)
 
     return PlanarFilters(
-        wavelets=plan.wavelets._build_filters(backend_name, dtype, device),
+        wavelets=plan.wavelets._build_filters(backend_name, dtype, device, tables),
         valid=None if plan.mask is None else boolean(~plan.mask),
         moments=weights(plan.moments),
         first_layer={j: weights(w) for j, w in plan.first_layer.items()},

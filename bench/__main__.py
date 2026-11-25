@@ -58,7 +58,11 @@ SCHEMA = 3  # 2: the runs of ``main`` (``tree``) and the check against them (``c
 # 3: the time of the first call of each measure; the comparisons of two commits (``comparison``)
 COMPARE_ROUNDS = 5
 # What a comparison measures: the name of its ratio, and the value in a run.
-COMPARE_MEASURES = ("forward", "gradient", "memory", "peak")
+COMPARE_MEASURES = ("build", "forward", "gradient", "memory", "build_peak", "peak")
+# The measures the criterion reads (issue #91, decision 1): the times of the forward pass and of
+# the gradient, and the memory of the computation. The build is measured and printed, not read
+# here: on 2D cases it takes milliseconds, and its ratios are noise (issue #168, decision 3).
+VERDICT_MEASURES = ("forward", "gradient", "memory")
 # A change is kept when a time ratio is below 1 in every round on at least one case and above
 # this in no round on any case (issue #91, decision 1).
 COMPARE_LOSS = 1.05
@@ -347,15 +351,18 @@ def results_path(directory: Path, date: str, machine: str) -> Path:
 
 
 def format_table(runs: list[dict[str, Any]]) -> str:
-    """The short table of the runs: times in seconds (median), memory in GiB: the peak of
-    the process, and the peak minus its baseline, the memory of the computation itself."""
-    header = ("case", "environment", "library", "forward (s)", "forward + gradient (s)",
-              "peak memory (GiB)", "peak - baseline (GiB)")  # fmt: skip
+    """The short table of the runs: times in seconds (median; the build of the operator
+    once), memory in GiB: the peak of the process once the operator is built and at the end,
+    and the peak minus its baseline, the memory of the computation itself."""
+    header = ("case", "environment", "library", "build (s)", "forward (s)",
+              "forward + gradient (s)", "peak once built (GiB)", "peak memory (GiB)",
+              "peak - baseline (GiB)")  # fmt: skip
     rows = [
         (
             run["case"], run["environment"],
             f"{run['library']} (main)" if run.get("tree") == "main" else run["library"],
-            f"{run['forward_seconds']:.3f}", f"{run['gradient_seconds']:.3f}",
+            f"{run['build_seconds']:.3f}", f"{run['forward_seconds']:.3f}",
+            f"{run['gradient_seconds']:.3f}", f"{run['build_peak_rss_bytes'] / 2**30:.2f}",
             f"{run['peak_rss_bytes'] / 2**30:.2f}",
             f"{(run['peak_rss_bytes'] - run['baseline_rss_bytes']) / 2**30:.2f}",
         )
@@ -426,7 +433,15 @@ def _reference(work: Path, case: Case, digest: str) -> dict[str, NDArray[Any]]:
 # ---------------------------------------------------------------------- comparison of two commits
 
 
-ESTEL_ONLY = "ESTEL only: STL is not measured on tensor products here (Part II, §15.2, T3.2)"
+def estel_only(case: Case) -> str:
+    """Why STL is not run on ``case`` (``case.estel_only``): what its results record."""
+    if case.healpix:
+        return (
+            "ESTEL only: STL is not measured on HEALPix here; its check against STL is the "
+            "parity tests of HEALPix (T5.6), and STL's HEALPix times come with the benchmark of "
+            "step 2 (LF62)"
+        )
+    return "ESTEL only: STL is not measured on tensor products here (Part II, §15.2, T3.2)"
 
 
 def _check_stl(
@@ -435,32 +450,41 @@ def _check_stl(
     expected: dict[str, NDArray[Any]] | None,
     dtype: str,
 ) -> Any:
-    """:func:`check_against_stl`, or :data:`ESTEL_ONLY` for a tensor product."""
+    """:func:`check_against_stl`, or :func:`estel_only` for a case STL does not run."""
     if expected is None:
-        return ESTEL_ONLY
+        return estel_only(case)
     return check_against_stl(case.name, actual, expected, dtype)
 
 
 def _expected(work: Path, case: Case, digest: str) -> dict[str, NDArray[Any]] | None:
-    """STL's results for ``case``, or ``None`` for a tensor product, measured on ESTEL only."""
-    return None if case.tensor_prod else _reference(work, case, digest)
+    """STL's results for ``case``, or ``None`` for a case measured on ESTEL only."""
+    return None if case.estel_only else _reference(work, case, digest)
 
 
-def _has_tensor_prod(source: Path) -> bool:
-    """Whether the ESTEL exported at ``source`` has ``STOperatorTensorProd`` (task T3.2): the
-    commits before it cannot run a tensor-product case."""
-    init = source / "estel" / "__init__.py"
-    return init.is_file() and "STOperatorTensorProd" in init.read_text()
+def _can_run(source: Path, case: Case) -> bool:
+    """Whether the ESTEL exported at ``source`` can run ``case``: a tensor product needs
+    ``STOperatorTensorProd`` (task T3.2), a HEALPix case ``STOperator`` on HEALPix data (task
+    T5.6); the earlier commits cannot run them."""
+    if case.tensor_prod:
+        init = source / "estel" / "__init__.py"
+        return init.is_file() and "STOperatorTensorProd" in init.read_text()
+    if case.healpix:
+        # STOperator on HEALPix came with T5.6 (#181), which gave DataHealpix the metadata of
+        # its statistics files; the HEALPix wavelets alone (T5.5, #177) cannot run the case.
+        data = source / "estel" / "data" / "_healpix.py"
+        return data.is_file() and "def _meta_content" in data.read_text()
+    return True
 
 
 def _measure_of(run: dict[str, Any], measure: str) -> float:
     """The value of ``measure`` in a run: the median time of the forward pass or of the forward
     pass with the gradient, the memory of the computation (the peak minus the baseline), or
-    the peak resident memory of the process."""
+    the peak resident memory of the process; the time of the build of the operator, or the
+    peak once it is built."""
     if measure == "memory":
         return float(run["peak_rss_bytes"] - run["baseline_rss_bytes"])
-    if measure == "peak":
-        return float(run["peak_rss_bytes"])
+    if measure in ("peak", "build_peak"):
+        return float(run[f"{measure}_rss_bytes"])
     return float(run[f"{measure}_seconds"])
 
 
@@ -486,11 +510,12 @@ def comparison_ratios(rounds: list[tuple[dict[str, Any], dict[str, Any]]]) -> di
 def comparison_verdict(ratios: dict[str, dict[str, Any]]) -> dict[str, list[str]]:
     """What the criterion of issue #91 (decision 1) reads in the ratios of every case: the
     measures, ``case: measure``, whose ratio is below 1 in every round (a gain), and those whose
-    ratio is above ``COMPARE_LOSS`` in at least one round (a loss); for the time measures, and
-    for the memory of the computation."""
+    ratio is above ``COMPARE_LOSS`` in at least one round (a loss); for the times of the forward
+    pass and of the gradient, and for the memory of the computation (:data:`VERDICT_MEASURES`).
+    """
     gains, losses = [], []
     for case, of_case in ratios.items():
-        for measure in ("forward", "gradient", "memory"):
+        for measure in VERDICT_MEASURES:
             found = of_case[measure]
             if found["max"] < 1:
                 gains.append(f"{case}: {measure}")
@@ -502,7 +527,8 @@ def comparison_verdict(ratios: dict[str, dict[str, Any]]) -> dict[str, list[str]
 def format_comparison(ratios: dict[str, dict[str, Any]]) -> str:
     """The table of a comparison: per case and measure, the median ratio B / A and its range
     over the rounds."""
-    header = ("case", "forward", "forward + gradient", "memory (peak - baseline)", "peak memory")
+    header = ("case", "build", "forward", "forward + gradient", "memory (peak - baseline)",
+              "peak once built", "peak memory")  # fmt: skip
 
     def cell(found: dict[str, Any]) -> str:
         return f"{found['median']:.3f} ({found['min']:.3f} to {found['max']:.3f})"
@@ -575,11 +601,16 @@ def run_comparison(args: argparse.Namespace) -> Path:
     for case in selected:
         digest = write_inputs(case, settings.dtype, work / f"{case.name}.npz")
         expected = _expected(work, case, digest)
-        if case.tensor_prod and not all(_has_tensor_prod(sides[k]["source"]) for k in "ab"):
+        if not all(_can_run(sides[k]["source"], case) for k in "ab"):
+            needed = (
+                "STOperatorTensorProd (task T3.2)"
+                if case.tensor_prod
+                else "STOperator on HEALPix data (task T5.6)"
+            )
             raise BenchError(
-                f"case {case.name!r} is a tensor product, and {sides['a']['ref']} or "
-                f"{sides['b']['ref']} has no STOperatorTensorProd (task T3.2): compare commits "
-                "that have it, or leave the case out with --case."
+                f"case {case.name!r} needs {needed}, "
+                f"which {sides['a']['ref']} or {sides['b']['ref']} does not have: compare "
+                "commits that have it, or leave the case out with --case."
             )
         rounds: list[tuple[dict[str, Any], dict[str, Any]]] = []
         for index in range(args.rounds):
@@ -644,8 +675,8 @@ def run_comparison(args: argparse.Namespace) -> Path:
                 for key, value in calls.items() if value is not None
             ))  # fmt: skip
     print(
-        f"\nEvery run of a planar case equals STL within the {settings.dtype} parity "
-        f"tolerances (tensor products: ESTEL only); B equals A "
+        f"\nEvery run of a 2D case equals STL within the {settings.dtype} parity "
+        f"tolerances (tensor products and HEALPix: ESTEL only); B equals A "
         f"within them, and its gradient within {MAIN_GRADIENT_RTOL:g}. Largest differences of "
         "the last round, relative to the largest value of A:"
     )
@@ -693,19 +724,17 @@ def run_benchmark(args: argparse.Namespace) -> Path:
     for case in selected:
         inputs = work / f"{case.name}.npz"
         digest = write_inputs(case, settings.dtype, inputs)
-        here = [e for e in environments if not (case.tensor_prod and e == "container")]
+        here = [e for e in environments if not (case.estel_only and e == "container")]
         if "container" in here:
             print(f"== {case.name}: STL, container", flush=True)
             out = run_container(case, "stl", work, settings, args.container, args.image)
             runs.append({**_record(out, "container", described), "check": "the reference"})
-        elif case.tensor_prod:
-            print(f"== {case.name}: {ESTEL_ONLY}", flush=True)
+        elif case.estel_only:
+            print(f"== {case.name}: {estel_only(case)}", flush=True)
         expected = _expected(work, case, digest)
         for environment in here:
             of_main = None
-            with_main = main_source is not None and (
-                not case.tensor_prod or _has_tensor_prod(main_source)
-            )
+            with_main = main_source is not None and _can_run(main_source, case)
             if environment == "native" and with_main:
                 # main first, then the working tree, one after the other on the same inputs.
                 print(f"== {case.name}: ESTEL of {args.main}, native", flush=True)
@@ -755,11 +784,12 @@ def run_benchmark(args: argparse.Namespace) -> Path:
     path.write_text(json.dumps(document, indent=2) + "\n")
     print()
     print(format_table(runs))
-    checked = [case for case in selected if not case.tensor_prod]
+    checked = [case for case in selected if not case.estel_only]
     if checked:
         print(f"\nEvery ESTEL run equals STL within the {settings.dtype} parity tolerances.")
-    if len(checked) < len(selected):
-        print(f"Tensor products: {ESTEL_ONLY}.")
+    for case in selected:
+        if case.estel_only:
+            print(f"{case.name}: {estel_only(case)}.")
     compared = [run for run in runs if "check_main" in run]
     if compared and main_commit is not None:
         print(

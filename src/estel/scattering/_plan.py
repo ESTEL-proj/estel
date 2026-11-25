@@ -120,7 +120,7 @@ from ..wavelets._operator import (
     MeanWeights,
     WaveletOperator,
     WaveletPlan,
-    build_wavelet_plan,
+    build_wavelet_plan_with_tables,
 )
 from ..wavelets._tensor_prod import TensorProdWaveletPlan, build_tensor_prod_wavelet_plan
 from ._filters import (
@@ -414,9 +414,12 @@ class STPlan(_SharedFields):
         (``functional._scattering.check_data``)."""
         raise NotImplementedError
 
-    def _build_filters(self, backend_name: str, dtype: FloatDType, device: Any) -> STFilters:
+    def _build_filters(
+        self, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
+    ) -> STFilters:
         """The filters of this plan on the backend ``backend_name``, cast once to ``dtype`` on
-        ``device`` (Part I, §3.1, rules 4 and 7)."""
+        ``device`` (Part I, §3.1, rules 4 and 7). ``tables``: those the plan was built with
+        (:func:`build_plan_with_tables`), read instead of built again, or ``None``."""
         raise NotImplementedError
 
     def _values(self, data: Data, filters: STFilters) -> ScatteringValues:
@@ -569,8 +572,10 @@ class PlanarPlan(_PlanFields, STPlan):
                 "STOperator for these data."
             )
 
-    def _build_filters(self, backend_name: str, dtype: FloatDType, device: Any) -> PlanarFilters:
-        return build_filters(self, backend_name, dtype, device)
+    def _build_filters(
+        self, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
+    ) -> PlanarFilters:
+        return build_filters(self, backend_name, dtype, device, tables)
 
     def _values(self, data: Data, filters: STFilters) -> ScatteringValues:
         return scattering_values(data, self, cast(PlanarFilters, filters))  # by _check_data
@@ -636,6 +641,40 @@ def build_plan(
     spectrum_method: str = "auto",
     spectrum_advice: SpectrumAdvice | None = None,
 ) -> PlanarPlan:
+    """The plan of :func:`build_plan_with_tables`, without the tables of its wavelets."""
+    return build_plan_with_tables(
+        data,
+        J,
+        L,
+        kernel_size=kernel_size,
+        cross_matrix=cross_matrix,
+        norm=norm,
+        ref_batch_mean=ref_batch_mean,
+        standardize=standardize,
+        compute_PS=compute_PS,
+        n_bins=n_bins,
+        Jmin=Jmin,
+        spectrum_method=spectrum_method,
+        spectrum_advice=spectrum_advice,
+    )[0]
+
+
+def build_plan_with_tables(
+    data: Data,
+    J: int | None = None,  # noqa: N803 (maths.md notation)
+    L: int | None = None,  # noqa: N803
+    *,
+    kernel_size: int = KERNEL_SIZE,
+    cross_matrix: Any = None,
+    norm: str = "none",
+    ref_batch_mean: bool = False,
+    standardize: bool = False,
+    compute_PS: bool | None = False,  # noqa: N803 (STL's name)
+    n_bins: int | None = None,
+    Jmin: int = 0,  # noqa: N803 (STL's name)
+    spectrum_method: str = "auto",
+    spectrum_advice: SpectrumAdvice | None = None,
+) -> tuple[PlanarPlan, Any]:
     """The :class:`PlanarPlan` of a scattering transform with ``J`` scales and ``L``
     orientations on data with the geometry, spatial shape, ``pbc``, mask and number of channels
     of ``data``; by default J and L are those of the geometry (M-DEF, M-DEF-1D) and the kernel
@@ -657,12 +696,16 @@ def build_plan(
     their defaults (decision on #148). ``spectrum_advice`` is the advice of the operator that
     builds the plan, for the errors of the spectrum (``STOperator._spectrum_advice`` by
     default).
+
+    Beside the plan, the NumPy tables its wavelets were built with
+    (:func:`build_wavelet_plan_with_tables`), for :meth:`PlanarPlan._build_filters` of the same
+    operator (``tables=``; task T5.7): a value, not part of the plan.
     """
     if not isinstance(data, Data):
         raise TypeError(
             f"build_plan takes a Data object, such as estel.Data2D, got {type(data).__name__}."
         )
-    wavelets = build_wavelet_plan(data, J, L, kernel_size=kernel_size)
+    wavelets, tables = build_wavelet_plan_with_tables(data, J, L, kernel_size=kernel_size)
     matrix = _cross_matrix(cross_matrix, data.n_channels)
     _check_options(norm, ref_batch_mean, standardize)
     pairs = channel_pairs(matrix)
@@ -701,7 +744,7 @@ def build_plan(
     s3 = {(j2, j3): weights[("S3", j2, j3)] for j2, j3 in s3_pairs if ("S3", j2, j3) in weights}
     s4 = {t: weights[("S4", *t)] for t in s4_triples if ("S4", *t) in weights}
 
-    return PlanarPlan(
+    plan = PlanarPlan(
         geometry=wavelets.geometry,
         J=wavelets.J,
         L=wavelets.L,
@@ -751,6 +794,7 @@ def build_plan(
         ),
         spectrum=spectrum,
     )
+    return plan, tables
 
 
 def resolve_compute_ps(compute_ps: object, geometry: type[Data]) -> bool:
@@ -926,8 +970,9 @@ class TensorProdPlan(STPlan):
             )
 
     def _build_filters(
-        self, backend_name: str, dtype: FloatDType, device: Any
+        self, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
     ) -> TensorProdFilters:
+        # A tensor product builds no tables with its plan: ``tables`` is None.
         return build_tensor_prod_filters(self, backend_name, dtype, device)
 
     def _values(self, data: Data, filters: STFilters) -> ScatteringValues:

@@ -125,8 +125,9 @@ class SpectrumOperatorPlan(_SpectrumPlanFields, STPlan):
             )
 
     def _build_filters(
-        self, backend_name: str, dtype: FloatDType, device: Any
+        self, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
     ) -> SpectrumOperatorFilters:
+        # The spectrum builds no tables with its plan: ``tables`` is None.
         backend = _registry.backend_named(backend_name)
         return SpectrumOperatorFilters(
             spectrum=build_spectrum_filters(self.spectrum, self.mask, backend, dtype, device)

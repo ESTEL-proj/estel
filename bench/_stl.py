@@ -10,6 +10,8 @@ from __future__ import annotations
 import importlib
 import importlib.metadata
 import subprocess
+import time
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -57,7 +59,9 @@ def configure(backend: str, dtype: str, device: str, threads: int) -> dict[str, 
 class Run:
     """The operator, the data and the loss of a case, built once; the two measured calls."""
 
-    def __init__(self, inputs: Inputs) -> None:
+    def __init__(self, inputs: Inputs, built: Callable[[], None] | None = None) -> None:
+        """``built``, if given, is called once the operator is built (the peak memory of the
+        build); the construction of the operator is timed in ``build_seconds``."""
         case = inputs.case
         self._data_cls = importlib.import_module("STL_main.STL_2D_Kernel_Torch").STL_2D_Kernel_Torch
         self._pbc = case.pbc
@@ -68,6 +72,7 @@ class Run:
             # finite values at the missing pixels, which are not read.
             options["mask_full_res"] = self._data_cls(array=torch.from_numpy(inputs.mask))
         self.data = self._data_cls(array=self._field, pbc=case.pbc)
+        start = time.perf_counter()
         self.operator = self.data.get_ST_op(
             J=case.J,
             L=case.L,
@@ -80,6 +85,9 @@ class Run:
             replace_nan_value=None,
             **options,
         )
+        self.build_seconds = time.perf_counter() - start
+        if built is not None:
+            built()
         target_data = self._data_cls(array=torch.from_numpy(inputs.target_field), pbc=case.pbc)
         self._target = self._vector(self.operator.apply(target_data)).detach()
 

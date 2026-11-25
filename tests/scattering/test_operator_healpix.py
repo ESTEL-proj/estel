@@ -5,22 +5,28 @@ Values are compared with STL in ``tests/parity/test_healpix_statistics.py`` and 
 in ``tests/spec/test_healpix_scattering.py``. These tests run on the run's backend and dtype, at
 ``nside`` 2 to 8, and check what parity does not: the defaults of M-DEF-HPX, the power spectrum
 left out and refused with LF24 (decision 2 on #167), the data ``apply`` refuses (another partial
-sky of the same size: decision 4), the advice of the OP-3 messages, and the statistics through a
-file and back to their operator (decision 5).
+sky of the same size: decision 4), the advice of the OP-3 messages, the statistics through a
+file and back to their operator (decision 5), and, for task T5.7, the stencils gathered by
+batches and the tables of a masked operator built once.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import warnings
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
 from numpy.typing import NDArray
 
 from estel import DataHealpix, STOperator, STStatistics, _config
+from estel.backend._registry import current_backend
+from estel.data import _healpix
+from estel.functional import _scattering
 from estel.io import _schema
+from estel.wavelets import _healpix_operator
 
 pytestmark = pytest.mark.maths("M-DATA-HPX", "M-DEF-HPX", "M-MEAN")
 DISC = np.arange(40, 150)
@@ -179,3 +185,87 @@ def test_statistics_go_through_a_file_and_back_to_their_operator(tmp_path: Path)
     other = DataHealpix(_field((DISC.size,)), _hole(DISC.size), depth=2, cell_ids=DISC + 1)
     with pytest.raises(ValueError, match="build a new STOperator"):
         rebuilt.apply(other)
+
+
+# Batches against one batch: the starting values of Part I, §5.2 (docs/agents/testing.md),
+# (rtol, atol) with atol relative to the largest value, as the conformance suite of the backends
+# uses them; tests/tolerances.toml does not exist yet (T8.1). The gradient sums the contributions
+# of each row in another order, and on JAX the compiled program of the batches may order the sums
+# of a row differently: rounding only. On PyTorch the statistics are equal bit for bit.
+ROUNDING = {"float32": (1e-4, 1e-6), "float64": (1e-10, 1e-12)}
+
+
+def test_stencils_gathered_by_batches_equal_one_batch(
+    monkeypatch: pytest.MonkeyPatch, dtype: str
+) -> None:
+    """The stencils interpolated by batches of rows inside ``gather_weighted`` (task T5.7)
+    give the statistics of one batch (bit for bit on PyTorch) and their gradient to rounding:
+    50 rows a batch at ``nside`` 4 (768 rows at level 0, 192 at level 1), a masked full sky,
+    J = 2. A new
+    operator after each setting, and the compiled loop dropped (``_loop.cache_clear()``): on JAX
+    an equal plan would otherwise reuse the program of the other setting."""
+    backend = current_backend()
+    data = DataHealpix(_field((192,)), mask=_hole(192))
+
+    def run(rows: int) -> tuple[NDArray[Any], NDArray[Any]]:
+        monkeypatch.setattr(_healpix, "_STENCIL_BATCH_ROWS", rows)
+        _scattering._loop.cache_clear()
+        operator = _operator(data, 2)
+
+        def loss(array: Any) -> Any:
+            return backend.xp.sum(operator.apply(data.with_array(array)).to_vector() ** 2)
+
+        _, gradient = backend.value_and_grad(loss)(data.array)
+        vector = backend.to_numpy(operator.apply(data).to_vector())
+        return vector, backend.to_numpy(gradient)
+
+    whole, whole_gradient = run(1 << 20)
+    batched, batched_gradient = run(50)
+    _scattering._loop.cache_clear()  # no program of the patched setting outlives the test
+    rtol, atol = ROUNDING[dtype]
+    if backend.name == "torch":
+        np.testing.assert_array_equal(batched, whole)
+    else:
+        np.testing.assert_allclose(batched, whole, rtol=rtol, atol=atol * np.abs(whole).max())
+    scale = np.abs(whole_gradient).max()
+    np.testing.assert_allclose(batched_gradient, whole_gradient, rtol=0, atol=atol * scale)
+
+
+def test_a_masked_operator_builds_the_tables_of_a_level_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The masks of the plan and the filters share the tables of each level (task T5.7): a
+    masked operator builds the stencils and the decimation of a level once, its plan holds none
+    of them (they pass from the plan's construction to the filters' as a value), and filters
+    built again from the plan build theirs."""
+    builds: list[tuple[str, int]] = []
+
+    def counted(name: str) -> Any:
+        build = getattr(_healpix_operator, name)
+
+        def wrapper(cell_ids: Any, depth: int, **kwargs: Any) -> Any:
+            builds.append((name, depth))
+            return build(cell_ids, depth, **kwargs)
+
+        return wrapper
+
+    for name in ("healpix_stencils", "healpix_decimation"):
+        monkeypatch.setattr(_healpix_operator, name, counted(name))
+    data = DataHealpix(_field((192,)), mask=_hole(192))
+    operator = _operator(data, 2)
+    assert sorted(builds) == [
+        ("healpix_decimation", 2),
+        ("healpix_stencils", 1),
+        ("healpix_stencils", 2),
+    ]
+    wavelets = cast(Any, operator.plan).wavelets
+    assert isinstance(wavelets, _healpix_operator.HealpixWaveletPlan)
+    held = [getattr(wavelets, f.name) for f in dataclasses.fields(wavelets)]
+    assert not any(isinstance(v, _healpix_operator.HealpixPlanTables) for v in held)
+    builds.clear()
+    STOperator.from_statistics(operator.apply(data))
+    assert sorted(builds) == [
+        ("healpix_decimation", 2),
+        ("healpix_stencils", 1),
+        ("healpix_stencils", 2),
+    ]

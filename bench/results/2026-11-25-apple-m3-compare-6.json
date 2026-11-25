@@ -1,0 +1,613 @@
+{
+  "schema": 3,
+  "date": "2026-11-25",
+  "machine": "apple-m3",
+  "comparison": {
+    "a": {
+      "ref": "6634604",
+      "commit": "6634604735f28c16f3261d58de0c641c9e1bc19a"
+    },
+    "b": {
+      "ref": "c21cbde",
+      "commit": "c21cbdef7e2714558b2cdcd80ba0a02333d516bf"
+    },
+    "rounds": 5,
+    "ratios": {
+      "healpix-masked-64": {
+        "build": {
+          "ratios": [
+            1.1338164178799421,
+            1.1468596139281575,
+            1.1222776067168598,
+            1.1477688227587852,
+            1.1398904325324217
+          ],
+          "median": 1.1398904325324217,
+          "min": 1.1222776067168598,
+          "max": 1.1477688227587852
+        },
+        "forward": {
+          "ratios": [
+            0.7657183765149473,
+            0.7497708146873656,
+            0.7687702168836084,
+            0.7603346266359896,
+            0.7786216835758607
+          ],
+          "median": 0.7657183765149473,
+          "min": 0.7497708146873656,
+          "max": 0.7786216835758607
+        },
+        "gradient": {
+          "ratios": [
+            0.8979839125292152,
+            0.8924165973429835,
+            0.885831645545736,
+            0.8832586719418137,
+            1.0815504322607583
+          ],
+          "median": 0.8924165973429835,
+          "min": 0.8832586719418137,
+          "max": 1.0815504322607583
+        },
+        "memory": {
+          "ratios": [
+            1.1026676837457159,
+            1.103403071037899,
+            1.1000953799659203,
+            1.1028539499699133,
+            1.1035405649426029
+          ],
+          "median": 1.1028539499699133,
+          "min": 1.1000953799659203,
+          "max": 1.1035405649426029
+        },
+        "build_peak": {
+          "ratios": [
+            1.363785236179786,
+            1.3643763314362023,
+            1.3582106096595408,
+            1.3632317645001828,
+            1.3641840871154916
+          ],
+          "median": 1.363785236179786,
+          "min": 1.3582106096595408,
+          "max": 1.3643763314362023
+        },
+        "peak": {
+          "ratios": [
+            1.0902281881727023,
+            1.0908559136538607,
+            1.0880176957831325,
+            1.0904030492867387,
+            1.0908130142673813
+          ],
+          "median": 1.0904030492867387,
+          "min": 1.0880176957831325,
+          "max": 1.0908559136538607
+        }
+      }
+    },
+    "first_calls": {
+      "healpix-masked-64": {
+        "a_first_apply_seconds": 0.3146100421436131,
+        "a_forward_first_seconds": 0.3166911252774298,
+        "a_forward_seconds": 0.3220973750576377,
+        "a_gradient_first_seconds": 2.2458194997161627,
+        "a_gradient_seconds": 1.7975364588201046,
+        "b_first_apply_seconds": 0.24161929124966264,
+        "b_forward_first_seconds": 0.24604329094290733,
+        "b_forward_seconds": 0.24853691598400474,
+        "b_gradient_first_seconds": 2.0156215829774737,
+        "b_gradient_seconds": 1.6023025419563055
+      }
+    },
+    "verdict": {
+      "below_1_in_every_round": [
+        "healpix-masked-64: forward"
+      ],
+      "above_1.05_in_a_round": [
+        "healpix-masked-64: build",
+        "healpix-masked-64: gradient"
+      ]
+    }
+  },
+  "backend": "torch",
+  "settings": {
+    "dtype": "float32",
+    "device": "cpu",
+    "threads": 4,
+    "warmup": 1,
+    "repeats": 5
+  },
+  "cases": {
+    "healpix-masked-64": {
+      "name": "healpix-masked-64",
+      "shape": [
+        49152
+      ],
+      "channels": 1,
+      "J": 5,
+      "L": 4,
+      "pbc": true,
+      "seed": 10,
+      "target_seed": 11,
+      "mask_seed": 12,
+      "mask_holes": [],
+      "blocks": [],
+      "geometry": "healpix",
+      "mask_discs": [
+        21,
+        19,
+        16,
+        13,
+        10
+      ]
+    }
+  },
+  "environments": {
+    "native": {
+      "cpu": "Apple M3",
+      "architecture": "arm64",
+      "cores": 8,
+      "memory_bytes": 25769803776,
+      "os": "macOS-26.6.2-arm64-arm-64bit",
+      "python": "3.11.18",
+      "power": {
+        "source": "AC Power",
+        "low_power_mode": false
+      },
+      "versions": {
+        "numpy": "2.4.6",
+        "torch": "2.15.0"
+      }
+    }
+  },
+  "runs": [
+    {
+      "case": "healpix-masked-64",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "c591f6c263a1d0eb50e45c2dda7031467c114806e41cbfdf164a7cd3cfc9b0a0",
+      "build_seconds": 5.149405207950622,
+      "build_peak_rss_bytes": 1030504448,
+      "forward_seconds": 0.31033608317375183,
+      "forward_runs": [
+        0.3090494582429528,
+        0.31033608317375183,
+        0.3175703748129308,
+        0.31164054200053215,
+        0.3091041250154376
+      ],
+      "forward_first_seconds": 0.3091372079215944,
+      "first_apply_seconds": 0.3146100421436131,
+      "gradient_seconds": 1.7878401670604944,
+      "gradient_runs": [
+        1.7871032911352813,
+        1.7856977498158813,
+        1.78853629110381,
+        1.797268415801227,
+        1.7878401670604944
+      ],
+      "gradient_first_seconds": 2.200268665794283,
+      "peak_rss_bytes": 1736851456,
+      "baseline_rss_bytes": 211877888,
+      "coefficients": 2922,
+      "loss": 0.001332312822341919,
+      "side": "a",
+      "round": 1,
+      "check": "ESTEL only: STL is not measured on HEALPix here; its check against STL is the parity tests of HEALPix (T5.6), and STL's HEALPix times come with the benchmark of step 2 (LF62)"
+    },
+    {
+      "case": "healpix-masked-64",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "c591f6c263a1d0eb50e45c2dda7031467c114806e41cbfdf164a7cd3cfc9b0a0",
+      "build_seconds": 5.838480167090893,
+      "build_peak_rss_bytes": 1405386752,
+      "forward_seconds": 0.2376300417818129,
+      "forward_runs": [
+        0.23573850002139807,
+        0.23753529181703925,
+        0.2376300417818129,
+        0.24013120820745826,
+        0.24129779217764735
+      ],
+      "forward_first_seconds": 0.23428620817139745,
+      "first_apply_seconds": 0.23821733286604285,
+      "gradient_seconds": 1.6054517081938684,
+      "gradient_runs": [
+        1.6397724580019712,
+        1.613457374740392,
+        1.5777756250463426,
+        1.5770884160883725,
+        1.6054517081938684
+      ],
+      "gradient_first_seconds": 1.9887900832109153,
+      "peak_rss_bytes": 1893564416,
+      "baseline_rss_bytes": 212025344,
+      "coefficients": 2922,
+      "loss": 0.0013323139864951372,
+      "side": "b",
+      "round": 1,
+      "check": "ESTEL only: STL is not measured on HEALPix here; its check against STL is the parity tests of HEALPix (T5.6), and STL's HEALPix times come with the benchmark of step 2 (LF62)",
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 2.8526009052301083e-07,
+          "S2": 2.1868970314841006e-07,
+          "S3": 3.1201484295827594e-07,
+          "S4": 3.2617541387582827e-07
+        },
+        "gradient_relative_difference": 8.669995299652781e-07,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "healpix-masked-64",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "c591f6c263a1d0eb50e45c2dda7031467c114806e41cbfdf164a7cd3cfc9b0a0",
+      "build_seconds": 5.092387082986534,
+      "build_peak_rss_bytes": 1030586368,
+      "forward_seconds": 0.3211988750845194,
+      "forward_runs": [
+        0.3226668331772089,
+        0.3211988750845194,
+        0.3269097497686744,
+        0.3192292503081262,
+        0.3207795829512179
+      ],
+      "forward_first_seconds": 0.34610870806500316,
+      "first_apply_seconds": 0.3233667076565325,
+      "gradient_seconds": 1.781964374706149,
+      "gradient_runs": [
+        1.781964374706149,
+        1.7642879160121083,
+        1.8283068328164518,
+        1.7838249998167157,
+        1.7775121661834419
+      ],
+      "gradient_first_seconds": 2.2514097918756306,
+      "peak_rss_bytes": 1736572928,
+      "baseline_rss_bytes": 211828736,
+      "coefficients": 2922,
+      "loss": 0.001332312822341919,
+      "side": "a",
+      "round": 2,
+      "check": "ESTEL only: STL is not measured on HEALPix here; its check against STL is the parity tests of HEALPix (T5.6), and STL's HEALPix times come with the benchmark of step 2 (LF62)"
+    },
+    {
+      "case": "healpix-masked-64",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "c591f6c263a1d0eb50e45c2dda7031467c114806e41cbfdf164a7cd3cfc9b0a0",
+      "build_seconds": 5.840253083966672,
+      "build_peak_rss_bytes": 1406107648,
+      "forward_seconds": 0.2408255422487855,
+      "forward_runs": [
+        0.23954595904797316,
+        0.2408255422487855,
+        0.24612345779314637,
+        0.24027366703376174,
+        0.24144400004297495
+      ],
+      "forward_first_seconds": 0.24087441712617874,
+      "first_apply_seconds": 0.23972708312794566,
+      "gradient_seconds": 1.5902545838616788,
+      "gradient_runs": [
+        1.6308138747699559,
+        1.683814417105168,
+        1.58257529232651,
+        1.5902545838616788,
+        1.582170832902193
+      ],
+      "gradient_first_seconds": 1.999036000110209,
+      "peak_rss_bytes": 1894350848,
+      "baseline_rss_bytes": 211943424,
+      "coefficients": 2922,
+      "loss": 0.0013323139864951372,
+      "side": "b",
+      "round": 2,
+      "check": "ESTEL only: STL is not measured on HEALPix here; its check against STL is the parity tests of HEALPix (T5.6), and STL's HEALPix times come with the benchmark of step 2 (LF62)",
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 2.8526009052301083e-07,
+          "S2": 2.1868970314841006e-07,
+          "S3": 3.1201484295827594e-07,
+          "S4": 3.2617541387582827e-07
+        },
+        "gradient_relative_difference": 8.669995299652781e-07,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "healpix-masked-64",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "c591f6c263a1d0eb50e45c2dda7031467c114806e41cbfdf164a7cd3cfc9b0a0",
+      "build_seconds": 5.244715082924813,
+      "build_peak_rss_bytes": 1034649600,
+      "forward_seconds": 0.3264818750321865,
+      "forward_runs": [
+        0.325654000043869,
+        0.3264818750321865,
+        0.33051537489518523,
+        0.3262873752973974,
+        0.32889499980956316
+      ],
+      "forward_first_seconds": 0.3166911252774298,
+      "first_apply_seconds": 0.3273943327367306,
+      "gradient_seconds": 1.8088115840218961,
+      "gradient_runs": [
+        1.8129225000739098,
+        1.888033874798566,
+        1.8019230421632528,
+        1.80482487520203,
+        1.8088115840218961
+      ],
+      "gradient_first_seconds": 2.2458194997161627,
+      "peak_rss_bytes": 1740636160,
+      "baseline_rss_bytes": 211828736,
+      "coefficients": 2922,
+      "loss": 0.001332312822341919,
+      "side": "a",
+      "round": 3,
+      "check": "ESTEL only: STL is not measured on HEALPix here; its check against STL is the parity tests of HEALPix (T5.6), and STL's HEALPix times come with the benchmark of step 2 (LF62)"
+    },
+    {
+      "case": "healpix-masked-64",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "c591f6c263a1d0eb50e45c2dda7031467c114806e41cbfdf164a7cd3cfc9b0a0",
+      "build_seconds": 5.886026291176677,
+      "build_peak_rss_bytes": 1405272064,
+      "forward_seconds": 0.25098954187706113,
+      "forward_runs": [
+        0.25384874967858195,
+        0.25098954187706113,
+        0.2509865411557257,
+        0.2531536668539047,
+        0.250001666136086
+      ],
+      "forward_first_seconds": 0.3362929169088602,
+      "first_apply_seconds": 0.24161929124966264,
+      "gradient_seconds": 1.6023025419563055,
+      "gradient_runs": [
+        1.5989874578081071,
+        1.6058113337494433,
+        1.6023025419563055,
+        1.5967130418866873,
+        1.604302375111729
+      ],
+      "gradient_first_seconds": 2.0156215829774737,
+      "peak_rss_bytes": 1893842944,
+      "baseline_rss_bytes": 212008960,
+      "coefficients": 2922,
+      "loss": 0.0013323139864951372,
+      "side": "b",
+      "round": 3,
+      "check": "ESTEL only: STL is not measured on HEALPix here; its check against STL is the parity tests of HEALPix (T5.6), and STL's HEALPix times come with the benchmark of step 2 (LF62)",
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 2.8526009052301083e-07,
+          "S2": 2.1868970314841006e-07,
+          "S3": 3.1201484295827594e-07,
+          "S4": 3.2617541387582827e-07
+        },
+        "gradient_relative_difference": 8.669995299652781e-07,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "healpix-masked-64",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "c591f6c263a1d0eb50e45c2dda7031467c114806e41cbfdf164a7cd3cfc9b0a0",
+      "build_seconds": 5.1296820836141706,
+      "build_peak_rss_bytes": 1030766592,
+      "forward_seconds": 0.32687833392992616,
+      "forward_runs": [
+        0.32687833392992616,
+        0.32875837525352836,
+        0.33759995782747865,
+        0.32633200008422136,
+        0.3234475417993963
+      ],
+      "forward_first_seconds": 0.3274579579010606,
+      "first_apply_seconds": 0.3144204169511795,
+      "gradient_seconds": 1.8056027083657682,
+      "gradient_runs": [
+        1.7968579581938684,
+        1.8213008330203593,
+        1.8150653750635684,
+        1.8056027083657682,
+        1.802441833075136
+      ],
+      "gradient_first_seconds": 2.2846886250190437,
+      "peak_rss_bytes": 1736572928,
+      "baseline_rss_bytes": 211812352,
+      "coefficients": 2922,
+      "loss": 0.001332312822341919,
+      "side": "a",
+      "round": 4,
+      "check": "ESTEL only: STL is not measured on HEALPix here; its check against STL is the parity tests of HEALPix (T5.6), and STL's HEALPix times come with the benchmark of step 2 (LF62)"
+    },
+    {
+      "case": "healpix-masked-64",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "c591f6c263a1d0eb50e45c2dda7031467c114806e41cbfdf164a7cd3cfc9b0a0",
+      "build_seconds": 5.887689166236669,
+      "build_peak_rss_bytes": 1405173760,
+      "forward_seconds": 0.24853691598400474,
+      "forward_runs": [
+        0.2428061249665916,
+        0.2502454579807818,
+        0.24853691598400474,
+        0.25049616722390056,
+        0.24737141700461507
+      ],
+      "forward_first_seconds": 0.2597972499206662,
+      "first_apply_seconds": 0.24458608403801918,
+      "gradient_seconds": 1.5948142502456903,
+      "gradient_runs": [
+        1.5884714578278363,
+        1.5948142502456903,
+        1.6227211249060929,
+        1.5836502918973565,
+        1.5974205830134451
+      ],
+      "gradient_first_seconds": 2.0166075420565903,
+      "peak_rss_bytes": 1893564416,
+      "baseline_rss_bytes": 211976192,
+      "coefficients": 2922,
+      "loss": 0.0013323139864951372,
+      "side": "b",
+      "round": 4,
+      "check": "ESTEL only: STL is not measured on HEALPix here; its check against STL is the parity tests of HEALPix (T5.6), and STL's HEALPix times come with the benchmark of step 2 (LF62)",
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 2.8526009052301083e-07,
+          "S2": 2.1868970314841006e-07,
+          "S3": 3.1201484295827594e-07,
+          "S4": 3.2617541387582827e-07
+        },
+        "gradient_relative_difference": 8.669995299652781e-07,
+        "gradient_rtol": 0.0001
+      }
+    },
+    {
+      "case": "healpix-masked-64",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "c591f6c263a1d0eb50e45c2dda7031467c114806e41cbfdf164a7cd3cfc9b0a0",
+      "build_seconds": 5.145171083975583,
+      "build_peak_rss_bytes": 1030635520,
+      "forward_seconds": 0.3220973750576377,
+      "forward_runs": [
+        0.31425445806235075,
+        0.31928537506610155,
+        0.3220973750576377,
+        0.3254331252537668,
+        0.3228669590316713
+      ],
+      "forward_first_seconds": 0.31236370792612433,
+      "first_apply_seconds": 0.3123033749870956,
+      "gradient_seconds": 1.7975364588201046,
+      "gradient_runs": [
+        1.8033405411988497,
+        1.7975364588201046,
+        1.8081702077761292,
+        1.7961485423147678,
+        1.79383329115808
+      ],
+      "gradient_first_seconds": 2.21492520859465,
+      "peak_rss_bytes": 1736310784,
+      "baseline_rss_bytes": 212008960,
+      "coefficients": 2922,
+      "loss": 0.001332312822341919,
+      "side": "a",
+      "round": 5,
+      "check": "ESTEL only: STL is not measured on HEALPix here; its check against STL is the parity tests of HEALPix (T5.6), and STL's HEALPix times come with the benchmark of step 2 (LF62)"
+    },
+    {
+      "case": "healpix-masked-64",
+      "environment": "native",
+      "library": "estel",
+      "backend": "torch",
+      "dtype": "float32",
+      "device": "cpu",
+      "threads": 4,
+      "inputs_sha256": "c591f6c263a1d0eb50e45c2dda7031467c114806e41cbfdf164a7cd3cfc9b0a0",
+      "build_seconds": 5.8649312923662364,
+      "build_peak_rss_bytes": 1405976576,
+      "forward_seconds": 0.2507920004427433,
+      "forward_runs": [
+        0.2542548328638077,
+        0.25057758344337344,
+        0.2482682499103248,
+        0.2507920004427433,
+        0.25226341700181365
+      ],
+      "forward_first_seconds": 0.24604329094290733,
+      "first_apply_seconds": 0.24555387487635016,
+      "gradient_seconds": 1.944126334041357,
+      "gradient_runs": [
+        1.944126334041357,
+        1.937206707894802,
+        1.935447707772255,
+        1.9745314582251012,
+        1.9487281674519181
+      ],
+      "gradient_first_seconds": 2.373888374771923,
+      "peak_rss_bytes": 1893990400,
+      "baseline_rss_bytes": 211861504,
+      "coefficients": 2922,
+      "loss": 0.0013323139864951372,
+      "side": "b",
+      "round": 5,
+      "check": "ESTEL only: STL is not measured on HEALPix here; its check against STL is the parity tests of HEALPix (T5.6), and STL's HEALPix times come with the benchmark of step 2 (LF62)",
+      "check_a": {
+        "statistics": "equal to main's within the float32 parity tolerances (Part II, \u00a714.3)",
+        "statistics_relative_difference": {
+          "mean": 0.0,
+          "var": 0.0,
+          "S1": 2.8526009052301083e-07,
+          "S2": 2.1868970314841006e-07,
+          "S3": 3.1201484295827594e-07,
+          "S4": 3.2617541387582827e-07
+        },
+        "gradient_relative_difference": 8.669995299652781e-07,
+        "gradient_rtol": 0.0001
+      }
+    }
+  ]
+}

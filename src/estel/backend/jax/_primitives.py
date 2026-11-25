@@ -84,6 +84,16 @@ def _array(x: Any, what: str) -> jax.Array:
     return x
 
 
+def _gather_rows(x: jax.Array, ax: int, index: jax.Array, weight: jax.Array) -> jax.Array:
+    """``gather_weighted`` on the rows of ``index`` and ``weight``, checked, at once."""
+    p, q, m = index.shape
+    post = x.shape[ax + 1 :]
+    taken = jnp.take(x, index.reshape(-1), axis=ax)
+    taken = taken.reshape(*x.shape[:ax], p, q, m, *post)
+    w = weight.reshape(p, q, m, *([1] * len(post)))
+    return jnp.sum(taken * w, axis=ax + 2)
+
+
 def _real(value: Any, what: str) -> jax.Array:
     x = _array(value, what)
     if x.dtype in _COMPLEX:
@@ -390,7 +400,13 @@ class JaxBackend:
     # ------------------------------------------------------------ sparse operations
 
     def gather_weighted(
-        self, x: jax.Array, axis: int, index: jax.Array, weight: jax.Array
+        self,
+        x: jax.Array,
+        axis: int,
+        index: jax.Array,
+        weight: jax.Array,
+        *,
+        batch_rows: int | None = None,
     ) -> jax.Array:
         x = _real(x, "x")
         weight = _real(weight, "weight")
@@ -402,12 +418,20 @@ class JaxBackend:
                 "shape (P, Q, M): a padded CSR stencil."
             )
         ax = _axis(axis, x.ndim)
-        p, q, m = index.shape
-        post = x.shape[ax + 1 :]
-        taken = jnp.take(x, index.reshape(-1), axis=ax)
-        taken = taken.reshape(*x.shape[:ax], p, q, m, *post)
-        w = weight.reshape(p, q, m, *([1] * len(post)))
-        return jnp.sum(taken * w, axis=ax + 2)
+        rows = int(index.shape[0])
+        if batch_rows is not None and batch_rows < 1:
+            raise ValueError(
+                f"batch_rows must be at least 1, or None for every row; got {batch_rows}."
+            )
+        if batch_rows is None or batch_rows >= rows:
+            return _gather_rows(x, ax, index, weight)
+        parts = [
+            _gather_rows(
+                x, ax, index[begin : begin + batch_rows], weight[begin : begin + batch_rows]
+            )
+            for begin in range(0, rows, batch_rows)
+        ]
+        return jnp.concatenate(parts, axis=ax)
 
     def segment_sum(
         self, x: jax.Array, axis: int, segment_ids: jax.Array, num_segments: int

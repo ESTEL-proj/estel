@@ -44,7 +44,7 @@ from ._plan import (
     SpectrumAdvice,
     STPlan,
     TensorProdPlan,
-    build_plan,
+    build_plan_with_tables,
     build_tensor_prod_statistics_plan,
     spectrum_2d_only,
 )
@@ -144,7 +144,7 @@ class STOperator:
             raise TypeError(
                 f"STOperator takes a Data object, such as estel.Data2D, got {type(data).__name__}."
             )
-        plan = build_plan(
+        plan, tables = build_plan_with_tables(
             data,
             J,
             L,
@@ -161,7 +161,7 @@ class STOperator:
         plan.wavelets.bank()  # validates L for the geometry (M-WAV-1D)
         if norm != "none":
             _warn_channels_without_auto(plan)
-        self._setup(plan, data.backend, default_dtype(), default_device(), engine, None)
+        self._setup(plan, data.backend, default_dtype(), default_device(), engine, None, tables)
 
     @classmethod
     def from_statistics(cls, stats: STStatistics) -> STOperator:
@@ -198,10 +198,12 @@ class STOperator:
         device: Any,
         engine: str,
         reference: _NormReference | None,
+        tables: Any = None,
     ) -> None:
         """The state of an operator: its plan, its filters built once on ``backend`` in
         ``dtype`` by the plan (``STPlan._build_filters``), its engine checked in the registry
-        (Part II, §9.4), and its reference."""
+        (Part II, §9.4), and its reference. ``tables``: the tables the plan was built with
+        (``build_plan_with_tables``), passed to the filters once and not kept (task T5.7)."""
         capabilities = _engines.resolve(engine)
         capabilities.check(geometry=plan.geometry._geometry, dtype=dtype)
         self._plan = plan
@@ -209,7 +211,7 @@ class STOperator:
         self._dtype = dtype
         self._device = device
         self._engine = engine
-        self._filters = plan._build_filters(backend, dtype, device)
+        self._filters = plan._build_filters(backend, dtype, device, tables)
         self._reference = reference
 
     # ------------------------------------------------------------------ accessors

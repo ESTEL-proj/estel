@@ -37,11 +37,12 @@ TINY = Case(
 )  # fmt: skip
 
 
-def test_cases_file_holds_the_five_cases() -> None:
+def test_cases_file_holds_the_six_cases() -> None:
     settings, cases = load_cases()
     assert (settings.dtype, settings.device) == ("float32", "cpu")
     assert (settings.warmup, settings.repeats) == (1, 5)
     assert sorted(cases) == [
+        "healpix-masked-64",
         "planar-cross",
         "planar-masked",
         "planar-open",
@@ -66,6 +67,14 @@ def test_cases_file_holds_the_five_cases() -> None:
     assert (opened.shape, opened.J, opened.pbc) == (masked.shape, masked.J, masked.pbc)
     assert (opened.seed, opened.target_seed) == (masked.seed, masked.target_seed)
     assert input_mask(opened) is None
+    # T5.7 (issue #168, decision 2): a HEALPix full sky at nside 64, J = 5, ESTEL only, with
+    # about 10 % of missing pixels in discs.
+    sky = cases["healpix-masked-64"]
+    assert sky.healpix
+    assert sky.estel_only
+    assert not sky.tensor_prod
+    assert (sky.shape, sky.depth, sky.J, sky.L, sky.channels) == ((49152,), 6, 5, 4, 1)
+    assert not any(case.estel_only for name, case in cases.items() if name.startswith("planar"))
 
 
 def test_harness_measures_and_checks_a_tiny_case(
@@ -148,6 +157,39 @@ def test_harness_measures_a_tiny_tensor_product(
     assert arrays["S4"].shape[3:] == (1, 1, 1, 1, 1, 1, 4, 2, 4, 2, 4, 2)
 
 
+def test_harness_measures_a_tiny_healpix_sky(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A HEALPix case (task T5.7): a full sky at nside 4, J = 2, missing pixels in two discs,
+    measured on ESTEL only; its seeded inputs read back, the build timed apart."""
+    monkeypatch.setattr(_config, "_dtype", "float32")
+    case = Case(
+        name="tiny-sky", shape=(192,), channels=1, J=2, L=4, pbc=True, seed=1, target_seed=2,
+        mask_seed=3, mask_discs=(25.0, 15.0), geometry="healpix",
+    )  # fmt: skip
+    path = tmp_path / "tiny-sky.npz"
+    digest = write_inputs(case, "float32", path)
+    inputs = read_inputs(path)
+    assert (inputs.case, inputs.digest) == (case, digest)
+    assert inputs.field.shape == (1, 1, 192)
+    assert inputs.mask is not None
+    assert 0 < inputs.mask.sum() < 192 // 4
+    measurements, arrays = measure("estel", inputs, warmup=1, repeats=1)
+    assert measurements["build_seconds"] > 0
+    assert 0 < measurements["build_peak_rss_bytes"] <= measurements["peak_rss_bytes"]
+    assert arrays["gradient"].shape == inputs.field.shape
+    assert not arrays["gradient"][..., inputs.mask].any()  # missing pixels are not read
+
+
+def test_earlier_cases_keep_their_digest(tmp_path: Path) -> None:
+    """The fields added to the cases with T3.2 and T5.7 stay out of the description of the
+    cases that do not use them, so the inputs of the earlier results keep their digest."""
+    digest = write_inputs(TINY, "float32", tmp_path / "tiny.npz")
+    description = str(np.load(tmp_path / "tiny.npz")["description"])
+    assert not {"blocks", "geometry", "mask_discs"} & set(json.loads(description)["case"])
+    assert read_inputs(tmp_path / "tiny.npz").digest == digest
+
+
 def test_main_is_exported_without_a_checkout(tmp_path: Path) -> None:
     """The ESTEL the native run is compared with is the ``src`` of a commit, exported once:
     here that of HEAD, in the place of ``origin/main``."""
@@ -165,6 +207,8 @@ def test_comparison_of_two_commits_gives_the_ratios_of_each_round() -> None:
 
     def run(forward: float, gradient: float, peak: int) -> dict[str, float]:
         return {
+            "build_seconds": 1.0,
+            "build_peak_rss_bytes": 150,
             "forward_seconds": forward,
             "gradient_seconds": gradient,
             "peak_rss_bytes": peak,
@@ -187,6 +231,7 @@ def test_comparison_of_two_commits_gives_the_ratios_of_each_round() -> None:
         "below_1_in_every_round": ["tiny: forward"],
         "above_1.05_in_a_round": ["tiny: gradient"],
     }
-    assert "| tiny | 0.800 (0.500 to 0.900) | 1.000 (0.950 to 1.100) |" in format_comparison(
+    assert ratios["build"]["median"] == ratios["build_peak"]["median"] == 1
+    assert "| 0.800 (0.500 to 0.900) | 1.000 (0.950 to 1.100) |" in format_comparison(
         {"tiny": ratios}
     )

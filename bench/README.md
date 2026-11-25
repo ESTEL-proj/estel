@@ -18,6 +18,7 @@ power spectrum, `norm="none"`; the planar ones are 2D:
 | `planar-cross` | 256 × 256, two channels with their cross terms | 6, 4 | periodic | none |
 | `planar-open` | 512 × 512, one channel | 7, 4 | non-periodic | none |
 | `tensor-prod-2d1d-64` | 2D+1D, 64 × 64 × 32, one channel (ESTEL only) | (4, 3), (4, 2) | periodic | none |
+| `healpix-masked-64` | HEALPix full sky, `nside` 64, 49,152 pixels, one channel (ESTEL only) | 5, 4 | none (full sky, `pbc = true`) | 10.0 %, five discs of radii 21° to 10° |
 
 **Tensor products** (task T3.2, issue #23). A case with `blocks` (for example
 `blocks = ["2D", "1D"]`, `shape = [N, N, T]`) is a tensor product, with one `J`, `L` and `pbc` per
@@ -30,8 +31,24 @@ with `main` (and, with `--compare`, B with A) only when that commit has `STOpera
 T3.5 (issue #128), once the slow path of `conv_axes` along a 1D block was gone; its results stay
 in `results/`.
 
+**HEALPix** (task T5.7, issue #168). A case with `geometry = "healpix"` is a full sky of
+`shape = [12 · 4^depth]` pixels, with `pbc = true`, which the harness requires and which means a full
+sky (`DataHealpix.pbc`; a partial sky is not a case), in the NESTED ordering, run through `STOperator` on
+`DataHealpix`, with its missing pixels in discs of the angular radii `mask_discs` (in degrees),
+centred on directions drawn by a seeded draw, without overlap. Like a tensor product it is
+measured on **ESTEL only**: its check against STL is replaced by the parity tests of HEALPix
+(task T5.6, `tests/parity/test_healpix_statistics.py`), its results say so (`check`), and STL's
+HEALPix times come with the benchmark of step 2 (LF62). It is compared with `main`, and with
+`--compare`, only when that commit has `STOperator` on HEALPix data (T5.6). Its masks make the
+operator build its tables for the support test as well as for the filters, so that path is
+measured.
+
 The fields are seeded: the exponential of a Gaussian field with a power-law spectrum
-([`_cases.py`](_cases.py)), over every axis for a tensor product. The process that runs the benchmark writes the inputs of a case once,
+([`_cases.py`](_cases.py)), over every axis for a tensor product. On HEALPix, with no
+spherical-harmonic transform and no healpy (test-only, Part I, §1.5): a Gaussian white noise
+averaged three times over the pixels whose centres lie within two pixel sizes of each pixel
+centre, standardised, then exponentiated; the pixel centres come from `estel`, imported only when
+the inputs are written, natively. The process that runs the benchmark writes the inputs of a case once,
 and every measured process reads the same file.
 
 Cases are added, not edited: changing one makes the earlier results incomparable.
@@ -40,6 +57,9 @@ Cases are added, not edited: changing one makes the earlier results incomparable
 
 Each case runs in a process of its own ([`worker.py`](worker.py)), which measures:
 
+- **build**: the construction of the operator, timed once, apart (`build_seconds`), and the peak
+  resident memory of the process once it is built (`build_peak_rss_bytes`): on HEALPix the build
+  of the tables can set the peak of the whole process (task T5.7);
 - **forward**: `STOperator.apply(data)`, the operator being built before;
 - **forward + gradient**: the loss L = ‖`to_vector`(S(x)) − t‖² and its gradient with respect to
   the field, with t the statistics of a second seeded field;
@@ -146,10 +166,13 @@ make bench BENCH_ARGS="--compare origin/main HEAD"
 
 measures the two commits A and B natively, each exported like `main` above, in `--rounds` rounds
 (5): a round measures A then B, the next one B then A, every measure in a fresh process (warm-up,
-then the timed runs, their median). Per round and case it takes the ratios B / A of the forward
-time, of the time with the gradient, of the memory of the computation (peak minus baseline) and
-of the peak memory, and it prints their median and their range over the rounds, with the measures
-whose ratio is below 1 in every round and those above 1.05 in some round. Every run is checked
+then the timed runs, their median). Per round and case it takes the ratios B / A of the time of
+the build, of the forward time, of the time with the gradient, of the memory of the computation
+(peak minus baseline), of the peak memory once the operator is built and of the peak memory, and
+it prints their median and their range over the rounds, with the measures whose ratio is below 1
+in every round and those above 1.05 in some round (the times of the forward pass and of the
+gradient, and the memory of the computation: the build is printed, not read by this criterion,
+since on 2D cases it takes milliseconds and its ratios are noise). Every run is checked
 against STL's statistics, and B against the statistics and the gradient of A, as above. The
 results go to `results/<date>-<machine>-compare.json`. It needs STL's statistics of a container
 run on the same inputs, and no container itself.
@@ -173,7 +196,7 @@ report what was measured on the task's issue, so that the maintainer resizes the
 
 ## Tests
 
-`tests/bench/` runs the harness on a tiny case (32 × 32, J = 2) in the fast tier, so that it
-cannot rot. The real cases never run in CI, and there is no GitHub workflow for the benchmark.
+`tests/bench/` runs the harness on tiny cases (32 × 32, J = 2; a tensor product; a HEALPix
+sky at `nside` 4) in the fast tier, so that it cannot rot. The real cases never run in CI, and there is no GitHub workflow for the benchmark.
 `bench/thresholds.toml` (protected) does not exist yet: the thresholds are set with the benchmark
 of step 2a (LF62, `docs/transfer/part3.md`).

@@ -10,15 +10,19 @@ The geometry hooks apply the static tables of each level that the wavelet operat
 (``estel.wavelets._healpix_operator``), built in NumPy with the plan from the tables of
 ``estel.wavelets._healpix_geometry`` (T5.1), whose layout they follow:
 
-* ``_conv``: the interpolated stencils with ``gather_weighted``, then the kernel of M-WAV-HPX as
-  real pairs, one real product (M-CONV-HPX; Part I, §3.1, rule 6);
+* ``_conv``: the stencils with ``gather_weighted``, then the product with ``kernel``, as real
+  pairs (M-CONV-HPX; Part I, §3.1, rule 6); the wavelet operator folds the kernel of M-WAV-HPX
+  into the tables (task T5.7), so that ``gather_weighted`` gives the real pairs at once and the
+  product is the identity;
 * ``_downsample``: the decimation with ``gather_weighted`` then ``segment_sum`` (M-DOWN-HPX),
   normalised as M-DOWN-MASK with a mask;
 * ``_crop_weights``: no border (M-MASK-HPX), every pixel of the level.
 
 Each application is one function of a range of output pixels (:func:`_stencil_rows`,
-:func:`_decimation_rows`), called here once on all of them, so that the pixel batches of T5.7
-can split it without changing the hooks or the plan.
+:func:`_decimation_rows`), called here once on all of them. The stencils are gathered by
+batches of :data:`_STENCIL_BATCH_ROWS` rows inside the L0 primitive (``gather_weighted``,
+``batch_rows``; task T5.7), so that the interpolated values of the stencils are never
+materialised whole; the decimation, whose gathered values are its output, is gathered at once.
 
 ``data`` does not import ``wavelets``: the tables come in as :class:`HealpixConvTables` and
 :class:`HealpixDownTables`, named tuples of backend arrays, built by the wavelet operator.
@@ -56,15 +60,22 @@ _PARTITION_ADVICE = (
 class HealpixConvTables(NamedTuple):
     """The static tables of ``DataHealpix._conv`` at one level, backend arrays built by the
     wavelet operator from ``healpix_stencils`` and ``healpix_kernel_weights`` (Part II, §12.5).
+
+    The convolution is ``gather_weighted`` with ``index`` and ``weight``, then the product with
+    ``kernel``: the stencils ``(L, Npix, K², 4)`` (stencil point, neighbour) and the kernel of
+    M-WAV-HPX as real pairs ``(K², 2)``; or, as the wavelet operator builds them since task
+    T5.7, the kernel folded into the tables, ``(L, Npix, 2, M)`` (real and imaginary parts, the
+    M distinct pixels a row reads), and the identity ``(2, 2)``.
     """
 
     index: Any
-    """The positions, in the pixels of the level, of the 4 neighbours of each stencil point,
-    int32, ``(L, Npix, K², 4)``: gauge, pixel, stencil point, neighbour."""
+    """The positions of the pixels read, in the pixels of the level, int32,
+    ``(L, Npix, Q, M)``: gauge, pixel, then (Q, M) as above."""
     weight: Any
-    """Their interpolation weights, real, of the operator's dtype, the shape of ``index``."""
+    """Their weights, real, of the operator's dtype, the shape of ``index``."""
     kernel: Any
-    """The kernel of M-WAV-HPX as real pairs, ``(K², 2)``: its real and imaginary parts."""
+    """The real product applied after the gather, ``(Q, 2)``: the kernel of M-WAV-HPX as real
+    pairs, or the identity when it is folded into the tables."""
 
 
 class HealpixDownTables(NamedTuple):
@@ -393,19 +404,29 @@ class DataHealpix(Data):
 
 # ---------------------------------------------------------------------- application of tables
 
+_STENCIL_BATCH_ROWS = 1 << 14
+"""Rows of the stencil tables (gauge, pixel) that ``gather_weighted`` interpolates at once
+(task T5.7, issue #168): the values read, Q · M per row and map, are materialised one batch
+at a time. An internal constant, not an option (Part IV, §22); STL's ``TorchConv`` works
+by 16384 pixels too."""
+
 
 def _stencil_rows(backend: Any, x: Any, tables: HealpixConvTables, pixels: slice) -> Any:
     """The convolution of the real map ``x``, ``(..., Npix)``, at the output pixels ``pixels``
     of the level, as real pairs ``(..., L, n, 2)``, n the number of these pixels (M-CONV-HPX,
-    step 4): the stencil values interpolated with ``gather_weighted``, then one real product
-    with the kernel's real and imaginary parts. One function of a range of output pixels, so
-    that pixel batches (T5.7) can call it on parts."""
+    step 4): ``gather_weighted``, then one real product with ``tables.kernel`` (the identity
+    when the kernel is folded into the tables). The rows are gathered by batches of
+    :data:`_STENCIL_BATCH_ROWS`, inside ``gather_weighted`` (task T5.7)."""
     xp = backend.xp
     index, weight = tables.index[:, pixels], tables.weight[:, pixels]
     n_l, n, q, m = (int(s) for s in index.shape)
     z = backend.gather_weighted(
-        x, -1, xp.reshape(index, (n_l * n, q, m)), xp.reshape(weight, (n_l * n, q, m))
-    )  # (..., L · n, K²)
+        x,
+        -1,
+        xp.reshape(index, (n_l * n, q, m)),
+        xp.reshape(weight, (n_l * n, q, m)),
+        batch_rows=_STENCIL_BATCH_ROWS,
+    )  # (..., L · n, Q)
     y = xp.matmul(z, tables.kernel)  # (..., L · n, 2)
     return xp.reshape(y, (*tuple(int(s) for s in y.shape[:-2]), n_l, n, 2))
 
@@ -421,7 +442,7 @@ def _decimation_rows(
     """The decimation of the real map ``x``, ``(..., Npix)``, at ``num_segments`` coarse
     pixels from ``first_segment`` on, whose entries of the CSR tables are ``entries``
     (M-DOWN-HPX): ``gather_weighted`` then ``segment_sum``. One function of a range of output
-    pixels, so that pixel batches (T5.7) can call it on parts."""
+    pixels; not batched, since its gathered values are its output (task T5.7, issue #168)."""
     z = backend.gather_weighted(x, -1, tables.index[entries], tables.weight[entries])[..., 0]
     segments = tables.segment_ids[entries]
     if first_segment:
