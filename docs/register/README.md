@@ -53,7 +53,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 
 ## Queue
 
-8 entries: 8 need a human, 0 can be treated.
+9 entries: 9 need a human, 0 can be treated.
 
 ### Needs a human
 
@@ -64,6 +64,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 | [LF71](LF71.md) | An explicit normalisation reference | — | the form of an explicit reference: statistics passed to the call only, or a reference object of its own; whether `norm="self"` keeps storing its reference in the operator; whether building a reference computes scattering statistics, or takes them from statistics already computed | New feature |
 | [LF72](LF72.md) | The HEALPix geometry cached on disk | — | where the cache lives: an option of `STOperator`, an environment variable or a default directory; its key and its invalidation: depth, `cell_ids`, L, K, the mask, the version of the tables; on or off by default; the dtype stored | Optimisation |
 | [LF73](LF73.md) | A cheaper gradient of the HEALPix convolution | — | whether a rule through `custom_jvp`, and its PyTorch counterpart, keeps the second order on both backends; the memory of the transposed tables; whether the Rust engine (LF3) makes it unnecessary | Optimisation |
+| [LF74](LF74.md) | Plots and diagnostics that wait for later cards | — | the Fourier diagnostics on the sphere, defined through spherical harmonics; the plots of `angular_fourier` and `scale_cosine` on tensor products, as LF68 defines them | New feature |
 | [W5](W5.md) | Notation of the maths tab harmonised | — | for each remark R-N01 to R-N18 of issue #71 except R-N10: its recommendation, or another choice; the single table of symbols (R-N18) | Work that is not a feature |
 | [W6](W6.md) | Vocabulary of the code harmonised | — | for each remark R-V01 to R-V10 of issue #72: its recommendation, or another choice | Work that is not a feature |
 | [W7](W7.md) | Structure of maths.md and of the specification | — | for each remark R-S03, R-S04, R-S06 and R-S09 of issue #73: its recommendation, or another choice; whether the remarks apply to the transfer document, archived after 1.0.0, or to `docs/maths.md` and the reference document only | Work that is not a feature |
@@ -74,7 +75,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 
 ## Step 2a
 
-30 entries: 16 need a human, 14 can be treated.
+29 entries: 15 need a human, 14 can be treated.
 
 ### Needs a human
 
@@ -88,14 +89,13 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 | [LF32](LF32.md) | Orientation reductions made complete and correct | 2a.2 | — | Mathematical choice |
 | [LF53](LF53.md) | Complex cross-channel terms kept | 2a.2 | — | Mathematical choice |
 | [LF63](LF63.md) | Tensor-product orientations beyond one 2D block | 2a.2 | — | Mathematical choice |
+| [LF8](LF8.md) | NaN masks in tensor products | 2a.3 | per-block valid weights multiplied, or the observed-sample mask with per-block border crops (§20.3) | New feature |
 | [LF49](LF49.md) | Isotropic radial binning on rectangular images | 2a.3 | — | Mathematical choice |
 | [LF58](LF58.md) | One loss function for both synthesis entries | 2a.4 | — | Mathematical choice |
 | [LF59](LF59.md) | Running field of a synthesis standardised | 2a.4 | — | Mathematical choice |
 | [LF64](LF64.md) | Nyquist pre-filter on rectangular fields | 2a.4 | — | Mathematical choice |
-| [LF1](LF1.md) | JAX backend | 2a.X | devices covered by the stable guarantee; JAX tests on every pull request once stable | Structure |
-| [LF10](LF10.md) | v1.6.0 spectrum estimators in every geometry | 2a.X | generalised directly with LF23, or after the spectra of 2D+1D; periodicity per block in tensor products; NaN-aware estimators on tensor products before LF8 | New feature |
-| [LF11](LF11.md) | Plotting, diagnostics, gaussianise, surrogates | 2a.X | scope of the improved plotting and diagnostics; what gaussianise computes; what a surrogate is | New feature |
-| [LF23](LF23.md) | 1D and tensor-product spectra | 2a.X | generalised directly with LF10, or as in 2D+1D first | New feature |
+| [LF10](LF10.md) | v1.6.0 spectrum estimators in every geometry | 2a.X | — | New feature |
+| [LF11](LF11.md) | Plotting, diagnostics, gaussianise, surrogates | 2a.X | the generator of `gaussianise`, after the comparison: the default, one function with `method=` or several, the names | New feature |
 
 ### Can be treated
 
@@ -108,7 +108,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 | [LF52](LF52.md) | Masks downsampled as continuous weights | 2a.3 | study | — | — |
 | [W2](W2.md) | Synthesis tests | 2a.4 | ready | — | — |
 | [LF36](LF36.md) | Level-wise gradients in the Python engine | 2a.5 | study | LF62 | — |
-| [LF2](LF2.md) | HEALPix on JAX | 2a.X | ready | LF1 | — |
+| [LF1](LF1.md) | JAX backend | 2a.X | ready | LF62 | — |
 | [LF13](LF13.md) | xarray export | 2a.X | ready | — | — |
 | [LF46](LF46.md) | First-order gradient for a loss ending the computation | 2a.X | ready | — | — |
 | [LF54](LF54.md) | Masks per batch element, detected on batched data | 2a.X | ready | — | — |
@@ -118,14 +118,13 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 
 ## Step 2b
 
-19 entries: 11 need a human, 8 can be treated.
+18 entries: 10 need a human, 8 can be treated.
 
 ### Needs a human
 
 | ID | Title | Phase | To decide | Category |
 | --- | --- | --- | --- | --- |
 | [LF3](LF3.md) | Rust engine (estel-rust), CPU and GPU | — | with engine="auto", routing of second-order requests; scope of the Rust engine after the benchmark (§18.6) | Structure |
-| [LF8](LF8.md) | NaN masks in tensor products | — | per-block valid weights multiplied, or the observed-sample mask with per-block border crops (§20.3) | New feature |
 | [LF22](LF22.md) | Wavelet optimisation | — | — | Mathematical choice |
 | [LF25](LF25.md) | Exact translation invariance | — | — | Mathematical choice |
 | [LF35](LF35.md) | Strict scale order, as an option | — | validation on syntheses and inference; option or default | Mathematical choice |
