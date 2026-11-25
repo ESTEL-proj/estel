@@ -392,6 +392,18 @@ class Data:
             "geometry overrides it (Part II, §12.4)."
         )
 
+    def _nyquist_filter(self, x: Any) -> Any:
+        """The pre-filter of a synthesis (maths.md M-SYN-NYQ; Part II, §12.4), applied to the
+        target and to the start: ``x``, an array of this object's backend, ``(Nb, Nc,
+        *spatial)``, band-limited as the geometry does it, with the shape and the dtype of
+        ``x``. Only the syntheses call it (``estel.synthesis``), as STL's ``apply_nyquist_filter``
+        and ``apply_bandlimit`` go through the data type. Each geometry the syntheses take
+        implements it (2D: the filter of M-SYN-NYQ; HEALPix: none in ESTEL 1.0.0, OP-77)."""
+        raise NotImplementedError(
+            f"{type(self).__name__} has no pre-filter of syntheses: the syntheses of ESTEL 1.0.0 "
+            "are of 2D data and of full-sky HEALPix fields (maths.md section 5)."
+        )
+
     # The same three operations along given axes of an array, for a geometry that is a block of
     # a tensor product (``DataTensorProd``, maths.md M-NOT-TP): the tensor product dispatches its
     # hooks to them, along the axes of each block, without moving any axis (Part II, §12.4).

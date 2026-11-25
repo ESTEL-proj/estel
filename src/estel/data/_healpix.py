@@ -348,6 +348,13 @@ class DataHealpix(Data):
         whatever ``border``."""
         return np.ones(self._n_pixels(level), dtype=np.float64)
 
+    def _nyquist_filter(self, x: Any) -> Any:
+        """``x`` unchanged: ESTEL 1.0.0 synthesises full-sky HEALPix fields without a pre-filter
+        (maths.md M-SYN-NYQ, OP-77). STL band-limits them through the spherical-harmonic
+        transform of healpix-analyse (``apply_bandlimit``), which comes with LF24; the
+        comparison with STL runs it with ``prefilter_Nyquist=False``."""
+        return x
+
     # The hooks HEALPix does not have in ESTEL 1.0.0 (issue #166, decision 7).
 
     def _lowpass(self, x: Any, plan: Any, block: int) -> Any:
@@ -356,14 +363,6 @@ class DataHealpix(Data):
         raise NotImplementedError(
             "DataHealpix has no low-pass filter in ESTEL 1.0.0: it serves the blocks of tensor "
             "products only (maths.md M-LP), and the blocks are Data1D and Data2D (M-DATA-TP)."
-        )
-
-    def _nyquist_filter(self, x: Any) -> Any:
-        """Not in 1.0.0: HEALPix fields are synthesised without a pre-filter (maths.md
-        M-SYN-NYQ, OP-77)."""
-        raise NotImplementedError(
-            "DataHealpix has no Nyquist pre-filter in ESTEL 1.0.0: HEALPix fields are "
-            "synthesised without it (maths.md M-SYN-NYQ, OP-77)."
         )
 
     def _spectrum_geometry(self) -> Any:

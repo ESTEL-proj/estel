@@ -1,16 +1,20 @@
 """A periodic synthesis follows STL's loss over its first iterations (Part II, §14.3, "Syntheses";
-task T6.1, issue #28, decisions 2 and 3 of 21 November 2026; task T4.5, issue #152; maths.md
-section 5).
+task T6.1, issue #28, decisions 2 and 3 of 21 November 2026; task T4.5, issue #152; task T5.8,
+issue #169, decision 9; maths.md section 5).
 
 Two fixtures (STL `master`; ``tools/stl_parity/cases/``) hold a 64 x 64 periodic target, J = 4,
 L = 4, one channel, the Gaussian start STL drew, and STL's loss after each of its 20 iterations,
 run with STL's settings (M-SYN-LBFGS): ``synthesis_2d`` without the power spectrum, from STL's
 mid-level ``optimize_from_maps`` (T6.1), and ``synthesis_ps_2d`` with it, from the user-level
 ``synthesize_from_maps``, whose operators are those of M-SYN-OPS: J = J_PS = 4, 9 bins and the
-``fft`` estimator (T4.5). ESTEL synthesises from the same target and the same start, with the
-same settings, in float64, and must make as many iterations and evaluations of the loss, with
-the loss after each iteration within a relative tolerance of STL's, and end on the field STL
-ends on.
+``fft`` estimator (T4.5). A third (STL ``HealpixUpdate``, T5.3) holds a full HEALPix sky at
+``nside`` 16, J = 3, L = 4, one channel: ``synthesis_hpx``, from the mid-level
+``optimize_from_maps`` without the pre-filter and without the spectrum (OP-77), on the sphere
+and with the kernel in float64 (M-SYN-OPS, HEALPix), with the start STL used, which is not the
+first draw after its seed (OP-99). ESTEL synthesises from the same target and the same start,
+with the same settings, in float64, and must make as many iterations and evaluations of the
+loss, with the loss after each iteration within a relative tolerance of STL's, and end on the
+field STL ends on.
 
 **Tolerance.** |ESTEL - STL| ≤ rtol x |STL| at every iteration, with rtol the float64 parity
 tolerance of Part II, §14.3 (``PARITY_RTOL["float64"]``, 1e-10), without an absolute term: the
@@ -22,7 +26,8 @@ BLAS. The final field, de-standardised, is compared with ``assert_parity``: the 
 the absolute term of §14.3 for its values near zero; measured, its largest difference is 1.2e-14
 for values up to 6.4, 9e-5 of what the tolerance allows. With the spectrum (T4.5, measured): the
 relative gap of the loss is at most 3.5e-15, and the largest difference of the field 1.3e-13
-for values up to 6.0.
+for values up to 6.0. On HEALPix (T5.8, measured): the relative gap of the loss is at most
+5.0e-13, at iteration 17, and the largest difference of the field 9.1e-13 for values up to 9.0.
 """
 
 from __future__ import annotations
@@ -33,11 +38,11 @@ import numpy as np
 import pytest
 
 import estel
-from estel import Data2D, _config
+from estel import Data2D, DataHealpix, _config
 from estel.backend._protocol import Backend
+from estel.data._planar import nyquist_filter
 from estel.scattering._plan import PlanarPlan
 from estel.synthesis._api import _maps_setup
-from estel.synthesis._init import nyquist_filter
 from tests.parity._compare import PARITY_RTOL, assert_parity, load_fixture, read_manifest
 
 RTOL = PARITY_RTOL["float64"]
@@ -76,9 +81,24 @@ def test_synthesis_with_the_spectrum_follows_stl(
     _follows_stl(backend, monkeypatch, "synthesis_ps_2d", "#152")
 
 
+@pytest.mark.slow
+def test_healpix_synthesis_follows_stl(backend: Backend, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A full HEALPix sky, without the pre-filter and without the spectrum (T5.8, decision 9 on
+    #169; maths.md M-SYN-OPS, OP-77, OP-99).
+
+    Slow: 20 iterations of L-BFGS on 3072 pixels with J = 3, 25 evaluations of the loss and its
+    gradient, take about 6 s (8.5 s of CPU); the comparison runs in the full tier, beside those
+    of T6.1 and T4.5.
+    """
+    _follows_stl(backend, monkeypatch, "synthesis_hpx", "#169")
+
+
 def _follows_stl(backend: Backend, monkeypatch: pytest.MonkeyPatch, case: str, issue: str) -> None:
     monkeypatch.setattr(_config, "_dtype", "float64")
     fixture = load_fixture(case)
+    healpix = case.endswith("_hpx")
+    # An array is a 2D field; a HEALPix target is given as a DataHealpix (decision 2 on #169).
+    target = DataHealpix(fixture["target"]) if healpix else fixture["target"]
     p: dict[str, Any] = read_manifest()[f"{case}.npz"]["parameters"]
     settings: dict[str, Any] = {
         "init": fixture["start"],
@@ -91,9 +111,9 @@ def _follows_stl(backend: Backend, monkeypatch: pytest.MonkeyPatch, case: str, i
     }
     if "lbfgs" in getattr(backend, "not_provided", frozenset()):
         with pytest.raises(NotImplementedError, match="torch backend"):
-            estel.synthesize_from_maps(fixture["target"], **settings)
+            estel.synthesize_from_maps(target, **settings)
         return
-    result = estel.synthesize_from_maps(fixture["target"], **settings)
+    result = estel.synthesize_from_maps(target, **settings)
     expected = fixture["losses"]
     n_iter, n_evals = (int(n) for n in fixture["counts"])
     assert (result.n_iter, result.n_evals) == (n_iter, n_evals), (
@@ -109,7 +129,12 @@ def _follows_stl(backend: Backend, monkeypatch: pytest.MonkeyPatch, case: str, i
         f"regenerate the fixture or loosen the tolerance: report it on issue {issue}."
     )
     assert result.manifest["L"] == p["L"]
-    assert_parity(backend.to_numpy(result.field), fixture["field"], "float64")
+    field = backend.to_numpy(result.field)
+    if healpix:
+        # A DataHealpix target keeps its channel axis, (1, Npix); STL, given an array, returns
+        # (Npix,) (M-SYN-OUT, OP-75; decision 8 on #169).
+        field = field[0]
+    assert_parity(field, fixture["field"], "float64")
 
 
 def test_operators_and_start_with_the_spectrum(

@@ -2,11 +2,12 @@
 (Part II, §12.9; maths.md section 5; task T6.1, issue #28).
 
 A synthesis looks for fields u whose statistics match those of a target, with STL's settings:
-the Nyquist pre-filter, the standardisation of the target, the Gaussian start, the weighted
-loss on the complex form of the flattened statistics, the 2D power spectrum included, and
-PyTorch's L-BFGS (M-SYN-TARGET to M-SYN-OPS). What ESTEL adds is checkpoints (maths.md §5.8). In
-1.0.0 the fields are periodic, planar 2D and without missing values (LF47), and syntheses run on
-the PyTorch backend only (LF1).
+the pre-filter of the geometry, the standardisation of the target, the Gaussian start, the
+weighted loss on the complex form of the flattened statistics, the 2D power spectrum included,
+and PyTorch's L-BFGS (M-SYN-TARGET to M-SYN-OPS). What ESTEL adds is checkpoints (maths.md §5.8).
+In 1.0.0 the fields are periodic 2D fields or full HEALPix skies, without missing values (LF47);
+HEALPix fields are synthesised without the pre-filter and without the spectrum (OP-77, LF24).
+Syntheses run on the PyTorch backend only (LF1).
 
 The driver is not traced code: it reads the losses and the counts of the optimizer to write
 checkpoints and to stop. The loss itself is pure (``estel.synthesis._loss``).
@@ -31,13 +32,13 @@ from ..backend._protocol import Backend, LbfgsState
 from ..data._base import Data, geometry_class
 from ..data._moments import Standardized
 from ..scattering._operator import STOperator
-from ..scattering._plan import PlanarPlan, build_spectrum_plan
+from ..scattering._plan import PlanarPlan, build_spectrum_plan, resolve_compute_ps
 from ..statistics._arrays import device_of
 from ..statistics._grid import FAMILIES
 from ..statistics._statistics import _NO_REDUCTION, STStatistics
 from ..wavelets._operator import default_scales
 from . import _checkpoints
-from ._init import gaussian_start, nyquist_filter, standardize_target, unstandardize
+from ._init import gaussian_start, standardize_target, unstandardize
 from ._loss import WEIGHTS, Objective, flatten
 
 # The settings of STL's optimize_lbfgs that the synthesis functions do not take (M-SYN-LBFGS).
@@ -46,6 +47,9 @@ TOLERANCE_CHANGE = 1e-15
 # The options of the operators a synthesis takes from st_kwargs: J only, as STL's user level
 # (maths.md M-SYN-OPS); L and the rest are the defaults, and the synthesis sets the others.
 ST_KWARGS = ("J",)
+# The geometries of the syntheses of ESTEL 1.0.0, by their tag (``Data._geometry``): 2D data and
+# full HEALPix skies (maths.md section 5); 1D data and tensor products are refused.
+_GEOMETRIES = ("2d", "healpix")
 # The families of the statistics of a synthesis, without the power spectrum (M-SYN-LOSS).
 _FAMILIES = tuple(name for name in FAMILIES if name != "PS")
 # The settings a resumed run must share with the run that wrote its checkpoint.
@@ -102,8 +106,9 @@ class SynthesisResult:
     def field(self) -> Any:
         """The synthesised fields, an array of the backend, de-standardised (M-SYN-OUT).
 
-        ``(n_batch, Nc, N1, N2)``, without the batch axis if ``n_batch`` is 1, and without the
-        channel axis from maps if the target was a 2D array, from statistics if Nc is 1 (OP-75).
+        ``(n_batch, Nc, N1, N2)`` on 2D data, ``(n_batch, Nc, Npix)`` on HEALPix data, without
+        the batch axis if ``n_batch`` is 1, and without the channel axis from maps if the target
+        was a 2D array, from statistics if Nc is 1 (OP-75): a ``DataHealpix`` target keeps it.
         """
         return self._field
 
@@ -185,26 +190,32 @@ def synthesize_from_maps(
     ----------
     target:
         The target maps: an ``estel.Data2D``, periodic and without missing values, or an array
-        of shape ``(N1, N2)``, ``(Nc, N1, N2)`` or ``(Nb, Nc, N1, N2)``, taken as periodic.
-        Non-periodic and masked targets come later (LF47).
+        of shape ``(N1, N2)``, ``(Nc, N1, N2)`` or ``(Nb, Nc, N1, N2)``, taken as periodic 2D
+        data; or an ``estel.DataHealpix`` of the full sky, without ``cell_ids`` and without
+        missing values. Non-periodic, partial-sky and masked targets come later (LF47).
     n_batch:
         The number of fields synthesised. With ``mean_field=False`` it must be the target's Nb.
     running_shape:
-        The spatial shape ``(N1, N2)`` of the synthesised fields; by default the target's.
+        On 2D data, the spatial shape ``(N1, N2)`` of the synthesised fields; by default the
+        target's. HEALPix fields are synthesised at the target's depth: ``running_shape``
+        raises there (OP-101).
     init:
         ``"gaussian"`` (the default): a Gaussian white noise drawn with ``seed``; or an array
-        that broadcasts to ``(n_batch, Nc, N1, N2)``, in the standardised units of the target.
-        Either is then pre-filtered (M-SYN-INIT, M-SYN-NYQ).
+        that broadcasts to ``(n_batch, Nc, *spatial)``, in the standardised units of the target.
+        Either is then pre-filtered on 2D data (M-SYN-INIT, M-SYN-NYQ); HEALPix fields have no
+        pre-filter in 1.0.0 (OP-77).
     mean_field:
         Compare the statistics averaged over the batch (True, the default), so that
         ``n_batch`` may differ from the target's Nb; or map by map (M-SYN-TARGET, M-SYN-LOSS).
     compute_PS:
         Whether the 2D power spectrum enters the loss, as the last family of its vector
-        (M-SYN-OPS, M-SYN-LOSS): ``None`` (the default) and True put it in, as STL's
-        ``synthesize_from_maps`` for periodic fields; False leaves it out, as STL's
-        ``optimize_from_maps``. Both operators then take J and the number of bins: the smaller
-        of the defaults of the target and of the synthesised fields, each from its own size,
-        whatever J; J_min is 0 and the estimator ``fft``.
+        (M-SYN-OPS, M-SYN-LOSS), by the rule of ``STOperator``: ``None`` (the default) puts it
+        in on 2D data, as STL's ``synthesize_from_maps`` for periodic fields, and leaves it out
+        on HEALPix data, which have no spectrum in 1.0.0 (OP-77, LF24); True puts it in, on 2D
+        data only; False leaves it out, as STL's ``optimize_from_maps``. With the spectrum,
+        both operators take J and the number of bins: the smaller of the defaults of the
+        target and of the synthesised fields, each from its own size, whatever J; J_min is 0
+        and the estimator ``fft``.
     max_iter:
         The iterations of L-BFGS of the whole run, those before ``resume_from`` included; the
         evaluations of the loss are capped at ⌊5 x ``max_iter`` / 4⌋ (M-SYN-LBFGS, OP-74).
@@ -217,8 +228,9 @@ def synthesize_from_maps(
         default seed is 26, and its draws differ from ESTEL's (OP-55).
     st_kwargs:
         Options of the scattering operators: ``J`` only, as in STL, by default the smaller of
-        the default J of the target and of the synthesised fields; L and the channel pairs are
-        the defaults (M-SYN-OPS). Any other key raises an error.
+        the default J of the target and of the synthesised fields (max(1, depth - 1) on HEALPix
+        data, M-DEF-HPX); L and the channel pairs are the defaults (M-SYN-OPS). Any other key
+        raises an error.
     checkpoint_every, checkpoint_dir:
         Write a checkpoint to ``checkpoint_dir`` every ``checkpoint_every`` iterations, and at
         the end of the run: ``checkpoint_000010.npz`` after 10 iterations (maths.md §5.8).
@@ -237,8 +249,8 @@ def synthesize_from_maps(
     _refuse_tensor_product(target, "synthesize_from_maps", "target")
     data, ndim = _target_data(target)
     backend = _check_backend(data.backend)
-    _check_periodic(data, "target")
-    with_spectrum = _check_loss_compute_ps(compute_PS)
+    _check_periodic(data, "the target is")
+    with_ps = resolve_compute_ps(compute_PS, type(data))
     options = _st_options(st_kwargs)
     n_batch = _positive_int("n_batch", n_batch)
     _check_flag("mean_field", mean_field)
@@ -248,10 +260,10 @@ def synthesize_from_maps(
             f"be the number of target maps ({data.n_batch}) (M-SYN-LOSS). Pass n_batch="
             f"{data.n_batch}, or mean_field=True."
         )
-    shape = _running_shape(running_shape, data)
+    shape = _running_shape(running_shape, type(data), data.shape[2:])
     dtype = default_dtype()
     setup = _maps_setup(
-        backend, data, (n_batch, data.n_channels, *shape), mean_field, with_spectrum, options
+        backend, data, (n_batch, data.n_channels, *shape), mean_field, with_ps, options
     )
     running = setup.running
     settings = {
@@ -304,17 +316,20 @@ def _maps_setup(
     options: Mapping[str, Any],
 ) -> _MapsSetup:
     """The target and the operators of a synthesis from maps (M-SYN-TARGET, M-SYN-OPS): the
-    target pre-filtered, standardised, then its statistics with ``norm="self"``, reweighted and
-    flattened; the running operator with ``norm="ref"`` and the target's reference. Both take J
-    and, with the spectrum, the number of bins: the smaller of the two fields' defaults, each
-    from its own size, whatever J (STL: the smaller ``get_CS_op().n_bins``); J_min 0, and the
-    estimator ``fft`` of periodic fields."""
-    filtered = nyquist_filter(backend, data.array)
+    target pre-filtered by its geometry (``Data._nyquist_filter``), standardised, then its
+    statistics with ``norm="self"``, reweighted and flattened; the running operator with
+    ``norm="ref"`` and the target's reference. Both take J and, with the spectrum, the number of
+    bins: the smaller of the two fields' defaults, each from its own size, whatever J (STL: the
+    smaller ``get_CS_op().n_bins``); J_min 0, and the estimator ``fft`` of periodic fields. With
+    the target's shape, the default J is that of the geometry, as ``STOperator`` computes it
+    (M-DEF, M-DEF-HPX)."""
+    filtered = data._nyquist_filter(data.array)
     standardized = standardize_target(backend, filtered, mean_field)
     target_data = data.with_array(standardized.x)
     running = _running_data(data, running_shape, backend)
     J = options.get("J")  # noqa: N806 (maths.md notation)
-    if J is None:
+    if J is None and running.shape[2:] != target_data.shape[2:]:
+        # Another running shape, on 2D data only (OP-101): the smaller of the two defaults.
         J = min(default_scales(target_data), default_scales(running))  # noqa: N806
     spectrum: dict[str, Any] = (
         {"compute_PS": True, "n_bins": min(_default_n_bins(target_data), _default_n_bins(running))}
@@ -325,6 +340,7 @@ def _maps_setup(
     target_stats = target_op.apply(target_data)
     reference = target_stats._reference
     assert reference is not None  # norm="self"
+    J = cast(int, target_op.J)  # noqa: N806 (one geometry: an int)
     running_op = STOperator(running, J, norm="ref", **spectrum)
     objective = Objective(
         template=running,
@@ -357,16 +373,18 @@ def synthesize_from_stats(
     """Synthesise ``n_batch`` periodic fields whose statistics match ``stats`` (maths.md
     section 5; STL's ``synthesize_from_stats``).
 
-    ``stats`` are 2D statistics computed with ``norm="self"``, not reduced, holding exactly the
-    families ``mean``, ``var``, S1 to S4, and the power spectrum ``PS`` or not; their
-    normalisation, ``ref_batch_mean`` and standardisation are those the caller chose
-    (M-SYN-TARGET). The spectrum enters the loss if and only if ``stats`` hold it (M-SYN-OPS);
-    to synthesise without it from statistics that hold it, pass
-    ``stats.select(["mean", "var", "S1", "S2", "S3", "S4"])``. The synthesised fields are
-    periodic and without missing values, whatever the data of ``stats`` (LF47). Every option of
-    the running operator, J, L, the channel pairs and, with the spectrum, its number of bins and
-    J_min, comes from ``stats`` (OP-76); the estimator of the spectrum is ``fft``. ``stats`` are
-    not modified (OP-70).
+    ``stats`` are the statistics of 2D data or of a full HEALPix sky, computed with
+    ``norm="self"``, not reduced, holding exactly the families ``mean``, ``var``, S1 to S4, and,
+    on 2D data, the power spectrum ``PS`` or not; their normalisation, ``ref_batch_mean`` and
+    standardisation are those the caller chose (M-SYN-TARGET). The spectrum enters the loss if
+    and only if ``stats`` hold it (M-SYN-OPS); to synthesise without it from statistics that
+    hold it, pass ``stats.select(["mean", "var", "S1", "S2", "S3", "S4"])``. The synthesised
+    fields are periodic and without missing values, whatever the mask of ``stats`` (LF47); the
+    statistics of a partial HEALPix sky are refused (LF47). The running fields have the
+    geometry and the static metadata of ``stats`` (their depth, on HEALPix data), and every
+    option of the running operator, J, L, the channel pairs and, with the spectrum, its number
+    of bins and J_min, comes from ``stats`` (OP-76); the estimator of the spectrum is ``fft``.
+    ``stats`` are not modified (OP-70).
 
     With ``mean_field=True`` (the default) the loss compares the batch means and is divided by
     the Nb of ``stats`` (OP-71); with ``mean_field=False``, ``n_batch`` must be that Nb. If
@@ -375,8 +393,8 @@ def synthesize_from_stats(
     (M-SYN-OUT, OP-72); otherwise they are left in the units of the statistics.
 
     ``init`` is ``None`` or ``"gaussian"`` for a Gaussian start drawn with ``seed``, or an
-    array that broadcasts to ``(n_batch, Nc, N1, N2)``. The other parameters are those of
-    :func:`synthesize_from_maps`.
+    array that broadcasts to ``(n_batch, Nc, *spatial)``. ``running_shape`` is taken on 2D data
+    only (OP-101). The other parameters are those of :func:`synthesize_from_maps`.
     """
     _refuse_tensor_product(stats, "synthesize_from_stats", "stats")
     if not isinstance(stats, STStatistics):
@@ -387,16 +405,17 @@ def synthesize_from_stats(
     if stats._plan.geometry._geometry == "tensor_prod":
         raise NotImplementedError(
             "synthesize_from_stats: these are the statistics of a tensor product; syntheses on "
-            "tensor products are not part of ESTEL 1.0.0, which synthesises 2D planar data "
-            "(maths.md section 5). Pass the statistics of estel.Data2D maps, computed with "
-            "estel.STOperator."
+            "tensor products are not part of ESTEL 1.0.0, which synthesises 2D data and "
+            "full-sky HEALPix fields (maths.md section 5). Pass the statistics of estel.Data2D "
+            "or estel.DataHealpix maps, computed with estel.STOperator."
         )
     plan = cast(PlanarPlan, stats._plan)  # a single geometry: a tensor product raised above
     backend = _check_backend(stats._backend)
-    if plan.ndim != 2:
+    if plan.geometry._geometry not in _GEOMETRIES:
         raise ValueError(
-            f"synthesize_from_stats: these statistics are of {plan.ndim}D data; syntheses of "
-            "ESTEL 1.0.0 are of 2D planar data (maths.md section 5)."
+            f"synthesize_from_stats: these statistics are of {plan.geometry.__name__} data; "
+            "syntheses of ESTEL 1.0.0 are of 2D data and full-sky HEALPix fields (maths.md "
+            "section 5). Pass the statistics of estel.Data2D or estel.DataHealpix maps."
         )
     if plan.norm != "self" or stats._reference is None:
         raise ValueError(
@@ -428,8 +447,10 @@ def synthesize_from_stats(
             f"(ref_batch_mean=False), which cannot normalise n_batch={n_batch} fields (M-NORM). "
             f"Pass n_batch={n_target}, or compute the statistics with ref_batch_mean=True."
         )
-    shape = _running_shape(running_shape, None, plan.spatial_shape)
+    shape = _running_shape(running_shape, plan.geometry, plan.spatial_shape)
     dtype = default_dtype()
+    # The running fields: the geometry and the static metadata of the statistics (plan.meta),
+    # periodic and without mask. On a partial HEALPix sky pbc follows cell_ids, and is False.
     template = plan.geometry._from_parts(
         backend.xp.zeros(
             (n_batch, plan.n_channels, *shape),
@@ -439,7 +460,9 @@ def synthesize_from_stats(
         None,
         True,
         backend.name,
+        plan.meta,
     )
+    _check_periodic(template, "these statistics are of")
     # With the spectrum, its number of bins and J_min are those of the statistics (OP-76); its J
     # is the operator's, and the estimator of the periodic running fields is fft.
     spectrum: dict[str, Any] = {"compute_PS": False}
@@ -523,7 +546,7 @@ def _optimize(
         converged = bool(checkpoint.meta["converged"])
         seed = int(checkpoint.meta["seed"])
     else:
-        x = nyquist_filter(backend, _start(backend, init, seed, running, settings["dtype"]))
+        x = running._nyquist_filter(_start(backend, init, seed, running, settings["dtype"]))
         state, done, evals, converged = None, 0, 0, False
     written: list[str] = []
     while not converged and done < max_iter and evals < budget:
@@ -563,9 +586,9 @@ def _optimize(
 
 
 def _start(backend: Backend, init: Any, seed: int, running: Data, dtype: Any) -> Any:
-    """The start before the pre-filter (M-SYN-INIT): a Gaussian noise drawn with ``seed``, or
-    ``init`` broadcast to the running shape, on the device of the running data, where the
-    operators compute."""
+    """The start before the pre-filter of the geometry (M-SYN-INIT): a Gaussian noise drawn
+    with ``seed``, or ``init`` broadcast to the running shape, on the device of the running
+    data, where the operators compute."""
     shape = running.shape
     device = device_of(running.array)
     if isinstance(init, str):
@@ -590,7 +613,7 @@ def _start(backend: Backend, init: Any, seed: int, running: Data, dtype: Any) ->
     except ValueError as error:
         raise ValueError(
             f"init has shape {values.shape}, which does not broadcast to the running fields "
-            f"{shape} (n_batch, Nc, N1, N2)."
+            f"{shape} (n_batch, Nc, *spatial)."
         ) from error
     if not np.isfinite(values).all():
         raise ValueError(
@@ -605,29 +628,32 @@ def _start(backend: Backend, init: Any, seed: int, running: Data, dtype: Any) ->
 
 def _refuse_tensor_product(value: object, function: str, name: str) -> None:
     """Syntheses on tensor products are not part of ESTEL 1.0.0: refused before any other
-    check, since a ``DataTensorProd`` of one 2D block has ``ndim == 2`` and its ``pbc`` is a
-    tuple, which the checks of planar data would let through. Read from the geometry the class
-    declares, as L2 knows the mother class only (Part I, §2.4)."""
+    check, with their own error. Read from the geometry the class declares, as L2 knows the
+    mother class only (Part I, §2.4)."""
     if isinstance(value, Data) and value._geometry == "tensor_prod":
         advice = (
-            "Pass estel.Data2D maps, or a single 2D field as an array."
+            "Pass estel.Data2D or estel.DataHealpix maps, or a single 2D field as an array."
             if function == "synthesize_from_maps"
-            else "Pass the statistics of estel.Data2D maps, computed with estel.STOperator."
+            else "Pass the statistics of estel.Data2D or estel.DataHealpix maps, computed with "
+            "estel.STOperator."
         )
         raise NotImplementedError(
             f"{function}: the {name} is a DataTensorProd; syntheses on tensor products are not "
-            f"part of ESTEL 1.0.0, which synthesises 2D planar data (maths.md section 5). {advice}"
+            "part of ESTEL 1.0.0, which synthesises 2D data and full-sky HEALPix fields "
+            f"(maths.md section 5). {advice}"
         )
 
 
 def _target_data(target: Any) -> tuple[Data, int]:
     """The target as a ``Data`` object, and the number of axes it was given with: an array is
-    taken as periodic 2D data (M-SYN-TARGET, M-DATA-2D)."""
+    taken as periodic 2D data (M-SYN-TARGET, M-DATA-2D), since it does not say its geometry; a
+    HEALPix target is given as a ``DataHealpix``."""
     if isinstance(target, Data):
-        if target.ndim != 2:
+        if target._geometry not in _GEOMETRIES:
             raise ValueError(
                 f"synthesize_from_maps: the target is {type(target).__name__}; syntheses of "
-                "ESTEL 1.0.0 are of 2D planar data, estel.Data2D (maths.md section 5)."
+                "ESTEL 1.0.0 are of 2D data and full-sky HEALPix fields, estel.Data2D and "
+                "estel.DataHealpix (maths.md section 5)."
             )
         return target, 4
     if isinstance(target, STStatistics):
@@ -649,21 +675,24 @@ def _check_backend(name: str) -> Backend:
     return backend
 
 
-def _check_periodic(data: Data, what: str) -> None:
-    if not data.pbc or data.mask is not None:
+def _check_periodic(data: Data, subject: str) -> None:
+    """Syntheses of 1.0.0 are periodic and without missing values (LF47): 2D data with
+    ``pbc=True``, HEALPix data of the full sky. ``subject`` begins the message: "the target
+    is", "these statistics are of"."""
+    if data.pbc and data.mask is None:
+        return
+    if data._geometry == "healpix":
         raise ValueError(
-            f"the {what} is {'not periodic' if not data.pbc else 'masked'}: syntheses of ESTEL "
-            "1.0.0 are periodic, without missing values; non-periodic and masked syntheses "
-            "come later (LF47). Pass periodic data (pbc=True) without NaN."
+            f"{subject} {'a partial sky (cell_ids)' if not data.pbc else 'a masked sky'}: "
+            "HEALPix syntheses of ESTEL 1.0.0 are of the full sky, without missing values; "
+            "partial-sky and masked syntheses come later (LF47). Pass a full sky, without "
+            "cell_ids and without NaN."
         )
-
-
-def _check_loss_compute_ps(compute_ps: object) -> bool:
-    """Whether the spectrum enters the loss: by default in the periodic syntheses of 1.0.0
-    (maths.md M-SYN-OPS)."""
-    if compute_ps is not None and not isinstance(compute_ps, bool | np.bool_):
-        raise TypeError(f"compute_PS={compute_ps!r}: pass True, False or None (the default).")
-    return compute_ps is None or bool(compute_ps)
+    raise ValueError(
+        f"{subject} {'not periodic' if not data.pbc else 'masked'}: syntheses of ESTEL "
+        "1.0.0 are periodic, without missing values; non-periodic and masked syntheses "
+        "come later (LF47). Pass periodic data (pbc=True) without NaN."
+    )
 
 
 def _default_n_bins(data: Data) -> int:
@@ -699,12 +728,19 @@ def _st_options(st_kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
 
 
 def _running_shape(
-    running_shape: Any, data: Data | None, default: tuple[int, ...] | None = None
-) -> tuple[int, int]:
+    running_shape: Any, geometry: type[Data], default: tuple[int, ...]
+) -> tuple[int, ...]:
+    """The spatial shape of the running fields: by default ``default``, the target's, of any
+    number of axes; ``running_shape`` on 2D data only (OP-101)."""
     if running_shape is None:
-        spatial = data.shape[2:] if data is not None else default
-        assert spatial is not None
-        return int(spatial[0]), int(spatial[1])
+        return tuple(int(n) for n in default)
+    if geometry._geometry != "2d":
+        raise ValueError(
+            f"running_shape={running_shape!r}: ESTEL 1.0.0 synthesises {geometry.__name__} "
+            "fields at the depth of the target, as STL, whose HEALPix syntheses fail at another "
+            "depth (maths.md M-SYN-OPS, OP-101); running_shape is taken on 2D data only. Leave "
+            "it to None."
+        )
     shape = tuple(running_shape)
     if len(shape) != 2 or not all(
         isinstance(n, int | np.integer) and not isinstance(n, bool) and n > 0 for n in shape
@@ -746,7 +782,7 @@ def _settings(
 ) -> dict[str, Any]:
     if not isinstance(lr, int | float) or isinstance(lr, bool) or not lr > 0:
         raise ValueError(f"lr={lr!r}: pass a positive step size (STL's: 1.0).")
-    spectrum = cast(PlanarPlan, operator.plan).spectrum  # syntheses are of planar 2D data
+    spectrum = cast(PlanarPlan, operator.plan).spectrum  # syntheses are of single geometries
     return {
         "entry": entry,
         "backend": backend.name,
@@ -762,7 +798,8 @@ def _settings(
         "tolerance_grad": TOLERANCE_GRAD,
         "tolerance_change": TOLERANCE_CHANGE,
         "weights": dict(WEIGHTS),
-        "prefilter_nyquist": True,
+        # The pre-filter of M-SYN-NYQ, of 2D data; none on HEALPix in 1.0.0 (OP-77).
+        "prefilter_nyquist": running._geometry == "2d",
     }
 
 
