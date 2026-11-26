@@ -93,7 +93,7 @@
     },
     "estel.STOperator": {
       "kind": "class",
-      "signature": "(self, data: Data, J: int | None=None, L: int | None=None, *, norm: str='self', ref_batch_mean: bool=False, standardize: bool=False, cross_matrix: Any=None, compute_PS: bool | None=None, n_bins: int | None=None, J_PS: int | None=None, Jmin_PS: int=0, spectrum_method: str='auto', engine: str='python') -> None"
+      "signature": "(self, data: Data, J: int | None=None, L: int | None=None, *, norm: str='self', ref_batch_mean: bool=False, standardize: bool=False, cross_matrix: Any=None, compute_PS: bool | None=None, n_bins: int | None=None, Jmin: int=0, spectrum_method: str='auto', engine: str='python') -> None"
     },
     "estel.STOperator.J": {
       "kind": "property"

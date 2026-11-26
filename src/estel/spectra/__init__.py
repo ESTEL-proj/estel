@@ -3,7 +3,7 @@
 ``_bins.py`` holds the log-Gaussian bins, their normalisation, the borders of the non-periodic
 estimators and the Bessel function J₀ they need, built once in NumPy with the plan;
 ``_estimators.py`` the four estimators of STL v1.6.0 and the automatic choice, on the L0
-primitives. ``STOperator`` computes its spectrum with them (``compute_PS``, ``J_PS``,
-``Jmin_PS``, ``n_bins``, ``spectrum_method``; task T4.6), from the description of the spectrum
-in its plan (``scattering._plan.SpectrumPlan``).
+primitives. ``STOperator`` computes its spectrum with them (``compute_PS``, ``n_bins``,
+``Jmin``, ``spectrum_method``; task T4.6), over the band of its J, from the description of the
+spectrum in its plan (``scattering._plan.SpectrumPlan``).
 """

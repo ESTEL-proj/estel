@@ -136,9 +136,7 @@ def test_statistics_with_the_spectrum_equal_the_fixture(name: str) -> None:
         "cross_matrix": cross_matrix,
         "compute_PS": True,
         "ref_batch_mean": config["norm_batch_mean"],
-        "J_PS": config["J"],  # STL passes its J to its spectrum (OP-120)
-        "Jmin_PS": config.get("Jmin", 0),
-        **{key: config[key] for key in ("n_bins", "spectrum_method") if key in config},
+        **{key: config[key] for key in ("Jmin", "n_bins", "spectrum_method") if key in config},
     }
     target, other = arrays[f"{name}_field"], arrays[f"{name}_ref_field"]
 
@@ -285,16 +283,16 @@ def _observed_on_the_edge() -> NDArray[np.float64]:
             id="pbc-none",
         ),
         pytest.param(
-            lambda: planar.spec_apply(np.zeros((16, 16)), 2, True, norm="none", J_PS=2),
+            lambda: planar.spec_apply(np.zeros((16, 16)), 2, True, norm="none", Jmin=1),
             "compute_PS=True",
             id="option-without-spectrum",
         ),
         pytest.param(
             lambda: planar.spec_apply(
-                np.zeros((16, 16)), 2, True, J=1, norm="none", compute_PS=True, J_PS=1
+                np.zeros((16, 16)), 2, True, J=1, norm="none", compute_PS=True
             ),
-            "OP-93",
-            id="J_PS-too-small",
+            "compute_PS=False",
+            id="J-too-small",
         ),
         pytest.param(
             lambda: planar.spec_apply(np.zeros(64), 1, True, norm="none", compute_PS=True),

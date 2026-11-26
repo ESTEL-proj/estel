@@ -4,13 +4,13 @@ Part I, §4.2, §5.1).
 
 Small seeded cases, 16 x 16, 16 x 24 or 32 x 32 pixels, two channels, every pair c₁ ≤ c₂: each
 estimator forced, and the automatic choice, with and without missing pixels, periodic or not,
-with a J_min and a number of bins given, through ``STOperator`` with J = 1, L = 1 (the smallest
-scattering, which does not reach the spectrum) and ``norm="none"`` (decision 4 on #191); the
-non-periodic cases with missing pixels at 32 x 32, where 16 x 16 leaves no valid pixel to S3 at
-J = 1 (OP-3; answer of the maintainer on #191); and the spectrum within the scattering
-statistics, after the standardisation, normalised by itself (M-NORM), last in the vector
-(M-FLAT). Compared with ``assert_parity`` in the run's dtype: float64, and float32 to the float32
-tolerance of Part II, §14.3.
+with a J_min and a number of bins given, through ``STOperator`` at its default J, which sets the
+band of the spectrum as the oracle's default does, L = 1 (on which the spectrum does not depend)
+and ``norm="none"``; the non-periodic cases with missing pixels at 32 x 32, J = 3 (decisions on
+#191, second version); and the spectrum within the scattering statistics, after the
+standardisation, normalised by itself (M-NORM), last in the vector (M-FLAT). Compared with
+``assert_parity`` in the run's dtype: float64, and float32 to the float32 tolerance of Part II,
+§14.3.
 
 A disagreement is a finding about ``docs/maths.md`` or about the oracle, since ESTEL matches
 STL's fixtures: report the coefficients on an issue, change nothing to make a test pass.
@@ -69,15 +69,15 @@ CASES: dict[str, tuple[tuple[int, int], bool, bool, dict[str, Any]]] = {
 }
 
 
-NAMES = {"method": "spectrum_method", "Jmin": "Jmin_PS", "n_bins": "n_bins"}
+NAMES = {"method": "spectrum_method", "Jmin": "Jmin", "n_bins": "n_bins"}
 """The options of ``STOperator`` named by those of ``spec_spectra``."""
 
 
 @pytest.mark.parametrize("name", list(CASES))
 def test_spectrum_equals_the_oracle(name: str, dtype: DType) -> None:
-    """``STOperator`` with J = 1, L = 1 and ``norm="none"`` equals ``spec_spectra``: the estimator
-    chosen and the spectrum of every pair c₁ ≤ c₂, NaN below the diagonal; J_PS is the default
-    of both, whatever J (OP-120)."""
+    """``STOperator`` at its default J, with L = 1 and ``norm="none"``, equals ``spec_spectra``
+    at its default J: the estimator chosen and the spectrum of every pair c₁ ≤ c₂, NaN below the
+    diagonal."""
     shape, pbc, masked, options = CASES[name]
     field = _field((2, 2, *shape))
     mask = _hole(shape) if masked else None
@@ -85,7 +85,7 @@ def test_spectrum_equals_the_oracle(name: str, dtype: DType) -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-13: tested with the plan
         operator = STOperator(
-            data, 1, 1, norm="none", **{NAMES[key]: value for key, value in options.items()}
+            data, None, 1, norm="none", **{NAMES[key]: value for key, value in options.items()}
         )
     oracle_field = field if mask is None else np.where(mask, np.nan, field)
     expected = spec_spectra.spec_spectra(oracle_field, pbc, **options)
@@ -96,8 +96,7 @@ def test_spectrum_equals_the_oracle(name: str, dtype: DType) -> None:
 def test_statistics_with_the_spectrum_equal_the_oracle(dtype: DType) -> None:
     """``STOperator`` with the spectrum, ``standardize`` and a mask: the spectrum of the field after
     the standardisation, normalised by itself, every family and the vector equal ``spec_apply``
-    with ``compute_PS=True`` (maths.md §1.9, "In the scattering operator"; M-NORM; M-FLAT), both
-    with the default J_PS, 3, whatever J = 2 (OP-120)."""
+    with ``compute_PS=True`` (maths.md §1.9, "In the scattering operator"; M-NORM; M-FLAT)."""
     field = _field((1, 2, 32, 32), seed=3)
     mask = _hole((32, 32))
     data = Data2D(field, mask=mask, pbc=False)

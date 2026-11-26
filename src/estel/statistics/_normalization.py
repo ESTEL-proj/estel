@@ -59,9 +59,9 @@ class SpectrumParameters(NamedTuple):
 
     n_bins: int
     """n_b, the number of bins."""
-    J_PS: int
+    J: int
     """J_PS."""
-    Jmin_PS: int
+    Jmin: int
     """J_min."""
 
 
@@ -83,8 +83,7 @@ def spectrum_reference_of(spectrum: Any, pairs: Any) -> SpectrumReference:
     present = np.isin(np.arange(pairs.n_channels), np.asarray(pairs.auto, dtype=np.int64))
     present.flags.writeable = False
     return SpectrumReference(
-        present,
-        SpectrumParameters(int(spectrum.n_bins), int(spectrum.J_PS), int(spectrum.Jmin_PS)),
+        present, SpectrumParameters(int(spectrum.n_bins), int(spectrum.J), int(spectrum.Jmin))
     )
 
 
@@ -815,28 +814,28 @@ def check_reference(reference: _NormReference, plan: PlanarPlan, n_batch: int, d
 
 def _check_spectrum(reference: _NormReference, plan: Any) -> None:
     """Raise unless ``reference`` holds σᴾˢ for the power spectrum of ``plan`` (maths.md M-NORM,
-    §1.9), the plan of ``STOperator``: the same n_b, J_PS and J_min, and σᴾˢ for every channel
-    with an auto spectrum. The scattering J of the spectrum is not compared (OP-120)."""
+    §1.9), the plan of ``STOperator``: the same n_b, J and J_min, and σᴾˢ for every channel
+    with an auto spectrum."""
     spectrum = plan.spectrum
     assert spectrum is not None
-    expected = SpectrumParameters(spectrum.n_bins, spectrum.J_PS, spectrum.Jmin_PS)
+    expected = SpectrumParameters(spectrum.n_bins, spectrum.J, spectrum.Jmin)
     if reference.spectrum is None:
         raise ValueError(
             "the reference holds no power spectrum, and these statistics hold one: normalise "
             "with statistics computed with the power spectrum (compute_PS=True), with the same "
-            f"n_bins, J_PS and Jmin_PS, {expected._asdict()} (maths.md M-NORM, §1.9)."
+            f"n_bins, J and Jmin, {expected._asdict()} (maths.md M-NORM, §1.9)."
         )
     found = reference.spectrum.parameters
     mismatches = [
         f"{name} = {got} (the operator has {want})"
-        for name, got, want in zip(SpectrumParameters._fields, found, expected, strict=True)
+        for name, got, want in zip(("n_bins", "J", "Jmin"), found, expected, strict=True)
         if got != want
     ]
     if mismatches:
         raise ValueError(
             f"the power spectrum of the reference has {', '.join(mismatches)}: normalise with "
-            "statistics computed by an operator with the same n_bins, J_PS and Jmin_PS; their "
-            "size, mask and pbc may differ (maths.md M-NORM, §1.9)."
+            "statistics computed by an operator with the same n_bins, J and Jmin of the "
+            "spectrum; their size, mask and pbc may differ (maths.md M-NORM, §1.9)."
         )
     missing = [c for c in plan.pairs.auto if not reference.spectrum.present[c]]
     if missing:

@@ -48,10 +48,9 @@ spectrum in the plan (``"method"``), and the statistics of ``SpectrumOperator``,
 scattering scales; version 8 adds the statistics of HEALPix data (task T5.6): the static
 metadata of the data in the plan of ``STOperator`` (``"meta"``: ``{}`` for 1D and 2D data,
 ``{"depth": ...}`` for HEALPix data, with the array ``plan__cell_ids`` on a partial sky);
-version 9 stores the parameters of the spectrum under the names of the options of
-``STOperator`` (task T4.6): ``"J_PS"`` and ``"Jmin_PS"`` in the plan and in the reference, where
-version 8 had ``"J"`` and ``"Jmin"``, and drops the format of ``SpectrumOperator``, removed.
-Files of earlier versions, those written by ``SpectrumOperator`` among them, are not read."""
+version 9 drops the format of ``SpectrumOperator``, removed (task T4.6), the content of the
+statistics of ``STOperator`` unchanged. Files of earlier versions, those written by
+``SpectrumOperator`` among them, are not read."""
 
 META = "__meta__"
 """The name of the member holding the JSON document."""

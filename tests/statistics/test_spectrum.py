@@ -16,7 +16,6 @@ from __future__ import annotations
 import dataclasses
 import warnings
 from functools import cache
-from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -26,11 +25,9 @@ from numpy.typing import NDArray
 from estel import Data2D, STOperator, STStatistics, _config
 from estel._spec import planar as spec
 from estel.backend import _registry
-from estel.io import _schema
 from estel.scattering._plan import PlanarPlan, build_plan
 from estel.statistics import _grid, _layout, _normalization, _statistics
 from estel.statistics._arrays import constant
-from estel.statistics._normalization import SpectrumParameters
 from estel.statistics._statistics import statistics_of
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 from tests.statistics.test_layout import _static_elements
@@ -76,13 +73,12 @@ def _plan(name: str, field: str = "field", **options: Any) -> PlanarPlan:
             cross_matrix=_matrix(config),
             compute_PS=True,
             n_bins=config.get("n_bins"),
-            J_PS=config["J"],  # STL passes its J to its spectrum (OP-120)
-            Jmin_PS=config.get("Jmin", 0),
+            Jmin=config.get("Jmin", 0),
             **options,
         )
     assert plan.spectrum is not None
     bins = _arrays()[f"{name}_ps_bins"]  # [J, J_PS, J_min, n_b] of STL
-    assert (plan.J, plan.spectrum.J_PS, plan.spectrum.Jmin_PS, plan.spectrum.n_bins) == tuple(
+    assert (plan.J, plan.spectrum.J, plan.spectrum.Jmin, plan.spectrum.n_bins) == tuple(
         int(b) for b in bins
     )
     return plan
@@ -227,46 +223,12 @@ def test_reduce_keeps_the_spectrum() -> None:
     np.testing.assert_array_equal(vector[-tail.shape[0] :], tail)
 
 
-def test_save_and_load_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """``estel.io``, schema version 9: the spectrum, its reference and its description in the
-    plan come back unchanged; a file of version 8 is refused, with what to do."""
-    stats = _runs("spectrum_options")["store"]
-    path = tmp_path / "ps.npz"
-    stats.save(path)
-    loaded = STStatistics.load(path)
-    assert loaded._plan == stats._plan
-    assert isinstance(loaded._plan, PlanarPlan)
-    assert isinstance(stats._plan, PlanarPlan)
-    assert loaded._plan.spectrum == stats._plan.spectrum
-    assert loaded._layout == stats._layout
-    for family in FAMILIES:
-        np.testing.assert_array_equal(
-            _numpy(loaded.full_grid(family)), _numpy(stats.full_grid(family))
-        )
-    assert loaded._reference is not None
-    assert stats._reference is not None
-    assert loaded._reference.spectrum is not None
-    assert stats._reference.spectrum is not None
-    expected = SpectrumParameters(n_bins=5, J_PS=3, Jmin_PS=1)
-    assert loaded._reference.spectrum.parameters == stats._reference.spectrum.parameters == expected
-    np.testing.assert_array_equal(
-        _numpy(loaded._reference.ps_sqrt), _numpy(stats._reference.ps_sqrt)
-    )
-    old = tmp_path / "version8.npz"
-    monkeypatch.setattr(_schema, "SCHEMA_VERSION", 8)
-    stats.save(old)
-    monkeypatch.undo()
-    assert _schema.SCHEMA_VERSION == 9
-    with pytest.raises(ValueError, match=r"schema version 8.*reads version 9"):
-        STStatistics.load(old)
-
-
 def _with_reference(reference: Any, **spectrum: Any) -> STStatistics:
-    """Statistics of another operator, 64 x 64 and not periodic, J = 3 and J_PS = 3 (its default
-    would be 4), normalised by ``reference``."""
+    """Statistics of another operator, 64 x 64 and not periodic, J = 3, normalised by
+    ``reference``."""
     rng = np.random.default_rng(5)
     data = Data2D(rng.standard_normal((2, 2, 64, 64)), pbc=False)
-    plan = build_plan(data, 3, 4, norm="ref", compute_PS=True, **{"J_PS": 3, **spectrum})
+    plan = build_plan(data, 3, 4, norm="ref", compute_PS=True, **spectrum)
     buffer = _registry.current_backend().asarray(
         rng.random((2, _layout.base_layout(plan).n_floats)) + 0.5, "float64", None
     )
@@ -283,8 +245,8 @@ def test_reference_of_another_operator() -> None:
     assert np.isfinite(_numpy(stats.full_grid("PS"))[:, [0, 0, 1], [0, 1, 1]]).all()
     with pytest.raises(ValueError, match=r"n_bins = 6 \(the operator has 5\)"):
         _with_reference(reference, n_bins=5)
-    with pytest.raises(ValueError, match=r"Jmin_PS = 0 \(the operator has 1\)"):
-        _with_reference(reference, Jmin_PS=1)
+    with pytest.raises(ValueError, match=r"Jmin = 0 \(the operator has 1\)"):
+        _with_reference(reference, Jmin=1)
     data = Data2D(np.random.default_rng(6).standard_normal((1, 2, 32, 32)), pbc=True)
     without = STOperator(data, 3, 4, compute_PS=False).apply(data)._reference
     with pytest.raises(ValueError, match="holds no power spectrum"):
@@ -376,17 +338,13 @@ def test_an_operator_rebuilt_from_statistics_computes_the_spectrum(
     ("shape", "options", "error", "match"),
     [
         pytest.param(
-            (32, 32),
-            {"Jmin_PS": 2},
-            ValueError,
-            r"0 ≤ Jmin_PS ≤ J_PS - 2.*compute_PS=False",
-            id="Jmin_PS",
+            (32, 32), {"Jmin": 2}, ValueError, r"0 ≤ Jmin ≤ J - 2.*compute_PS=False", id="Jmin"
         ),
         # J = 1, so that the scattering statistics take the odd size (M-DATA-2D).
         pytest.param((32, 31), {"J": 1}, ValueError, r"even sizes.*OP-20", id="odd"),
         pytest.param((32, 32), {"n_bins": 0}, ValueError, r"n_bins=0: pass a positive", id="bins"),
         pytest.param((32, 32), {"n_bins": 4.0}, TypeError, r"n_bins=4\.0: pass", id="bins-type"),
-        pytest.param((32, 32), {"Jmin_PS": 0.5}, TypeError, r"Jmin_PS=0\.5: pass", id="Jmin-type"),
+        pytest.param((32, 32), {"Jmin": 0.5}, TypeError, r"Jmin=0\.5: pass", id="Jmin-type"),
     ],
 )
 def test_plan_refuses_a_spectrum_it_cannot_compute(
@@ -394,7 +352,7 @@ def test_plan_refuses_a_spectrum_it_cannot_compute(
 ) -> None:
     """The plan refuses the spectrum with J_min outside 0 … J_PS - 2 (OP-93), on an odd size
     (OP-20) and with a number of bins that is not positive, with what to do (maths.md §1.9): a
-    ``TypeError`` when ``n_bins`` or ``Jmin_PS`` is not an integer, a ``ValueError`` otherwise."""
+    ``TypeError`` when ``n_bins`` or ``Jmin`` is not an integer, a ``ValueError`` otherwise."""
     data = Data2D(np.zeros((1, 1, *shape)), pbc=True)
     with pytest.raises(error, match=match):
         build_plan(data, L=4, compute_PS=True, **options)

@@ -88,8 +88,7 @@ def test_the_spectrum_is_left_out(options: dict[str, Any]) -> None:
     [
         pytest.param({"compute_PS": True}, id="compute_PS=True"),
         pytest.param({"n_bins": 5}, id="n_bins"),
-        pytest.param({"J_PS": 2}, id="J_PS"),
-        pytest.param({"Jmin_PS": 1}, id="Jmin_PS"),
+        pytest.param({"Jmin": 1}, id="Jmin"),
         pytest.param({"spectrum_method": "fft"}, id="spectrum_method"),
         pytest.param({"compute_PS": False, "n_bins": 5}, id="n_bins-without-spectrum"),
     ],

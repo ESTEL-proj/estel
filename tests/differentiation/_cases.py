@@ -179,14 +179,15 @@ def direction_like(backend: Backend, array: Any, seed: int) -> Any:
 @dataclass(frozen=True)
 class SpectrumCase:
     """One configuration of the 2D power spectrum (maths.md §1.9; tasks T4.1, T4.6), through
-    ``STOperator`` with the spectrum and ``estel.functional.scattering``: J = 1 and L = 1 where
-    the case is about the spectrum (decision 5 on #191), so that it dominates the cost."""
+    ``STOperator`` with the spectrum and ``estel.functional.scattering``: where the case is about
+    the spectrum, the smallest J the spectrum allows, 2 + J_min, and L = 1 (decision 5 on #191,
+    second version), so that it dominates the cost."""
 
     name: str
     shape: tuple[int, ...]
     pbc: bool
     masked: bool = False
-    J: int = 1
+    J: int = 2
     L: int = 1
     options: dict[str, Any] = field(default_factory=dict)
 

@@ -144,8 +144,7 @@ def test_operators_and_start_with_the_spectrum(
     backend: Backend, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The case of ``synthesis_ps_2d`` before L-BFGS (T4.5; M-SYN-OPS, M-SYN-LOSS): both
-    operators have J = J_PS = 4, 9 bins and ``fft``, J_PS the default of 64 x 64, ⌊log₂ 32⌋ - 1
-    = 4, which equals the J STL passed (OP-120); the target's reference is the fixture's
+    operators have J = J_PS = 4, 9 bins and ``fft``; the target's reference is the fixture's
     ``var_ref``, ``s2_ref`` and ``ps_ref``; and the loss at the pre-filtered start, the first
     evaluation of L-BFGS, is STL's. Without L-BFGS, on every backend."""
     monkeypatch.setattr(_config, "_dtype", "float64")
@@ -158,7 +157,7 @@ def test_operators_and_start_with_the_spectrum(
         spectrum = cast(PlanarPlan, operator.plan).spectrum
         assert spectrum is not None
         assert operator.J == J
-        assert (spectrum.J_PS, spectrum.n_bins, spectrum.Jmin_PS, spectrum.method) == (
+        assert (spectrum.J, spectrum.n_bins, spectrum.Jmin, spectrum.method) == (
             J_PS,
             n_bins,
             0,

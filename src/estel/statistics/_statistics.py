@@ -215,7 +215,7 @@ class STStatistics:
     def bin_centers(self) -> NDArray[np.float64]:
         """The centres of the bins of the power spectrum ``"PS"``, the coordinate of its axis
         ``bin``, in cycles per pixel, as STL's ``bin_centers``: c_b / (2 N_max) (maths.md §1.9;
-        Part II, §12.7; M-PS-2D). At equal J_PS, J_min and number of bins they do not depend on the
+        Part II, §12.7; M-PS-2D). At equal J, J_min and number of bins they do not depend on the
         size of the map. A read-only NumPy float64 array: one entry per position of the axis
         ``bin``, those kept by ``select``. Statistics without the spectrum raise, and so do those
         whose axis ``bin`` an integer dropped (``select(bin=b)``; Part II, §12.7): select
@@ -1011,8 +1011,7 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
                     if spectrum is None
                     else {
                         "n_bins": spectrum["n_bins"],
-                        "J_PS": spectrum["J_PS"],
-                        "Jmin_PS": spectrum["Jmin_PS"],
+                        "Jmin": spectrum["Jmin"],
                         "spectrum_method": spectrum["method"],
                     }
                 ),

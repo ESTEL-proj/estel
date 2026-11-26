@@ -32,7 +32,7 @@ from ..backend._protocol import Backend, LbfgsState
 from ..data._base import Data, geometry_class
 from ..data._moments import Standardized
 from ..scattering._operator import STOperator
-from ..scattering._plan import PlanarPlan, default_j_ps, resolve_compute_ps
+from ..scattering._plan import PlanarPlan, build_spectrum_plan, resolve_compute_ps
 from ..statistics._arrays import device_of
 from ..statistics._grid import FAMILIES
 from ..statistics._statistics import _NO_REDUCTION, STStatistics
@@ -44,10 +44,9 @@ from ._loss import WEIGHTS, Objective, flatten
 # The settings of STL's optimize_lbfgs that the synthesis functions do not take (M-SYN-LBFGS).
 TOLERANCE_GRAD = 1e-12
 TOLERANCE_CHANGE = 1e-15
-# The options of the operators a synthesis takes from st_kwargs: J, as STL's user level, and
-# J_PS, the spectrum's own J (maths.md M-SYN-OPS, OP-120); L and the rest are the defaults, and
-# the synthesis sets the others.
-ST_KWARGS = ("J", "J_PS")
+# The options of the operators a synthesis takes from st_kwargs: J only, as STL's user level
+# (maths.md M-SYN-OPS); L and the rest are the defaults, and the synthesis sets the others.
+ST_KWARGS = ("J",)
 # The geometries of the syntheses of ESTEL 1.0.0, by their tag (``Data._geometry``): 2D data and
 # full HEALPix skies (maths.md section 5); 1D data and tensor products are refused.
 _GEOMETRIES = ("2d", "healpix")
@@ -147,7 +146,7 @@ class SynthesisResult:
     def manifest(self) -> dict[str, Any]:
         """The settings of the run: the entry, the backend, dtype and device, the seed, the
         shapes, the operator's J and L, the power spectrum in the loss (``spectrum``: its
-        number of bins, J_PS, J_min and estimator, or ``None`` without it), the settings of
+        number of bins, J, J_min and estimator, or ``None`` without it), the settings of
         L-BFGS, the weights, the versions of ESTEL and of its references, and the checkpoint the
         run was resumed from."""
         return dict(self._manifest)
@@ -214,10 +213,9 @@ def synthesize_from_maps(
         in on 2D data, as STL's ``synthesize_from_maps`` for periodic fields, and leaves it out
         on HEALPix data, which have no spectrum in 1.0.0 (OP-77, LF24); True puts it in, on 2D
         data only; False leaves it out, as STL's ``optimize_from_maps``. With the spectrum,
-        both operators take J_PS, ``J_PS`` of ``st_kwargs`` or by default the smaller of the
-        defaults of the target and of the synthesised fields, each from its own size, whatever
-        J (OP-120), and the default number of bins of that J_PS, the smaller of the two
-        defaults; J_min is 0 and the estimator ``fft``.
+        both operators take J and the number of bins: the smaller of the defaults of the
+        target and of the synthesised fields, each from its own size, whatever J; J_min is 0
+        and the estimator ``fft``.
     max_iter:
         The iterations of L-BFGS of the whole run, those before ``resume_from`` included; the
         evaluations of the loss are capped at ⌊5 x ``max_iter`` / 4⌋ (M-SYN-LBFGS, OP-74).
@@ -229,11 +227,10 @@ def synthesize_from_maps(
         The seed of the Gaussian start (Part I, §3.1, rule 5). ESTEL has no global seed; STL's
         default seed is 26, and its draws differ from ESTEL's (OP-55).
     st_kwargs:
-        Options of the scattering operators: ``J``, as in STL, by default the smaller of the
-        default J of the target and of the synthesised fields (max(1, depth - 1) on HEALPix
-        data, M-DEF-HPX); and ``J_PS``, the range of the spectrum, with the spectrum only, as
-        on ``STOperator`` (pass ``J_PS=J`` for STL's spectrum when J is given; OP-120). L and
-        the channel pairs are the defaults (M-SYN-OPS). Any other key raises an error.
+        Options of the scattering operators: ``J`` only, as in STL, by default the smaller of
+        the default J of the target and of the synthesised fields (max(1, depth - 1) on HEALPix
+        data, M-DEF-HPX); L and the channel pairs are the defaults (M-SYN-OPS). Any other key
+        raises an error.
     checkpoint_every, checkpoint_dir:
         Write a checkpoint to ``checkpoint_dir`` every ``checkpoint_every`` iterations, and at
         the end of the run: ``checkpoint_000010.npz`` after 10 iterations (maths.md §5.8).
@@ -321,12 +318,12 @@ def _maps_setup(
     """The target and the operators of a synthesis from maps (M-SYN-TARGET, M-SYN-OPS): the
     target pre-filtered by its geometry (``Data._nyquist_filter``), standardised, then its
     statistics with ``norm="self"``, reweighted and flattened; the running operator with
-    ``norm="ref"`` and the target's reference. Both take J and, with the spectrum, J_PS: ``J_PS``
-    of ``st_kwargs``, or the smaller of the two fields' defaults, each from its own size,
-    whatever J (OP-120); its default number of bins is then the smaller of the two fields'
-    (STL: the smaller ``get_CS_op().n_bins``); J_min 0, and the estimator ``fft`` of periodic
-    fields. J is resolved before the operators are built, and both receive it: with the target's
-    shape, the default of the geometry, as its wavelet plan computes it (M-DEF, M-DEF-HPX)."""
+    ``norm="ref"`` and the target's reference. Both take J and, with the spectrum, the number of
+    bins: the smaller of the two fields' defaults, each from its own size, whatever J (STL: the
+    smaller ``get_CS_op().n_bins``); J_min 0, and the estimator ``fft`` of periodic fields. J is
+    resolved before the operators are built, and both, with their spectrum, receive it: with the
+    target's shape, the default of the geometry, as its wavelet plan computes it (M-DEF,
+    M-DEF-HPX)."""
     filtered = data._nyquist_filter(data.array)
     standardized = standardize_target(backend, filtered, mean_field)
     target_data = data.with_array(standardized.x)
@@ -338,13 +335,11 @@ def _maps_setup(
     elif J is None:
         # The default J of the geometry (M-DEF, M-DEF-HPX), as STOperator computes it.
         J = build_wavelet_plan(target_data).J  # noqa: N806
-    # J_PS of st_kwargs, which STOperator refuses with a clear error without the spectrum; or
-    # with the spectrum, one J_PS for both operators, the smaller of the two defaults (OP-101,
-    # OP-120), and its default number of bins, the smaller of the two fields' (M-SYN-OPS).
-    j_ps = options.get("J_PS")
-    if j_ps is None and with_spectrum:
-        j_ps = min(default_j_ps(target_data.shape[2:]), default_j_ps(running.shape[2:]))
-    spectrum: dict[str, Any] = {"compute_PS": with_spectrum, "J_PS": j_ps}
+    spectrum: dict[str, Any] = (
+        {"compute_PS": True, "n_bins": min(_default_n_bins(target_data), _default_n_bins(running))}
+        if with_spectrum
+        else {"compute_PS": False}
+    )
     target_op = STOperator(target_data, J, norm="self", ref_batch_mean=mean_field, **spectrum)
     target_stats = target_op.apply(target_data)
     reference = target_stats._reference
@@ -471,17 +466,12 @@ def synthesize_from_stats(
         plan.meta,
     )
     _check_periodic(template, "the data of these statistics")
-    # With the spectrum, its number of bins, J_PS and J_min are those of the statistics (OP-76,
-    # OP-120); the estimator of the periodic running fields is fft.
+    # With the spectrum, its number of bins and J_min are those of the statistics (OP-76); its J
+    # is the operator's, and the estimator of the periodic running fields is fft.
     spectrum: dict[str, Any] = {"compute_PS": False}
     if with_spectrum:
         assert plan.spectrum is not None  # statistics that hold PS have the plan of its spectrum
-        spectrum = {
-            "compute_PS": True,
-            "n_bins": plan.spectrum.n_bins,
-            "J_PS": plan.spectrum.J_PS,
-            "Jmin_PS": plan.spectrum.Jmin_PS,
-        }
+        spectrum = {"compute_PS": True, "n_bins": plan.spectrum.n_bins, "Jmin": plan.spectrum.Jmin}
     running_op = STOperator(
         template,
         plan.J,
@@ -703,6 +693,14 @@ def _check_periodic(data: Data, subject: str) -> None:
     )
 
 
+def _default_n_bins(data: Data) -> int:
+    """The number of bins of the spectrum of an operator built on ``data`` with its defaults
+    (maths.md §1.9, "Number of bins"): J_PS the spectrum's own default, ⌊log₂ N_max⌋ - 1, and
+    J_min 0. STL's ``get_CS_op().n_bins``, of which a synthesis takes the smaller (M-SYN-OPS),
+    whatever the J of the synthesis."""
+    return build_spectrum_plan(data.shape[2:], type(data), None, None, 0).n_bins
+
+
 def _check_flag(name: str, value: object) -> None:
     if not isinstance(value, bool | np.bool_):
         raise TypeError(f"{name}={value!r}: pass True or False.")
@@ -722,7 +720,7 @@ def _st_options(st_kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
             f"st_kwargs: {unknown} are not accepted; a synthesis takes {list(ST_KWARGS)} only, "
             "as STL's: L and the channel pairs are the defaults, and the synthesis sets the "
             "normalisation, the standardisation and the spectrum itself (maths.md M-SYN-OPS). "
-            "Pass st_kwargs={'J': ..., 'J_PS': ...}, or nothing."
+            "Pass st_kwargs={'J': ...}, or nothing."
         )
     return options
 
