@@ -60,7 +60,7 @@ class SpectrumParameters(NamedTuple):
     n_bins: int
     """n_b, the number of bins."""
     J: int
-    """J_PS."""
+    """J, the J of the operator."""
     Jmin: int
     """J_min."""
 
@@ -73,7 +73,7 @@ class SpectrumReference(NamedTuple):
     present: NDArray[np.bool_]
     """``(Nc,)``: the channels with an auto spectrum, where σᴾˢ exists (OP-30)."""
     parameters: SpectrumParameters
-    """n_b, J_PS and J_min."""
+    """n_b, J and J_min."""
 
 
 def spectrum_reference_of(spectrum: Any, pairs: Any) -> SpectrumReference:

@@ -106,9 +106,9 @@ def spec_spectrum_bins(
     """The bins of the spectrum of data of ``spatial_shape`` = (N1, N2). Implements M-PS-2D
     ("Frequencies and bins", and the border β_b of ``pbc_mask``).
 
-    ``J`` is J_PS, by default ⌊log₂ N_max⌋ - 1; ``Jmin`` is J_min, with 0 ≤ J_min ≤ J_PS - 2;
-    ``n_bins`` is n_b, by default max(4, round(3 (J_PS - 1 - J_min))). In mode units:
-    k_min = N_max / (√2 2^(J_PS - 1)), k_max = N_max / (√2 2^J_min); the edges e_0 … e_{n_b}
+    ``J`` is the J of the operator, by default ⌊log₂ N_max⌋ - 1; ``Jmin`` is J_min, with
+    0 ≤ J_min ≤ J - 2; ``n_bins`` is n_b, by default max(4, round(3 (J - 1 - J_min))). In mode
+    units: k_min = N_max / (√2 2^(J - 1)), k_max = N_max / (√2 2^J_min); the edges e_0 … e_{n_b}
     evenly spaced in ln k from ln k_min to ln k_max; ln c_b = (e_b + e_{b+1}) / 2 and
     Δ = e_{b+1} - e_b; W_b(k) = exp(-(ln k - ln c_b)² / (2Δ²)) for k ≥ 1, W_b(0) = 0;
     N_k the number of modes of the full plane with round(|**k**|) = k; Z_b = Σ_k N_k W_b(k).
@@ -122,12 +122,12 @@ def spec_spectrum_bins(
     j_ps = math.floor(math.log2(n_max)) - 1 if J is None else int(J)
     if not 0 <= Jmin <= j_ps - 2:
         raise ValueError(
-            f"J_PS={j_ps}, J_min={Jmin}: the spectrum requires 0 <= J_min <= J_PS - 2 "
+            f"J={j_ps}, J_min={Jmin}: the spectrum requires 0 <= J_min <= J - 2 "
             "(M-PS-2D, OP-93); pass a smaller Jmin, a larger J, or use a larger image."
         )
     k_min = n_max / (math.sqrt(2.0) * 2.0 ** (j_ps - 1))
     k_max = n_max / (math.sqrt(2.0) * 2.0**Jmin)
-    # log₂(k_max / k_min) = J_PS - 1 - J_min exactly (§1.9, "Number of bins").
+    # log₂(k_max / k_min) = J - 1 - J_min exactly (§1.9, "Number of bins").
     n_b = max(4, round(3 * (j_ps - 1 - Jmin))) if n_bins is None else int(n_bins)
     if n_b < 1:
         raise ValueError(f"n_bins={n_bins!r}: pass a positive number of bins (M-PS-2D).")

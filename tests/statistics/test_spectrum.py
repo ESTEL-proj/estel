@@ -237,7 +237,7 @@ def _with_reference(reference: Any, **spectrum: Any) -> STStatistics:
 
 def test_reference_of_another_operator() -> None:
     """A reference from another operator is accepted when its J, L, channels and the n_bins,
-    J_PS and J_min of its spectrum match, whatever its size and periodicity, and refused
+    J and J_min of its spectrum match, whatever its size and periodicity, and refused
     otherwise with an error naming what differs (maths.md M-NORM, §1.9); a reference without the
     spectrum is refused on statistics with it."""
     reference = _periodic()._reference
@@ -350,7 +350,7 @@ def test_an_operator_rebuilt_from_statistics_computes_the_spectrum(
 def test_plan_refuses_a_spectrum_it_cannot_compute(
     shape: tuple[int, int], options: dict[str, Any], error: type[Exception], match: str
 ) -> None:
-    """The plan refuses the spectrum with J_min outside 0 … J_PS - 2 (OP-93), on an odd size
+    """The plan refuses the spectrum with J_min outside 0 … J - 2 (OP-93), on an odd size
     (OP-20) and with a number of bins that is not positive, with what to do (maths.md §1.9): a
     ``TypeError`` when ``n_bins`` or ``Jmin`` is not an integer, a ``ValueError`` otherwise."""
     data = Data2D(np.zeros((1, 1, *shape)), pbc=True)

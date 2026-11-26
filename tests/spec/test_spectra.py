@@ -71,7 +71,7 @@ def _cycles(frequency: Any, n_max: int) -> Any:
 
 @pytest.mark.parametrize("name", list(_configs("spectrum_2d")))
 def test_bins_equal_the_fixture(name: str) -> None:
-    """J_PS, J_min, n_b, k_min, k_max, N_max, the radial frequencies, N_k, the centres, the
+    """J, J_min, n_b, k_min, k_max, N_max, the radial frequencies, N_k, the centres, the
     windows, Z_b and the borders β_b of each configuration of ``spectrum_2d``."""
     config, arrays = _configs("spectrum_2d")[name], _arrays("spectrum_2d")
     options = {key: config[key] for key in SPECTRUM_OPTIONS if key in config}
