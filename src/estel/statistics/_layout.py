@@ -55,7 +55,7 @@ from ..backend._protocol import Backend
 from ..io._schema import SCHEMA_VERSION
 from ..wavelets._tensor_prod import Level
 from ._arrays import constant, dtype_name
-from ._grid import FamilyGrid, base_grids, spectrum_grid, tensor_prod_grids
+from ._grid import FamilyGrid, base_grids, tensor_prod_grids
 
 if TYPE_CHECKING:
     from ..scattering._plan import PlanarPlan, TensorProdPlan
@@ -454,7 +454,8 @@ def base_layout(plan: PlanarPlan) -> Layout:
     (``_grid.base_grids``): every chunk is at the level of the scale of its last convolution
     (the level of j, or of j3). With the power spectrum (maths.md §1.9; task T4.4), its family
     ``"PS"`` is one segment at level 0, after S4, the last floats of the buffer: the loop
-    writes the floats before it (:func:`loop_gather`), the spectrum operator those of PS."""
+    writes the floats before it (:func:`loop_gather`), the estimators of the spectrum those of
+    PS."""
     levels = tuple((int(d),) for d in plan.levels)
     level_of = {int(d): i for i, d in enumerate(plan.levels)}
     scale_level = np.array([level_of[int(plan.scale_levels[j])] for j in plan.scales])
@@ -470,21 +471,9 @@ def base_layout(plan: PlanarPlan) -> Layout:
     return layout
 
 
-@functools.lru_cache(maxsize=64)
-def spectrum_layout(n_bins: int, pairs: bytes, n_channels: int) -> Layout:
-    """The layout of statistics holding the power spectrum alone, those of ``SpectrumOperator``
-    (maths.md §1.9; Part II, §12.8; task T4.1): the family ``"PS"`` of :func:`base_layout`, one
-    segment at level 0, one chunk per True of the ``(Nc, Nc)`` ``pairs`` (by its bytes)."""
-    matrix = np.frombuffer(pairs, dtype=bool).reshape(n_channels, n_channels)
-    grid = spectrum_grid(n_bins, matrix)
-    family = FamilyChunks(grid, ((0,),), np.zeros(grid.n_chunks, dtype=np.int64))
-    layout, _ = build_layout([family])
-    return layout
-
-
 def spectrum_pairs(layout: Layout) -> tuple[tuple[int, int], ...]:
     """The channel pairs (c1, c2) of the chunks of ``"PS"`` in ``layout``, in the order of the
-    buffer: the order in which the spectrum operator writes them (task T4.1)."""
+    buffer: the order in which the estimators of the spectrum write them (task T4.1)."""
     return tuple((int(c1), int(c2)) for c1, c2 in layout.grid("PS").chunks.tolist())
 
 
@@ -601,7 +590,7 @@ def loop_gather(plan: PlanarPlan) -> LoopGather:
     takes: list[NDArray[np.int64]] = []
     take_of: dict[bytes, int] = {}
     for grid in layout.grids:
-        if grid.name == "PS":  # the last family, written by the spectrum operator (T4.1)
+        if grid.name == "PS":  # the last family, written by the estimators of the spectrum
             continue
         n_o = int(np.prod(_carried_shape(plan, grid.name))) if grid.is_complex else 1
         floats = grid.floats_per_kind

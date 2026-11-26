@@ -215,7 +215,7 @@ class STStatistics:
     def bin_centers(self) -> NDArray[np.float64]:
         """The centres of the bins of the power spectrum ``"PS"``, the coordinate of its axis
         ``bin``, in cycles per pixel, as STL's ``bin_centers``: c_b / (2 N_max) (maths.md §1.9;
-        Part II, §12.7; M-PS-2D). At equal J, J_min and number of bins they do not depend on the
+        Part II, §12.7; M-PS-2D). At equal J_PS, J_min and number of bins they do not depend on the
         size of the map. A read-only NumPy float64 array: one entry per position of the axis
         ``bin``, those kept by ``select``. Statistics without the spectrum raise, and so do those
         whose axis ``bin`` an integer dropped (``select(bin=b)``; Part II, §12.7): select
@@ -223,7 +223,7 @@ class STStatistics:
         spectrum = getattr(self._plan, "spectrum", None)
         if spectrum is None or "PS" not in self._layout.names:
             hint = (
-                "compute them with compute_PS=True (2D data), or with a SpectrumOperator"
+                "compute them with compute_PS=True (2D data)"
                 if spectrum is None
                 else "select the family PS as well"
             )
@@ -446,7 +446,7 @@ class STStatistics:
                 "defined on isotropic statistics (maths.md M-RED-SCALE); pass iso=True as well."
             )
         if self._layout.names == ("PS",):
-            # The power spectrum alone (SpectrumOperator, or select("PS")): every reduction
+            # The power spectrum alone (select("PS")): every reduction
             # leaves it unchanged (maths.md §1.9, "Reductions").
             return self
         plan = cast(PlanarPlan, self._plan)  # a single geometry: a tensor product raised above
@@ -978,39 +978,11 @@ def _tensor_prod_plan(spec: dict[str, Any], cross_matrix: NDArray[np.bool_]) -> 
     return plan
 
 
-def _spectrum_operator_plan(spec: dict[str, Any], arrays: dict[str, NDArray[Any]]) -> STPlan:
-    """The plan of a ``SpectrumOperator`` rebuilt from the parameters of a file."""
-    from ..spectra._plan import build_spectrum_operator_plan  # the spectra import statistics
-
-    cls = geometry_class(spec["geometry"])
-    prefix = "plan__"
-    example = cls._example_from_content(
-        spec["n_channels"],
-        tuple(spec["spatial_shape"]),
-        bool(spec["pbc"]),
-        {},  # SpectrumOperator takes 2D data only, which have no metadata (Data._meta_content)
-        {k[len(prefix) :]: v for k, v in arrays.items() if k.startswith(prefix)},
-    )
-    spectrum = spec["spectrum"]
-    return build_spectrum_operator_plan(
-        example,
-        spectrum["J"],
-        Jmin=spectrum["Jmin"],
-        n_bins=spectrum["n_bins"],
-        method=spectrum["method"],
-        cross_matrix=arrays["plan__cross_matrix"].astype(bool),
-        norm=spec["norm"],
-        ref_batch_mean=spec["ref_batch_mean"],
-    )
-
-
 def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> STStatistics:
     spec = content["plan"]
     cls = geometry_class(spec["geometry"])
     plan: Any
-    if "operator" in spec:  # only the plan of SpectrumOperator writes it (spectra._plan)
-        plan = _spectrum_operator_plan(spec, arrays)
-    elif "blocks" in spec:
+    if "blocks" in spec:
         plan = _tensor_prod_plan(spec, arrays["plan__cross_matrix"].astype(bool))
     else:
         prefix = "plan__"
@@ -1039,7 +1011,8 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
                     if spectrum is None
                     else {
                         "n_bins": spectrum["n_bins"],
-                        "Jmin": spectrum["Jmin"],
+                        "J_PS": spectrum["J_PS"],
+                        "Jmin_PS": spectrum["Jmin_PS"],
                         "spectrum_method": spectrum["method"],
                     }
                 ),

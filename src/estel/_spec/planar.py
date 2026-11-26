@@ -619,8 +619,8 @@ def spec_normalize(stats: Statistics, reference: Statistics) -> Statistics:
             raise ValueError(
                 f"the reference's sigma_PS has shape {sigma_ps.shape}, but the statistics have "
                 f"{ps.shape[1]} channel(s) and {ps.shape[3]} bins (M-NORM, M-PS-2D); pass the "
-                "reference of statistics with the same channels and the same bins (J, Jmin, "
-                "n_bins)."
+                "reference of statistics with the same channels and the same bins (J_PS, "
+                "Jmin_PS, n_bins)."
             )
         with np.errstate(invalid="ignore"):  # NaN where no pair or no sigma_PS exists
             for c1 in range(ps.shape[1]):
@@ -831,7 +831,8 @@ def spec_apply(
     flatten: bool = False,
     compute_PS: bool = False,  # noqa: N803
     n_bins: int | None = None,
-    Jmin: int = 0,  # noqa: N803
+    J_PS: int | None = None,  # noqa: N803
+    Jmin_PS: int = 0,  # noqa: N803
     spectrum_method: str = "auto",
 ) -> Statistics:
     """The statistics of ``array``: the whole of ``apply``, in its order. Implements M-ORDER.
@@ -841,9 +842,10 @@ def spec_apply(
     3. ``mean`` and ``var`` (M-MOM);
     4. the scattering statistics S1 to S4 (M-S1 to M-S4);
     5. the power spectrum, if asked (``compute_PS``, 2D only; M-PS-2D): ``spectra.spec_spectra``
-       on the field at full resolution, after the standardisation, with J_PS = J, the pairs of
-       ``cross_matrix``, ``Jmin``, ``n_bins`` and ``spectrum_method`` (the automatic choice by
-       default, from ``pbc`` and the NaN of the field), under ``"PS"``;
+       on the field at full resolution, after the standardisation, with ``J_PS`` (by default
+       ⌊log₂ N_max⌋ - 1, whatever J: OP-120), the pairs of ``cross_matrix``, ``Jmin_PS``,
+       ``n_bins`` and ``spectrum_method`` (the automatic choice by default, from ``pbc`` and the
+       NaN of the field), under ``"PS"``;
     6. normalisation (M-NORM): ``norm="self"`` by the statistics themselves, ``norm="ref"`` by
        ``ref``, the ``"reference"`` of other statistics, ``norm="none"`` not at all;
     7. the reductions asked for, in the order ``iso``, ``angular_fourier``, ``scale_cosine``
@@ -855,8 +857,9 @@ def spec_apply(
     M-DEF-1D.
 
     ``compute_PS`` is False by default, so that without it every value is that of the
-    statistics alone; ``n_bins``, ``Jmin`` and ``spectrum_method`` other than their defaults
-    need it, and it needs J ≥ 2 + Jmin (decisions of the maintainer on #148).
+    statistics alone; ``n_bins``, ``J_PS``, ``Jmin_PS`` and ``spectrum_method`` other than
+    their defaults need it (decisions of the maintainer on #148), and it needs
+    0 ≤ Jmin_PS ≤ J_PS - 2 (OP-93), checked by ``spectra.spec_spectrum_bins``.
     """
     spatial = np.shape(array)[-ndim:]
     defaults = spec_defaults(tuple(int(n) for n in spatial))
@@ -872,15 +875,12 @@ def spec_apply(
         raise ValueError("scale_cosine is defined after iso only (M-RED-SCALE).")
     if compute_PS and ndim != 2:
         raise ValueError("the power spectrum is defined on 2D data only (M-PS-2D); pass ndim=2.")
-    if not compute_PS and (n_bins is not None or Jmin != 0 or spectrum_method != "auto"):
+    if not compute_PS and (
+        n_bins is not None or J_PS is not None or Jmin_PS != 0 or spectrum_method != "auto"
+    ):
         raise ValueError(
-            "n_bins, Jmin and spectrum_method act only with compute_PS=True (M-PS-2D); pass "
-            "compute_PS=True or leave them at their defaults."
-        )
-    if compute_PS and n_scales < 2 + Jmin:
-        raise ValueError(
-            f"J={n_scales} < 2 + Jmin = {2 + Jmin}: the spectrum needs J >= 2 + Jmin (M-PS-2D, "
-            "OP-93); pass compute_PS=False or use a larger image."
+            "n_bins, J_PS, Jmin_PS and spectrum_method act only with compute_PS=True (M-PS-2D); "
+            "pass compute_PS=True or leave them at their defaults."
         )
 
     x, invalid = spec_data(array, ndim, n_scales, mask, pbc)  # 1
@@ -891,7 +891,7 @@ def spec_apply(
     out.update(spec_scattering(x, ndim, n_scales, n_orient, pbc, invalid, cross_matrix))  # 4
     if compute_PS:  # 5
         out["PS"] = spectra.spec_spectra(
-            x, pbc, n_scales, Jmin, n_bins, spectrum_method, cross_matrix
+            x, pbc, J_PS, Jmin_PS, n_bins, spectrum_method, cross_matrix
         )["PS"]
     out["reference"] = None
     if norm != "none":  # 6

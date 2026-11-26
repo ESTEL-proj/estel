@@ -39,9 +39,7 @@ from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
 from ._filters import PlanarFilters, STFilters, TensorProdFilters
 from ._plan import (
-    SCATTERING_SPECTRUM_ADVICE,
     PlanarPlan,
-    SpectrumAdvice,
     STPlan,
     TensorProdPlan,
     build_plan_with_tables,
@@ -89,18 +87,24 @@ class STOperator:
         Whether the statistics hold the 2D power spectrum, the family ``"PS"`` (maths.md §1.9):
         True by default for 2D data, unavailable for 1D data (LF23) and HEALPix data (LF24) in
         1.0.0, where ``None`` (the default) leaves it out and True raises. It is computed
-        on the field after the standardisation, with the channel pairs of ``cross_matrix``, by
-        the estimators of ``SpectrumOperator``, with J_PS the J of the operator; it needs even
-        sizes (OP-20) and J ≥ 2 + Jmin (OP-93).
+        on the field after the standardisation, with the channel pairs of ``cross_matrix``; it
+        needs even sizes (OP-20) and 0 ≤ Jmin_PS ≤ J_PS - 2 (OP-93).
     n_bins:
-        The number of bins of the spectrum: by default max(4, round(3 (J - 1 - Jmin))).
-    Jmin:
-        J_min of the spectrum, 0 by default, with 0 ≤ Jmin ≤ J - 2.
+        The number of bins of the spectrum: by default max(4, round(3 (J_PS - 1 - Jmin_PS))),
+        about three per octave.
+    J_PS:
+        The range of the bins of the spectrum, its own option: by default ⌊log₂ N_max⌋ - 1,
+        N_max = ⌊min(N₁, N₂)/2⌋, whatever ``J`` (OP-120). STL passes the scattering J to its
+        spectrum when J is given: pass ``J_PS=J`` for STL's spectrum.
+    Jmin_PS:
+        J_min of the spectrum, 0 by default, with 0 ≤ Jmin_PS ≤ J_PS - 2 (OP-93).
     spectrum_method:
-        The estimator of the spectrum, as ``method`` of ``SpectrumOperator``: ``"auto"`` (the
-        default), ``"fft"``, ``"pbc_mask"``, ``"nan_mask"`` or ``"pbc_nan_mask"``. ``n_bins``,
-        ``Jmin`` and ``spectrum_method`` act only with the spectrum: another value than their
-        default without it raises, naming LF23 or LF24 on data without a spectrum.
+        The estimator of the spectrum: ``"auto"`` (the default) chooses it from ``pbc`` and the
+        missing pixels of ``data``: ``"fft"`` (periodic), ``"pbc_mask"`` (non-periodic),
+        ``"nan_mask"`` (periodic, missing pixels), ``"pbc_nan_mask"`` (non-periodic, missing
+        pixels); ``"fft"`` and ``"pbc_mask"`` do not accept missing pixels. ``n_bins``,
+        ``J_PS``, ``Jmin_PS`` and ``spectrum_method`` act only with the spectrum: another value
+        than their default without it raises, naming LF23 or LF24 on data without a spectrum.
     engine:
         The engine that runs the computation (Part II, §9.4): ``"python"``, the only engine of
         1.0.0.
@@ -115,8 +119,6 @@ class STOperator:
     _reference: _NormReference | None
     _plan_type: ClassVar[type[PlanarPlan] | type[TensorProdPlan]] = PlanarPlan
     """The plan of the operator's geometry, which :meth:`from_statistics` takes."""
-    _spectrum_advice: ClassVar[SpectrumAdvice] = SCATTERING_SPECTRUM_ADVICE
-    """What the errors of the power spectrum advise (golden rule 8): ``compute_PS=False``."""
     _missing_reference_advice: ClassVar[str] = ", or build the operator with {name}.from_statistics"
     """The end of the advice of ``apply`` with ``norm="ref"`` and no reference."""
     _other_statistics: ClassVar[str] = (
@@ -136,7 +138,8 @@ class STOperator:
         cross_matrix: Any = None,
         compute_PS: bool | None = None,  # noqa: N803 (STL's name)
         n_bins: int | None = None,
-        Jmin: int = 0,  # noqa: N803 (STL's name)
+        J_PS: int | None = None,  # noqa: N803 (the spectrum's J)
+        Jmin_PS: int = 0,  # noqa: N803
         spectrum_method: str = "auto",
         engine: str = "python",
     ) -> None:
@@ -154,9 +157,9 @@ class STOperator:
             standardize=standardize,
             compute_PS=compute_PS,  # None: the default of the geometry, resolved by the plan
             n_bins=n_bins,
-            Jmin=Jmin,
+            J_PS=J_PS,
+            Jmin_PS=Jmin_PS,
             spectrum_method=spectrum_method,
-            spectrum_advice=self._spectrum_advice,
         )
         plan.wavelets.bank()  # validates L for the geometry (M-WAV-1D)
         if norm != "none":
@@ -175,13 +178,6 @@ class STOperator:
                 f"{name}.from_statistics takes STStatistics, got {type(stats).__name__}."
             )
         plan = stats._plan
-        if not isinstance(plan, PlanarPlan | TensorProdPlan):
-            raise ValueError(
-                f"{name}.from_statistics: these statistics hold the power spectrum alone, "
-                f"computed by a {plan._operator_name}, not by a scattering operator. Build a "
-                f"{plan._operator_name} again from data, with the options they were computed "
-                "with."
-            )
         if not isinstance(plan, cls._plan_type):
             raise ValueError(f"{name}.from_statistics: {cls._other_statistics}")
         operator = cls.__new__(cls)

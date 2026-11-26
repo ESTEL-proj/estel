@@ -252,7 +252,7 @@ def test_compute_ps() -> None:
     assert stats._layout.names[-1] == "PS"
     plain = STOperator(data, 2, norm="none", compute_PS=False).apply(data)
     assert "PS" not in plain._layout.names
-    for option in ({"n_bins": 5}, {"Jmin": 1}, {"spectrum_method": "fft"}):
+    for option in ({"n_bins": 5}, {"J_PS": 2}, {"Jmin_PS": 1}, {"spectrum_method": "fft"}):
         with pytest.raises(ValueError, match=r"act only on the power spectrum"):
             STOperator(data, 2, norm="none", compute_PS=False, **option)
         with pytest.raises(ValueError, match=r"act only on the power spectrum"):

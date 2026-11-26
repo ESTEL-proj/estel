@@ -308,7 +308,12 @@ MAPS_ERRORS: dict[str, tuple[type[Exception], str, Any, dict[str, Any]]] = {
     ),
     "compute-ps": (TypeError, "pass True, False or None", _maps, {"compute_PS": 1}),
     "n-batch": (ValueError, "n_batch", _maps, {"mean_field": False, "n_batch": 2}),
-    "st-kwargs": (ValueError, r"takes \['J'\] only", _maps, {"st_kwargs": {"J": 2, "L": 4}}),
+    "st-kwargs": (
+        ValueError,
+        r"takes \['J', 'J_PS'\] only",
+        _maps,
+        {"st_kwargs": {"J": 2, "L": 4}},
+    ),
     "checkpoint-dir": (ValueError, "go together", _maps, {"checkpoint_every": 2}),
     "init-shape": (ValueError, "broadcast", _maps, {"init": np.zeros((3, N, N))}),
     "running-shape": (ValueError, "running_shape", _maps, {"running_shape": (N,)}),
@@ -429,9 +434,10 @@ def test_results_are_not_built() -> None:
 
 # ---------------------------------------------------------------- the power spectrum (T4.5)
 
-SPECTRUM = {"n_bins": 4, "J": 2, "Jmin": 0, "method": "fft"}
-"""The spectrum of a synthesis of 16 x 16 fields with J = 2: J_PS = J, the default number of
-bins of 16 x 16, max(4, round(3 (2 - 1))) = 4, J_min 0 and ``fft`` (maths.md §1.9, M-SYN-OPS)."""
+SPECTRUM = {"n_bins": 4, "J_PS": 2, "Jmin_PS": 0, "method": "fft"}
+"""The spectrum of a synthesis of 16 x 16 fields: J_PS the default of 16 x 16, ⌊log₂ 8⌋ - 1 = 2,
+its default number of bins, max(4, round(3 (2 - 1))) = 4, J_min 0 and ``fft`` (maths.md §1.9,
+M-SYN-OPS)."""
 
 
 def test_compute_ps_puts_the_spectrum_in_the_loss(backend: Backend) -> None:
@@ -455,36 +461,53 @@ def test_compute_ps_puts_the_spectrum_in_the_loss(backend: Backend) -> None:
 
 
 @pytest.mark.parametrize(
-    ("running_shape", "n_bins"),
-    [((32, 32), 6), ((16, 32), 4)],
+    ("running_shape", "st_kwargs", "j_ps", "n_bins"),
+    [
+        ((32, 32), {"J": 2}, 3, 6),
+        ((16, 32), {"J": 2}, 2, 4),
+        ((32, 32), {"J": 2, "J_PS": 2}, 2, 4),
+    ],
 )
-def test_number_of_bins_is_the_smaller_default(
-    backend: Backend, running_shape: tuple[int, int], n_bins: int
+def test_j_ps_and_bins_are_the_smaller_defaults(
+    backend: Backend,
+    running_shape: tuple[int, int],
+    st_kwargs: dict[str, int],
+    j_ps: int,
+    n_bins: int,
 ) -> None:
-    """The number of bins is the smaller of the defaults of the target and of the synthesised
-    fields, each from its own size, whatever J (M-SYN-OPS): a 32 x 32 target with J = 2 takes
-    6 bins, the default of 32 x 32 (J = 3), not the 4 of J = 2; with fields of 16 x 32, 4."""
+    """J_PS and the number of bins are the smaller of the defaults of the target and of the
+    synthesised fields, each from its own size, whatever J (M-SYN-OPS, OP-120): a 32 x 32
+    target with J = 2 takes J_PS = 3 and 6 bins, the defaults of 32 x 32; with fields of
+    16 x 32, 2 and 4; ``J_PS`` of ``st_kwargs`` sets J_PS, and its default number of bins."""
     if _unavailable(backend):
         return
     target = np.random.default_rng(2).standard_normal((32, 32))
     result = estel.synthesize_from_maps(
-        target, running_shape=running_shape, max_iter=1, st_kwargs={"J": 2}
+        target, running_shape=running_shape, max_iter=1, st_kwargs=st_kwargs
     )
-    assert result.manifest["spectrum"] == {**SPECTRUM, "n_bins": n_bins}
+    assert result.manifest["spectrum"] == {**SPECTRUM, "J_PS": j_ps, "n_bins": n_bins}
 
 
 def test_from_stats_with_the_spectrum_takes_its_settings(backend: Backend) -> None:
-    """From statistics that hold the spectrum, computed with J_min = 1, the running operator
-    takes J, the number of bins and J_min of the statistics, and the estimator ``fft`` (OP-76);
+    """From statistics that hold the spectrum, computed with J_PS = 3 and J_min = 1, the running
+    operator takes J, the number of bins, J_PS and J_min of the statistics, and the estimator
+    ``fft`` (OP-76, OP-120);
     from the same statistics without PS (``select``), the spectrum is not in the loss."""
     if _unavailable(backend):
         return
     data = Data2D(_maps(n_batch=2), pbc=True)
     stats = STOperator(
-        data, 3, norm="self", ref_batch_mean=True, standardize=True, n_bins=5, Jmin=1
+        data,
+        3,
+        norm="self",
+        ref_batch_mean=True,
+        standardize=True,
+        n_bins=5,
+        J_PS=3,
+        Jmin_PS=1,
     ).apply(data)
     result = estel.synthesize_from_stats(stats, n_batch=1, max_iter=2)
-    assert result.manifest["spectrum"] == {"n_bins": 5, "J": 3, "Jmin": 1, "method": "fft"}
+    assert result.manifest["spectrum"] == {"n_bins": 5, "J_PS": 3, "Jmin_PS": 1, "method": "fft"}
     assert np.all(np.isfinite(result.losses))
     families = ["mean", "var", "S1", "S2", "S3", "S4"]
     without = estel.synthesize_from_stats(stats.select(families), n_batch=1, max_iter=2)

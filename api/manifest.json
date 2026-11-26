@@ -93,7 +93,7 @@
     },
     "estel.STOperator": {
       "kind": "class",
-      "signature": "(self, data: Data, J: int | None=None, L: int | None=None, *, norm: str='self', ref_batch_mean: bool=False, standardize: bool=False, cross_matrix: Any=None, compute_PS: bool | None=None, n_bins: int | None=None, Jmin: int=0, spectrum_method: str='auto', engine: str='python') -> None"
+      "signature": "(self, data: Data, J: int | None=None, L: int | None=None, *, norm: str='self', ref_batch_mean: bool=False, standardize: bool=False, cross_matrix: Any=None, compute_PS: bool | None=None, n_bins: int | None=None, J_PS: int | None=None, Jmin_PS: int=0, spectrum_method: str='auto', engine: str='python') -> None"
     },
     "estel.STOperator.J": {
       "kind": "property"
@@ -166,23 +166,6 @@
     "estel.SYNTHESIS_REFERENCE": {
       "kind": "constant"
     },
-    "estel.SpectrumOperator": {
-      "kind": "class",
-      "signature": "(self, data: Data, J: int | None=None, *, Jmin: int=0, n_bins: int | None=None, method: str='auto', cross_matrix: Any=None, norm: str='self', ref_batch_mean: bool=False) -> None"
-    },
-    "estel.SpectrumOperator.METHODS": {
-      "kind": "constant"
-    },
-    "estel.SpectrumOperator.apply": {
-      "kind": "method",
-      "signature": "(self, data: Data, ref: STStatistics | None=None) -> STStatistics"
-    },
-    "estel.SpectrumOperator.filters": {
-      "kind": "property"
-    },
-    "estel.SpectrumOperator.plan": {
-      "kind": "property"
-    },
     "estel.SynthesisResult": {
       "kind": "class",
       "signature": "(self) -> None"
@@ -209,10 +192,6 @@
       "kind": "property"
     },
     "estel.functional.scattering": {
-      "kind": "function",
-      "signature": "(data: Data, plan: STPlan, filters: STFilters, ref: STStatistics | None=None) -> STStatistics"
-    },
-    "estel.functional.spectrum": {
       "kind": "function",
       "signature": "(data: Data, plan: STPlan, filters: STFilters, ref: STStatistics | None=None) -> STStatistics"
     },

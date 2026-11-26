@@ -94,7 +94,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, ClassVar, NamedTuple, cast
+from typing import Any, ClassVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -178,21 +178,21 @@ def channel_pairs(matrix: NDArray[np.bool_]) -> ChannelPairs:
 
 @dataclass(frozen=True)
 class SpectrumPlan:
-    """The static description of the 2D power spectrum (maths.md §1.9, "Range", "Number of
-    bins", "Choice of estimator"; tasks T4.4, T4.1): how many bins, J_PS, J_min, the estimator
-    chosen at construction, and the spatial shape whose bins, windows and borders it reads
-    (:meth:`bins`, ``spectra._bins.log_gaussian_bins``, built once in NumPy). Hashable. In the
-    plan of ``STOperator`` its channel pairs are those of the plan (``PlanarPlan.pairs``): the
-    pairs c1 ≤ c2 of S1 and S2, one matrix for the scattering statistics and the spectrum
-    (M-CHAN; decision on #148); σᴾˢ exists for the channels of ``pairs.auto`` (M-NORM, OP-30).
-    ``SpectrumOperator`` holds the same description in its own plan."""
+    """The static description of the 2D power spectrum of ``STOperator`` (maths.md §1.9, "Range",
+    "Number of bins", "Choice of estimator"; tasks T4.4, T4.1, T4.6): how many bins, J_PS,
+    J_min, the estimator chosen at construction, and the spatial shape whose bins, windows and
+    borders it reads (:meth:`bins`, ``spectra._bins.log_gaussian_bins``, built once in NumPy).
+    Hashable. Its channel pairs are those of the plan (``PlanarPlan.pairs``): the pairs
+    c1 ≤ c2 of S1 and S2, one matrix for the scattering statistics and the spectrum (M-CHAN;
+    decision on #148); σᴾˢ exists for the channels of ``pairs.auto`` (M-NORM, OP-30). Its
+    fields are named after the options of ``STOperator``."""
 
     n_bins: int
     """n_b, the number of bins: given, or max(4, round(3 (J_PS - 1 - J_min)))."""
-    J: int
-    """J_PS: the J given to the operator, or ⌊log₂ N_max⌋ - 1, equal to the default J of the
-    scattering statistics (M-DEF)."""
-    Jmin: int
+    J_PS: int
+    """J_PS: ``J_PS`` given to the operator, or ⌊log₂ N_max⌋ - 1, whatever the scattering J
+    (maths.md §1.9, "Range"; OP-120)."""
+    Jmin_PS: int
     """J_min, with 0 ≤ J_min ≤ J_PS - 2 (OP-93)."""
     method: str
     """The estimator, one of ``spectra._estimators.ESTIMATORS``, chosen at construction from
@@ -204,34 +204,18 @@ class SpectrumPlan:
     the mean that fills the missing pixels of each map (``nan_mask``, ``pbc_nan_mask``)."""
 
     def content(self) -> dict[str, Any]:
-        """The parameters of the spectrum for ``estel.io``."""
-        return {"n_bins": self.n_bins, "J": self.J, "Jmin": self.Jmin, "method": self.method}
+        """The parameters of the spectrum for ``estel.io``, under the names of the options."""
+        return {
+            "n_bins": self.n_bins,
+            "J_PS": self.J_PS,
+            "Jmin_PS": self.Jmin_PS,
+            "method": self.method,
+        }
 
     def bins(self) -> SpectrumBins:
         """The bins, windows, normalisations and borders of the spectrum (maths.md §1.9)."""
         n1, n2 = self.spatial_shape
-        return log_gaussian_bins((int(n1), int(n2)), self.J, self.Jmin, self.n_bins)
-
-
-class SpectrumAdvice(NamedTuple):
-    """What an operator tells its user to do when the power spectrum cannot be built (golden
-    rule 8): each operator class carries its own (``_spectrum_advice``) and passes it to
-    :func:`build_spectrum_plan`, so that the shared code compares no operator name."""
-
-    not_2d: str
-    """After data that are not 2D (:func:`spectrum_2d_only`: LF23, LF24)."""
-    odd_size: str
-    """After an odd size (OP-20)."""
-    jmin: str
-    """After J_min outside 0 … J_PS - 2 (OP-93)."""
-
-
-SCATTERING_SPECTRUM_ADVICE = SpectrumAdvice(
-    not_2d="pass compute_PS=False.",
-    odd_size="crop the data to even sizes, or pass compute_PS=False.",
-    jmin="Pass compute_PS=False, a smaller Jmin, or use a larger image (a larger J).",
-)
-"""The advice of ``STOperator``, which can leave the spectrum out (``compute_PS=False``)."""
+        return log_gaussian_bins((int(n1), int(n2)), self.J_PS, self.Jmin_PS, self.n_bins)
 
 
 def spectrum_2d_only(received: str, advice: str) -> str:
@@ -246,52 +230,63 @@ def spectrum_2d_only(received: str, advice: str) -> str:
     )
 
 
+def _is_int(value: object) -> bool:
+    return isinstance(value, int | np.integer) and not isinstance(value, bool)
+
+
+def default_j_ps(spatial_shape: tuple[int, ...]) -> int:
+    """The default J_PS of 2D data of ``spatial_shape``: ⌊log₂ N_max⌋ - 1 with
+    N_max = ⌊min(N₁, N₂)/2⌋ (maths.md §1.9, "Range"), whatever the scattering J (OP-120)."""
+    return int(np.floor(np.log2(min(spatial_shape) // 2))) - 1
+
+
 def build_spectrum_plan(
     spatial_shape: tuple[int, ...],
     geometry: type[Data],
-    J: int | None,  # noqa: N803 (maths.md notation)
+    J_PS: Any,  # noqa: N803 (the name of the option)
     n_bins: Any,
-    Jmin: Any,  # noqa: N803 (STL's name)
+    Jmin_PS: Any,  # noqa: N803 (the name of the option)
     method: Any = "auto",
     pbc: bool = True,
     mask: NDArray[np.bool_] | None = None,
-    advice: SpectrumAdvice | None = None,
 ) -> SpectrumPlan:
     """The :class:`SpectrumPlan` of 2D data of ``spatial_shape`` (maths.md §1.9), ``geometry``
     the Data subclass of the data, whose declared tag (``Data._geometry``) must be 2D: J_PS is
-    ``J``, the J given to the operator, or ⌊log₂ N_max⌋ - 1 with N_max = ⌊min(N₁, N₂)/2⌋ when it is
-    ``None``; the estimator is ``method``, or with ``"auto"`` the choice of §1.9 from ``pbc`` and
-    the missing pixels of ``mask``. Raises a clear error on data that are not 2D (LF23, LF24), on an
+    ``J_PS``, or :func:`default_j_ps` when it is ``None``, whatever the scattering J (OP-120);
+    the estimator is ``method``, or with ``"auto"`` the choice of §1.9 from ``pbc`` and the
+    missing pixels of ``mask``. Raises a clear error on data that are not 2D (LF23, LF24), on an
     odd size (OP-20), when J_min is not between 0 and J_PS - 2 (OP-93), on a number of bins
-    that is not a positive integer (a ``TypeError`` when ``Jmin`` or ``n_bins`` is not an
-    integer, a ``ValueError`` when it is out of range), on an unknown ``method``, on ``fft`` or
-    ``pbc_mask`` with missing pixels, and on a bin of ``pbc_nan_mask`` without an observed pixel
-    inside its border. ``advice`` is the advice of the operator that asks, which its messages
-    end with (``STOperator._spectrum_advice``, ``SpectrumOperator._spectrum_advice``); by
-    default that of ``STOperator``, whose plan :func:`build_plan` builds."""
-    hint = SCATTERING_SPECTRUM_ADVICE if advice is None else advice
+    that is not a positive integer (a ``TypeError`` when ``J_PS``, ``Jmin_PS`` or ``n_bins`` is
+    not an integer, a ``ValueError`` when it is out of range), on an unknown ``method``, on
+    ``fft`` or ``pbc_mask`` with missing pixels, and on a bin of ``pbc_nan_mask`` without an
+    observed pixel inside its border. Each message says what to do next, ``compute_PS=False``
+    among it (golden rule 8)."""
     if geometry._geometry != "2d":
-        raise ValueError(spectrum_2d_only(geometry.__name__, hint.not_2d))
+        raise ValueError(spectrum_2d_only(geometry.__name__, "Pass compute_PS=False."))
     if any(n % 2 for n in spatial_shape):
         raise ValueError(
             f"the power spectrum requires even sizes, and the data are {tuple(spatial_shape)} "
-            f"(maths.md §1.9, OP-20): {hint.odd_size}"
+            "(maths.md §1.9, OP-20): crop the data to even sizes, or pass compute_PS=False."
         )
-    n_max = min(spatial_shape) // 2
-    j_ps = int(np.floor(np.log2(n_max))) - 1 if J is None else int(J)
-    if isinstance(Jmin, bool) or not isinstance(Jmin, int | np.integer):
-        raise TypeError(f"Jmin={Jmin!r}: pass an integer, 0 by default (maths.md §1.9).")
-    if not 0 <= int(Jmin) <= j_ps - 2:
+    if J_PS is not None and not _is_int(J_PS):
+        raise TypeError(
+            f"J_PS={J_PS!r}: pass an integer, or None for ⌊log₂ N_max⌋ - 1 (maths.md §1.9)."
+        )
+    if not _is_int(Jmin_PS):
+        raise TypeError(f"Jmin_PS={Jmin_PS!r}: pass an integer, 0 by default (maths.md §1.9).")
+    j_ps = default_j_ps(spatial_shape) if J_PS is None else int(J_PS)
+    if not 0 <= int(Jmin_PS) <= j_ps - 2:
         raise ValueError(
-            f"Jmin={Jmin} with J = {j_ps}: the power spectrum needs 0 ≤ Jmin ≤ J - 2 (maths.md "
-            f"§1.9, OP-93). {hint.jmin}"
+            f"J_PS={j_ps}, Jmin_PS={Jmin_PS}: the power spectrum needs 0 ≤ Jmin_PS ≤ J_PS - 2 "
+            "(maths.md §1.9, OP-93). Pass a larger J_PS or a smaller Jmin_PS, "
+            "compute_PS=False, or use a larger image."
         )
     bins_advice = (
-        "pass a positive integer, or None for max(4, round(3 (J - 1 - Jmin))) bins, about three "
-        "per octave (maths.md §1.9)."
+        "pass a positive integer, or None for max(4, round(3 (J_PS - 1 - Jmin_PS))) bins, about "
+        "three per octave (maths.md §1.9)."
     )
     if n_bins is None:
-        found = max(4, round(3 * (j_ps - 1 - int(Jmin))))
+        found = max(4, round(3 * (j_ps - 1 - int(Jmin_PS))))
     elif isinstance(n_bins, bool) or not isinstance(n_bins, int | np.integer):
         raise TypeError(f"n_bins={n_bins!r}: {bins_advice}")
     elif n_bins < 1:
@@ -301,8 +296,8 @@ def build_spectrum_plan(
     estimator = choose_estimator(method, bool(pbc), mask is not None and bool(mask.any()))
     plan = SpectrumPlan(
         n_bins=found,
-        J=j_ps,
-        Jmin=int(Jmin),
+        J_PS=j_ps,
+        Jmin_PS=int(Jmin_PS),
         method=estimator,
         spatial_shape=tuple(int(n) for n in spatial_shape),
         n_valid=int(np.prod(spatial_shape)) if mask is None else int((~mask).sum()),
@@ -533,7 +528,7 @@ class _PlanFields:
     spectrum: SpectrumPlan | None = None
     """The power spectrum of the statistics (maths.md §1.9), or ``None`` when they do not hold
     it (``compute_PS=False``, or data that are not 2D). The loop computes it with the estimators
-    of ``SpectrumOperator`` (``spectra._estimators``) on the field after the standardisation, and
+    of ``spectra._estimators`` on the field after the standardisation, and
     writes it after the values of the loop, the last floats of the buffer (task T4.1)."""
 
 
@@ -637,9 +632,9 @@ def build_plan(
     standardize: bool = False,
     compute_PS: bool | None = False,  # noqa: N803 (STL's name)
     n_bins: int | None = None,
-    Jmin: int = 0,  # noqa: N803 (STL's name)
+    J_PS: int | None = None,  # noqa: N803 (the name of the option)
+    Jmin_PS: int = 0,  # noqa: N803 (the name of the option)
     spectrum_method: str = "auto",
-    spectrum_advice: SpectrumAdvice | None = None,
 ) -> PlanarPlan:
     """The plan of :func:`build_plan_with_tables`, without the tables of its wavelets."""
     return build_plan_with_tables(
@@ -653,9 +648,9 @@ def build_plan(
         standardize=standardize,
         compute_PS=compute_PS,
         n_bins=n_bins,
-        Jmin=Jmin,
+        J_PS=J_PS,
+        Jmin_PS=Jmin_PS,
         spectrum_method=spectrum_method,
-        spectrum_advice=spectrum_advice,
     )[0]
 
 
@@ -671,9 +666,9 @@ def build_plan_with_tables(
     standardize: bool = False,
     compute_PS: bool | None = False,  # noqa: N803 (STL's name)
     n_bins: int | None = None,
-    Jmin: int = 0,  # noqa: N803 (STL's name)
+    J_PS: int | None = None,  # noqa: N803 (the name of the option)
+    Jmin_PS: int = 0,  # noqa: N803 (the name of the option)
     spectrum_method: str = "auto",
-    spectrum_advice: SpectrumAdvice | None = None,
 ) -> tuple[PlanarPlan, Any]:
     """The :class:`PlanarPlan` of a scattering transform with ``J`` scales and ``L``
     orientations on data with the geometry, spatial shape, ``pbc``, mask and number of channels
@@ -690,12 +685,11 @@ def build_plan_with_tables(
     grid and is reduced (M-BORDER, OP-13).
 
     With ``compute_PS``, the statistics also hold the 2D power spectrum (``None``: on 2D data
-    only, the default of ``STOperator``), with ``n_bins`` bins,
-    J_min ``Jmin`` and the estimator ``spectrum_method`` (maths.md §1.9;
-    :func:`build_spectrum_plan`); without it, ``n_bins``, ``Jmin`` and ``spectrum_method`` keep
-    their defaults (decision on #148). ``spectrum_advice`` is the advice of the operator that
-    builds the plan, for the errors of the spectrum (``STOperator._spectrum_advice`` by
-    default).
+    only, the default of ``STOperator``), with ``n_bins`` bins, J_PS ``J_PS``, J_min
+    ``Jmin_PS`` and the estimator ``spectrum_method`` (maths.md §1.9;
+    :func:`build_spectrum_plan`): the scattering J does not reach it (OP-120). Without it,
+    ``n_bins``, ``J_PS``, ``Jmin_PS`` and ``spectrum_method`` keep their defaults (decision on
+    #148).
 
     Beside the plan, the NumPy tables its wavelets were built with
     (:func:`build_wavelet_plan_with_tables`), for :meth:`PlanarPlan._build_filters` of the same
@@ -709,7 +703,7 @@ def build_plan_with_tables(
     matrix = _cross_matrix(cross_matrix, data.n_channels)
     _check_options(norm, ref_batch_mean, standardize)
     pairs = channel_pairs(matrix)
-    spectrum = _spectrum(wavelets, J, compute_PS, n_bins, Jmin, spectrum_method, spectrum_advice)
+    spectrum = _spectrum(wavelets, compute_PS, n_bins, J_PS, Jmin_PS, spectrum_method)
     levels = wavelets.levels
     scale_levels = wavelets.scale_levels
     scales = tuple(range(wavelets.J))
@@ -815,24 +809,25 @@ def resolve_compute_ps(compute_ps: object, geometry: type[Data]) -> bool:
 
 def _spectrum(
     wavelets: WaveletPlan,
-    J: int | None,  # noqa: N803 (maths.md notation)
     compute_ps: object,
     n_bins: object,
-    jmin: object,
+    j_ps: object,
+    jmin_ps: object,
     method: object = "auto",
-    advice: SpectrumAdvice | None = None,
 ) -> SpectrumPlan | None:
     """The :class:`SpectrumPlan` of :func:`build_plan`, or ``None`` without ``compute_PS``, whose
     options must then keep their defaults (decision on #148). ``compute_PS=None`` means the
     default: the spectrum on 2D data, none on other data, where ESTEL 1.0.0 has none (Part II,
-    §12.6), and where ``compute_PS=True`` or a spectrum option raises :func:`spectrum_2d_only`."""
+    §12.6), and where ``compute_PS=True`` or a spectrum option raises :func:`spectrum_2d_only`.
+    The scattering J does not reach the spectrum (OP-120)."""
     two_d = wavelets.geometry._geometry == "2d"
     if not resolve_compute_ps(compute_ps, wavelets.geometry):
         changed = [
             f"{name}={value!r}"
             for name, value, default in (
                 ("n_bins", n_bins, None),
-                ("Jmin", jmin, 0),
+                ("J_PS", j_ps, None),
+                ("Jmin_PS", jmin_ps, 0),
                 ("spectrum_method", method, "auto"),
             )
             if value is not default and value != default
@@ -855,13 +850,12 @@ def _spectrum(
     return build_spectrum_plan(
         wavelets.spatial_shape,
         wavelets.geometry,
-        J,
+        j_ps,
         n_bins,
-        jmin,
+        jmin_ps,
         method,
         wavelets.pbc,
         wavelets.mask,
-        advice,
     )
 
 

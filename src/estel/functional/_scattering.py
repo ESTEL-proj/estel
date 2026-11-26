@@ -73,16 +73,15 @@ def _parts(
     plan: STPlan, filters: STFilters
 ) -> tuple[PlanarPlan | TensorProdPlan, PlanarFilters | TensorProdFilters]:
     """The plan and the filters of a scattering operator, or a clear error: the type check of
-    :func:`scattering`, which takes neither those of ``SpectrumOperator``
-    (``estel.functional.spectrum``)."""
+    :func:`scattering`."""
     if not (
         isinstance(plan, PlanarPlan | TensorProdPlan)
         and isinstance(filters, PlanarFilters | TensorProdFilters)
     ):
         raise TypeError(
             f"expected the plan and the filters of a scattering operator, op.plan and "
-            f"op.filters; got {type(plan).__name__} and {type(filters).__name__}. For a "
-            "SpectrumOperator, use estel.functional.spectrum."
+            f"op.filters of an STOperator; got {type(plan).__name__} and "
+            f"{type(filters).__name__}."
         )
     return plan, filters
 
@@ -142,9 +141,9 @@ def compute(
     filters: STFilters,
     reference: _NormReference | None,
 ) -> STStatistics:
-    """The one path of every operator, behind :func:`scattering` and ``functional.spectrum``,
-    with the reference already extracted: the values of the plan (``STPlan._values``: the
-    scattering loop of its geometry, or the estimator of the power spectrum), then the one path
+    """The one path of every operator, behind :func:`scattering`, with the reference already
+    extracted: the values of the plan (``STPlan._values``: the scattering loop of its geometry,
+    the power spectrum included), then the one path
     after them (``statistics._statistics.finish``). A ``norm="ref"`` reference is checked once,
     before the values, by the plan."""
     check_data(data, plan, filters)
@@ -170,8 +169,8 @@ def apply_operator(
     held: _NormReference | None,
     missing_reference_advice: str = "",
 ) -> tuple[STStatistics, _NormReference | None]:
-    """The ``apply`` of every operator (``STOperator``, ``STOperatorTensorProd``,
-    ``SpectrumOperator``; maths.md M-NORM): the statistics of ``data``, and the reference the
+    """The ``apply`` of every operator (``STOperator``, ``STOperatorTensorProd``; maths.md
+    M-NORM): the statistics of ``data``, and the reference the
     operator holds afterwards. ``ref`` is the reference passed to ``apply``; ``held`` the one the
     operator holds. With ``norm="ref"`` and no ``ref``, ``held`` normalises, and its absence is
     an error, whose advice ends with ``missing_reference_advice``, the operator's; with

@@ -1,10 +1,9 @@
-"""Spectra: the 2D power spectrum and its operator (Part II, §12.8; maths.md §1.9; task T4.1).
+"""Spectra: the bricks of the 2D power spectrum (Part II, §12.8; maths.md §1.9; tasks T4.1, T4.6).
 
 ``_bins.py`` holds the log-Gaussian bins, their normalisation, the borders of the non-periodic
 estimators and the Bessel function J₀ they need, built once in NumPy with the plan;
 ``_estimators.py`` the four estimators of STL v1.6.0 and the automatic choice, on the L0
-primitives; ``_plan.py`` the plan and the filters of ``SpectrumOperator``; and ``_operator.py``
-the ``SpectrumOperator``, exported by ``estel``. ``estel.functional.spectrum`` is the pure function
-behind its ``apply``. ``STOperator`` computes its spectrum with the same plan of the spectrum and
-the same estimators.
+primitives. ``STOperator`` computes its spectrum with them (``compute_PS``, ``J_PS``,
+``Jmin_PS``, ``n_bins``, ``spectrum_method``; task T4.6), from the description of the spectrum
+in its plan (``scattering._plan.SpectrumPlan``).
 """
