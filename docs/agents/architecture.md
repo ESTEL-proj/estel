@@ -2,6 +2,20 @@
 
 Summary of [Part I, §2 — Architecture](../transfer/part1.md#2-architecture). The transfer document is authoritative; when this summary and it disagree, it wins.
 
+## Geometries and names ([§2.3.1](../transfer/part1.md#231-geometries-and-the-hierarchy-of-classes), [§2.4.1](../transfer/part1.md#241-names))
+
+```
+(every geometry)                      bare
+├── SingleDomain                      one field on one domain: not a tensor product
+│   ├── Cartesian                     regular grids
+│   │   ├── 1D
+│   │   └── 2D
+│   └── Healpix
+└── TensorProd                        a product of SingleDomain blocks (Cartesian; Healpix with LF9)
+```
+
+Every family of classes follows this tree, and the suffix of every internal name is the smallest node that covers what it does; the hierarchy of classes, the classes planned by the register and the rule of names are in Part I, §2.3.1 and §2.4.1. Phase P7 brings the code to them; until a task of P7 is merged, the code it concerns keeps its former names.
+
 ## Layers ([§2.1](../transfer/part1.md#21-layers))
 
 | Layer | Where | Role | May import |
