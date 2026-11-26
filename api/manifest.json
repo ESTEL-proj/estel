@@ -166,23 +166,6 @@
     "estel.SYNTHESIS_REFERENCE": {
       "kind": "constant"
     },
-    "estel.SpectrumOperator": {
-      "kind": "class",
-      "signature": "(self, data: Data, J: int | None=None, *, Jmin: int=0, n_bins: int | None=None, method: str='auto', cross_matrix: Any=None, norm: str='self', ref_batch_mean: bool=False) -> None"
-    },
-    "estel.SpectrumOperator.METHODS": {
-      "kind": "constant"
-    },
-    "estel.SpectrumOperator.apply": {
-      "kind": "method",
-      "signature": "(self, data: Data, ref: STStatistics | None=None) -> STStatistics"
-    },
-    "estel.SpectrumOperator.filters": {
-      "kind": "property"
-    },
-    "estel.SpectrumOperator.plan": {
-      "kind": "property"
-    },
     "estel.SynthesisResult": {
       "kind": "class",
       "signature": "(self) -> None"
@@ -209,10 +192,6 @@
       "kind": "property"
     },
     "estel.functional.scattering": {
-      "kind": "function",
-      "signature": "(data: Data, plan: STPlan, filters: STFilters, ref: STStatistics | None=None) -> STStatistics"
-    },
-    "estel.functional.spectrum": {
       "kind": "function",
       "signature": "(data: Data, plan: STPlan, filters: STFilters, ref: STStatistics | None=None) -> STStatistics"
     },

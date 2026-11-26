@@ -31,7 +31,7 @@ from numpy.typing import NDArray
 
 from .._reference import STATISTICS_REFERENCE, SYNTHESIS_REFERENCE
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 """The version of the schema written by this version of ESTEL. Version 2 renamed the values of
 ``norm`` (``"none"``, ``"self"``, ``"ref"``), ``ref_batch_mean`` and the reductions
 (``angular_fourier``, ``scale_cosine``); version 3 stores the statistics in the compact layout
@@ -47,8 +47,10 @@ spectrum in the plan (``"method"``), and the statistics of ``SpectrumOperator``,
 ``"PS"`` alone, with their plan (``"operator": "SpectrumOperator"``) and a reference without
 scattering scales; version 8 adds the statistics of HEALPix data (task T5.6): the static
 metadata of the data in the plan of ``STOperator`` (``"meta"``: ``{}`` for 1D and 2D data,
-``{"depth": ...}`` for HEALPix data, with the array ``plan__cell_ids`` on a partial sky).
-Files of earlier versions are not read."""
+``{"depth": ...}`` for HEALPix data, with the array ``plan__cell_ids`` on a partial sky);
+version 9 drops the format of ``SpectrumOperator``, removed (task T4.6), the content of the
+statistics of ``STOperator`` unchanged. Files of earlier versions, those written by
+``SpectrumOperator`` among them, are not read."""
 
 META = "__meta__"
 """The name of the member holding the JSON document."""

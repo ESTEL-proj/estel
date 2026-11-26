@@ -67,8 +67,8 @@ class _FilterFields(NamedTuple):
     of chunk the loop computes complex and the buffer stores with real entries, the floats kept
     (int32; ``statistics._layout.loop_gather``; Part III, §19.3, §19.9; task T3.7)."""
     spectrum: SpectrumFilters | None = None
-    """The static arrays of the 2D power spectrum (maths.md §1.9; task T4.1), those of
-    ``SpectrumOperator`` for the same plan of the spectrum, or ``None`` without it."""
+    """The static arrays of the 2D power spectrum (maths.md §1.9; task T4.1), or ``None``
+    without it."""
 
 
 class STFilters:
@@ -79,9 +79,8 @@ class STFilters:
     operator's plan, to ``estel.functional.scattering``. Its arrays are on the operator's
     backend, dtype and device; it has no public field. The filters of each geometry are a
     subclass, internal to ESTEL, and a named tuple: :class:`PlanarFilters` for single-domain data,
-    :class:`TensorProdFilters` for tensor products, and the filters of ``SpectrumOperator``
-    (``spectra._plan``). Its one hook, :attr:`_any_array`, gives their backend and dtype; the
-    plan builds them (``STPlan._build_filters``; issue #144).
+    :class:`TensorProdFilters` for tensor products. Its one hook, :attr:`_any_array`, gives
+    their backend and dtype; the plan builds them (``STPlan._build_filters``; issue #144).
     """
 
     __slots__ = ()
@@ -89,7 +88,7 @@ class STFilters:
     @property
     def _any_array(self) -> Any:
         """An array of the filters, which gives their backend and dtype: the smoothing kernel
-        (of the first block of a tensor product), or a table of the spectrum."""
+        (of the first block of a tensor product)."""
         raise NotImplementedError
 
 

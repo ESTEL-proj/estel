@@ -332,7 +332,7 @@ Computing this requires products of the Hessian — the matrix of second derivat
 
 | Guarantee | PyTorch (step 1) | JAX (experimental from P1) | Test |
 | --- | --- | --- | --- |
-| VJP (reverse mode) of `scattering`, `spectrum`, `loss` | autograd | `jax.vjp` | `gradcheck`, `check_grads(order=1)` |
+| VJP (reverse mode) of `scattering`, `loss` | autograd | `jax.vjp` | `gradcheck`, `check_grads(order=1)` |
 | JVP (forward mode) | `torch.func.jvp` | `jax.jvp` | `check_grads(modes=("fwd",))` |
 | Second order (Hessian-vector products, mixed derivatives) | double backward (`create_graph=True`), `torch.func` | `jax.jvp(jax.grad(...))` | `gradgradcheck`, `check_grads(order=2, modes=("fwd", "rev"))` |
 | Implicit differentiation, end to end |  |  | a small argmin problem; implicit gradient vs finite differences |

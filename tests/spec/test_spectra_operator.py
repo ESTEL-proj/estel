@@ -1,14 +1,16 @@
-"""Spec parity of the 2D power spectrum: ``SpectrumOperator`` and ``STOperator`` with the
-spectrum against the oracle ``estel._spec.spectra`` (task T4.1, issue #24; maths.md §1.9,
-M-NORM, M-FLAT; Part I, §4.2, §5.1).
+"""Spec parity of the 2D power spectrum: ``STOperator`` with the spectrum against the oracle
+``estel._spec.spectra`` (tasks T4.1, T4.6, issues #24, #191; maths.md §1.9, M-NORM, M-FLAT;
+Part I, §4.2, §5.1).
 
-Small seeded cases, 16 x 16 or 16 x 24 pixels, two channels, every pair c₁ ≤ c₂: each estimator
-forced, and the automatic choice, with and without missing pixels, periodic or not, with a J_min
-and a number of bins given; the spectrum within the scattering statistics, after the
-standardisation, normalised by itself (M-NORM), last in the vector (M-FLAT); and the
-configuration ``nan_per_map`` of ``spectrum_2d`` on the union of its missing pixels, the only form
-ESTEL takes (OP-98; comment on #24). Compared with ``assert_parity`` in the run's dtype: float64,
-and float32 to the float32 tolerance of Part II, §14.3.
+Small seeded cases, 16 x 16, 16 x 24 or 32 x 32 pixels, two channels, every pair c₁ ≤ c₂: each
+estimator forced, and the automatic choice, with and without missing pixels, periodic or not,
+with a J_min and a number of bins given, through ``STOperator`` at its default J, which sets the
+band of the spectrum as the oracle's default does, L = 1 (on which the spectrum does not depend)
+and ``norm="none"``; the non-periodic cases with missing pixels at 32 x 32, J = 3 (decisions on
+#191, second version); and the spectrum within the scattering statistics, after the
+standardisation, normalised by itself (M-NORM), last in the vector (M-FLAT). Compared with
+``assert_parity`` in the run's dtype: float64, and float32 to the float32 tolerance of Part II,
+§14.3.
 
 A disagreement is a finding about ``docs/maths.md`` or about the oracle, since ESTEL matches
 STL's fixtures: report the coefficients on an issue, change nothing to make a test pass.
@@ -23,12 +25,12 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data2D, SpectrumOperator, STOperator, _config
+from estel import Data2D, STOperator, _config
 from estel._spec import planar as spec
 from estel._spec import spectra as spec_spectra
 from estel.backend import _registry
 from estel.backend._protocol import DType
-from tests.parity._compare import assert_parity, load_fixture
+from tests.parity._compare import assert_parity
 
 pytestmark = [pytest.mark.maths("M-PS-2D", "M-NORM", "M-FLAT"), pytest.mark.dtype]
 
@@ -55,30 +57,39 @@ def _hole(shape: tuple[int, int]) -> NDArray[np.bool_]:
 
 
 CASES: dict[str, tuple[tuple[int, int], bool, bool, dict[str, Any]]] = {
-    # name: (spatial shape, pbc, masked, options)
+    # name: (spatial shape, pbc, masked, options of the oracle's spec_spectra)
     "periodic-auto": ((16, 16), True, False, {}),
     "open-auto-rect": ((16, 24), False, False, {}),
     "periodic-mask-auto": ((16, 16), True, True, {}),
-    "open-mask-auto": ((16, 16), False, True, {"n_bins": 5}),
+    "open-mask-auto": ((32, 32), False, True, {"n_bins": 5}),
     "open-fft": ((16, 16), False, False, {"method": "fft"}),
     "periodic-pbc-mask": ((16, 16), True, False, {"method": "pbc_mask", "n_bins": 3}),
-    "open-nan-mask": ((16, 16), False, True, {"method": "nan_mask"}),
+    "open-nan-mask": ((32, 32), False, True, {"method": "nan_mask"}),
     "periodic-pbc-nan-mask-jmin": ((32, 32), True, True, {"method": "pbc_nan_mask", "Jmin": 1}),
 }
 
 
+NAMES = {"method": "spectrum_method", "Jmin": "Jmin", "n_bins": "n_bins"}
+"""The options of ``STOperator`` named by those of ``spec_spectra``."""
+
+
 @pytest.mark.parametrize("name", list(CASES))
-def test_spectrum_operator_equals_the_oracle(name: str, dtype: DType) -> None:
-    """``SpectrumOperator`` with ``norm="none"`` equals ``spec_spectra``: the estimator chosen and
-    the spectrum of every pair c₁ ≤ c₂, NaN below the diagonal."""
+def test_spectrum_equals_the_oracle(name: str, dtype: DType) -> None:
+    """``STOperator`` at its default J, with L = 1 and ``norm="none"``, equals ``spec_spectra``
+    at its default J: the estimator chosen and the spectrum of every pair c₁ ≤ c₂, NaN below the
+    diagonal."""
     shape, pbc, masked, options = CASES[name]
     field = _field((2, 2, *shape))
     mask = _hole(shape) if masked else None
     data = Data2D(field, mask=mask, pbc=pbc)
-    operator = SpectrumOperator(data, norm="none", **options)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)  # OP-13: tested with the plan
+        operator = STOperator(
+            data, None, 1, norm="none", **{NAMES[key]: value for key, value in options.items()}
+        )
     oracle_field = field if mask is None else np.where(mask, np.nan, field)
     expected = spec_spectra.spec_spectra(oracle_field, pbc, **options)
-    assert operator._plan.spectrum.method == expected["method"]
+    assert operator._plan.spectrum.method == expected["method"]  # type: ignore[union-attr]
     assert_parity(_numpy(operator.apply(data).full_grid("PS")), expected["PS"], dtype)
 
 
@@ -98,17 +109,3 @@ def test_statistics_with_the_spectrum_equal_the_oracle(dtype: DType) -> None:
     for family in ("var", "S1", "S2", "S3", "S4", "PS"):
         assert_parity(_numpy(stats.full_grid(family)), oracle[family], dtype)
     assert_parity(_numpy(stats.to_vector()), oracle["vector"], dtype)
-
-
-def test_maps_with_their_own_missing_pixels_on_their_union(dtype: DType) -> None:
-    """The configuration ``nan_per_map`` of ``spectrum_2d``, whose missing pixels differ per map,
-    given to ESTEL with the union of its missing pixels as its one mask (OP-98): ``nan_mask`` and
-    ``pbc_nan_mask`` equal the oracle on that union. STL, which fills each map from its own
-    valid pixels, differs by up to 29 % (comment on #24)."""
-    field = load_fixture("spectrum_2d")["nan_per_map_field"]
-    union = np.isnan(field).any(axis=(0, 1))
-    data = Data2D(field, mask=union, pbc=True)
-    for method in ("nan_mask", "pbc_nan_mask"):
-        found = SpectrumOperator(data, method=method, norm="none").apply(data)
-        expected = spec_spectra.spec_spectra(np.where(union, np.nan, field), True, method=method)
-        assert_parity(_numpy(found.full_grid("PS")), expected["PS"], dtype)

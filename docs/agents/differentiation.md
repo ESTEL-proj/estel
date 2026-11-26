@@ -10,7 +10,7 @@ Synthesis needs only gradients. Downstream implicit differentiation (dθ\*/dφ =
 
 | Guarantee | PyTorch (step 1) | JAX (experimental from P1) | Test |
 | --- | --- | --- | --- |
-| VJP of `scattering`, `spectrum`, `loss` | autograd | `jax.vjp` | `gradcheck`, `check_grads(order=1)` |
+| VJP of `scattering`, `loss` | autograd | `jax.vjp` | `gradcheck`, `check_grads(order=1)` |
 | JVP | `torch.func.jvp` | `jax.jvp` | `check_grads(modes=("fwd",))` |
 | Second order | double backward, `torch.func` | `jax.jvp(jax.grad(...))` | `gradgradcheck`, `check_grads(order=2, modes=("fwd", "rev"))` |
 | Implicit differentiation, end to end | | | small argmin problem vs finite differences |

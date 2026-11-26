@@ -89,16 +89,17 @@ class STOperator:
         Whether the statistics hold the 2D power spectrum, the family ``"PS"`` (maths.md §1.9):
         True by default for 2D data, unavailable for 1D data (LF23) and HEALPix data (LF24) in
         1.0.0, where ``None`` (the default) leaves it out and True raises. It is computed
-        on the field after the standardisation, with the channel pairs of ``cross_matrix``, by
-        the estimators of ``SpectrumOperator``, with J_PS the J of the operator; it needs even
-        sizes (OP-20) and J ≥ 2 + Jmin (OP-93).
+        on the field after the standardisation, with the channel pairs of ``cross_matrix``,
+        over the band of the operator's J, given or by default: the centres of its scales 0 to
+        J - 1 (maths.md §1.9, "Range"); it needs even sizes (OP-20) and J ≥ 2 + Jmin (OP-93).
     n_bins:
         The number of bins of the spectrum: by default max(4, round(3 (J - 1 - Jmin))).
     Jmin:
         J_min of the spectrum, 0 by default, with 0 ≤ Jmin ≤ J - 2.
     spectrum_method:
-        The estimator of the spectrum, as ``method`` of ``SpectrumOperator``: ``"auto"`` (the
-        default), ``"fft"``, ``"pbc_mask"``, ``"nan_mask"`` or ``"pbc_nan_mask"``. ``n_bins``,
+        The estimator of the spectrum: ``"auto"`` (the default) chooses it from ``pbc`` and the
+        missing pixels of ``data``; or ``"fft"``, ``"pbc_mask"``, ``"nan_mask"`` or
+        ``"pbc_nan_mask"`` (maths.md §1.9). ``n_bins``,
         ``Jmin`` and ``spectrum_method`` act only with the spectrum: another value than their
         default without it raises, naming LF23 or LF24 on data without a spectrum.
     engine:
@@ -175,13 +176,6 @@ class STOperator:
                 f"{name}.from_statistics takes STStatistics, got {type(stats).__name__}."
             )
         plan = stats._plan
-        if not isinstance(plan, PlanarPlan | TensorProdPlan):
-            raise ValueError(
-                f"{name}.from_statistics: these statistics hold the power spectrum alone, "
-                f"computed by a {plan._operator_name}, not by a scattering operator. Build a "
-                f"{plan._operator_name} again from data, with the options they were computed "
-                "with."
-            )
         if not isinstance(plan, cls._plan_type):
             raise ValueError(f"{name}.from_statistics: {cls._other_statistics}")
         operator = cls.__new__(cls)

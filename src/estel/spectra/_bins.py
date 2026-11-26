@@ -1,11 +1,11 @@
 """The bins of the 2D power spectrum, built once in NumPy with the plan (maths.md §1.9,
 "Frequencies and bins" and the border of ``pbc_mask``; Part II, §12.8; task T4.1).
 
-:func:`log_gaussian_bins` gives, for data of an even spatial shape (N₁, N₂) and the range
-J_PS, J_min of the spectrum, everything static the estimators need: in mode units, the
-radial frequency round(|(k₁, k₂)|) of every Fourier mode (k₁, k₂) of the half plane of the real
-FFT and its weight w(k₁, k₂) (2, or 1 on the zero and Nyquist columns), the number N_k of modes
-of each radial frequency k = 0 … N_max, the log-Gaussian windows W_b(k), their normalisations
+:func:`log_gaussian_bins` gives, for data of an even spatial shape (N₁, N₂) and the range J, J_min
+of the spectrum (J the J of the operator), everything static the estimators need: in mode units, the
+radial frequency round(|(k₁, k₂)|) of every Fourier mode (k₁, k₂) of the half plane of the real FFT
+and its weight w(k₁, k₂) (2, or 1 on the zero and Nyquist columns), the number N_k of modes of each
+radial frequency k = 0 … N_max, the log-Gaussian windows W_b(k), their normalisations
 Z_b = Σ_k N_k W_b(k), the centres c_b, and the border β_b of each bin in pixels (the Hankel
 transform of W_b, 60 % of its energy within rho ≤ N_max; OP-21, OP-96). Every array is float64
 and read-only, whatever the dtype of the data: the operator casts what it needs once, when it
@@ -127,7 +127,7 @@ class SpectrumBins:
     spatial_shape: tuple[int, int]
     """(N₁, N₂), even."""
     J: int
-    """J_PS."""
+    """J, the J of the operator."""
     Jmin: int
     """J_min."""
     n_bins: int
@@ -192,7 +192,7 @@ def log_gaussian_bins(
     n_bins: int,
 ) -> SpectrumBins:
     """The :class:`SpectrumBins` of data of the even ``spatial_shape`` with the range ``J``
-    (J_PS) and ``Jmin`` (J_min) and ``n_bins`` bins (maths.md §1.9; STL
+    (the J of the operator) and ``Jmin`` (J_min) and ``n_bins`` bins (maths.md §1.9; STL
     ``_build_log_gaussian_bin_masks``, ``estimate_pbc_border_crop``). The arguments were checked
     by the plan (``scattering._plan.build_spectrum_plan``)."""
     n1, n2 = (int(n) for n in spatial_shape)

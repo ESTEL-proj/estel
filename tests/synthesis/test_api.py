@@ -430,8 +430,9 @@ def test_results_are_not_built() -> None:
 # ---------------------------------------------------------------- the power spectrum (T4.5)
 
 SPECTRUM = {"n_bins": 4, "J": 2, "Jmin": 0, "method": "fft"}
-"""The spectrum of a synthesis of 16 x 16 fields with J = 2: J_PS = J, the default number of
-bins of 16 x 16, max(4, round(3 (2 - 1))) = 4, J_min 0 and ``fft`` (maths.md §1.9, M-SYN-OPS)."""
+"""The spectrum of a synthesis of 16 x 16 fields with J = 2: the band of J = 2, the default
+number of bins of 16 x 16, max(4, round(3 (2 - 1))) = 4, J_min 0 and ``fft`` (maths.md §1.9,
+M-SYN-OPS)."""
 
 
 def test_compute_ps_puts_the_spectrum_in_the_loss(backend: Backend) -> None:

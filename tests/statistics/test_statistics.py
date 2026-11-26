@@ -477,6 +477,14 @@ def test_functional_scattering_is_apply(backend: Backend) -> None:
         estel.functional.scattering(
             Data1D(_field((1, 2, 32)), pbc=False), operator.plan, operator.filters
         )
+    # 2D data with the power spectrum, the pure function of SpectrumOperator removed (T4.6): the
+    # family PS of the pure function is that of apply, normalised by itself.
+    planar = Data2D(_field((2, 2, 16, 16)), pbc=True)
+    with_ps = STOperator(planar, 2, 1, compute_PS=True)
+    np.testing.assert_array_equal(
+        _numpy(estel.functional.scattering(planar, with_ps.plan, with_ps.filters).full_grid("PS")),
+        _numpy(with_ps.apply(planar).full_grid("PS")),
+    )
 
 
 def test_plan_and_filters_are_opaque_and_static() -> None:

@@ -841,9 +841,9 @@ def spec_apply(
     3. ``mean`` and ``var`` (M-MOM);
     4. the scattering statistics S1 to S4 (M-S1 to M-S4);
     5. the power spectrum, if asked (``compute_PS``, 2D only; M-PS-2D): ``spectra.spec_spectra``
-       on the field at full resolution, after the standardisation, with J_PS = J, the pairs of
-       ``cross_matrix``, ``Jmin``, ``n_bins`` and ``spectrum_method`` (the automatic choice by
-       default, from ``pbc`` and the NaN of the field), under ``"PS"``;
+       on the field at full resolution, after the standardisation, with the J of the operator,
+       the pairs of ``cross_matrix``, ``Jmin``, ``n_bins`` and ``spectrum_method`` (the
+       automatic choice by default, from ``pbc`` and the NaN of the field), under ``"PS"``;
     6. normalisation (M-NORM): ``norm="self"`` by the statistics themselves, ``norm="ref"`` by
        ``ref``, the ``"reference"`` of other statistics, ``norm="none"`` not at all;
     7. the reductions asked for, in the order ``iso``, ``angular_fourier``, ``scale_cosine``

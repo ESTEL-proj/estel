@@ -70,9 +70,10 @@ def _spectrum_point(case: SpectrumCase, backend: Backend) -> tuple[torch.Tensor,
 
 
 def test_gradcheck_and_gradgradcheck_of_the_spectrum(backend: Backend) -> None:
-    """The 2D power spectrum (maths.md §1.9; task T4.1) through ``SpectrumOperator``, its
-    reference included (``norm="self"``): first order in both modes and the double backward,
-    along random directions, on one 16 x 16 map: the spectrum check of the fast tier."""
+    """The 2D power spectrum (maths.md §1.9; tasks T4.1, T4.6) through ``STOperator`` with
+    J = 2 and L = 1, its reference included (``norm="self"``): first order in both modes and the
+    double backward, along random directions, on one 16 x 16 map: the spectrum check of the
+    fast tier."""
     x, function = _spectrum_point(SPECTRUM_SMALLEST, backend)
     assert torch.autograd.gradcheck(
         function, (x,), check_forward_ad=True, fast_mode=True, eps=EPS, atol=ATOL, rtol=RTOL
@@ -88,8 +89,9 @@ def test_gradcheck_and_gradgradcheck_of_every_spectrum_case(
     case: SpectrumCase, backend: Backend
 ) -> None:
     """First order in both modes, entry by entry, then the double backward along random
-    directions, through ``SpectrumOperator`` (each estimator, the three normalisations, the
-    filling of missing pixels) and through ``STOperator`` with the spectrum.
+    directions, through ``STOperator`` with the spectrum: with J = 2 and L = 1, each estimator,
+    the three normalisations and the filling of missing pixels; with L = 2, the
+    standardisation.
 
     Slow: the full Jacobian of every coefficient of 16 x 16 maps, and second order through the
     whole loop (Part I, §5.4)."""

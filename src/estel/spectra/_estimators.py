@@ -37,7 +37,7 @@ from ..statistics._arrays import constant
 ESTIMATORS = ("fft", "pbc_mask", "nan_mask", "pbc_nan_mask")
 """The estimators of maths.md §1.9."""
 METHODS = ("auto", *ESTIMATORS)
-"""The values of ``method`` (``SpectrumOperator``) and ``spectrum_method`` (``STOperator``)."""
+"""The values of ``spectrum_method`` of ``STOperator`` (maths.md §1.9)."""
 
 
 def choose_estimator(method: object, pbc: bool, has_missing: bool) -> str:

@@ -16,7 +16,6 @@ from __future__ import annotations
 import dataclasses
 import warnings
 from functools import cache
-from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -26,11 +25,9 @@ from numpy.typing import NDArray
 from estel import Data2D, STOperator, STStatistics, _config
 from estel._spec import planar as spec
 from estel.backend import _registry
-from estel.io import _schema
 from estel.scattering._plan import PlanarPlan, build_plan
 from estel.statistics import _grid, _layout, _normalization, _statistics
 from estel.statistics._arrays import constant
-from estel.statistics._normalization import SpectrumParameters
 from estel.statistics._statistics import statistics_of
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 from tests.statistics.test_layout import _static_elements
@@ -226,40 +223,6 @@ def test_reduce_keeps_the_spectrum() -> None:
     np.testing.assert_array_equal(vector[-tail.shape[0] :], tail)
 
 
-def test_save_and_load_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """``estel.io``, schema version 7: the spectrum, its reference and its description in the
-    plan come back unchanged; a file of version 6 is refused, with what to do."""
-    stats = _runs("spectrum_options")["store"]
-    path = tmp_path / "ps.npz"
-    stats.save(path)
-    loaded = STStatistics.load(path)
-    assert loaded._plan == stats._plan
-    assert isinstance(loaded._plan, PlanarPlan)
-    assert isinstance(stats._plan, PlanarPlan)
-    assert loaded._plan.spectrum == stats._plan.spectrum
-    assert loaded._layout == stats._layout
-    for family in FAMILIES:
-        np.testing.assert_array_equal(
-            _numpy(loaded.full_grid(family)), _numpy(stats.full_grid(family))
-        )
-    assert loaded._reference is not None
-    assert stats._reference is not None
-    assert loaded._reference.spectrum is not None
-    assert stats._reference.spectrum is not None
-    expected = SpectrumParameters(n_bins=5, J=3, Jmin=1)
-    assert loaded._reference.spectrum.parameters == stats._reference.spectrum.parameters == expected
-    np.testing.assert_array_equal(
-        _numpy(loaded._reference.ps_sqrt), _numpy(stats._reference.ps_sqrt)
-    )
-    old = tmp_path / "version7.npz"
-    monkeypatch.setattr(_schema, "SCHEMA_VERSION", 7)
-    stats.save(old)
-    monkeypatch.undo()
-    assert _schema.SCHEMA_VERSION == 8
-    with pytest.raises(ValueError, match=r"schema version 7.*reads version 8"):
-        STStatistics.load(old)
-
-
 def _with_reference(reference: Any, **spectrum: Any) -> STStatistics:
     """Statistics of another operator, 64 x 64 and not periodic, J = 3, normalised by
     ``reference``."""
@@ -274,7 +237,7 @@ def _with_reference(reference: Any, **spectrum: Any) -> STStatistics:
 
 def test_reference_of_another_operator() -> None:
     """A reference from another operator is accepted when its J, L, channels and the n_bins,
-    J_PS and J_min of its spectrum match, whatever its size and periodicity, and refused
+    J and J_min of its spectrum match, whatever its size and periodicity, and refused
     otherwise with an error naming what differs (maths.md M-NORM, §1.9); a reference without the
     spectrum is refused on statistics with it."""
     reference = _periodic()._reference
@@ -387,7 +350,7 @@ def test_an_operator_rebuilt_from_statistics_computes_the_spectrum(
 def test_plan_refuses_a_spectrum_it_cannot_compute(
     shape: tuple[int, int], options: dict[str, Any], error: type[Exception], match: str
 ) -> None:
-    """The plan refuses the spectrum with J_min outside 0 … J_PS - 2 (OP-93), on an odd size
+    """The plan refuses the spectrum with J_min outside 0 … J - 2 (OP-93), on an odd size
     (OP-20) and with a number of bins that is not positive, with what to do (maths.md §1.9): a
     ``TypeError`` when ``n_bins`` or ``Jmin`` is not an integer, a ``ValueError`` otherwise."""
     data = Data2D(np.zeros((1, 1, *shape)), pbc=True)

@@ -46,8 +46,8 @@ def test_check_grads_to_second_order(case: Case, backend: Backend) -> None:
 @pytest.mark.slow
 @pytest.mark.parametrize("case", SPECTRUM_CASES, ids=lambda case: case.name)
 def test_check_grads_of_the_spectrum(case: SpectrumCase, backend: Backend) -> None:
-    """The 2D power spectrum (maths.md §1.9; task T4.1), through ``SpectrumOperator`` and through
-    ``STOperator`` with the spectrum, to second order in both modes.
+    """The 2D power spectrum (maths.md §1.9; tasks T4.1, T4.6), through ``STOperator`` with the
+    spectrum, J = 2, to second order in both modes.
 
     Slow: second-order derivatives on a backend that compiles each operation on first use
     (Part I, §5.4); the full tier only, as the decisions of T4.1 ask."""

@@ -6,7 +6,7 @@ Two fixtures (STL `master`; ``tools/stl_parity/cases/``) hold a 64 x 64 periodic
 L = 4, one channel, the Gaussian start STL drew, and STL's loss after each of its 20 iterations,
 run with STL's settings (M-SYN-LBFGS): ``synthesis_2d`` without the power spectrum, from STL's
 mid-level ``optimize_from_maps`` (T6.1), and ``synthesis_ps_2d`` with it, from the user-level
-``synthesize_from_maps``, whose operators are those of M-SYN-OPS: J = J_PS = 4, 9 bins and the
+``synthesize_from_maps``, whose operators are those of M-SYN-OPS: J = 4, 9 bins and the
 ``fft`` estimator (T4.5). A third (STL ``HealpixUpdate``, T5.3) holds a full HEALPix sky at
 ``nside`` 16, J = 3, L = 4, one channel: ``synthesis_hpx``, from the mid-level
 ``optimize_from_maps`` without the pre-filter and without the spectrum (OP-77), on the sphere
@@ -144,7 +144,7 @@ def test_operators_and_start_with_the_spectrum(
     backend: Backend, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The case of ``synthesis_ps_2d`` before L-BFGS (T4.5; M-SYN-OPS, M-SYN-LOSS): both
-    operators have J = J_PS = 4, 9 bins and ``fft``; the target's reference is the fixture's
+    operators have J = 4, 9 bins and ``fft``; the target's reference is the fixture's
     ``var_ref``, ``s2_ref`` and ``ps_ref``; and the loss at the pre-filtered start, the first
     evaluation of L-BFGS, is STL's. Without L-BFGS, on every backend."""
     monkeypatch.setattr(_config, "_dtype", "float64")

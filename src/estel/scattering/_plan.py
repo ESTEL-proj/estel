@@ -179,21 +179,20 @@ def channel_pairs(matrix: NDArray[np.bool_]) -> ChannelPairs:
 @dataclass(frozen=True)
 class SpectrumPlan:
     """The static description of the 2D power spectrum (maths.md §1.9, "Range", "Number of
-    bins", "Choice of estimator"; tasks T4.4, T4.1): how many bins, J_PS, J_min, the estimator
+    bins", "Choice of estimator"; tasks T4.4, T4.1): how many bins, J, J_min, the estimator
     chosen at construction, and the spatial shape whose bins, windows and borders it reads
     (:meth:`bins`, ``spectra._bins.log_gaussian_bins``, built once in NumPy). Hashable. In the
     plan of ``STOperator`` its channel pairs are those of the plan (``PlanarPlan.pairs``): the
     pairs c1 ≤ c2 of S1 and S2, one matrix for the scattering statistics and the spectrum
-    (M-CHAN; decision on #148); σᴾˢ exists for the channels of ``pairs.auto`` (M-NORM, OP-30).
-    ``SpectrumOperator`` holds the same description in its own plan."""
+    (M-CHAN; decision on #148); σᴾˢ exists for the channels of ``pairs.auto`` (M-NORM, OP-30)."""
 
     n_bins: int
-    """n_b, the number of bins: given, or max(4, round(3 (J_PS - 1 - J_min)))."""
+    """n_b, the number of bins: given, or max(4, round(3 (J - 1 - J_min)))."""
     J: int
-    """J_PS: the J given to the operator, or ⌊log₂ N_max⌋ - 1, equal to the default J of the
-    scattering statistics (M-DEF)."""
+    """J, the J of the operator: the J given to it, or ⌊log₂ N_max⌋ - 1, equal to the default J
+    of the scattering statistics (M-DEF)."""
     Jmin: int
-    """J_min, with 0 ≤ J_min ≤ J_PS - 2 (OP-93)."""
+    """J_min, with 0 ≤ J_min ≤ J - 2 (OP-93)."""
     method: str
     """The estimator, one of ``spectra._estimators.ESTIMATORS``, chosen at construction from
     ``pbc`` and the missing pixels of the example, or given (maths.md §1.9)."""
@@ -223,7 +222,7 @@ class SpectrumAdvice(NamedTuple):
     odd_size: str
     """After an odd size (OP-20)."""
     jmin: str
-    """After J_min outside 0 … J_PS - 2 (OP-93)."""
+    """After J_min outside 0 … J - 2 (OP-93)."""
 
 
 SCATTERING_SPECTRUM_ADVICE = SpectrumAdvice(
@@ -258,17 +257,17 @@ def build_spectrum_plan(
     advice: SpectrumAdvice | None = None,
 ) -> SpectrumPlan:
     """The :class:`SpectrumPlan` of 2D data of ``spatial_shape`` (maths.md §1.9), ``geometry``
-    the Data subclass of the data, whose declared tag (``Data._geometry``) must be 2D: J_PS is
-    ``J``, the J given to the operator, or ⌊log₂ N_max⌋ - 1 with N_max = ⌊min(N₁, N₂)/2⌋ when it is
-    ``None``; the estimator is ``method``, or with ``"auto"`` the choice of §1.9 from ``pbc`` and
-    the missing pixels of ``mask``. Raises a clear error on data that are not 2D (LF23, LF24), on an
-    odd size (OP-20), when J_min is not between 0 and J_PS - 2 (OP-93), on a number of bins
-    that is not a positive integer (a ``TypeError`` when ``Jmin`` or ``n_bins`` is not an
+    the Data subclass of the data, whose declared tag (``Data._geometry``) must be 2D: the J of the
+    spectrum is ``J``, the J given to the operator, or ⌊log₂ N_max⌋ - 1 with N_max = ⌊min(N₁, N₂)/2⌋
+    when it is ``None``; the estimator is ``method``, or with ``"auto"`` the choice of §1.9 from
+    ``pbc`` and the missing pixels of ``mask``. Raises a clear error on data that are not 2D (LF23,
+    LF24), on an odd size (OP-20), when J_min is not between 0 and J - 2 (OP-93), on a number of
+    bins that is not a positive integer (a ``TypeError`` when ``Jmin`` or ``n_bins`` is not an
     integer, a ``ValueError`` when it is out of range), on an unknown ``method``, on ``fft`` or
     ``pbc_mask`` with missing pixels, and on a bin of ``pbc_nan_mask`` without an observed pixel
     inside its border. ``advice`` is the advice of the operator that asks, which its messages
-    end with (``STOperator._spectrum_advice``, ``SpectrumOperator._spectrum_advice``); by
-    default that of ``STOperator``, whose plan :func:`build_plan` builds."""
+    end with (``STOperator._spectrum_advice``); by default that of ``STOperator``, whose plan
+    :func:`build_plan` builds."""
     hint = SCATTERING_SPECTRUM_ADVICE if advice is None else advice
     if geometry._geometry != "2d":
         raise ValueError(spectrum_2d_only(geometry.__name__, hint.not_2d))
@@ -533,7 +532,7 @@ class _PlanFields:
     spectrum: SpectrumPlan | None = None
     """The power spectrum of the statistics (maths.md §1.9), or ``None`` when they do not hold
     it (``compute_PS=False``, or data that are not 2D). The loop computes it with the estimators
-    of ``SpectrumOperator`` (``spectra._estimators``) on the field after the standardisation, and
+    of ``spectra._estimators`` on the field after the standardisation, and
     writes it after the values of the loop, the last floats of the buffer (task T4.1)."""
 
 

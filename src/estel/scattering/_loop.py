@@ -257,7 +257,7 @@ def scattering_values(data: Data, plan: PlanarPlan, filters: PlanarFilters) -> S
     buffer = gather_loop(backend, divided, gather, filters.gather)
     if plan.spectrum is not None and filters.spectrum is not None:
         # The power spectrum, the last floats of the buffer (maths.md §1.9, M-FLAT; task T4.1),
-        # with the estimators of SpectrumOperator, on the field after the standardisation.
+        # with the estimators of spectra._estimators, on the field after the standardisation.
         floats = spectrum_floats(
             backend, field, plan.spectrum, filters.spectrum, spectrum_pairs(plan._layout())
         )

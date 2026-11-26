@@ -178,14 +178,17 @@ def direction_like(backend: Backend, array: Any, seed: int) -> Any:
 
 @dataclass(frozen=True)
 class SpectrumCase:
-    """One configuration of the 2D power spectrum (maths.md §1.9; task T4.1): through
-    ``SpectrumOperator`` alone, or through ``STOperator`` with the spectrum."""
+    """One configuration of the 2D power spectrum (maths.md §1.9; tasks T4.1, T4.6), through
+    ``STOperator`` with the spectrum and ``estel.functional.scattering``: where the case is about
+    the spectrum, the smallest J the spectrum allows, 2 + J_min, and L = 1 (decision 5 on #191,
+    second version), so that it dominates the cost."""
 
     name: str
     shape: tuple[int, ...]
     pbc: bool
     masked: bool = False
-    scattering: bool = False
+    J: int = 2
+    L: int = 1
     options: dict[str, Any] = field(default_factory=dict)
 
 
@@ -210,8 +213,9 @@ SPECTRUM_CASES = (
         (1, 1, 16, 16),
         pbc=False,
         masked=True,
-        scattering=True,
-        options={"norm": "self", "standardize": True, "L": 2},
+        J=J,
+        L=2,
+        options={"norm": "self", "standardize": True},
     ),
 )
 
@@ -227,20 +231,18 @@ def spectrum_data_of(case: SpectrumCase, seed: int = 0) -> Data2D:
 
 def spectrum_function(backend: Backend, case: SpectrumCase) -> tuple[Data, Function]:
     """The data of the case and the function ``array -> coefficients``: every coefficient that
-    exists (``coefficients``), the spectrum included, through ``estel.functional.spectrum`` or
-    ``estel.functional.scattering``. With ``norm="ref"``, the reference is that of other data."""
+    exists (``coefficients``), the spectrum included, through ``estel.functional.scattering``.
+    With ``norm="ref"``, the reference is that of other data."""
     data = spectrum_data_of(case)
 
     def build(**options: Any) -> Any:
         merged = {**case.options, **options}
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13: tested with the plan
-            if case.scattering:
-                return STOperator(data, J, **merged)
-            return estel.SpectrumOperator(data, **merged)
+            return STOperator(data, case.J, case.L, **merged)
 
     operator = build()
-    pure = estel.functional.scattering if case.scattering else estel.functional.spectrum
+    pure = estel.functional.scattering
     reference = None
     if operator.plan.norm == "ref":
         storing = build(norm="self")
