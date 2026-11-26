@@ -9,8 +9,13 @@ from importlib.metadata import version as _version
 from pathlib import Path
 from typing import Any
 
+from docutils.nodes import Element
+from sphinx.addnodes import pending_xref
 from sphinx.application import Sphinx
+from sphinx.environment import BuildEnvironment
+from sphinx.util import logging
 
+logger = logging.getLogger(__name__)
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 GITHUB = "https://github.com/ESTEL-proj/estel"
@@ -74,13 +79,17 @@ html_theme_options = {
 
 # A Markdown link: its target, unless it is an anchor of the page or a URL with a scheme.
 _RELATIVE_LINK = re.compile(r"\]\((?!#|[A-Za-z][A-Za-z0-9+.-]*:)([^)\s]+)\)")
+# The opening fence of a block of LaTeX, as GitHub renders formulas.
+_LATEX_FENCE = re.compile(r"^```latex[ \t]*$", re.MULTILINE)
 
 
-def link_files_outside_the_site(
+def adapt_files_outside_the_site(
     app: Sphinx, relative_path: Path, parent_docname: str, content: list[str]
 ) -> None:
-    """The relative links of a file included from outside the site, such as ``docs/maths.md``,
-    point to the files of the repository on GitHub: those files are not pages of the site."""
+    """A file included from outside the site, such as ``docs/maths.md``, is written for GitHub:
+    its relative links point to the files of the repository on GitHub, which are not pages of
+    the site, and its ```` ```latex ```` blocks become ```` ```{math} ```` blocks, which MathJax
+    renders."""
     source = (Path(app.srcdir) / relative_path).resolve()
     if source.is_relative_to(Path(app.srcdir).resolve()):
         return
@@ -89,9 +98,33 @@ def link_files_outside_the_site(
     def on_github(match: re.Match[str]) -> str:
         return f"]({GITHUB}/blob/main/{posixpath.normpath(posixpath.join(base, match[1]))})"
 
-    content[0] = _RELATIVE_LINK.sub(on_github, content[0])
+    content[0] = _LATEX_FENCE.sub("```{math}", _RELATIVE_LINK.sub(on_github, content[0]))
+
+
+# ---------------------------------------------------------------- cross-references
+
+
+def require_page_references(
+    app: Sphinx, env: BuildEnvironment, node: pending_xref, contnode: Element
+) -> None:
+    """A Python role written in a page of the site, such as {py:class}`~estel.STOperator`,
+    must name a documented object: an unresolved one is a warning, so an error in `make docs`.
+
+    nitpicky would check the docstrings too, which cite private names (``_build_filters``,
+    ``PlanarPlan``) that the site does not document. Runs after intersphinx (priority 900)."""
+    source = Path((node.source or "").partition(":")[0])
+    if node.get("refdomain") == "py" and source.suffix == ".md" and source.is_relative_to(HERE):
+        logger.warning(
+            "%s reference target not found: %s. A page names a public name of "
+            "api/manifest.json, in full (estel.STOperator, estel.STStatistics.full_grid).",
+            node["reftype"],
+            node["reftarget"],
+            location=node,
+            type="ref",
+        )
 
 
 def setup(app: Sphinx) -> dict[str, Any]:
-    app.connect("include-read", link_files_outside_the_site)
+    app.connect("include-read", adapt_files_outside_the_site)
+    app.connect("missing-reference", require_page_references, priority=900)
     return {"parallel_read_safe": True}

@@ -23,13 +23,6 @@ Install ESTEL and PyTorch.
 Statistics of a 2D field, and a synthesis.
 :::
 
-:::{grid-item-card} User guide
-:link: guide/index
-:link-type: doc
-
-The guides, by topic.
-:::
-
 :::{grid-item-card} API reference
 :link: api
 :link-type: doc
@@ -57,7 +50,6 @@ How changes to ESTEL are made.
 
 install
 quickstart
-guide/index
 api
 maths
 contributing
