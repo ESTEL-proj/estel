@@ -1,0 +1,45 @@
+/* The title of the home page (index.md, its section of class estel-home): hidden behind the
+   hero, which stands in for it, but kept for the tab, the navigation and screen readers. */
+section.estel-home > h1 {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The hero of the home page (index.md): _static/estel-hero.svg, inlined. Its cells keep the
+   colours of the square logo; its text takes the strong and muted colours of the logo files for
+   the theme's mode (pydata-sphinx-theme sets html[data-theme]). The fill attributes of the file
+   are the light colours, for the file seen on its own; these rules override them. */
+.estel-hero {
+  --estel-strong: #10162f;
+  --estel-muted: #4a5168;
+  margin: 1rem 0 2.5rem;
+}
+
+html[data-theme="dark"] .estel-hero {
+  --estel-strong: #f4f5fa;
+  --estel-muted: #a9afc6;
+}
+
+/* As wide as the column, up to 48rem; the height follows the viewBox (802 x 195). */
+.estel-hero svg {
+  display: block;
+  width: 100%;
+  max-width: 48rem;
+  height: auto;
+  aspect-ratio: 802 / 195;
+}
+
+.estel-hero .estel-strong {
+  fill: var(--estel-strong);
+}
+
+.estel-hero .estel-muted {
+  fill: var(--estel-muted);
+}

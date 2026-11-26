@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
+import os
 import posixpath
 import re
+import subprocess
 import sys
 from importlib.metadata import version as _version
 from pathlib import Path
@@ -21,6 +24,8 @@ REPO = HERE.parents[1]
 GITHUB = "https://github.com/ESTEL-proj/estel"
 sys.path.insert(0, str(HERE / "_ext"))
 
+from estel_api import source_lines  # noqa: E402  (in _ext/, on the path from the line above)
+
 # ---------------------------------------------------------------- project
 
 project = "ESTEL"
@@ -36,6 +41,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "numpydoc",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.linkcode",  # the [source] links of the API reference: linkcode_resolve below
     "sphinx_design",
     "sphinx_copybutton",
     "estel_api",  # _ext/estel_api.py: the API reference, from api/manifest.json
@@ -43,7 +49,9 @@ extensions = [
 exclude_patterns = ["_build", "_ext"]
 
 # MyST: Markdown pages, and the anchors of the headings of docs/maths.md, down to its ####.
-myst_enable_extensions = ["colon_fence"]
+# attrs_block: a class on a block, such as estel-home on the section of index.md, whose title
+# the hero stands in for (_static/estel.css).
+myst_enable_extensions = ["colon_fence", "attrs_block"]
 myst_heading_anchors = 4
 
 # myst_nb: the notebooks run at build time, their outputs cached; an error fails the build.
@@ -68,12 +76,61 @@ intersphinx_mapping = {
 
 html_theme = "pydata_sphinx_theme"
 html_title = "ESTEL"
+# The logos are those of the repository, assets/logo/, copied into _static/ with no copy here.
+html_static_path = ["_static", "../../assets/logo"]
+html_css_files = ["estel.css"]
 html_theme_options = {
+    # The square logo, on light and dark backgrounds alike, then the name.
+    "logo": {
+        "text": "ESTEL",
+        "image_light": "../../assets/logo/estel-logo-square.svg",
+        "image_dark": "../../assets/logo/estel-logo-square.svg",
+    },
     "icon_links": [
         {"name": "GitHub", "url": GITHUB, "icon": "fa-brands fa-github", "type": "fontawesome"},
     ],
     "navbar_end": ["theme-switcher", "navbar-icon-links"],
 }
+
+# ---------------------------------------------------------------- source links
+
+
+def _commit() -> str:
+    """The commit being built, so that the lines of the links are those of the documented code:
+    the one Read the Docs names, else the HEAD of git, else main."""
+    commit = os.environ.get("READTHEDOCS_GIT_COMMIT_HASH", "")
+    if not commit:
+        with contextlib.suppress(OSError):  # no git
+            git = subprocess.run(["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True)
+            commit = git.stdout.decode() if git.returncode == 0 else ""
+    return commit.strip() or "main"
+
+
+SOURCE = f"{GITHUB}/blob/{_commit()}"
+
+
+def linkcode_resolve(domain: str, info: dict[str, str]) -> str | None:
+    """sphinx.ext.linkcode: the [source] link of a documented Python name, to the lines of its
+    definition on GitHub (source_lines, in _ext/estel_api.py). A name it cannot locate is a
+    warning, so an error in `make docs`."""
+    if domain != "py":
+        return None
+    name = f"{info['module']}.{info['fullname']}"
+    try:
+        path, start, end = source_lines(info["module"], info["fullname"])
+    except Exception as error:  # every failure is reported, whatever its type
+        logger.warning(
+            "No source link for %s (%s: %s). Define it in src/estel/ with a def, a class or an "
+            "assignment, or teach source_lines in docs/user/_ext/estel_api.py to find it.",
+            name,
+            type(error).__name__,
+            error,
+            type="estel",
+            subtype="source",
+        )
+        return None
+    return f"{SOURCE}/{path}#L{start}-L{end}"
+
 
 # ---------------------------------------------------------------- included files
 
