@@ -7,7 +7,8 @@ configuration of their case (``tools/stl_parity/cases/``): STL's statistics with
 a second field with ``norm="load_ref"`` and that reference, the reductions of the ``store_ref``
 statistics (``iso``, ``angular_ft`` with and without ``iso``, ``iso`` then ``scale_ft``, and the
 three in a row), and the flat vectors of ``to_flatten(flatten_complex=True)``. ESTEL computes the
-same on the stored inputs with ``STOperator`` (``norm="self"`` and ``norm="ref"``) and one call
+same on the stored inputs with one ``STOperator``, built with STL's ``standardize=False``
+and applied with ``norm="self"`` then ``norm="ref"`` as STL's (task T2.19), and one call
 of ``STStatistics.reduce`` per chain of STL's reductions, and every array is compared with
 ``assert_parity``: same shape, NaN at the same positions, values within the tolerances of
 Part II, §14.3, in the run's dtype (float64 is the parity check, float32 its secondary check).
@@ -91,18 +92,18 @@ class _Run:
         options: dict[str, Any] = {
             "cross_matrix": None if matrix is None else np.array(matrix, dtype=bool),
             "compute_PS": False if cls.ndim == 2 else None,
+            "standardize": False,  # as STL computed these cases (OP-120)
         }
         J, L = config["J"], config.get("L", parameters["L"])  # noqa: N806
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13, OP-30: tested elsewhere
             # STL's store_ref, load_ref and norm_batch_mean are ESTEL's norm="self", norm="ref"
-            # and ref_batch_mean.
-            self.operator = STOperator(
-                target, J, L, norm="self", ref_batch_mean=config["norm_batch_mean"], **options
+            # and ref_batch_mean: one operator applied with each, as in STL (task T2.19).
+            self.operator = STOperator(target, J, L, **options)
+            self.stored = self.operator.apply(
+                target, norm="self", ref_batch_mean=config["norm_batch_mean"]
             )
-            self.stored = self.operator.apply(target)
-            loading = STOperator(target, J, L, norm="ref", **options)
-            self.loaded = loading.apply(other, ref=self.stored)
+            self.loaded = self.operator.apply(other, norm="ref")
         # STL's names map to ESTEL's: to_iso, to_angular_ft(harmonics_angle) and
         # to_scale_ft(harmonics_scale, dj) are one call of reduce, whatever the chain.
         angular: dict[str, Any] = {

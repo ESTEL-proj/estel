@@ -53,7 +53,7 @@ def _hole(npix: int) -> NDArray[np.bool_]:
 def _operator(data: DataHealpix, J: int | None, **kwargs: Any) -> STOperator:  # noqa: N803
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-3: tested below
-        return STOperator(data, J, **{"norm": "none", **kwargs})
+        return STOperator(data, J, **{"standardize": False, **kwargs})
 
 
 @pytest.mark.parametrize(("depth", "n_scales"), [(1, 1), (2, 1), (3, 2)])
@@ -79,7 +79,7 @@ def test_the_spectrum_is_left_out(options: dict[str, Any]) -> None:
     """On HEALPix data ``compute_PS=None`` (the default) and ``False`` leave the spectrum out
     (decision 2 on #167)."""
     data = DataHealpix(_field((48,)))
-    stats = STOperator(data, 1, norm="none", **options).apply(data)
+    stats = STOperator(data, 1, **options).apply(data, norm="none")
     assert "PS" not in stats._layout.names
 
 
@@ -99,7 +99,7 @@ def test_the_spectrum_is_refused(options: dict[str, Any]) -> None:
     spectrum of HEALPix data (decision 2 on #167, amended)."""
     data = DataHealpix(_field((48,)))
     with pytest.raises(ValueError, match=r"a DataHealpix, which has no power spectrum .* \(LF24\)"):
-        STOperator(data, 1, norm="none", **options)
+        STOperator(data, 1, **options)
 
 
 def _disc_operator() -> STOperator:
@@ -108,7 +108,7 @@ def _disc_operator() -> STOperator:
 
 def test_apply_takes_the_same_sky_with_another_batch() -> None:
     data = DataHealpix(_field((2, 1, DISC.size)), depth=2, cell_ids=DISC)
-    assert _disc_operator().apply(data).full_grid("S1").shape[0] == 2
+    assert _disc_operator().apply(data, norm="none").full_grid("S1").shape[0] == 2
 
 
 @pytest.mark.parametrize(
@@ -138,7 +138,7 @@ def test_apply_refuses_other_skies(other: Any, match: str) -> None:
     through the earlier checks."""
     operator = _disc_operator()
     with pytest.raises(ValueError, match=match):
-        operator.apply(other())
+        operator.apply(other(), norm="none")
 
 
 def test_empty_means_give_one_advice_for_every_geometry() -> None:
@@ -147,7 +147,7 @@ def test_empty_means_give_one_advice_for_every_geometry() -> None:
     of S3 (j2=0, j3=1)."""
     data = DataHealpix(_field((DISC.size,)), _hole(DISC.size), depth=2, cell_ids=DISC)
     with pytest.warns(UserWarning, match="OP-3") as record:
-        STOperator(data, 2, norm="none")
+        STOperator(data, 2)
     assert "Use a smaller J or data with fewer missing values" in str(record[0].message)
 
 
@@ -159,7 +159,7 @@ def test_statistics_go_through_a_file_and_back_to_their_operator(tmp_path: Path)
     data = DataHealpix(_field((2, 2, DISC.size)), _hole(DISC.size), depth=2, cell_ids=DISC)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-3: tested above
-        operator = STOperator(data, 2, norm="self")
+        operator = STOperator(data, 2)
     stats = operator.apply(data)
     path = tmp_path / "healpix.npz"
     stats.save(path)
@@ -213,10 +213,12 @@ def test_stencils_gathered_by_batches_equal_one_batch(
         operator = _operator(data, 2)
 
         def loss(array: Any) -> Any:
-            return backend.xp.sum(operator.apply(data.with_array(array)).to_vector() ** 2)
+            return backend.xp.sum(
+                operator.apply(data.with_array(array), norm="none").to_vector() ** 2
+            )
 
         _, gradient = backend.value_and_grad(loss)(data.array)
-        vector = backend.to_numpy(operator.apply(data).to_vector())
+        vector = backend.to_numpy(operator.apply(data, norm="none").to_vector())
         return vector, backend.to_numpy(gradient)
 
     whole, whole_gradient = run(1 << 20)

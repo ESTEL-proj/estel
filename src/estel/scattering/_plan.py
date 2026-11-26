@@ -67,10 +67,11 @@ with more convolutions instead, assuming that it contains the other one; where i
 every pixel is valid.
 
 **Channels and options.** The plan also fixes what STL decides at each call: the number of
-channels and the channel pairs of ``cross_matrix`` (:class:`ChannelPairs`; M-CHAN), the
-normalisation (``norm``, ``ref_batch_mean``; M-NORM) and the standardisation of the data
-(M-MOM). They are part of its identity, so that ``estel.functional.scattering`` needs nothing but
-the data, the plan, the filters and an optional reference.
+channels and the channel pairs of ``cross_matrix`` (:class:`ChannelPairs`; M-CHAN) and the
+standardisation of the data (M-STD). They are part of its identity. The normalisation
+(``norm``, ``ref_batch_mean``; M-NORM) is not: it is chosen at each call of
+``estel.functional.scattering`` and ``STOperator.apply``, and the statistics record it (task
+T2.19).
 
 **Public and opaque.** ``STPlan`` is public as a name only (Part II, §12.6): users get it
 from an operator's ``plan`` and pass it to ``estel.functional.scattering``, and it has no public
@@ -94,7 +95,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, ClassVar, NamedTuple, cast
+from typing import Any, ClassVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -133,9 +134,6 @@ from ._filters import (
 from ._loop import ScatteringValues, scattering_values
 from ._loop_tp import tensor_prod_values
 from ._tensor_prod import TensorProdLoop, build_tensor_prod_loop
-
-NORMS = ("none", "self", "ref")
-"""The values of ``norm`` (maths.md M-NORM)."""
 
 ChannelPair = tuple[int, int]
 
@@ -212,27 +210,6 @@ class SpectrumPlan:
         return log_gaussian_bins((int(n1), int(n2)), self.J, self.Jmin, self.n_bins)
 
 
-class SpectrumAdvice(NamedTuple):
-    """What an operator tells its user to do when the power spectrum cannot be built (golden
-    rule 8): each operator class carries its own (``_spectrum_advice``) and passes it to
-    :func:`build_spectrum_plan`, so that the shared code compares no operator name."""
-
-    not_2d: str
-    """After data that are not 2D (:func:`spectrum_2d_only`: LF23, LF24)."""
-    odd_size: str
-    """After an odd size (OP-20)."""
-    jmin: str
-    """After J_min outside 0 … J - 2 (OP-93)."""
-
-
-SCATTERING_SPECTRUM_ADVICE = SpectrumAdvice(
-    not_2d="pass compute_PS=False.",
-    odd_size="crop the data to even sizes, or pass compute_PS=False.",
-    jmin="Pass compute_PS=False, a smaller Jmin, or use a larger image (a larger J).",
-)
-"""The advice of ``STOperator``, which can leave the spectrum out (``compute_PS=False``)."""
-
-
 def spectrum_2d_only(received: str, advice: str) -> str:
     """The one message that refuses the power spectrum of data that are not 2D, the same for
     every geometry (Part II, §12.6; the amendment to decision 2 on #167): ``received`` is the
@@ -254,7 +231,6 @@ def build_spectrum_plan(
     method: Any = "auto",
     pbc: bool = True,
     mask: NDArray[np.bool_] | None = None,
-    advice: SpectrumAdvice | None = None,
 ) -> SpectrumPlan:
     """The :class:`SpectrumPlan` of 2D data of ``spatial_shape`` (maths.md §1.9), ``geometry``
     the Data subclass of the data, whose declared tag (``Data._geometry``) must be 2D: the J of the
@@ -265,16 +241,14 @@ def build_spectrum_plan(
     bins that is not a positive integer (a ``TypeError`` when ``Jmin`` or ``n_bins`` is not an
     integer, a ``ValueError`` when it is out of range), on an unknown ``method``, on ``fft`` or
     ``pbc_mask`` with missing pixels, and on a bin of ``pbc_nan_mask`` without an observed pixel
-    inside its border. ``advice`` is the advice of the operator that asks, which its messages
-    end with (``STOperator._spectrum_advice``); by default that of ``STOperator``, whose plan
-    :func:`build_plan` builds."""
-    hint = SCATTERING_SPECTRUM_ADVICE if advice is None else advice
+    inside its border. The errors that the data or the options cause say how to leave the
+    spectrum out (``compute_PS=False``, golden rule 8)."""
     if geometry._geometry != "2d":
-        raise ValueError(spectrum_2d_only(geometry.__name__, hint.not_2d))
+        raise ValueError(spectrum_2d_only(geometry.__name__, "pass compute_PS=False."))
     if any(n % 2 for n in spatial_shape):
         raise ValueError(
             f"the power spectrum requires even sizes, and the data are {tuple(spatial_shape)} "
-            f"(maths.md §1.9, OP-20): {hint.odd_size}"
+            "(maths.md §1.9, OP-20): crop the data to even sizes, or pass compute_PS=False."
         )
     n_max = min(spatial_shape) // 2
     j_ps = int(np.floor(np.log2(n_max))) - 1 if J is None else int(J)
@@ -283,7 +257,8 @@ def build_spectrum_plan(
     if not 0 <= int(Jmin) <= j_ps - 2:
         raise ValueError(
             f"Jmin={Jmin} with J = {j_ps}: the power spectrum needs 0 ≤ Jmin ≤ J - 2 (maths.md "
-            f"§1.9, OP-93). {hint.jmin}"
+            "§1.9, OP-93). Pass compute_PS=False, a smaller Jmin, or use a larger image (a larger "
+            "J)."
         )
     bins_advice = (
         "pass a positive integer, or None for max(4, round(3 (J - 1 - Jmin))) bins, about three "
@@ -360,12 +335,8 @@ class _SharedFields:
     """``cross_matrix``, read-only, ``(Nc, Nc)``, upper triangle (M-CHAN)."""
     pairs: ChannelPairs
     """The channel pairs of each family (M-CHAN)."""
-    norm: str
-    """The normalisation, one of :data:`NORMS` (M-NORM)."""
-    ref_batch_mean: bool
-    """Whether the ``norm="self"`` reference is averaged over the batch (M-NORM)."""
     standardize: bool
-    """Whether each map is standardised before the transform (M-MOM)."""
+    """Whether each map is standardised before the transform (M-STD)."""
 
 
 class STPlan(_SharedFields):
@@ -436,10 +407,13 @@ class STPlan(_SharedFields):
         ``n_batch`` in ``dtype`` (maths.md M-NORM, M-NORM-TP)."""
         raise NotImplementedError
 
-    def _self_reference(self, backend: Backend, buffer: Any, layout: Layout) -> _NormReference:
+    def _self_reference(
+        self, backend: Backend, buffer: Any, layout: Layout, ref_batch_mean: bool
+    ) -> _NormReference:
         """The reference of ``norm="self"``, from the raw ``buffer`` of the loop in ``layout``
-        (M-NORM, M-NORM-TP): the scales of sigma, the orientations its diagonal averages, and the
-        blocks of a tensor product, read from this plan."""
+        (M-NORM, M-NORM-TP), averaged over the batch with ``ref_batch_mean``: the scales of
+        sigma, the orientations its diagonal averages, and the blocks of a tensor product, read
+        from this plan."""
         raise NotImplementedError
 
     def _content(self) -> tuple[dict[str, Any], dict[str, NDArray[Any]]]:
@@ -477,12 +451,8 @@ class _PlanFields:
     """``cross_matrix``, read-only, ``(Nc, Nc)``, upper triangle (M-CHAN)."""
     pairs: ChannelPairs
     """The channel pairs of each family (M-CHAN)."""
-    norm: str
-    """The normalisation, one of :data:`NORMS` (M-NORM)."""
-    ref_batch_mean: bool
-    """Whether the ``norm="self"`` reference is averaged over the batch (M-NORM)."""
     standardize: bool
-    """Whether each map is standardised before the transform (M-MOM)."""
+    """Whether each map is standardised before the transform (M-STD)."""
     wavelets: WaveletPlan
     """The static part of the wavelet operator (Part I, §2.3): the levels and their shapes, the
     low-pass filter and how it is realised, the masks and reweighting maps, and the rules of
@@ -585,14 +555,16 @@ class PlanarPlan(_PlanFields, STPlan):
     def _check_reference(self, reference: _NormReference, n_batch: int, dtype: Any) -> None:
         check_reference(reference, self, n_batch, dtype)
 
-    def _self_reference(self, backend: Backend, buffer: Any, layout: Layout) -> _NormReference:
+    def _self_reference(
+        self, backend: Backend, buffer: Any, layout: Layout, ref_batch_mean: bool
+    ) -> _NormReference:
         return self_reference(
             backend,
             buffer,
             layout,
             auto_scales(self),
             self.L,
-            self.ref_batch_mean,
+            ref_batch_mean,
             spectrum=None
             if self.spectrum is None
             else spectrum_reference_of(self.spectrum, self.pairs),
@@ -608,8 +580,6 @@ class PlanarPlan(_PlanFields, STPlan):
             "pbc": self.pbc,
             "nan_threshold": self.nan_threshold,
             "n_channels": self.n_channels,
-            "norm": self.norm,
-            "ref_batch_mean": self.ref_batch_mean,
             "standardize": self.standardize,
             "spectrum": None if self.spectrum is None else self.spectrum.content(),
         }
@@ -631,14 +601,11 @@ def build_plan(
     *,
     kernel_size: int = KERNEL_SIZE,
     cross_matrix: Any = None,
-    norm: str = "none",
-    ref_batch_mean: bool = False,
     standardize: bool = False,
     compute_PS: bool | None = False,  # noqa: N803 (STL's name)
     n_bins: int | None = None,
     Jmin: int = 0,  # noqa: N803 (STL's name)
     spectrum_method: str = "auto",
-    spectrum_advice: SpectrumAdvice | None = None,
 ) -> PlanarPlan:
     """The plan of :func:`build_plan_with_tables`, without the tables of its wavelets."""
     return build_plan_with_tables(
@@ -647,14 +614,11 @@ def build_plan(
         L,
         kernel_size=kernel_size,
         cross_matrix=cross_matrix,
-        norm=norm,
-        ref_batch_mean=ref_batch_mean,
         standardize=standardize,
         compute_PS=compute_PS,
         n_bins=n_bins,
         Jmin=Jmin,
         spectrum_method=spectrum_method,
-        spectrum_advice=spectrum_advice,
     )[0]
 
 
@@ -665,14 +629,11 @@ def build_plan_with_tables(
     *,
     kernel_size: int = KERNEL_SIZE,
     cross_matrix: Any = None,
-    norm: str = "none",
-    ref_batch_mean: bool = False,
     standardize: bool = False,
     compute_PS: bool | None = False,  # noqa: N803 (STL's name)
     n_bins: int | None = None,
     Jmin: int = 0,  # noqa: N803 (STL's name)
     spectrum_method: str = "auto",
-    spectrum_advice: SpectrumAdvice | None = None,
 ) -> tuple[PlanarPlan, Any]:
     """The :class:`PlanarPlan` of a scattering transform with ``J`` scales and ``L``
     orientations on data with the geometry, spatial shape, ``pbc``, mask and number of channels
@@ -680,8 +641,8 @@ def build_plan_with_tables(
     size that of the wavelets.
 
     ``cross_matrix`` is STL's ``compute_cross_matrix``, a boolean ``(Nc, Nc)`` array, or
-    ``None`` for every pair c1 ≤ c2, the upper triangle (M-CHAN, M-DEF); ``norm``,
-    ``ref_batch_mean`` and ``standardize`` are the operator's options (M-NORM, M-MOM). The
+    ``None`` for every pair c1 ≤ c2, the upper triangle (M-CHAN, M-DEF); ``standardize`` is the
+    operator's option (M-STD). The
     values of ``data.array`` are not read. Raises a ``ValueError`` when the sizes are not
     divisible by 2^(J-1) (maths.md M-DATA-2D, OP-8), and when a whole family of statistics has
     no mean with a valid pixel (M-MEAN, OP-3). Warns once when some means have no valid pixel,
@@ -692,9 +653,7 @@ def build_plan_with_tables(
     only, the default of ``STOperator``), with ``n_bins`` bins,
     J_min ``Jmin`` and the estimator ``spectrum_method`` (maths.md §1.9;
     :func:`build_spectrum_plan`); without it, ``n_bins``, ``Jmin`` and ``spectrum_method`` keep
-    their defaults (decision on #148). ``spectrum_advice`` is the advice of the operator that
-    builds the plan, for the errors of the spectrum (``STOperator._spectrum_advice`` by
-    default).
+    their defaults (decision on #148).
 
     Beside the plan, the NumPy tables its wavelets were built with
     (:func:`build_wavelet_plan_with_tables`), for :meth:`PlanarPlan._build_filters` of the same
@@ -706,9 +665,9 @@ def build_plan_with_tables(
         )
     wavelets, tables = build_wavelet_plan_with_tables(data, J, L, kernel_size=kernel_size)
     matrix = _cross_matrix(cross_matrix, data.n_channels)
-    _check_options(norm, ref_batch_mean, standardize)
+    _check_standardize(standardize)
     pairs = channel_pairs(matrix)
-    spectrum = _spectrum(wavelets, J, compute_PS, n_bins, Jmin, spectrum_method, spectrum_advice)
+    spectrum = _spectrum(wavelets, J, compute_PS, n_bins, Jmin, spectrum_method)
     levels = wavelets.levels
     scale_levels = wavelets.scale_levels
     scales = tuple(range(wavelets.J))
@@ -756,8 +715,6 @@ def build_plan_with_tables(
         n_channels=data.n_channels,
         cross_matrix=matrix,
         pairs=pairs,
-        norm=norm,
-        ref_batch_mean=bool(ref_batch_mean),
         standardize=bool(standardize),
         wavelets=wavelets,
         scale_levels=scale_levels,
@@ -786,8 +743,6 @@ def build_plan_with_tables(
             wavelets,
             data.n_channels,
             matrix.tobytes(),
-            norm,
-            bool(ref_batch_mean),
             bool(standardize),
             spectrum,
         ),
@@ -819,7 +774,6 @@ def _spectrum(
     n_bins: object,
     jmin: object,
     method: object = "auto",
-    advice: SpectrumAdvice | None = None,
 ) -> SpectrumPlan | None:
     """The :class:`SpectrumPlan` of :func:`build_plan`, or ``None`` without ``compute_PS``, whose
     options must then keep their defaults (decision on #148). ``compute_PS=None`` means the
@@ -860,7 +814,6 @@ def _spectrum(
         method,
         wavelets.pbc,
         wavelets.mask,
-        advice,
     )
 
 
@@ -914,10 +867,6 @@ class TensorProdPlan(STPlan):
     """``cross_matrix``, read-only, ``(Nc, Nc)``, upper triangle (M-CHAN)."""
     pairs: ChannelPairs
     """The channel pairs of each family (M-CHAN)."""
-    norm: str
-    """The normalisation, one of :data:`NORMS` (M-NORM, M-NORM-TP)."""
-    ref_batch_mean: bool
-    """Whether the ``norm="self"`` reference is averaged over the batch (M-NORM)."""
     standardize: bool
     """Whether each map is standardised before the transform (M-MOM, M-STD)."""
     loop: TensorProdLoop
@@ -983,14 +932,16 @@ class TensorProdPlan(STPlan):
     def _check_reference(self, reference: _NormReference, n_batch: int, dtype: Any) -> None:
         check_tensor_prod_reference(reference, self, n_batch, dtype)
 
-    def _self_reference(self, backend: Backend, buffer: Any, layout: Layout) -> _NormReference:
+    def _self_reference(
+        self, backend: Backend, buffer: Any, layout: Layout, ref_batch_mean: bool
+    ) -> _NormReference:
         return self_reference(
             backend,
             buffer,
             layout,
             tensor_prod_auto_scales(self),
             int(np.prod(self.L, dtype=np.int64)),
-            self.ref_batch_mean,
+            ref_batch_mean,
             tensor_prod_blocks(self),
         )
 
@@ -1007,8 +958,6 @@ class TensorProdPlan(STPlan):
             "spatial_shape": list(self.spatial_shape),
             "pbc": list(self.pbc),
             "n_channels": self.n_channels,
-            "norm": self.norm,
-            "ref_batch_mean": self.ref_batch_mean,
             "standardize": self.standardize,
         }
         return content, {}
@@ -1022,15 +971,13 @@ def build_tensor_prod_statistics_plan(
     lowpass: str | None = "ST",
     kernel_size: int = KERNEL_SIZE,
     cross_matrix: Any = None,
-    norm: str = "none",
-    ref_batch_mean: bool = False,
     standardize: bool = False,
     stacklevel: int = 1,
 ) -> TensorProdPlan:
     """The :class:`TensorProdPlan` of a ``DataTensorProd``, with one J and one L per block
     (M-DATA-TP, M-DEF-TP: a list, an entry ``None`` giving the default of the block). The values
     of ``data`` are not read. ``lowpass`` is ``"ST"`` (STL's default) or ``None`` (M-LP);
-    ``cross_matrix``, ``norm``, ``ref_batch_mean`` and ``standardize`` are those of
+    ``cross_matrix`` and ``standardize`` are those of
     :func:`build_plan`. The static description of the loop, its index tables, crop widths and
     mean denominators, is built here too (:attr:`TensorProdPlan.loop`).
 
@@ -1049,7 +996,7 @@ def build_tensor_prod_statistics_plan(
             'or None (maths.md M-LP); ESTEL 1.0.0 has no tensor-product spectrum, so "PS" is '
             "not available."
         )
-    _check_options(norm, ref_batch_mean, standardize)
+    _check_standardize(standardize)
     # The low-pass flags (M-LP, OP-34), with STL's warning, come with the plans of the blocks.
     wavelets = build_tensor_prod_wavelet_plan(
         cast(Any, data), J, L, kernel_size=kernel_size, lowpass=lowpass, stacklevel=stacklevel + 1
@@ -1084,8 +1031,6 @@ def build_tensor_prod_statistics_plan(
         n_channels=data.n_channels,
         cross_matrix=matrix,
         pairs=pairs,
-        norm=norm,
-        ref_batch_mean=bool(ref_batch_mean),
         standardize=bool(standardize),
         loop=loop,
         first_layer=tuple(
@@ -1102,8 +1047,6 @@ def build_tensor_prod_statistics_plan(
             lowpass,
             data.n_channels,
             matrix.tobytes(),
-            norm,
-            bool(ref_batch_mean),
             bool(standardize),
         ),
     )
@@ -1178,15 +1121,9 @@ def _cross_matrix(matrix: Any, n_channels: int) -> NDArray[np.bool_]:
     return upper
 
 
-def _check_options(norm: object, ref_batch_mean: object, standardize: object) -> None:
-    if norm not in NORMS:
-        raise ValueError(
-            f"norm={norm!r}: pass one of {', '.join(repr(n) for n in NORMS)} (maths.md M-NORM); "
-            '"none" computes the statistics without normalisation.'
-        )
-    for name, value in (("ref_batch_mean", ref_batch_mean), ("standardize", standardize)):
-        if not isinstance(value, bool | np.bool_):
-            raise TypeError(f"{name}={value!r}: pass True or False.")
+def _check_standardize(standardize: object) -> None:
+    if not isinstance(standardize, bool | np.bool_):
+        raise TypeError(f"standardize={standardize!r}: pass True or False.")
 
 
 _FAMILIES = {"moments": "mean and var", "S1": "S1 and S2", "S3": "S3", "S4": "S4"}

@@ -5,9 +5,10 @@ An ``STStatistics`` holds the statistics in the compact layout (Part III, §19.2
 ``_layout.py``): one real buffer ``(Nb, n_floats)``, every coefficient STL computes and only
 those, real entries as one float and complex entries as (re, im), with its static
 :class:`_layout.Layout` (for each family its named axes, its coordinates, and the position of
-every entry). The normalisation reference (``_normalization._NormReference``) and, with
-``standardize``, the mean and standard deviation removed from the data are kept with it. It is
-immutable: every method returns a new object.
+every entry). The normalisation they were computed with (``norm`` and ``ref_batch_mean``, chosen
+at the call of ``apply``; task T2.19), its reference (``_normalization._NormReference``) and,
+with ``standardize``, the mean and standard deviation removed from the data are kept with it.
+It is immutable: every method returns a new object.
 
 The accessors do not depend on this storage (Part II, §12.7; ``docs/agents/storage.md``):
 ``full_grid`` builds STL's full-grid view on demand, ``select`` restricts the statistics (a
@@ -16,8 +17,8 @@ reductions ``iso``, ``angular_fourier`` and ``scale_cosine``, static linear maps
 (Part III, §19.6).
 
 It is a pytree on every backend (Part I, §3.1, rule 9; T2.9): the buffer is its leaf, with the
-arrays of the reference and of the standardisation; the layout, the plan and the reductions
-applied are static.
+arrays of the reference and of the standardisation; the layout, the plan, the normalisation and
+the reductions applied are static.
 """
 
 from __future__ import annotations
@@ -48,6 +49,7 @@ from ._arrays import constant, dtype_name
 from ._grid import REAL_PART_ONLY, FamilyGrid
 from ._layout import Chunked, Copy, FamilyChunks, Layout, Pack, Take, Unpack
 from ._normalization import (
+    NORMS,
     SpectrumParameters,
     SpectrumReference,
     TensorProdBlocks,
@@ -107,8 +109,10 @@ class STStatistics:
         "_backend",
         "_buffer",
         "_layout",
+        "_norm",
         "_plan",
         "_reductions",
+        "_ref_batch_mean",
         "_reference",
         "_standardization",
     )
@@ -117,6 +121,10 @@ class STStatistics:
     _buffer: Any
     _layout: Layout
     _plan: STPlan
+    _norm: str
+    """The normalisation the statistics were computed with, one of ``NORMS`` (M-NORM)."""
+    _ref_batch_mean: bool
+    """Whether their ``norm="self"`` reference was averaged over the batch (M-NORM)."""
     _reductions: _Reductions
     _reference: _NormReference | None
     _standardization: tuple[Any, Any] | None
@@ -135,6 +143,8 @@ class STStatistics:
         plan: STPlan,
         backend: str,
         *,
+        norm: str,
+        ref_batch_mean: bool,
         reductions: _Reductions = _NO_REDUCTION,
         reference: _NormReference | None = None,
         standardization: tuple[Any, Any] | None = None,
@@ -147,6 +157,8 @@ class STStatistics:
             ("_layout", layout),
             ("_plan", plan),
             ("_backend", backend),
+            ("_norm", norm),
+            ("_ref_batch_mean", ref_batch_mean),
             ("_reductions", reductions),
             ("_reference", reference),
             ("_standardization", standardization),
@@ -156,6 +168,8 @@ class STStatistics:
 
     def _replace(self, buffer: Any, layout: Layout, **changes: Any) -> STStatistics:
         parts: dict[str, Any] = {
+            "norm": self._norm,
+            "ref_batch_mean": self._ref_batch_mean,
             "reductions": self._reductions,
             "reference": self._reference,
             "standardization": self._standardization,
@@ -573,6 +587,7 @@ class STStatistics:
         state = self._reductions
         content = {
             "plan": plan_content,
+            "normalization": {"norm": self._norm, "ref_batch_mean": self._ref_batch_mean},
             "layout": layout_content,
             "reductions": {
                 "iso": state.iso,
@@ -613,6 +628,8 @@ class STStatistics:
             self._layout,
             self._plan,
             self._backend,
+            self._norm,
+            self._ref_batch_mean,
             self._reductions,
             None if reference is None else reference.static(),
         )
@@ -620,7 +637,7 @@ class STStatistics:
 
     @classmethod
     def _tree_unflatten(cls, aux: tuple[Any, ...], children: tuple[Any, ...]) -> STStatistics:
-        layout, plan, backend, reductions, reference_static = aux
+        layout, plan, backend, norm, ref_batch_mean, reductions, reference_static = aux
         buffer, reference_arrays, standardization = children
         reference = (
             None
@@ -632,6 +649,8 @@ class STStatistics:
             layout,
             plan,
             backend,
+            norm=norm,
+            ref_batch_mean=ref_batch_mean,
             reductions=reductions,
             reference=reference,
             standardization=None if standardization is None else tuple(standardization),
@@ -642,7 +661,7 @@ class STStatistics:
         shapes = ", ".join(f"{g.name}{(n_batch, *g.shape)}" for g in self._grids)
         state = self._reductions
         return (
-            f"STStatistics({shapes}; norm={self._plan.norm!r}"
+            f"STStatistics({shapes}; norm={self._norm!r}"
             + (f", reductions={_applied(state)}" if state != _NO_REDUCTION else "")
             + f", backend={self._backend!r})"
         )
@@ -966,8 +985,6 @@ def _tensor_prod_plan(spec: dict[str, Any], cross_matrix: NDArray[np.bool_]) -> 
             lowpass=spec["lowpass"],
             kernel_size=spec["kernel_size"],
             cross_matrix=cross_matrix,
-            norm=spec["norm"],
-            ref_batch_mean=spec["ref_batch_mean"],
             standardize=spec["standardize"],
         )
     if list(plan.lowpass_blocks) != list(spec["lowpass_blocks"]):
@@ -1002,8 +1019,6 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
                 spec["L"],
                 kernel_size=spec["kernel_size"],
                 cross_matrix=arrays["plan__cross_matrix"].astype(bool),
-                norm=spec["norm"],
-                ref_batch_mean=spec["ref_batch_mean"],
                 standardize=spec["standardize"],
                 compute_PS=spectrum is not None,
                 **(
@@ -1074,11 +1089,14 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
         angular_fourier=state["angular_fourier"],
         scale_cosine=None if state["scale_cosine"] is None else tuple(state["scale_cosine"]),
     )
+    normalization = content["normalization"]
     return STStatistics._create(
         buffer,
         layout,
         plan,
         backend_name,
+        norm=str(normalization["norm"]),
+        ref_batch_mean=bool(normalization["ref_batch_mean"]),
         reductions=reductions,
         reference=reference,
         standardization=standardization,
@@ -1093,10 +1111,13 @@ def statistics_of(
     plan: STPlan,
     reference: _NormReference | None = None,
     standardization: tuple[Any, Any] | None = None,
+    *,
+    norm: str = "none",
+    ref_batch_mean: bool = False,
 ) -> STStatistics:
     """The statistics of a raw buffer, ``(Nb, n_floats)`` in the layout of the loop of ``plan``,
-    normalised as the plan says (maths.md M-NORM, M-NORM-TP), from a buffer made outside the
-    loop: its arguments checked, the ``norm="ref"`` reference among them
+    normalised by ``norm`` and ``ref_batch_mean`` (maths.md M-NORM, M-NORM-TP), from a buffer
+    made outside the loop: its arguments checked, the ``norm="ref"`` reference among them
     (``STPlan._check_reference``), then :func:`finish`. ``estel.functional.scattering`` checks
     the reference before its loop and calls :func:`finish` itself."""
     backend_name = _registry.backend_of(buffer)
@@ -1108,7 +1129,8 @@ def statistics_of(
             f"the buffer has shape {tuple(buffer.shape)}, and the layout of these statistics "
             f"holds {layout.n_floats} floats per batch element."
         )
-    if plan.norm == "ref":
+    check_normalization(norm, ref_batch_mean)
+    if norm == "ref":
         if reference is None:
             raise ValueError(
                 'norm="ref" needs a reference: pass ref=, statistics computed with '
@@ -1116,8 +1138,8 @@ def statistics_of(
             )
         plan._check_reference(reference, int(buffer.shape[0]), buffer.dtype)
     elif reference is not None:
-        raise ValueError(f'norm="{plan.norm}" takes no reference (maths.md M-NORM).')
-    return finish(buffer, plan, reference, standardization)
+        raise ValueError(f'norm="{norm}" takes no reference (maths.md M-NORM).')
+    return finish(buffer, plan, reference, standardization, norm, ref_batch_mean)
 
 
 def finish(
@@ -1125,19 +1147,22 @@ def finish(
     plan: STPlan,
     reference: _NormReference | None,
     standardization: tuple[Any, Any] | None,
+    norm: str,
+    ref_batch_mean: bool,
 ) -> STStatistics:
     """The one path after the loop, for planar data and for tensor products (issue #23,
     "Decisions of the maintainer for T3.2", point 4): the statistics of the raw buffer of the
-    loop of ``plan``, normalised as the plan says (M-NORM, M-NORM-TP). With ``norm="self"`` the
-    reference is computed from the buffer, and gradients flow through it; with ``norm="ref"``,
+    loop of ``plan``, normalised by ``norm`` (M-NORM, M-NORM-TP), which they record with
+    ``ref_batch_mean``. With ``norm="self"`` the reference is computed from the buffer, averaged
+    over the batch with ``ref_batch_mean``, and gradients flow through it; with ``norm="ref"``,
     ``reference``, already checked against the plan (``STPlan._check_reference``), is made a
     constant. Nothing is checked here: the caller has."""
     backend_name = _registry.backend_of(buffer) or ""
     backend = _registry.backend_named(backend_name)
     layout = plan._layout()
-    if plan.norm == "self":
-        reference = plan._self_reference(backend, buffer, layout)
-    elif plan.norm == "ref" and reference is not None:
+    if norm == "self":
+        reference = plan._self_reference(backend, buffer, layout, ref_batch_mean)
+    elif norm == "ref" and reference is not None:
         reference = as_constant(backend, reference)
     else:
         reference = None
@@ -1148,6 +1173,28 @@ def finish(
         layout,
         plan,
         backend_name,
+        norm=norm,
+        ref_batch_mean=ref_batch_mean,
         reference=reference,
         standardization=standardization,
     )
+
+
+def check_normalization(norm: object, ref_batch_mean: object) -> None:
+    """Raise unless ``norm`` and ``ref_batch_mean`` are a normalisation of M-NORM: ``norm`` one
+    of ``NORMS``, ``ref_batch_mean`` a boolean, True only with ``norm="self"``, the one
+    normalisation whose reference it averages."""
+    if not isinstance(norm, str) or norm not in NORMS:
+        raise ValueError(
+            f"norm={norm!r}: pass one of {', '.join(repr(n) for n in NORMS)} (maths.md M-NORM): "
+            '"self" normalises the statistics by themselves, "ref" by a reference, "none" not '
+            "at all."
+        )
+    if not isinstance(ref_batch_mean, bool | np.bool_):
+        raise TypeError(f"ref_batch_mean={ref_batch_mean!r}: pass True or False.")
+    if ref_batch_mean and norm != "self":
+        raise ValueError(
+            f'ref_batch_mean=True with norm="{norm}": ref_batch_mean averages the reference of '
+            'norm="self" over the batch, and has no effect otherwise. Pass it with norm="self", '
+            "or leave it False (maths.md M-NORM)."
+        )

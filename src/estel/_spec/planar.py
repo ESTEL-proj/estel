@@ -80,7 +80,7 @@ def spec_defaults(spatial_shape: tuple[int, ...]) -> dict[str, Any]:
         "nan_threshold": NAN_THRESHOLD[ndim],
         "norm": "self",
         "ref_batch_mean": False,
-        "standardize": False,
+        "standardize": True,
         "cross_matrix": "upper triangle",
     }
 
@@ -820,7 +820,7 @@ def spec_apply(
     norm: str | None = None,
     ref: Statistics | None = None,
     ref_batch_mean: bool = False,
-    standardize: bool = False,
+    standardize: bool = True,
     cross_matrix: Any = None,
     iso: bool = False,
     angular_fourier: bool = False,
@@ -852,7 +852,7 @@ def spec_apply(
 
     Returns the families, the ``"reference"`` used (``None`` with ``norm="none"``) and, with
     ``standardize``, ``"mean_pre_std"`` and ``"std_pre_std"``. J and L default to M-DEF and
-    M-DEF-1D.
+    M-DEF-1D; ``standardize`` is True by default, as in M-DEF (OP-120; STL: False).
 
     ``compute_PS`` is False by default, so that without it every value is that of the
     statistics alone; ``n_bins``, ``Jmin`` and ``spectrum_method`` other than their defaults

@@ -4,10 +4,10 @@
 # They judge the optimisations of step 1 (T2.12 to T2.15) before and after: changing a case makes
 # the earlier results of bench/results/ incomparable, so cases are added, not edited.
 #
-# Every case has one batch element, no power spectrum and norm="none", and measures the forward
-# pass, the forward pass with the gradient of a loss, and the peak resident memory. The planar
-# cases are 2D and measured against STL; a case with `blocks` is a tensor product, with one J, L
-# and pbc per block, measured on ESTEL only (task T3.2).
+# Every case has one batch element, no power spectrum, standardize=False and norm="none", and
+# measures the forward pass, the forward pass with the gradient of a loss, and the peak resident
+# memory. The planar cases are 2D and measured against STL; a case with `blocks` is a tensor
+# product, with one J, L and pbc per block, measured on ESTEL only (task T3.2).
 
 [settings]
 dtype = "float32"   # the default of ESTEL; STL follows the dtype of its input

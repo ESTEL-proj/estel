@@ -43,13 +43,12 @@ def replace_global_sum(monkeypatch: pytest.MonkeyPatch) -> Iterator[Callable[[An
 def _operator(data: Data, J: int, **kwargs: Any) -> STOperator:  # noqa: N803
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        return STOperator(
-            data, J, norm="none", compute_PS=False if data.ndim == 2 else None, **kwargs
-        )
+        options = {"standardize": False, "compute_PS": False if data.ndim == 2 else None}
+        return STOperator(data, J, **{**options, **kwargs})
 
 
 def _vector(data: Data, operator: STOperator) -> Any:
-    return np.asarray(operator.apply(data).to_vector())
+    return np.asarray(operator.apply(data, norm="none").to_vector())
 
 
 @pytest.mark.parametrize(("standardize", "extra"), [(False, 0), (True, 2)])
@@ -79,9 +78,9 @@ def test_global_sum_sits_between_the_sum_and_the_division(
     """Doubling every partial sum, as two identical partitions would, doubles every mean."""
     data = Data1D(np.random.default_rng(1).standard_normal((1, 2, 64)) + 0.5, pbc=True)
     operator = _operator(data, 3)
-    baseline = operator.apply(data)
+    baseline = operator.apply(data, norm="none")
     replace_global_sum(lambda partial_sums: 2 * partial_sums)
-    doubled = operator.apply(data)
+    doubled = operator.apply(data, norm="none")
     for family in ("mean", "var", "S1", "S2", "S3", "S4"):
         np.testing.assert_allclose(
             np.asarray(doubled.full_grid(family)),

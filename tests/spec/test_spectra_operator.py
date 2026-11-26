@@ -75,7 +75,8 @@ NAMES = {"method": "spectrum_method", "Jmin": "Jmin", "n_bins": "n_bins"}
 
 @pytest.mark.parametrize("name", list(CASES))
 def test_spectrum_equals_the_oracle(name: str, dtype: DType) -> None:
-    """``STOperator`` at its default J, with L = 1 and ``norm="none"``, equals ``spec_spectra``
+    """``STOperator`` at its default J, with L = 1, without standardisation and with
+    ``norm="none"``, equals ``spec_spectra``
     at its default J: the estimator chosen and the spectrum of every pair c₁ ≤ c₂, NaN below the
     diagonal."""
     shape, pbc, masked, options = CASES[name]
@@ -85,12 +86,17 @@ def test_spectrum_equals_the_oracle(name: str, dtype: DType) -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-13: tested with the plan
         operator = STOperator(
-            data, None, 1, norm="none", **{NAMES[key]: value for key, value in options.items()}
+            data,
+            None,
+            1,
+            standardize=False,  # spec_spectra takes the field as it is
+            **{NAMES[key]: value for key, value in options.items()},
         )
     oracle_field = field if mask is None else np.where(mask, np.nan, field)
     expected = spec_spectra.spec_spectra(oracle_field, pbc, **options)
     assert operator._plan.spectrum.method == expected["method"]  # type: ignore[union-attr]
-    assert_parity(_numpy(operator.apply(data).full_grid("PS")), expected["PS"], dtype)
+    stats = operator.apply(data, norm="none")
+    assert_parity(_numpy(stats.full_grid("PS")), expected["PS"], dtype)
 
 
 def test_statistics_with_the_spectrum_equal_the_oracle(dtype: DType) -> None:

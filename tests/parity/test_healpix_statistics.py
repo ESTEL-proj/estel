@@ -6,8 +6,9 @@ configuration: STL's statistics without normalisation (``vanilla``), with ``norm
 on a target field (``store``) and the reference its operator stored (``var_ref``, ``s2_ref``),
 the statistics of a second field with ``norm="load_ref"`` and that reference (``load``), the
 five chains of reductions of the ``store`` statistics, and the two flat vectors of
-``to_flatten(flatten_complex=True)``. ESTEL computes the same on the stored inputs with
-``STOperator`` (``norm="none"``, ``"self"`` and ``"ref"``) and one call of
+``to_flatten(flatten_complex=True)``. ESTEL computes the same on the stored inputs with one
+``STOperator``, built with STL's ``standardize=False`` and applied with ``norm="none"``,
+``"self"`` and ``"ref"`` (task T2.19), and one call of
 ``STStatistics.reduce`` per chain, and every array is compared with ``assert_parity``: same
 shape, NaN at the same positions, values within the tolerances of Part II, §14.3, in the run's
 dtype. ``mean`` takes the standard deviation of the data as its scale (§14.3).
@@ -99,14 +100,15 @@ class _Run:
         J = config["J"]  # noqa: N806 (maths.md notation)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)  # OP-3: tested with the plan
-            self.vanilla = STOperator(target, J, norm="none").apply(target)
-            # STL's store_ref, load_ref and norm_batch_mean are ESTEL's norm="self",
-            # norm="ref" and ref_batch_mean.
-            self.operator = STOperator(
-                target, J, norm="self", ref_batch_mean=config["norm_batch_mean"]
+            # STL's vanilla, store_ref, load_ref and norm_batch_mean are ESTEL's norm="none",
+            # norm="self", norm="ref" and ref_batch_mean: one operator applied with each, as in
+            # STL, with its standardize=False (task T2.19).
+            self.operator = STOperator(target, J, standardize=False)
+            self.vanilla = self.operator.apply(target, norm="none")
+            self.stored = self.operator.apply(
+                target, norm="self", ref_batch_mean=config["norm_batch_mean"]
             )
-            self.stored = self.operator.apply(target)
-            self.loaded = STOperator(target, J, norm="ref").apply(other, ref=self.stored)
+            self.loaded = self.operator.apply(other, norm="ref")
         angular: dict[str, Any] = {
             "angular_fourier": True,
             "angular_harmonics": config["harmonics_angle"],

@@ -125,11 +125,10 @@ def _check(
     assert data.mask is None or np.array_equal(data.mask, np.asarray(second.mask))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-30: tested with the plan
-        raw = STOperator(data, J, norm="none", **options).apply(data)
-        stored = STOperator(data, J, norm="self", ref_batch_mean=ref_batch_mean, **options).apply(
-            data
-        )
-        loaded = STOperator(data, J, norm="ref", **options).apply(second, ref=stored)
+        operator = STOperator(data, J, **options)
+        raw = operator.apply(data, norm="none")
+        stored = operator.apply(data, norm="self", ref_batch_mean=ref_batch_mean)
+        loaded = operator.apply(second, norm="ref")
 
     def oracle(array: NDArray[np.float64], **more: Any) -> dict[str, Any]:
         return spec.spec_apply_hpx(array, 1 << depth, cell_ids, mask, J, 4, **options, **more)

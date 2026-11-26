@@ -297,8 +297,9 @@ def synthesize_from_maps(
 
 
 class _MapsSetup(NamedTuple):
-    """What ``synthesize_from_maps`` builds before L-BFGS: the loss, the two operators, the
-    running data and the standardisation of the target."""
+    """What ``synthesize_from_maps`` builds before L-BFGS: the loss, the operators, the running
+    data and the standardisation of the target. With the target's shape, the two operators are
+    one."""
 
     objective: Objective
     target_op: STOperator
@@ -317,8 +318,13 @@ def _maps_setup(
 ) -> _MapsSetup:
     """The target and the operators of a synthesis from maps (M-SYN-TARGET, M-SYN-OPS): the
     target pre-filtered by its geometry (``Data._nyquist_filter``), standardised, then its
-    statistics with ``norm="self"``, reweighted and flattened; the running operator with
-    ``norm="ref"`` and the target's reference. Both take J and, with the spectrum, the number of
+    statistics with ``norm="self"``, reweighted and flattened; the running statistics with
+    ``norm="ref"`` and the target's reference. With the target's shape one operator computes
+    both, as STL's two operators with the same settings would (M-SYN-OPS); with another
+    ``running_shape`` (2D only, OP-101) the running fields have an operator of their own, a plan
+    being static for one shape. Both are built with ``standardize=False``: the synthesis
+    standardises the target itself (M-SYN-TARGET), and STL's running operator does not
+    standardise. They take J and, with the spectrum, the number of
     bins: the smaller of the two fields' defaults, each from its own size, whatever J (STL: the
     smaller ``get_CS_op().n_bins``); J_min 0, and the estimator ``fft`` of periodic fields. J is
     resolved before the operators are built, and both, with their spectrum, receive it: with the
@@ -340,11 +346,15 @@ def _maps_setup(
         if with_spectrum
         else {"compute_PS": False}
     )
-    target_op = STOperator(target_data, J, norm="self", ref_batch_mean=mean_field, **spectrum)
-    target_stats = target_op.apply(target_data)
+    target_op = STOperator(target_data, J, standardize=False, **spectrum)
+    target_stats = target_op.apply(target_data, norm="self", ref_batch_mean=mean_field)
     reference = target_stats._reference
     assert reference is not None  # norm="self"
-    running_op = STOperator(running, J, norm="ref", **spectrum)
+    running_op = (
+        target_op
+        if running.shape[2:] == target_data.shape[2:]
+        else STOperator(running, J, standardize=False, **spectrum)
+    )
     objective = Objective(
         template=running,
         plan=running_op.plan,
@@ -420,11 +430,11 @@ def synthesize_from_stats(
             "syntheses of ESTEL 1.0.0 are of 2D data and full-sky HEALPix fields (maths.md "
             "section 5). Pass the statistics of estel.Data2D or estel.DataHealpix maps."
         )
-    if plan.norm != "self" or stats._reference is None:
+    if stats._norm != "self" or stats._reference is None:
         raise ValueError(
-            f'synthesize_from_stats: these statistics were computed with norm="{plan.norm}"; '
+            f'synthesize_from_stats: these statistics were computed with norm="{stats._norm}"; '
             'a synthesis needs the reference of norm="self" (M-SYN-TARGET). Compute them '
-            'with STOperator(..., norm="self").'
+            'with STOperator(...).apply(data, norm="self").'
         )
     families = {g.name for g in stats._grids}
     with_spectrum = "PS" in families
@@ -476,7 +486,7 @@ def synthesize_from_stats(
         template,
         plan.J,
         plan.L,
-        norm="ref",
+        standardize=False,
         cross_matrix=plan.cross_matrix,
         **spectrum,
     )

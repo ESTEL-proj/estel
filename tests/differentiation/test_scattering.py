@@ -95,10 +95,12 @@ def test_jvp_and_hvp_through_reduce_and_to_vector(backend: Backend) -> None:
     Slow: a Hessian-vector product through the whole loop (second order), as the test above."""
     case = Case("2d-open-cross-self", Data2D, (1, 2, 8, 8), pbc=False, options={"L": 2})
     data = data_of(case)
-    operator = operator_of(case, data, norm="self")
+    operator = operator_of(case, data)
 
     def function(array: Any) -> Any:
-        stats = estel.functional.scattering(data.with_array(array), operator.plan, operator.filters)
+        stats = estel.functional.scattering(
+            data.with_array(array), operator.plan, operator.filters, norm="self"
+        )
         reduced = stats.reduce(iso=True, angular_fourier=True, scale_cosine=True)
         return backend.xp.concat([reduced.to_vector(), stats.select(c1=1).to_vector()])
 
@@ -136,19 +138,21 @@ def test_norm_self_differentiates_the_reference_and_norm_ref_does_not(backend: B
     by a reference that stays where it was. Both in forward and in reverse mode.
 
     Slow: the fast tier keeps one differentiation check, the gradcheck of the smallest case
-    (issue #19); this one takes six more passes through the loop of two operators."""
+    (issue #19); this one takes six more passes through the loop of one operator, called with
+    each normalisation (task T2.19)."""
     data = data_of(NORMALIZED)
-    storing = operator_of(NORMALIZED, data, norm="self")
-    loading = operator_of(NORMALIZED, data, norm="ref")
+    operator = operator_of(NORMALIZED, data)
     x = data.array
     v = direction_like(backend, x, seed=1)
 
     def own(array: Any) -> Any:
-        return estel.functional.scattering(data.with_array(array), storing.plan, storing.filters)
+        return estel.functional.scattering(
+            data.with_array(array), operator.plan, operator.filters, norm="self"
+        )
 
     def loaded(array: Any, reference: Any) -> Any:
         stats = estel.functional.scattering(
-            data.with_array(array), loading.plan, loading.filters, reference
+            data.with_array(array), operator.plan, operator.filters, reference, norm="ref"
         )
         return coefficients(backend, stats)
 

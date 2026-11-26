@@ -26,7 +26,7 @@ from estel.backend._protocol import Backend
 from estel.data._planar import nyquist_filter
 from estel.statistics._arrays import device_of
 from estel.synthesis import _checkpoints
-from estel.synthesis._api import _running_data, _start
+from estel.synthesis._api import _maps_setup, _running_data, _start
 from estel.synthesis._init import standardize_target
 
 pytestmark = pytest.mark.maths(
@@ -132,6 +132,21 @@ def test_checkpoints_are_written_and_resume_the_same_run(backend: Backend, tmp_p
     np.testing.assert_array_equal(backend.to_numpy(final.field), backend.to_numpy(whole.field))
 
 
+def test_from_maps_builds_one_operator_unless_another_shape(backend: Backend) -> None:
+    """With the target's shape, one operator computes the target's statistics (``norm="self"``)
+    and the running ones (``norm="ref"``); with another ``running_shape`` (2D only, OP-101), the
+    running fields have an operator of their own, a plan being static for one shape. Both are
+    built with ``standardize=False`` (M-SYN-OPS; issue #192, decisions, point 5)."""
+    data = Data2D(_maps(), pbc=True)
+    same = _maps_setup(backend, data, (1, 1, N, N), True, False, {"J": 2})
+    assert same.running_op is same.target_op
+    assert not same.target_op.standardize
+    other = _maps_setup(backend, data, (1, 1, 2 * N, 2 * N), True, False, {"J": 2})
+    assert other.running_op is not other.target_op
+    assert not other.target_op.standardize
+    assert not other.running_op.standardize
+
+
 def test_from_stats_leaves_them_unchanged(backend: Backend) -> None:
     """From statistics computed with standardize=True: de-standardised with the batch means of
     the removed means and standard deviations (M-SYN-OUT, OP-72); the channel axis dropped for
@@ -157,15 +172,8 @@ def _stats(
     compute_ps: bool = False,
 ) -> Any:
     data = Data2D(_maps(n_batch=n_batch), pbc=True)
-    operator = STOperator(
-        data,
-        2,
-        norm="self",
-        ref_batch_mean=ref_batch_mean,
-        standardize=standardize,
-        compute_PS=compute_ps,
-    )
-    return operator.apply(data)
+    operator = STOperator(data, 2, standardize=standardize, compute_PS=compute_ps)
+    return operator.apply(data, norm="self", ref_batch_mean=ref_batch_mean)
 
 
 def test_float32_from_maps_resumes(
@@ -357,17 +365,17 @@ def test_checkpoint_of_another_run_is_refused(backend: Backend, tmp_path: Path) 
 
 def _raw_stats() -> Any:
     data = Data2D(_maps(), pbc=True)
-    return STOperator(data, 2, norm="none", compute_PS=False).apply(data)
+    return STOperator(data, 2, compute_PS=False).apply(data, norm="none")
 
 
 def _spectrum_stats() -> Any:
     """Statistics with the 2D power spectrum, the default of STOperator on 2D data (T4.1)."""
     data = Data2D(_maps(), pbc=True)
-    return STOperator(data, 2, norm="self").apply(data)
+    return STOperator(data, 2).apply(data, norm="self")
 
 
 def _statistics_of(data: Any) -> Any:
-    return STOperator(data, 1, norm="self").apply(data)
+    return STOperator(data, 1).apply(data, norm="self")
 
 
 STATS_ERRORS: dict[str, tuple[type[Exception], str, Any, dict[str, Any]]] = {
@@ -481,9 +489,9 @@ def test_from_stats_with_the_spectrum_takes_its_settings(backend: Backend) -> No
     if _unavailable(backend):
         return
     data = Data2D(_maps(n_batch=2), pbc=True)
-    stats = STOperator(
-        data, 3, norm="self", ref_batch_mean=True, standardize=True, n_bins=5, Jmin=1
-    ).apply(data)
+    stats = STOperator(data, 3, standardize=True, n_bins=5, Jmin=1).apply(
+        data, norm="self", ref_batch_mean=True
+    )
     result = estel.synthesize_from_stats(stats, n_batch=1, max_iter=2)
     assert result.manifest["spectrum"] == {"n_bins": 5, "J": 3, "Jmin": 1, "method": "fft"}
     assert np.all(np.isfinite(result.losses))
@@ -579,9 +587,9 @@ def test_healpix_from_stats(
     if _unavailable(backend):
         return
     data = DataHealpix(_sky(n_batch=2, n_channels=n_channels))
-    stats = STOperator(
-        data, 2, norm="self", ref_batch_mean=mean_field, standardize=standardize
-    ).apply(data)
+    stats = STOperator(data, 2, standardize=standardize).apply(
+        data, norm="self", ref_batch_mean=mean_field
+    )
     n_batch = 1 if mean_field else 2
     result = estel.synthesize_from_stats(
         stats,

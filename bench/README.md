@@ -9,7 +9,8 @@ and this benchmark shows its gain.
 ## Cases
 
 [`cases.toml`](cases.toml) holds them. All are on CPU, in float32, one batch element, without
-power spectrum, `norm="none"`; the planar ones are 2D:
+power spectrum, without standardisation (`standardize=False`, as STL), `norm="none"`; the planar
+ones are 2D:
 
 | Case | Field | J, L | Borders | Missing pixels |
 | --- | --- | --- | --- | --- |

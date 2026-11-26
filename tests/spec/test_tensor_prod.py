@@ -116,6 +116,7 @@ def test_normalised_statistics_equal_the_fixture() -> None:
         "pbc": parameters["pbc"],
         "J": parameters["J"],
         "lowpass": parameters["lowpass"],
+        "standardize": False,  # as STL computed the fixture (OP-120)
     }
     store = spec.spec_tensor_prod(arrays["field"], norm="self", flatten=True, **options)
     runs = {

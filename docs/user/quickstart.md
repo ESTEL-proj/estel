@@ -35,7 +35,9 @@ converted to the current backend, PyTorch by default.
 
 An {py:class}`~estel.STOperator` is built from an example of the data: its geometry, shape,
 boundary conditions, mask and number of channels fix the operator, and its values are not read.
-`J` is the number of scales and `L` the number of orientations;
+`J` is the number of scales and `L` the number of orientations. By default the operator
+standardises each map before the transform, removing its mean and dividing by its standard
+deviation (`standardize=True`, [M-STD](maths.md#m-std--standardisation)).
 {py:meth}`~estel.STOperator.apply` returns the statistics, an {py:class}`~estel.STStatistics`.
 
 ```{code-cell} ipython3
@@ -51,15 +53,17 @@ batch axis first; after it come the channel axes, `(c,)` for mean and var and `(
 `(j, l)` for S1 and S2, `(j2, j3, l2, l3)` for S3, `(j1, j2, j3, l1, l2, l3)` for S4. The grid
 holds NaN where no coefficient exists.
 
-By default (`norm="self"`) the operator normalises the statistics by a reference computed from
-the statistics themselves, and keeps it: here, S2 is divided by itself, and is 1.
+The normalisation is chosen at each call of `apply`. By default (`norm="self"`) it divides the
+statistics by a reference computed from the statistics themselves, which the operator keeps: here,
+S2 is divided by itself, and is 1.
 
 ```{code-cell} ipython3
 stats.full_grid("S2")[0, 0, 0].real
 ```
 
-`norm="none"` gives the statistics without normalisation, and `norm="ref"` normalises them by the
-reference of other statistics ([M-NORM](maths.md#m-norm)).
+`apply(data, norm="none")` gives the statistics without normalisation, and
+`apply(other, norm="ref")` normalises those of other data by the reference the operator kept, or
+by that of the statistics passed as `ref` ([M-NORM](maths.md#m-norm)).
 
 ## Reductions and vectors
 
@@ -91,13 +95,16 @@ result = estel.synthesize_from_maps(field, max_iter=20, st_kwargs={"J": 3})
 result.n_iter, float(result.losses[0]), float(result.losses[-1])
 ```
 
-{py:attr}`result.field <estel.SynthesisResult.field>` is the synthesised field. Its S2, without normalisation, against that of the
-target:
+{py:attr}`result.field <estel.SynthesisResult.field>` is the synthesised field. Its S2, without
+standardisation or normalisation, against that of the target:
 
 ```{code-cell} ipython3
-raw = estel.STOperator(data, J=3, L=4, norm="none")
+raw = estel.STOperator(data, J=3, L=4, standardize=False)
 synthesis = estel.Data2D(result.field, pbc=True)
-raw.apply(data).full_grid("S2")[0, 0, 0].real, raw.apply(synthesis).full_grid("S2")[0, 0, 0].real
+(
+    raw.apply(data, norm="none").full_grid("S2")[0, 0, 0].real,
+    raw.apply(synthesis, norm="none").full_grid("S2")[0, 0, 0].real,
+)
 ```
 
 ## Next

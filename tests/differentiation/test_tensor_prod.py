@@ -33,13 +33,11 @@ def _function(backend: Backend) -> tuple[Any, Any]:
     data = DataTensorProd(field, [Data2D, Data1D], pbc=[False, True])
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-13
-        operator = STOperatorTensorProd(data, [2, 1], norm="self")
+        operator = STOperatorTensorProd(data, [2, 1], standardize=False)
 
     def function(array: Any) -> Any:
         return estel.functional.scattering(
-            data.with_array(array),
-            operator.plan,
-            operator.filters,
+            data.with_array(array), operator.plan, operator.filters, norm="self"
         ).to_vector()
 
     return data.array, function

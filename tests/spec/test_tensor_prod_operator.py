@@ -75,8 +75,8 @@ def test_open_block_two_channels_norm_self() -> None:
     block with its low-pass filter, ``norm="self"``: the statistics and their reference."""
     blocks, pbc, J = (2, 1), [False, True], [2, 2]  # noqa: N806
     field = _field((2, 2, 8, 8, 8), 0)
-    operator, data = _run(field, blocks, pbc, J, norm="self")
-    stats = operator.apply(data)
+    operator, data = _run(field, blocks, pbc, J)
+    stats = operator.apply(data, norm="self")
     expected = spec.spec_tensor_prod(field, blocks, pbc, J, norm="self")
     _compare(stats, expected)
     assert stats._reference is not None
@@ -91,8 +91,8 @@ def test_three_blocks_standardized_cross_matrix() -> None:
     blocks, pbc, J = (1, 2, 1), [False, True, False], [1, 1, 1]  # noqa: N806
     matrix = np.array([[True, True], [False, False]])
     field = _field((1, 2, 8, 8, 8, 4), 1)
-    operator, data = _run(field, blocks, pbc, J, norm="none", standardize=True, cross_matrix=matrix)
-    stats = operator.apply(data)
+    operator, data = _run(field, blocks, pbc, J, standardize=True, cross_matrix=matrix)
+    stats = operator.apply(data, norm="none")
     expected = spec.spec_tensor_prod(
         field, blocks, pbc, J, norm="none", standardize=True, cross_matrix=matrix
     )
@@ -108,10 +108,9 @@ def test_norm_ref_with_batch_mean() -> None:
     maps."""
     blocks, pbc, J = (2, 1), [False, False], [2, 1]  # noqa: N806
     target, other = _field((2, 1, 8, 8, 4), 2), _field((2, 1, 8, 8, 4), 3)
-    storing, data = _run(target, blocks, pbc, J, norm="self", ref_batch_mean=True)
-    reference = storing.apply(data)
-    loading, _ = _run(target, blocks, pbc, J, norm="ref")
-    stats = loading.apply(data.with_array(_backend_array(other)), ref=reference)
+    operator, data = _run(target, blocks, pbc, J)
+    operator.apply(data, norm="self", ref_batch_mean=True)
+    stats = operator.apply(data.with_array(_backend_array(other)), norm="ref")
     stored = spec.spec_tensor_prod(target, blocks, pbc, J, norm="self", ref_batch_mean=True)
     expected = spec.spec_tensor_prod(other, blocks, pbc, J, norm="ref", ref=stored["reference"])
     _compare(stats, expected)

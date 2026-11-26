@@ -1,11 +1,13 @@
 """``estel.functional.scattering``: the pure function behind ``STOperator.apply`` (Part II,
 §12.6; Part I, §2.3; task T2.5).
 
-It takes the data, the static plan, the filters and an optional reference, and returns the
-statistics: the scattering loop (``estel.scattering._loop``), then the normalisation of the plan
-(maths.md M-NORM; ``estel.statistics._normalization``). It holds no state and modifies
-nothing: with ``norm="self"`` the reference is computed from the statistics and returned
-with them, and the operator, not this function, keeps it.
+It takes the data, the static plan, the filters, an optional reference and the normalisation
+(``norm``, ``ref_batch_mean``, chosen at each call; task T2.19), and returns the statistics: the
+scattering loop (``estel.scattering._loop``), then the normalisation (maths.md M-NORM;
+``estel.statistics._normalization``). It holds no state and modifies nothing: with
+``norm="self"`` the reference is computed from the statistics and returned with them, and the
+operator, not this function, keeps it. ``norm`` and ``ref_batch_mean`` are Python values, static
+under ``jit`` as the plan is.
 
 **Compiled where the backend compiles** (Part I, §2.2.2; task T2.13). The loop is called
 through ``Backend.jit`` with the plan as its static argument: on JAX the whole loop is one
@@ -27,7 +29,7 @@ from ..scattering._filters import PlanarFilters, STFilters, TensorProdFilters
 from ..scattering._loop import ScatteringValues
 from ..scattering._plan import PlanarPlan, STPlan, TensorProdPlan
 from ..statistics._normalization import _NormReference
-from ..statistics._statistics import STStatistics, finish
+from ..statistics._statistics import STStatistics, check_normalization, finish
 
 
 @functools.cache
@@ -50,6 +52,9 @@ def scattering(
     plan: STPlan,
     filters: STFilters,
     ref: STStatistics | None = None,
+    *,
+    norm: str = "self",
+    ref_batch_mean: bool = False,
 ) -> STStatistics:
     """The scattering statistics of ``data`` (maths.md §1.6 to 1.8, §3): the pure function
     behind ``STOperator.apply`` and ``STOperatorTensorProd.apply``, one function for both.
@@ -58,15 +63,19 @@ def scattering(
     the geometry, spatial shape, ``pbc``, mask and number of channels the plan was built for
     (for a tensor product, its blocks, their sizes and their ``pbc``), and the backend and dtype
     of the filters. ``STPlan`` and ``STFilters`` are the types of the plan and filters of
-    either operator: those of a tensor product are their subclasses (task T3.2). The
-    normalisation is the plan's: with ``"none"``
-    and ``"self"`` pass no ``ref``; with ``"ref"``, ``ref`` is required: statistics
-    computed with ``norm="self"``, whose reference normalises these (M-NORM). With
-    ``"self"`` the reference is part of the computation and gradients flow through it;
-    with ``"ref"`` it is a constant.
+    either operator: those of a tensor product are their subclasses (task T3.2).
+
+    ``norm`` is the normalisation (M-NORM): ``"self"`` (the default) normalises the statistics by
+    themselves, ``"ref"`` by the reference of ``ref``, statistics computed with
+    ``norm="self"``, which it requires, and ``"none"`` not at all; ``ref`` is taken with
+    ``norm="ref"`` only. ``ref_batch_mean`` averages the ``norm="self"`` reference over the
+    batch, and is taken with ``norm="self"`` only. With ``"self"`` the reference is part of the
+    computation and gradients flow through it; with ``"ref"`` it is a constant (OP-18). Both are
+    Python values, static under ``jit`` as the plan is.
     """
     found, parts = _parts(plan, filters)
-    return compute(data, found, parts, reference_of(ref, found))
+    check_normalization(norm, ref_batch_mean)
+    return compute(data, found, parts, reference_of(ref, norm), norm, ref_batch_mean)
 
 
 def _parts(
@@ -86,28 +95,23 @@ def _parts(
     return plan, filters
 
 
-def reference_of(ref: object, plan: STPlan) -> _NormReference | None:
-    """The reference held by ``ref``, checked against the normalisation of ``plan``; its J,
-    L and channels are checked against the plan by :func:`compute`, before the loop."""
+def reference_of(ref: object, norm: str) -> _NormReference | None:
+    """The reference held by ``ref``, ``None`` without it, checked against ``norm``, already
+    checked by ``check_normalization``; its J, L and channels are checked against the plan by
+    :func:`compute`, before the loop."""
     if ref is None:
-        if plan.norm == "ref":
-            raise ValueError(
-                'norm="ref" needs a reference: pass ref=, statistics computed with '
-                'norm="self" (maths.md M-NORM).'
-            )
         return None
-    if plan.norm != "ref":
+    if norm != "ref":
         raise ValueError(
-            f'norm="{plan.norm}" takes no reference: pass ref only with norm="ref" '
-            "(maths.md M-NORM)."
+            f'norm="{norm}" takes no reference: pass ref only with norm="ref" (maths.md M-NORM).'
         )
     if not isinstance(ref, STStatistics):
         raise TypeError(
             f'ref: pass STStatistics computed with norm="self", got {type(ref).__name__}.'
         )
-    if ref._plan.norm != "self" or ref._reference is None:
+    if ref._norm != "self" or ref._reference is None:
         raise ValueError(
-            f'ref: these statistics were computed with norm="{ref._plan.norm}"; the reference '
+            f'ref: these statistics were computed with norm="{ref._norm}"; the reference '
             'comes from statistics computed with norm="self" (maths.md M-NORM).'
         )
     return ref._reference
@@ -140,14 +144,16 @@ def compute(
     plan: STPlan,
     filters: STFilters,
     reference: _NormReference | None,
+    norm: str,
+    ref_batch_mean: bool = False,
 ) -> STStatistics:
     """The one path of every operator, behind :func:`scattering`, with the reference already
-    extracted: the values of the plan (``STPlan._values``: the scattering loop of its geometry,
-    the power spectrum included), then the one path
-    after them (``statistics._statistics.finish``). A ``norm="ref"`` reference is checked once,
-    before the values, by the plan."""
+    extracted and the normalisation already checked (``check_normalization``): the values of
+    the plan (``STPlan._values``: the scattering loop of its geometry, the power spectrum
+    included), then the one path after them (``statistics._statistics.finish``). A
+    ``norm="ref"`` reference, required, is checked once, before the values, by the plan."""
     check_data(data, plan, filters)
-    if plan.norm == "ref":
+    if norm == "ref":
         if reference is None:
             raise ValueError(
                 'norm="ref" needs a reference: pass ref=, statistics computed with '
@@ -157,7 +163,7 @@ def compute(
     backend = _registry.backend_named(data.backend)
     found = _loop(backend.name)(data, plan=plan, filters=filters)
     standardization = (found.mean_pre_std, found.std_pre_std) if plan.standardize else None
-    return finish(found.buffer, plan, reference, standardization)
+    return finish(found.buffer, plan, reference, standardization, norm, ref_batch_mean)
 
 
 def apply_operator(
@@ -167,27 +173,30 @@ def apply_operator(
     filters: STFilters,
     ref: STStatistics | None,
     held: _NormReference | None,
-    missing_reference_advice: str = "",
+    norm: str,
+    ref_batch_mean: bool,
 ) -> tuple[STStatistics, _NormReference | None]:
     """The ``apply`` of every operator (``STOperator``, ``STOperatorTensorProd``; maths.md
-    M-NORM): the statistics of ``data``, and the reference the
-    operator holds afterwards. ``ref`` is the reference passed to ``apply``; ``held`` the one the
-    operator holds. With ``norm="ref"`` and no ``ref``, ``held`` normalises, and its absence is
-    an error, whose advice ends with ``missing_reference_advice``, the operator's; with
-    ``norm="self"`` the operator keeps the reference of the result, replacing the one it held
-    with a ``UserWarning`` at the line that calls ``apply``."""
+    M-NORM): the statistics of ``data`` normalised by ``norm`` and ``ref_batch_mean``, chosen at
+    this call, and the reference the operator holds afterwards. ``ref`` is the reference passed
+    to ``apply``; ``held`` the one the operator holds. With ``norm="ref"`` and no ``ref``,
+    ``held`` normalises, and its absence is an error; with ``norm="self"`` the operator keeps the
+    reference of the result, replacing the one it held with a ``UserWarning`` at the line that
+    calls ``apply``; with ``norm="none"`` it keeps the one it held."""
     check_data(data, plan, filters)
-    reference = reference_of(ref, plan) if ref is not None else None
-    if reference is None and plan.norm == "ref":
+    check_normalization(norm, ref_batch_mean)
+    reference = reference_of(ref, norm)
+    if reference is None and norm == "ref":
         reference = held
         if reference is None:
             raise ValueError(
                 f'{name}.apply: norm="ref" needs a reference, and this operator holds none. '
-                f'Pass ref=, statistics computed with norm="self"{missing_reference_advice} '
-                "(maths.md M-NORM)."
+                f'Call {name}.apply(data, norm="self") first, whose reference it keeps, or pass '
+                f'ref=, statistics computed with norm="self", or build the operator with '
+                f"{name}.from_statistics (maths.md M-NORM)."
             )
-    stats = compute(data, plan, filters, reference)
-    if plan.norm != "self":
+    stats = compute(data, plan, filters, reference, norm, ref_batch_mean)
+    if norm != "self":
         return stats, held
     if held is not None:
         warnings.warn(

@@ -83,7 +83,9 @@ def test_layout_predicts_every_nan() -> None:
     data = _masked_2d(nc=3)
     matrix = np.array([[True, False, True], [False, False, True], [False, False, True]])
     for norm in ("none", "self"):
-        stats = _operator(data, 4, norm=norm, cross_matrix=matrix).apply(data)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)  # OP-30, tested below
+            stats = _operator(data, 4, cross_matrix=matrix).apply(data, norm=norm)
         assert isinstance(stats._plan, PlanarPlan)
         assert stats._plan.empty_s3_pairs
         for reduced in (
@@ -290,7 +292,6 @@ def test_iso_is_the_sum_of_m_red_iso(dtype: str) -> None:
 def test_norm_self_keeps_and_replaces_the_reference(dtype: str) -> None:
     data = Data2D(_field((2, 2, 32, 32)), pbc=True)
     operator = _operator(data, 3)
-    assert operator.norm == "self"
     first = operator.apply(data)
     assert operator._reference is first._reference
     np.testing.assert_allclose(_numpy(first.full_grid("var")), 1.0, rtol=10 * _tol(dtype))
@@ -303,13 +304,13 @@ def test_norm_self_keeps_and_replaces_the_reference(dtype: str) -> None:
 
 def test_ref_batch_mean(dtype: str) -> None:
     data = Data1D(_field((3, 1, 64)), pbc=True)
-    stats = _operator(data, 3, ref_batch_mean=True).apply(data)
+    stats = _operator(data, 3).apply(data, ref_batch_mean=True)
     reference = stats._reference
     assert reference is not None
     assert tuple(reference.var.shape) == (1, 1)
     np.testing.assert_allclose(
         _numpy(reference.var)[0],
-        _numpy(_operator(data, 3, norm="none").apply(data).full_grid("var")).mean(axis=0),
+        _numpy(_operator(data, 3).apply(data, norm="none").full_grid("var")).mean(axis=0),
         rtol=_tol(dtype),
     )
     per_element = _operator(data, 3).apply(data)._reference
@@ -321,9 +322,10 @@ def test_norm_ref(dtype: str) -> None:
     data = Data2D(_field((2, 2, 32, 32)), pbc=False)
     other = data.with_array(data.array * 3 + 1)
     target = _operator(data, 3).apply(data)
-    loading = _operator(data, 3, norm="ref")
+    loading = _operator(data, 3)
     # The target normalised by its own reference is its norm="self" statistics.
-    again = loading.apply(data, ref=target)
+    again = loading.apply(data, ref=target, norm="ref")
+    assert (again._norm, again._ref_batch_mean) == ("ref", False)
     for family in FAMILIES:
         np.testing.assert_allclose(
             _numpy(again.full_grid(family)),
@@ -332,28 +334,116 @@ def test_norm_ref(dtype: str) -> None:
             atol=_tol(dtype),
             err_msg=family,
         )
-    loaded = loading.apply(other, ref=target)
+    assert loading._reference is None  # norm="ref" stores nothing
+    loaded = loading.apply(other, ref=target, norm="ref")
     # from_statistics: an operator holding the reference of its statistics.
     rebuilt = STOperator.from_statistics(loaded)
-    assert rebuilt.norm == "ref"
     np.testing.assert_array_equal(
-        _numpy(rebuilt.apply(other).to_vector()), _numpy(loaded.to_vector())
+        _numpy(rebuilt.apply(other, norm="ref").to_vector()), _numpy(loaded.to_vector())
     )
-    with pytest.raises(ValueError, match="holds none"):
-        loading.apply(other)
-    with pytest.raises(ValueError, match='computed with norm="ref"'):
-        loading.apply(other, ref=loaded)
-    with pytest.raises(TypeError, match="STStatistics"):
-        loading.apply(other, ref=object())  # type: ignore[arg-type]
-    with pytest.raises(ValueError, match="takes no reference"):
-        _operator(data, 3).apply(data, ref=target)
     smaller = _operator(data[0], 3).apply(data[0])  # a reference of one batch element
-    loading.apply(other, ref=smaller)  # broadcasts
+    loading.apply(other, ref=smaller, norm="ref")  # broadcasts
     three = Data2D(_field((3, 2, 32, 32)), pbc=False)
     with pytest.raises(ValueError, match="batch element"):
-        _operator(three, 3, norm="ref").apply(three, ref=target)
+        _operator(three, 3).apply(three, ref=target, norm="ref")
     with pytest.raises(ValueError, match="same J, L and channels"):
-        _operator(data, 2, norm="ref").apply(data, ref=target)
+        _operator(data, 2).apply(data, ref=target, norm="ref")
+
+
+def test_one_operator_serves_every_normalisation(dtype: str) -> None:
+    """One operator applied with ``norm="self"`` on a target, then ``norm="ref"`` on another
+    field, gives the statistics of two operators, one per normalisation, the second given the
+    target's statistics (STL's ``store_ref`` then ``load_ref``; task T2.19). ``norm="none"``
+    reads and stores no reference."""
+    data = Data2D(_field((2, 2, 32, 32)), pbc=False)
+    other = data.with_array(data.array * 3 + 1)
+    target = _operator(data, 3).apply(data)
+    pair = _operator(data, 3).apply(other, ref=target, norm="ref")
+    operator = _operator(data, 3)
+    first = operator.apply(data)
+    stored = operator._reference
+    second = operator.apply(other, norm="ref")
+    np.testing.assert_array_equal(_numpy(first.to_vector()), _numpy(target.to_vector()))
+    np.testing.assert_array_equal(_numpy(second.to_vector()), _numpy(pair.to_vector()))
+    raw = operator.apply(other, norm="none")
+    assert raw._reference is None
+    assert operator._reference is stored
+    assert stored is not None
+    expected = _numpy(raw.full_grid("var")) / _numpy(stored.var)
+    np.testing.assert_allclose(_numpy(second.full_grid("var")), expected, rtol=_tol(dtype))
+
+
+def _normalisation_error(case: str) -> tuple[dict[str, Any], type[Exception], str]:
+    """The arguments of ``apply`` and of ``functional.scattering`` for one invalid
+    normalisation (maths.md M-NORM; issue #192, decisions, point 2), the error and its
+    message."""
+    data = Data2D(_field((1, 2, 32, 32)), pbc=True)
+    target = _operator(data, 3).apply(data)
+    raw = _operator(data, 3).apply(data, norm="none")
+    loaded = _operator(data, 3).apply(data, ref=target, norm="ref")
+    cases: dict[str, tuple[dict[str, Any], type[Exception], str]] = {
+        "unknown norm": ({"norm": "store_ref"}, ValueError, "'self', 'ref', 'none'"),
+        "norm not a string": ({"norm": None}, ValueError, "'self', 'ref', 'none'"),
+        "ref without a reference": ({"norm": "ref"}, ValueError, 'norm="ref" needs a reference'),
+        "ref with norm=self": ({"ref": target}, ValueError, 'norm="self" takes no reference'),
+        "ref with norm=none": (
+            {"ref": target, "norm": "none"},
+            ValueError,
+            'norm="none" takes no reference',
+        ),
+        "ref not statistics": (
+            {"ref": object(), "norm": "ref"},
+            TypeError,
+            "pass STStatistics",
+        ),
+        "ref of norm=none": ({"ref": raw, "norm": "ref"}, ValueError, 'computed with norm="none"'),
+        "ref of norm=ref": ({"ref": loaded, "norm": "ref"}, ValueError, 'computed with norm="ref"'),
+        "ref_batch_mean with norm=ref": (
+            {"ref": target, "norm": "ref", "ref_batch_mean": True},
+            ValueError,
+            'ref_batch_mean=True with norm="ref"',
+        ),
+        "ref_batch_mean with norm=none": (
+            {"norm": "none", "ref_batch_mean": True},
+            ValueError,
+            'ref_batch_mean=True with norm="none"',
+        ),
+        "ref_batch_mean not a boolean": ({"ref_batch_mean": 1}, TypeError, "pass True or False"),
+    }
+    return cases[case]
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "unknown norm",
+        "norm not a string",
+        "ref without a reference",
+        "ref with norm=self",
+        "ref with norm=none",
+        "ref not statistics",
+        "ref of norm=none",
+        "ref of norm=ref",
+        "ref_batch_mean with norm=ref",
+        "ref_batch_mean with norm=none",
+        "ref_batch_mean not a boolean",
+    ],
+)
+def test_invalid_normalisations_are_refused(case: str) -> None:
+    """Each invalid normalisation of M-NORM raises a clear error through ``apply`` and through
+    ``functional.scattering``, before the loop, and the operator keeps the reference it held."""
+    options, error, message = _normalisation_error(case)
+    data = Data2D(_field((1, 2, 32, 32), seed=1), pbc=True)
+    operator = _operator(data, 3)
+    with pytest.raises(error, match=message):
+        operator.apply(data, **options)
+    assert operator._reference is None
+    with pytest.raises(error, match=message):
+        estel.functional.scattering(data, operator.plan, operator.filters, **options)
+    if case == "ref without a reference":
+        # The advice of apply: compute a reference first, or pass one.
+        with pytest.raises(ValueError, match=r'Call STOperator.apply\(data, norm="self"\) first'):
+            operator.apply(data, norm="ref")
 
 
 def test_reference_of_other_data_is_accepted(dtype: str) -> None:
@@ -362,14 +452,14 @@ def test_reference_of_other_data_is_accepted(dtype: str) -> None:
     target = _masked_2d(nb=1, nc=2)  # 64 x 64, a hole, open
     reference = _operator(target, 3).apply(target)
     data = Data2D(_field((2, 2, 32, 32), seed=1), pbc=True)  # 32 x 32, no mask, periodic
-    loading = _operator(data, 3, norm="ref")
-    raw = _operator(data, 3, norm="none").apply(data)
+    loading = _operator(data, 3)
+    raw = _operator(data, 3).apply(data, norm="none")
     stored = reference._reference
     assert stored is not None
     expected_var = _numpy(raw.full_grid("var")) / _numpy(stored.var)
     for loaded in (
-        loading.apply(data, ref=reference),
-        estel.functional.scattering(data, loading.plan, loading.filters, ref=reference),
+        loading.apply(data, ref=reference, norm="ref"),
+        estel.functional.scattering(data, loading.plan, loading.filters, ref=reference, norm="ref"),
     ):
         np.testing.assert_allclose(
             _numpy(loaded.full_grid("var")), expected_var, rtol=_tol(dtype), atol=0
@@ -397,23 +487,27 @@ def test_reference_of_another_plan_is_refused(
     ``apply`` and ``functional.scattering``, naming what differs."""
     source = Data2D(_field((1, nc, 32, 32)), pbc=True)
     cross = None if matrix is None else np.array(matrix)
-    reference = _operator(source, J, L=L, cross_matrix=cross).apply(source)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)  # OP-30
+        reference = _operator(source, J, L=L, cross_matrix=cross).apply(source)
     data = Data2D(_field((1, 2, 32, 32), seed=1), pbc=True)
-    loading = _operator(data, 3, norm="ref")
+    loading = _operator(data, 3)
     with pytest.raises(ValueError, match=message):
-        loading.apply(data, ref=reference)
+        loading.apply(data, ref=reference, norm="ref")
     with pytest.raises(ValueError, match=message):
-        estel.functional.scattering(data, loading.plan, loading.filters, ref=reference)
+        estel.functional.scattering(data, loading.plan, loading.filters, ref=reference, norm="ref")
 
 
-def test_channels_without_auto_statistics_warn_at_construction() -> None:
+def test_channels_without_auto_statistics_warn_at_a_normalised_apply() -> None:
+    """OP-30: the warning comes with the normalisation, chosen at ``apply`` (task T2.19)."""
     data = Data2D(_field((1, 3, 16, 16)), pbc=True)
     matrix = np.array([[True, False, True], [False, False, True], [False, False, True]])
-    with pytest.warns(UserWarning, match=r"channel\(s\) \[1\]"):
-        STOperator(data, 2, cross_matrix=matrix, compute_PS=False)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        STOperator(data, 2, norm="none", cross_matrix=matrix, compute_PS=False)
+        operator = STOperator(data, 2, cross_matrix=matrix, compute_PS=False)
+        operator.apply(data, norm="none")
+    with pytest.warns(UserWarning, match=r"channel\(s\) \[1\]"):
+        operator.apply(data)
 
 
 @pytest.mark.slow
@@ -425,7 +519,7 @@ def test_gradients_flow_through_norm_self_not_norm_ref(backend: Backend, dtype: 
     Slow: Hessian-vector products through two normalised operators (second order)."""
     data = _masked_2d(nb=1, nc=2)
     storing = _operator(data, 4)
-    loading = _operator(data, 4, norm="ref")
+    loading = _operator(data, 4)
     xp = backend.xp
 
     def store_loss(array: Any) -> Any:
@@ -436,7 +530,8 @@ def test_gradients_flow_through_norm_self_not_norm_ref(backend: Backend, dtype: 
         reference = storing.apply(data)
 
         def load_loss(array: Any) -> Any:
-            return xp.sum(loading.apply(data.with_array(array), ref=reference).to_vector() ** 2)
+            stats = loading.apply(data.with_array(array), ref=reference, norm="ref")
+            return xp.sum(stats.to_vector() ** 2)
 
         _, grad_store = backend.value_and_grad(store_loss)(data.array)
         _, grad_load = backend.value_and_grad(load_loss)(data.array)
@@ -458,18 +553,19 @@ def test_gradients_flow_through_norm_self_not_norm_ref(backend: Backend, dtype: 
 
 def test_functional_scattering_is_apply(backend: Backend) -> None:
     data = Data1D(_field((2, 2, 64)), pbc=False)
-    operator = _operator(data, 3, norm="none")
-    stats = estel.functional.scattering(data, operator.plan, operator.filters)
+    operator = _operator(data, 3)
+    stats = estel.functional.scattering(data, operator.plan, operator.filters, norm="none")
     np.testing.assert_array_equal(
-        _numpy(stats.to_vector()), _numpy(operator.apply(data).to_vector())
+        _numpy(stats.to_vector()), _numpy(operator.apply(data, norm="none").to_vector())
     )
     storing = _operator(data, 3)
     stored = estel.functional.scattering(data, storing.plan, storing.filters)
     assert storing._reference is None  # the pure function keeps nothing
-    loading = _operator(data, 3, norm="ref")
     with pytest.raises(ValueError, match="needs a reference"):
-        estel.functional.scattering(data, loading.plan, loading.filters)
-    loaded = estel.functional.scattering(data, loading.plan, loading.filters, ref=stored)
+        estel.functional.scattering(data, storing.plan, storing.filters, norm="ref")
+    loaded = estel.functional.scattering(
+        data, storing.plan, storing.filters, ref=stored, norm="ref"
+    )
     np.testing.assert_allclose(
         _numpy(loaded.to_vector()), _numpy(stored.to_vector()), rtol=1e-5, atol=1e-5
     )
@@ -494,7 +590,7 @@ def test_plan_and_filters_are_opaque_and_static() -> None:
     assert isinstance(first.filters, estel.STFilters)
     assert first.plan == second.plan
     assert hash(first.plan) == hash(second.plan)
-    assert first.plan != _operator(data, 2, norm="none").plan
+    assert first.plan != _operator(data, 2, standardize=False).plan
     assert first.plan != _operator(data, 2, cross_matrix=np.eye(2, dtype=bool)).plan
 
 
@@ -504,7 +600,7 @@ def test_plan_and_filters_are_opaque_and_static() -> None:
 @pytest.mark.dtype
 def test_save_and_load_round_trip(tmp_path: Path, dtype: str) -> None:
     data = _masked_2d(nc=2)
-    stats = _operator(data, 4, standardize=True, ref_batch_mean=True).apply(data)
+    stats = _operator(data, 4, standardize=True).apply(data, ref_batch_mean=True)
     reduced = stats.reduce(
         iso=True,
         angular_fourier=True,
@@ -520,6 +616,7 @@ def test_save_and_load_round_trip(tmp_path: Path, dtype: str) -> None:
         assert loaded._plan == original._plan
         assert loaded._grids == original._grids
         assert loaded._reductions == original._reductions
+        assert (loaded._norm, loaded._ref_batch_mean) == ("self", True)
         for grid in original._grids:
             np.testing.assert_array_equal(
                 _numpy(loaded.full_grid(grid.name)), _numpy(original.full_grid(grid.name))
@@ -590,9 +687,15 @@ def test_jit_returns_statistics() -> None:
     scale = float(np.abs(expected).max())
     np.testing.assert_allclose(_numpy(stats.to_vector()), expected, rtol=1e-5, atol=1e-6 * scale)
     leaves, treedef = jax.tree_util.tree_flatten(stats)
-    assert len(leaves) == 1 + 2  # the compact buffer and the two arrays of the reference
+    # The compact buffer, the two arrays of the reference, and the two moments removed by the
+    # standardisation, on by default (OP-120).
+    assert len(leaves) == 1 + 2 + 2
     again = jax.tree_util.tree_unflatten(treedef, leaves)
     assert again._grids == stats._grids
+    # norm is a Python value, static under jit as the plan is (task T2.19).
+    raw = jax.jit(lambda d, f: estel.functional.scattering(d, plan, f, norm="none"))(data, filters)
+    assert (raw._norm, raw._reference) == ("none", None)
+    assert len(jax.tree_util.tree_leaves(raw)) == 1 + 2
 
 
 @torch_only

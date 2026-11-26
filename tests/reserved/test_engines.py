@@ -105,7 +105,16 @@ class _IdentityEngine:
     def capabilities(self) -> EngineCapabilities:
         return _ORDER_ONE
 
-    def forward(self, x: Any, plan: Any, arrays: Any, ref: Any = None) -> ForwardResult:
+    def forward(
+        self,
+        x: Any,
+        plan: Any,
+        arrays: Any,
+        ref: Any = None,
+        *,
+        norm: str = "self",
+        ref_batch_mean: bool = False,
+    ) -> ForwardResult:
         return ForwardResult(values=x, residual=(ref is not None,))
 
     def vjp(self, residual: Any, cotangent: Any) -> tuple[Any, Any]:

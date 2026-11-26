@@ -40,7 +40,7 @@ class Objective:
     template: Data
     """The running data: ``u`` replaces its array (``Data.with_array``)."""
     plan: STPlan
-    """The plan of the running operator, with ``norm="ref"``."""
+    """The plan of the running operator, applied with ``norm="ref"``."""
     filters: STFilters
     reference: _NormReference
     """The target's reference (``var_ref``, ``S2_ref_sqrt_chan_diag`` and, with the spectrum,
@@ -54,6 +54,8 @@ class Objective:
     """1 from maps; from statistics with ``mean_field``, the target's Nb (OP-71)."""
 
     def __call__(self, u: Any) -> Any:
-        stats = compute(self.template.with_array(u), self.plan, self.filters, self.reference)
+        stats = compute(
+            self.template.with_array(u), self.plan, self.filters, self.reference, norm="ref"
+        )
         value = loss(flatten(stats, self.mean_field, self.keep_batch_dim), self.target)
         return value if self.divisor == 1 else value / self.divisor
