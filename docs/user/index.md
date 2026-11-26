@@ -1,4 +1,13 @@
+{.estel-home}
 # ESTEL
+
+% The hero stands in for the title above: the full logo, inlined, from the master
+% assets/logo/estel-logo-light.svg (see the comment in _static/estel-hero.svg).
+
+```{raw} html
+:file: _static/estel-hero.svg
+:class: estel-hero
+```
 
 ESTEL computes scattering-transform statistics of fields: their mean and variance, the
 scattering statistics S1 to S4 and, on 2D grids, the power spectrum. It works on 2D and 1D grids,

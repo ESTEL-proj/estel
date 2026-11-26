@@ -12,14 +12,21 @@ names: nothing here or in the pages names one. At the start of every build this 
 
 autodoc warns about a listed member it cannot find, and ``make docs`` and Read the Docs turn
 warnings into errors.
+
+It also finds the source of each documented name, for the ``[source]`` links of
+``sphinx.ext.linkcode`` (``linkcode_resolve`` in ``conf.py``): ``source_lines``.
 """
 
 from __future__ import annotations
 
+import ast
+import functools
 import importlib
+import importlib.util
 import inspect
 import json
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 from docutils import nodes
@@ -137,6 +144,80 @@ class EstelApi(SphinxDirective):
         container = nodes.container()
         self.state.nested_parse(StringList(lines, source=str(MANIFEST)), 0, container)
         return [*container.children]
+
+
+def _assignment(owner: type | ModuleType, name: str) -> tuple[str, int, int]:
+    """The statement that assigns ``name`` in the body of ``owner``, a class or a module: a
+    constant or a class attribute, whose value ``inspect`` cannot locate. A name a module
+    imports (``from ._reference import STATISTICS_REFERENCE``) is followed to the module that
+    assigns it."""
+    file = inspect.getsourcefile(owner)
+    if file is None:
+        raise LookupError(f"{owner.__name__} has no source file")
+    body = ast.parse(Path(file).read_text(encoding="utf-8")).body
+    if isinstance(owner, type):
+        for part in owner.__qualname__.split("."):
+            body = next(
+                (n.body for n in body if isinstance(n, ast.ClassDef) and n.name == part), []
+            )
+    for node in body:
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        if any(isinstance(target, ast.Name) and target.id == name for target in targets):
+            return file, node.lineno, node.end_lineno or node.lineno
+        if isinstance(node, ast.ImportFrom) and isinstance(owner, ModuleType):
+            for alias in node.names:
+                if (alias.asname or alias.name) == name:
+                    module = importlib.util.resolve_name(
+                        "." * node.level + (node.module or ""), owner.__package__
+                    )
+                    if module != owner.__name__:  # not `from . import name`, a submodule
+                        return _assignment(importlib.import_module(module), alias.name)
+    raise LookupError(f"no statement of {file} assigns {name} in {owner.__name__}")
+
+
+def source_lines(module: str, fullname: str) -> tuple[str, int, int]:
+    """The path in the repository of the file that defines ``module.fullname``, with the first
+    and the last line of its definition. The package is in ``src/`` in the repository, whether
+    it is installed from there (editable) or not.
+
+    A name re-exported from a private module is found where it is defined; a decorated function
+    with its decorators (``inspect.unwrap``); a property at its getter, a classmethod at its
+    function; a constant or a class attribute at the statement that assigns it, in the class of
+    the method resolution order that holds it; a module as its whole file. Raises
+    ``LookupError`` (or the error of ``inspect``) with the reason when no definition is found
+    in the package."""
+    *parents, name = fullname.split(".")
+    owner: Any = importlib.import_module(module)
+    for part in parents:
+        owner = getattr(owner, part)
+    if isinstance(owner, type):
+        owner = next((c for c in owner.__mro__ if name in vars(c)), owner)
+    obj = inspect.getattr_static(owner, name)
+    if isinstance(obj, property):
+        obj = obj.fget
+    elif isinstance(obj, classmethod | staticmethod):
+        obj = obj.__func__
+    elif isinstance(obj, functools.cached_property):
+        obj = obj.func
+    if inspect.ismodule(obj) or inspect.isclass(obj) or inspect.isroutine(obj):
+        obj = inspect.unwrap(obj) if inspect.isroutine(obj) else obj
+        file = inspect.getsourcefile(obj)
+        if file is None:
+            raise LookupError(f"{obj!r} has no source file")
+        lines, start = inspect.getsourcelines(obj)
+        found = (file, max(start, 1), max(start, 1) + len(lines) - 1)
+    else:
+        found = _assignment(owner, name)
+    package = Path(importlib.import_module(module.partition(".")[0]).__file__ or "")
+    package = package.parent.resolve()
+    defined_in = Path(found[0]).resolve()
+    if not defined_in.is_relative_to(package):
+        raise LookupError(f"it is defined in {defined_in}, outside the package {package}")
+    return f"src/{package.name}/{defined_in.relative_to(package).as_posix()}", found[1], found[2]
 
 
 def drop_type_docstring(
