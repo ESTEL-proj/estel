@@ -45,6 +45,9 @@
 | Major, minor, patch | The three numbers of a version (major.minor.patch), with the meanings of Part I, §7.1 |
 | Reference counters | STATISTICS\_REFERENCE and SYNTHESIS\_REFERENCE: two integers, never reset, bumped whenever statistics or reference synthesis trajectories change; the same number means the same values (Part I, §7.1) |
 | Public / internal | Public names are those of api/manifest.json, frozen within a major version; everything else lives in a private module or starts with an underscore, and may change (Part I, §2.4) |
+| Geometry | The kind of domain a field lives on, a node of the tree of Part I, §2.3.1: single-domain (Cartesian, 1D or 2D, and HEALPix) or tensor product (a product of single-domain blocks) |
+| Single-domain | Data on one domain, Cartesian or HEALPix: not a tensor product. A tensor product of one block is still a tensor product; the blocks of a tensor product are single-domain |
+| Cartesian | The regular grids of 1D and 2D data; "1D" and "2D" always mean Cartesian. "Cartesian product" (of index sets) and "Cartesian direction" keep their usual meaning |
 
 ## Appendix B — References
 

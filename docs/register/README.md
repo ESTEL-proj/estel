@@ -53,7 +53,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 
 ## Queue
 
-9 entries: 9 need a human, 0 can be treated.
+10 entries: 10 need a human, 0 can be treated.
 
 ### Needs a human
 
@@ -65,6 +65,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 | [LF72](LF72.md) | The HEALPix geometry cached on disk | — | where the cache lives: an option of `STOperator`, an environment variable or a default directory; its key and its invalidation: depth, `cell_ids`, L, K, the mask, the version of the tables; on or off by default; the dtype stored | Optimisation |
 | [LF73](LF73.md) | A cheaper gradient of the HEALPix convolution | — | whether a rule through `custom_jvp`, and its PyTorch counterpart, keeps the second order on both backends; the memory of the transposed tables; whether the Rust engine (LF3) makes it unnecessary | Optimisation |
 | [LF74](LF74.md) | Plots and diagnostics that wait for later cards | — | the Fourier diagnostics on the sphere, defined through spherical harmonics; the plots of `angular_fourier` and `scale_cosine` on tensor products, as LF68 defines them | New feature |
+| [LF75](LF75.md) | A real name for the HEALPix wavelet | — | the name, from the definition of the HEALPix kernel (maths M-WAV-HPX) | Structure |
 | [W5](W5.md) | Notation of the maths tab harmonised | — | for each remark R-N01 to R-N18 of issue #71 except R-N10: its recommendation, or another choice; the single table of symbols (R-N18) | Work that is not a feature |
 | [W6](W6.md) | Vocabulary of the code harmonised | — | for each remark R-V01 to R-V10 of issue #72: its recommendation, or another choice | Work that is not a feature |
 | [W7](W7.md) | Structure of maths.md and of the specification | — | for each remark R-S03, R-S04, R-S06 and R-S09 of issue #73: its recommendation, or another choice; whether the remarks apply to the transfer document, archived after 1.0.0, or to `docs/maths.md` and the reference document only | Work that is not a feature |

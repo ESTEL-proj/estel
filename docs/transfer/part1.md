@@ -11,8 +11,8 @@ These rules hold for every version of ESTEL, from the first commit of step 1 onw
 - [2. Architecture](#2-architecture)
   - [2.1 Layers](#21-layers)
   - [2.2 Multi-backend strategy](#22-multi-backend-strategy): [2.2.1 The primitive layer (L0)](#221-the-primitive-layer-l0) · [2.2.2 Static plans](#222-static-plans) · [2.2.3 Backend selection](#223-backend-selection) · [2.2.4 Engines](#224-engines) · [2.2.5 Roll-out](#225-roll-out)
-  - [2.3 Object model](#23-object-model)
-  - [2.4 Code rules enforced in CI](#24-code-rules-enforced-in-ci)
+  - [2.3 Object model](#23-object-model): [2.3.1 Geometries and the hierarchy of classes](#231-geometries-and-the-hierarchy-of-classes)
+  - [2.4 Code rules enforced in CI](#24-code-rules-enforced-in-ci): [2.4.1 Names](#241-names)
 - [3. Numerical coding rules](#3-numerical-coding-rules)
   - [3.1 Functional, JAX-ready style](#31-functional-jax-ready-style): [3.1.1 The scattering loop without in-place updates](#311-the-scattering-loop-without-in-place-updates)
   - [3.2 Differentiation contract](#32-differentiation-contract): [3.2.1 Why second order](#321-why-second-order) · [3.2.2 Guarantees](#322-guarantees) · [3.2.3 Implementation rules](#323-implementation-rules) · [3.2.4 Engines and differentiation order](#324-engines-and-differentiation-order)
@@ -150,6 +150,82 @@ At construction, an operator builds an `STPlan` in NumPy: scale and orientation 
 - **Class names follow PEP 8:** CapWords, no underscore. STL's `ST_Operator`, `ST_Operator_TensorProd` and `ST_Statistics` become `STOperator`, `STOperatorTensorProd` and `STStatistics`.
 - **The mother class is the simple case.** `STOperator` handles a single domain (1D, 2D, HEALPix). `STOperatorTensorProd` overrides a small, fixed set of hooks for products of domains (Part II, §12.6), and nothing else.
 
+#### 2.3.1 Geometries and the hierarchy of classes
+
+ESTEL has one tree of geometries. Every family of classes follows it, and every name says which node of the tree it covers (§2.4.1). Phase P7 (Part II, §15.2, T7.2 to T7.12) brings the code to the hierarchy below; until a task of P7 is merged, the code it concerns keeps its former names.
+
+```
+(every geometry)                      bare
+├── SingleDomain                      one field on one domain: not a tensor product
+│   ├── Cartesian                     regular grids
+│   │   ├── 1D
+│   │   └── 2D
+│   └── Healpix
+└── TensorProd                        a product of SingleDomain blocks (Cartesian; Healpix with LF9)
+```
+
+- A geometry is a node of this tree; the leaves have the tags of `engines/_protocol.py` (`"1d"`, `"2d"`, `"healpix"`, `"tensor_prod"`), frozen in saved files.
+- A geometry word names the geometry a computation acts on, a whole field or one block: `Cartesian`, `1D` and `2D` also cover the Cartesian blocks of a tensor product, and `TensorProd` names only what belongs to the product (multi-indices, joint scales, the loop over blocks, the composition).
+- "1D" and "2D" always mean Cartesian: HEALPix data, though they lie on a surface, are never called 2D.
+- An intermediate class of a family is created when it holds code shared by two leaves; inserting one renames no leaf.
+
+**The hierarchy of classes after P7.** [P] public, (i) internal; a class marked abstract cannot be built. A *brick* is a class held by a plan or by filters: the wavelet plans and filters, the bricks of the spectrum.
+
+```
+Data [P]                               root; holds the single-domain behaviour
+├── DataCartesian (i)                  the hooks shared by 1D and 2D data
+│   ├── Data1D [P]
+│   └── Data2D [P]
+├── DataHealpix [P]
+└── DataTensorProd [P]                 its blocks: BlockSpecTensorProd (i)
+
+WaveletOperator (i, abstract)          the only way to the geometry (§2.3)
+├── WaveletOperatorSingleDomain (i)
+└── WaveletOperatorTensorProd (i)      composes the operators of its blocks
+
+WaveletPlan (i, abstract)
+├── WaveletPlanSingleDomain (i, abstract) the fields shared by every single-domain plan, the low-pass filter included
+│   ├── WaveletPlanCartesian (i)
+│   └── WaveletPlanHealpix (i)
+└── WaveletPlanTensorProd (i)          holds the plans of its blocks
+
+WaveletFilters (i, abstract)           a tensor product holds a tuple of them, one per block
+├── WaveletFiltersCartesian (i)
+└── WaveletFiltersHealpix (i)
+
+STPlan [P]                             the plans of STOperator and STOperatorTensorProd
+├── STPlanSingleDomain (i)             holds a WaveletPlanSingleDomain and the spectrum brick
+└── STPlanTensorProd (i)
+STFilters [P]
+├── STFiltersSingleDomain (i)
+└── STFiltersTensorProd (i)
+
+Bricks of the spectrum (i): SpectrumEstimatorPlan2D, SpectrumEstimatorFilters2D, SpectrumBins2D
+```
+
+The operators are `STOperator` [P], single-domain, and `STOperatorTensorProd` [P], its subclass; `Data` and `STOperator` are bare and single-domain, the documented exceptions of the public names to §2.4.1. The power spectrum is computed by `STOperator` (`compute_PS`), with the bricks of the spectrum, from T4.6 (Part IV, §22, row of 26 November 2026, "The spectrum within `STOperator`").
+
+**Planned classes.** Proposals of the register: the card may revise them, and its pull request turns them from planned to existing here.
+
+| Card | Planned |
+| --- | --- |
+| LF10 | the v1.6.0 estimators in every geometry, generalised directly (Part III, §20.5): bricks of the spectrum written once for every Cartesian grid and every Cartesian block (`SpectrumEstimatorPlanCartesian`, replacing the `2D` bricks), reached through the hook `_spectrum_grids` of `Data`; `STPlanTensorProd` gains its spectrum brick; the spectral coverage (range and bins) rethought |
+| LF24 | the HEALPix spectra: `SpectrumEstimatorPlanHealpix` |
+| LF6 | the low-pass filter in every geometry: the low-pass fields of `WaveletPlanSingleDomain` read by every leaf; `DataHealpix._lowpass` implemented |
+| LF9 | HEALPix blocks in tensor products: `DataHealpix` gains the block capability and the hooks along a block's axes; the blocks of `WaveletPlanTensorProd` become `WaveletPlanSingleDomain`; names ending with a run (`…_healpix_tensor_prod`, §2.4.1) |
+| LF7, LF61 | an estimator for non-periodic data, spectra on odd sizes: values and options of the Cartesian estimators; no class |
+| LF8 | masks in tensor products: mask builders ending with `_tensor_prod`; no class |
+| LF42 | masks per channel: a channel axis in the masks of every geometry; no class |
+| LF34 | partitioned execution, every geometry (`DataHealpix(partition=…)` reserved today); no class |
+| LF22 | optimised wavelets: new banks, in the module of banks of their geometry |
+| LF51 | a study of kernels defined mathematically; no class |
+| LF43, LF67, LF72, LF73 | on HEALPix data: an ellipsoid for the pixel centres, the edge of a partial sky, the tables cached on disk, a cheaper gradient; functions ending with `_healpix`, no class |
+| LF44 | named blocks of tensor products: fields of `BlockSpecTensorProd` |
+| LF75 | a real name for the HEALPix wavelet |
+| W5, W6 | the notation of `docs/maths.md` and the vocabulary of the code: stems of names renamed through the table of §2.4.1 |
+| W7 | the structure of `docs/maths.md`, and with it which bare maths IDs are general |
+| a 3D geometry (none planned) | `Data3D` under `DataCartesian`; its bank in the Cartesian module of banks |
+
 ### 2.4 Code rules enforced in CI
 
 Each rule is enforced by a mechanical check — `import-linter` contracts and a small AST checker in `tools/` — not by review:
@@ -165,6 +241,7 @@ Each rule is enforced by a mechanical check — `import-linter` contracts and a 
 | No in-place array mutation in L1/L2 (`x[...] =`, `out=`, `.add_`, `inplace=True`, `x += y`, `del x[...]`, `__setitem__`). The NumPy modules that build the static plan (tag N in Part II, §12) are exempt from this rule only, through an explicit list in the checker: they run once, at construction, and are never traced or differentiated | AST check |
 | CI workflows: every action pinned to a full commit SHA with its version as a comment; every checkout with `persist-credentials: false`; an explicit top-level `permissions:` block (review rule E5). Dependabot proposes the updates of pinned actions | `tools/check_workflows.py` |
 | **Public vs internal.** Public names are exactly those listed in `api/manifest.json` and exported from `estel/__init__.py`. Internal functions live in private modules, named with a leading underscore (`spectra/_estimators.py`), with plain names inside; internal methods of public classes start with an underscore | `tools/api_manifest.py --check` fails if a name is reachable without an underscore, outside a private module, and not in the manifest |
+| **Names.** Every internal name follows the tree of geometries (§2.4.1) | the rules a tool can decide: `tools/check_retired_names.py`, with the table `tools/renamed_names.toml` (T7.2); the others in review |
 
 **Why these rules, in plain terms:**
 
@@ -173,6 +250,22 @@ Each rule is enforced by a mechanical check — `import-linter` contracts and a 
 - **No in-place updates.** Writing into an existing array breaks JAX, which forbids it, and second-order differentiation in PyTorch. It also makes results depend on the order of calls.
 - **No backend import outside L0.** This single rule is what keeps JAX and Rust engines possible. One stray `import torch` in the geometry code, and a JAX port becomes a rewrite.
 - **Public or internal, visible in the code.** The frozen API is ESTEL's central promise, so users and agents must see from the code itself what they may rely on. A name that looks public will be used, and can then no longer change without a major version.
+
+#### 2.4.1 Names
+
+Every internal name follows the tree of geometries (§2.3.1). `tools/check_retired_names.py`, with the table of renamed names `tools/renamed_names.toml` (both from T7.2), checks rules 1 and 2 (the order and the forms of geometry words), rule 3 for the names imported outside the modules of their geometry, rule 6, the lists of rule 7, the form of rule 9 and the word of rule 10; the meaning of a suffix, and rules 4, 5, 8 and 11, are checked in review (`docs/agents/review_rules.md`).
+
+1. **Order.** `<Kind><Role><Geometry>`, the kind being what the object is about (`ST`, `Wavelet`, `Spectrum`, `Data`) and the role what it is (`Plan`, `Filters`, `Operator`, `Bins`): a class `WaveletPlanHealpix`, a function `stencils_healpix`, a constant `KERNEL_SIZE_HEALPIX`, a module `_tables_healpix.py`. The geometry is the last word, or the last run (rule 4); the other words keep their order. This holds for the definitions of `src/estel/` (the oracle included), `tests/`, `tools/` and `bench/`, methods and fields included. Two exceptions with their own form: test function names are sentences, and benchmark labels are `<geometry>-<variant>-<size>`; the four labels `planar-*` of step 1 stay (rule 7).
+2. **The suffix is the smallest node of the tree that covers everything the name does**; a bare name covers every geometry. Forms: `SingleDomain`, `single_domain`, `SINGLE_DOMAIN`; `Cartesian`, `cartesian`, `CARTESIAN`; `1D`, `1d`, `2D`, `2d`; `Healpix`, `healpix`, `HEALPIX`; `TensorProd`, `tensor_prod`, `TENSOR_PROD`; in maths IDs `HEALPIX`, `TENSORPROD`; in labels and anchors `tensor-prod`. Never abbreviated: `hpx`, `tp` and `tensor_product` are retired in every identifier, test names, file names and labels included.
+3. **Modules.** A module is either of one geometry (its path names it) or bare. A name defined in a module of one geometry carries that geometry if and only if it is used outside the modules of that geometry; inside them the module says it. A name of a bare module that covers only part of the tree says which part. A method that overrides another keeps its name. In `tests/`, `tools/` and `bench/`, rules 1, 2 and 10 apply, and names fixed by another program (`pytestmark`, the fixtures of `conftest.py`, the interface of the parity cases) never change.
+4. **Two geometries.** A final run, from the block to the product (`orientations_healpix_tensor_prod`); blocks of several geometries in the order of the data, joined by `_`.
+5. **Roles are bases.** A type that generic code names in its annotations is a base of the hierarchy; a concrete class of one geometry is never the type of another.
+6. **An old name never has two meanings at once.** It comes back with a new meaning only after it has disappeared entirely: renamed by script in one commit, its absence checked by the tool on that commit, then reintroduced by hand in a later commit; the table records both steps.
+7. **Closed lists only.** No list of exempted project names. The tool holds commented lists: the names of the published HEALPix convention (Górski et al. 2005: `nest2xyf`, `xyf2nest`, `xyf2ang`, `ring2nest`), never a code source (§1.5, F23); package names (`healpix_analyse`, healpy, healpix-geo, `optax`); names fixed by another program; history (Part IV, §22, `docs/register/decisions.md`, `changes/`, `bench/results/`); STL's own names, and the reserved public `plot.nyquist_filter` (Part II, §12.10); the four benchmark labels `planar-*` of step 1.
+8. **"geometry"** names a node of the tree, and, in the fixed phrases "L1 geometry" and "geometry hooks", the layer and the hooks a geometry provides; the tables of pixels are "tables" or "stencils", and the shapes of the levels of the pyramid are "levels".
+9. **Maths IDs** read `M-<TOPIC>[-<VARIANT>]*[-<GEOMETRY>]*`, the geometry in the forms of rule 2 (`1D`, `2D`, `HEALPIX`, `TENSORPROD`), digits in a topic only for named quantities (S1 to S4, W1). Phase P7 changes `-HPX` into `-HEALPIX`, `-TP` into `-TENSORPROD` and `M-CONV-2D` into `M-CONV`; which bare IDs are general is decided with the structure of `docs/maths.md` (W7).
+10. **"planar"** is retired: "Cartesian" for 1D and 2D grids, "single-domain" for what is not a tensor product; so are its synonyms "single geometry" and "plain geometry". In prose it survives only in a quote of STL or STL-Dev-MPI, followed by "(STL's word)".
+11. **Messages** name public names only.
 
 ## 3. Numerical coding rules
 
