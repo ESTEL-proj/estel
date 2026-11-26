@@ -13,3 +13,8 @@ build/
 .claude/settings.local.json
 .claude/worktrees/
 bench/results/.work/
+# The user documentation (make docs): the build, with the execution cache of its notebooks
+# (.jupyter_cache), and the API pages generated from api/manifest.json.
+docs/user/_build/
+docs/user/api/
+.jupyter_cache/
