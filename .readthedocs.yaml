@@ -1,0 +1,20 @@
+# Read the Docs: the user documentation, docs/user/ (built locally by `make docs`).
+version: 2
+
+build:
+  os: ubuntu-24.04
+  tools:
+    python: "3.11"  # as .python-version
+
+# uv sync with the group docs, from uv.lock. On Linux, uv takes PyTorch from its CPU-only index
+# ([tool.uv.sources] of pyproject.toml), as in CI: the default wheel of PyPI pulls CUDA.
+python:
+  install:
+    - method: uv
+      command: sync
+      groups:
+        - docs
+
+sphinx:
+  configuration: docs/user/conf.py
+  fail_on_warning: true

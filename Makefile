@@ -17,7 +17,8 @@ RUN ?= uv run --locked
 .PHONY: check check-full check-tools lint types lint-imports layers manifest mirrors mirrors-fix \
         maths-ids retired-names identifiers orientations workflows register register-check \
         test test-fast test-torch test-jax test-fast-torch test-fast-jax \
-        test-spec version-impact clean-worktrees parity-image parity parity-fixtures container-runtime bench
+        test-spec version-impact clean-worktrees parity-image parity parity-fixtures container-runtime bench \
+        docs
 
 # Backends the tests run on (Part I, §3.1). CI runs one per job: make test-fast TEST_BACKENDS=torch
 TEST_BACKENDS ?= torch jax
@@ -211,6 +212,14 @@ bench:
 container-runtime:
 	@command -v $(CONTAINER) >/dev/null 2>&1 || { \
 		echo "'$(CONTAINER)' not found: install Docker, or run with CONTAINER=podman."; exit 1; }
+
+# The user documentation, docs/user/, as Read the Docs builds it (.readthedocs.yaml): every
+# warning is an error. Not part of `make check` or `make check-tools`, which have a time budget.
+# The quickstart runs at build time; its outputs are cached in $(DOCS_BUILD)/.jupyter_cache.
+DOCS_BUILD := docs/user/_build
+
+docs:
+	$(RUN) --group docs sphinx-build -W --keep-going -b html docs/user $(DOCS_BUILD)/html
 
 # Runs in CI on pull requests; locally: make version-impact BASE=origin/main PR=12
 BASE ?= origin/main

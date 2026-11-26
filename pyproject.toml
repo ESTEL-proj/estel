@@ -44,6 +44,15 @@ dev = [
     # with wheels for Linux x86-64 and macOS arm64 (T5.3, issue #164).
     "healpy==1.20.1",
 ]
+# The user documentation, docs/user/ (make docs; Read the Docs, .readthedocs.yaml).
+docs = [
+    "sphinx>=9.0",
+    "pydata-sphinx-theme>=0.24",
+    "myst-nb>=1.4",
+    "numpydoc>=1.11",
+    "sphinx-design>=0.8",
+    "sphinx-copybutton>=0.5.2",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/estel"]
