@@ -650,9 +650,34 @@ def _anchor_words(anchor: str) -> str:
     return " ".join(p.replace("-", " ") for p in anchor.split("--") if not p.startswith("m-"))
 
 
-PHRASE_RE = re.compile(r"(?i)\b(?:single|plain)[\s_-]+geometry\b")
+PHRASE_RE = re.compile(r"(?i)\b(?:single|plain)[\s_-]+geometr(?:y|ies)\b")
 STL_WORD = "(STL's word)"
 RETIRED_TEXT_RE = re.compile(r"(?i)hpx|tp|tensor_?product|planar")
+
+
+def _allowed(component: str, segment: str, end: int, is_code: bool) -> bool:
+    """An occurrence the rule allows, in every check of the text: a name of the closed lists
+    (rule 7), the benchmark labels of step 1 included, or, in prose, a quote of STL followed by
+    "(STL's word)" (rule 10). ``component`` is a part of a token of ``segment`` (``TOKEN_RE``,
+    split at ``.`` and ``/``) and ``end`` the end of that token."""
+    return (
+        _is_exempt(component)
+        or component in BENCH_LABELS
+        or (not is_code and STL_WORD in segment[end : end + 120])
+    )
+
+
+def _allowed_at(segment: str, position: int) -> bool:
+    """:func:`_allowed` for the prose occurrence that starts at ``position`` of ``segment``: the
+    component of the token that holds it, as the main check reads it."""
+    for match in TOKEN_RE.finditer(segment):
+        if match.start() <= position < match.end():
+            offset = match.start()
+            for component in re.split(r"[./]", match.group(0)):
+                if offset <= position < offset + len(component):
+                    return _allowed(component, segment, match.end(), False)
+                offset += len(component) + 1
+    return False
 
 
 def _segments(rel: str, text: str) -> Iterator[tuple[int, str, bool]]:
@@ -729,7 +754,8 @@ def check_text(rel: str, text: str) -> Iterator[Violation]:
         if not is_code:
             for match in PHRASE_RE.finditer(segment):
                 if STL_WORD not in segment[match.end() : match.end() + 120]:
-                    phrase = re.sub(r"[\s_-]+", " ", match.group(0).lower())
+                    # The plural is the same phrase: one row covers both.
+                    phrase = re.sub(r"[\s_-]+", " ", match.group(0).lower()).replace("ies", "y")
                     yield Violation(
                         "rule 10",
                         f"{rel}#{phrase}",
@@ -756,13 +782,11 @@ def check_text(rel: str, text: str) -> Iterator[Violation]:
             if not RETIRED_TEXT_RE.search(token):
                 continue
             for component in re.split(r"[./]", token):
-                if not component or _is_exempt(component) or component in BENCH_LABELS:
+                if not component or _allowed(component, segment, end, is_code):
                     continue
                 words = [_word_geometry(w) for w in WORD_RE.findall(component)]
                 retired = [w for w in words if w in RETIRED_WORDS]
                 if not retired:
-                    continue
-                if not is_code and STL_WORD in segment[end : end + 120]:
                     continue
                 prose = not is_code and component.lower() == "planar" and token == component
                 if prose:
@@ -1359,12 +1383,18 @@ def _done_in_prose(
             found: dict[str, Row] = {}
             if ids_re:
                 found |= {m.group(1): ids[m.group(1)] for m in ids_re.finditer(segment)}
+            # The exemptions of the main check hold here too (rules 7 and 10).
             if any_re:
-                found |= {m.group(1): here[m.group(1)] for m in any_re.finditer(segment)}
+                found |= {
+                    m.group(1): here[m.group(1)]
+                    for m in any_re.finditer(segment)
+                    if not _allowed_at(segment, m.start(1))
+                }
             if quoted_re:
-                for span in BACKTICKS_RE.findall(segment):
-                    for m in quoted_re.finditer(span):
-                        found[m.group(1)] = {**here, **quoted}[m.group(1)]
+                for span in BACKTICKS_RE.finditer(segment):
+                    for m in quoted_re.finditer(span.group(1)):
+                        if not _allowed_at(segment, span.start(1) + m.start(1)):
+                            found[m.group(1)] = {**here, **quoted}[m.group(1)]
             for form, row in found.items():
                 errors.append(_done_message(f"{rel}:{number}", form, row))
     return errors

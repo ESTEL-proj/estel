@@ -13,7 +13,7 @@ issue = 0
 
 ## Goal
 
-Tensor-product data with missing values: `DataTensorProd` takes a mask, or an array with NaN, where 1.0.0 raises at construction (OP-41, OP-80), and the statistics are computed with masks as weights, as on planar 2D, 1D and HEALPix data: gaps in space–time data. First for separable masks, then for general ones (§20.3). The NaN-aware spectra of tensor products (`nan_mask`, `pbc_nan_mask`) are LF10's, which waits for this entry.
+Tensor-product data with missing values: `DataTensorProd` takes a mask, or an array with NaN, where 1.0.0 raises at construction (OP-41, OP-80), and the statistics are computed with masks as weights, as on 2D, 1D and HEALPix data: gaps in space–time data. First for separable masks, then for general ones (§20.3). The NaN-aware spectra of tensor products (`nan_mask`, `pbc_nan_mask`) are LF10's, which waits for this entry.
 
 ## Decisions
 

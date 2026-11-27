@@ -1,4 +1,4 @@
-"""The HEALPix pixel functions the geometry tables need: centres, orderings and interpolation.
+"""The HEALPix pixel functions the tables need: centres, orderings and interpolation.
 
 Written from published sources only, without reading the code of HEALPix C++, of healpy or of
 any port of them:

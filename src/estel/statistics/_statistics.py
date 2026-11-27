@@ -464,7 +464,7 @@ class STStatistics:
             # The power spectrum alone (select("PS")): every reduction
             # leaves it unchanged (maths.md §1.9, "Reductions").
             return self
-        # A single geometry: a tensor product raised above.
+        # Single-domain: a tensor product raised above.
         plan = cast(STPlanSingleDomain, self._plan)
         L, J = plan.L, plan.J  # noqa: N806
         n_angular = _check_count("angular_harmonics", angular_harmonics, L, "L")
@@ -1152,7 +1152,7 @@ def finish(
     norm: str,
     ref_batch_mean: bool,
 ) -> STStatistics:
-    """The one path after the loop, for planar data and for tensor products (issue #23,
+    """The one path after the loop, for single-domain data and for tensor products (issue #23,
     "Decisions of the maintainer for T3.2", point 4): the statistics of the raw buffer of the
     loop of ``plan``, normalised by ``norm`` (M-NORM, M-NORM-TENSORPROD), which they record with
     ``ref_batch_mean``. With ``norm="self"`` the reference is computed from the buffer, averaged

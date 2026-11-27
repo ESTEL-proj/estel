@@ -1,7 +1,7 @@
 """Unit tests of the HEALPix geometry tables (task T5.1, issue #26; maths.md M-CONV-HEALPIX,
 M-WAV-HEALPIX, M-DOWN-HEALPIX).
 
-Each geometry function of ``estel.wavelets._tables_healpix`` against healpy (``pix2ang``,
+Each pixel function of ``estel.wavelets._tables_healpix`` against healpy (``pix2ang``,
 ``ring2nest``, ``get_interp_weights``), which is imported here only: it is GPL-2 and never
 imported by ESTEL (Part I, §1.5). The rotations against the formula of M-CONV-HEALPIX, step 2; the
 kernel against M-WAV-HEALPIX; the search of the decimation's candidates against a brute-force

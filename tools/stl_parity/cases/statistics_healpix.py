@@ -4,7 +4,7 @@ with the masks of the scattering layers (Part II, §14.2, §14.4; task T5.3, iss
 
 For each configuration ``<config>``, runs STL's scattering operator (``ST_Operator.apply``)
 without spectrum (``compute_PS=False``), L = 4 gauges, with the settings of ``_healpix.py`` (the
-sphere, no geometry cache, the kernel in float64; OP-45, OP-46) and with
+sphere, no cache of tables, the kernel in float64; OP-45, OP-46) and with
 ``replace_nan_value=None``, as ``statistics_2d`` does:
 
 * with ``norm="vanilla"`` on a target field (ESTEL's ``"none"``);

@@ -36,7 +36,7 @@ Modules: `src/estel/backend/jax/_primitives.py` (`lbfgs`, `not_provided`, `LBFGS
 
 ## Done when
 
-The exit criteria of §17.5: the conformance suite passes on JAX in float32 and float64; every reference test passes on JAX within its tolerances, the rows "vs reference" of Part I §5.2 (`tests/tolerances.toml`, created by T8.1); the differentiation tests pass in both modes to second order; the compile times are within their budgets. And: a periodic planar synthesis runs on JAX, writes checkpoints and resumes from them; the L-BFGS synthesis case runs in the fast tier on JAX; every HEALPix test passes on JAX in both dtypes, the second-order tests included, and the HEALPix cases of LF62 compile within budget on JAX; the full tier passes on JAX on the GPU node of LF62.
+The exit criteria of §17.5: the conformance suite passes on JAX in float32 and float64; every reference test passes on JAX within its tolerances, the rows "vs reference" of Part I §5.2 (`tests/tolerances.toml`, created by T8.1); the differentiation tests pass in both modes to second order; the compile times are within their budgets. And: a periodic 2D synthesis runs on JAX, writes checkpoints and resumes from them; the L-BFGS synthesis case runs in the fast tier on JAX; every HEALPix test passes on JAX in both dtypes, the second-order tests included, and the HEALPix cases of LF62 compile within budget on JAX; the full tier passes on JAX on the GPU node of LF62.
 
 ## Feature
 

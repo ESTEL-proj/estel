@@ -71,15 +71,15 @@ def _masked_without_norm() -> STStatistics:
 
 
 CASES: dict[str, Callable[[STStatistics], STStatistics]] = {
-    "planar": lambda planar: planar,
-    "2d-norm-none": lambda planar: _masked_without_norm(),
-    "line-norm-none": lambda planar: _line("none"),
-    "line-norm-self": lambda planar: _line(None),
-    "select-channels": lambda planar: planar.select(c1=[0, 2], j3=2),
-    "select-S4": lambda planar: planar.select("S4", channel=(0, 2), l1=1),
-    "iso": lambda planar: planar.reduce(iso=True),
-    "angular": lambda planar: planar.reduce(angular_fourier=True, angular_harmonics=2),
-    "all-reductions": lambda planar: planar.reduce(
+    "2d": lambda stats_2d: stats_2d,
+    "2d-norm-none": lambda stats_2d: _masked_without_norm(),
+    "line-norm-none": lambda stats_2d: _line("none"),
+    "line-norm-self": lambda stats_2d: _line(None),
+    "select-channels": lambda stats_2d: stats_2d.select(c1=[0, 2], j3=2),
+    "select-S4": lambda stats_2d: stats_2d.select("S4", channel=(0, 2), l1=1),
+    "iso": lambda stats_2d: stats_2d.reduce(iso=True),
+    "angular": lambda stats_2d: stats_2d.reduce(angular_fourier=True, angular_harmonics=2),
+    "all-reductions": lambda stats_2d: stats_2d.reduce(
         iso=True, angular_fourier=True, scale_cosine=True, dj=2
     ),
 }
@@ -199,9 +199,9 @@ def test_scattering_builds_no_full_grid_view(monkeypatch: pytest.MonkeyPatch, no
 def test_select_repeats_and_reorders_positions(dtype: str) -> None:
     """``select`` with a repeated and reordered sequence and a reversed slice, computed on the
     entries, gives the full-grid view indexed the same way."""
-    planar = _statistics_2d(dtype, _registry.get_backend())
-    chosen = planar.select("S3", j3=[2, 0, 2], l2=slice(None, None, -1))
-    expected = np.asarray(planar.full_grid("S3"))[:, :, :, :, [2, 0, 2]][:, :, :, :, :, ::-1]
+    stats_2d = _statistics_2d(dtype, _registry.get_backend())
+    chosen = stats_2d.select("S3", j3=[2, 0, 2], l2=slice(None, None, -1))
+    expected = np.asarray(stats_2d.full_grid("S3"))[:, :, :, :, [2, 0, 2]][:, :, :, :, :, ::-1]
     np.testing.assert_array_equal(np.asarray(chosen.full_grid("S3")), expected)
 
 
@@ -209,8 +209,8 @@ def test_angular_fourier_is_applied_one_axis_at_a_time(dtype: str) -> None:
     """Part III, §19.6: one map per orientation axis of S4, each output float reading at most
     L complex entries (2 L floats), rather than one map over the Kronecker product of the
     axes, which grows as L to the power of twice their number."""
-    planar = _statistics_2d(dtype, _registry.get_backend())
-    maps = reductions.angular_fourier(planar._layout, 3, False)
+    stats_2d = _statistics_2d(dtype, _registry.get_backend())
+    maps = reductions.angular_fourier(stats_2d._layout, 3, False)
     assert len(maps) == 3
     widths = [
         p.columns.shape[1]
@@ -219,7 +219,7 @@ def test_angular_fourier_is_applied_one_axis_at_a_time(dtype: str) -> None:
         if p.columns is not None and p.weights is not None
     ]
     assert widths
-    plan = planar._plan
+    plan = stats_2d._plan
     assert isinstance(plan, STPlanSingleDomain)
     assert max(widths) <= 2 * plan.L
 

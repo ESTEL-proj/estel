@@ -11,7 +11,7 @@ import pytest
 from .conftest import REPO, TOOLS, run_tool, write
 
 MATHS = """# maths
-## 1. Planar
+## 1. 2D
 ### 1.1 Data — M-DATA-2D
 Arrays. See M-S1.
 #### M-S1

@@ -151,7 +151,7 @@ def test_wavelets_and_data_may_use_the_geometry_hooks(tmp_path: Path) -> None:
             id="out-keyword",
         ),
         pytest.param(
-            "src/estel/data/planar.py",
+            "src/estel/data/cartesian.py",
             "x.add_(y)\n",
             "calls `.add_()`, an in-place method",
             id="inplace-method",

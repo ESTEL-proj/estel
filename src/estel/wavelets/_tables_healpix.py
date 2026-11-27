@@ -1,4 +1,4 @@
-"""The HEALPix geometry tables: stencils and decimation (Part II, §12.5; task T5.1, issue #26).
+"""The HEALPix tables: stencils and decimation (Part II, §12.5; task T5.1, issue #26).
 
 Where each block comes from (the five blocks decided on 24 November 2026, Part IV, §22):
 
@@ -19,7 +19,7 @@ Where each block comes from (the five blocks decided on 24 November 2026, Part I
 Blocks 3 to 5 are ported from ``TorchGeometry`` of STL `HealpixUpdate` ``90eb1a9``
 (``STL_main/TorchGeometry.py``: ``rotation_matrices``, ``local_kernel_grid``, ``bind_support``,
 ``centres_lonlat``, ``_haversine``, ``smooth_decimation_csr``), which reproduces in vectorised
-code the geometry of healpix-analyse ``aac5e26`` (``HealPixConv``, ``HealPixDown``) on the
+code the tables of healpix-analyse ``aac5e26`` (``HealPixConv``, ``HealPixDown``) on the
 sphere. Blocks 1 and 2, which ``TorchGeometry`` transcribes from HEALPix C++ (GPL-2), were
 rewritten from the published sources above, not ported (Part I, §1.5; Part IV, §21, F23).
 
@@ -60,7 +60,7 @@ the pixel axis of a map ``x`` of shape ``(..., Npix)`` whose pixels are ``cell_i
       z = gather_weighted(x, -1, index, weight)       # (..., nnz, 1)
       y = segment_sum(z[..., 0], -1, segment_ids, len(cell_ids_out))   # (..., Npix_coarse)
 
-``tests/geometry/test_geometry_healpix.py`` checks each geometry function against healpy (in the
+``tests/geometry/test_geometry_healpix.py`` checks each pixel function against healpy (in the
 tests only, Part I, §1.5) and the rotations against M-CONV-HEALPIX, step 2;
 ``tests/parity/test_tables_healpix.py`` checks the tables, as operators (OP-92), against STL's
 fixtures (T5.3).

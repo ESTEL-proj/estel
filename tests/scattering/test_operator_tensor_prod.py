@@ -4,9 +4,9 @@ M-LP, M-IDX-TENSORPROD, OP-8, OP-13, OP-34, OP-41, OP-82, OP-83).
 
 The values are compared with STL in ``tests/parity/test_tensor_prod.py`` and with the oracle in
 ``tests/spec/test_operator_tensor_prod.py``; these tests check the operator itself: a tensor
-product of one block with ``lowpass=None`` gives the statistics of the plain geometry (OP-82),
-``estel.functional.scattering`` is ``apply``, ``from_statistics`` rebuilds the operator, a wrong
-reference is refused before the loop, and the arguments are validated at construction with
+product of one block with ``lowpass=None`` gives the statistics of its Cartesian geometry
+(OP-82), ``estel.functional.scattering`` is ``apply``, ``from_statistics`` rebuilds the operator, a
+wrong reference is refused before the loop, and the arguments are validated at construction with
 errors that say what to do.
 """
 
@@ -58,15 +58,15 @@ def _space_time(shape: tuple[int, ...] = (1, 1, 8, 8, 8), seed: int = 0) -> Data
     [(Data2D, (2, 2, 16, 16), 4), (Data1D, (1, 2, 32), 2)],
     ids=["2D", "1D"],
 )
-def test_one_block_without_lowpass_is_the_plain_geometry(
+def test_one_block_without_lowpass_is_the_cartesian_geometry(
     cls: type[estel.Data],
     shape: tuple[int, ...],
     L: int,  # noqa: N803
 ) -> None:
-    """A tensor product of one block with ``lowpass=None`` gives the statistics of the plain
-    geometry, family by family (maths.md OP-82, M-IDX-TENSORPROD, "One block"), here open, with
-    cross channels, ``norm="self"`` and the standardisation; with ``lowpass="ST"``, S1 and S2 have
-    one scale more."""
+    """A tensor product of one block with ``lowpass=None`` gives the statistics of its
+    Cartesian geometry, family by family (maths.md OP-82, M-IDX-TENSORPROD, "One block"), here
+    open, with cross channels, ``norm="self"`` and the standardisation; with ``lowpass="ST"``, S1
+    and S2 have one scale more."""
     field = _field(shape)
     plain = cls(field, pbc=False)
     product = DataTensorProd(field, [cls], pbc=[False])
@@ -108,20 +108,22 @@ def test_from_statistics_rebuilds_the_operator(tmp_path: Any) -> None:
     np.testing.assert_array_equal(_numpy(again.to_vector()), _numpy(stats.to_vector()))
     with pytest.raises(ValueError, match=r"use STOperatorTensorProd.from_statistics"):
         STOperator.from_statistics(stats)
-    planar = STOperator(Data2D(_field((1, 1, 16, 16)), pbc=True), 2, compute_PS=False)
+    single_domain = STOperator(Data2D(_field((1, 1, 16, 16)), pbc=True), 2, compute_PS=False)
     with pytest.raises(ValueError, match=r"use STOperator.from_statistics"):
-        STOperatorTensorProd.from_statistics(planar.apply(Data2D(_field((1, 1, 16, 16)), pbc=True)))
+        STOperatorTensorProd.from_statistics(
+            single_domain.apply(Data2D(_field((1, 1, 16, 16)), pbc=True))
+        )
     assert "STOperatorTensorProd(J=[2, 1], L=[4, 2], lowpass='ST'" in repr(rebuilt)
 
 
 def test_a_wrong_reference_is_refused_before_the_loop(monkeypatch: pytest.MonkeyPatch) -> None:
-    """With ``norm="ref"``, a reference of other blocks, J or low-pass flags, or of planar
+    """With ``norm="ref"``, a reference of other blocks, J or low-pass flags, or of single-domain
     statistics, is refused before the loop runs (issue #23, decisions, point 4)."""
     data = _space_time()
     operator = STOperatorTensorProd(data, [2, 1])
     other = STOperatorTensorProd(data, [1, 1]).apply(data)
-    planar = STOperator(Data2D(_field((1, 1, 16, 16)), pbc=True), 2, compute_PS=False)
-    stats_single_domain = planar.apply(Data2D(_field((1, 1, 16, 16)), pbc=True))
+    single_domain = STOperator(Data2D(_field((1, 1, 16, 16)), pbc=True), 2, compute_PS=False)
+    stats_single_domain = single_domain.apply(Data2D(_field((1, 1, 16, 16)), pbc=True))
 
     def no_loop(name: str) -> Any:
         raise AssertionError("the loop ran before the reference was checked")
@@ -136,27 +138,32 @@ def test_a_wrong_reference_is_refused_before_the_loop(monkeypatch: pytest.Monkey
 
 
 @pytest.mark.parametrize(
-    "case", ["planar plan, filters of a product", "plan of a product, planar filters", "wavelets"]
+    "case",
+    [
+        "single-domain plan, filters of a product",
+        "plan of a product, single-domain filters",
+        "wavelets",
+    ],
 )
 def test_parts_of_another_geometry_are_refused(case: str) -> None:
-    """The plan and the filters of two operators, one planar and one of a tensor product, are
-    refused with a ``TypeError`` (``STPlan._check_data``), and so is planar data given to the
+    """The plan and the filters of two operators, one single-domain and one of a tensor product, are
+    refused with a ``TypeError`` (``STPlan._check_data``), and so is single-domain data given to the
     wavelet operator of a tensor product (``WaveletOperatorTensorProd.from_parts``; #144)."""
     product = _space_time()
-    planar = Data2D(_field((1, 1, 8, 8)), pbc=True)
+    single_domain = Data2D(_field((1, 1, 8, 8)), pbc=True)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-34 on these small blocks
         of_product = STOperatorTensorProd(product, [1, 1])
-    of_single_domain = STOperator(planar, 1, compute_PS=False)
+    of_single_domain = STOperator(single_domain, 1, compute_PS=False)
     if case == "wavelets":
         plan = of_product.plan
         assert isinstance(plan, STPlanTensorProd)
         with pytest.raises(TypeError, match=r"WaveletOperatorTensorProd takes a DataTensorProd"):
-            WaveletOperatorTensorProd.from_parts(planar, plan.wavelets)
+            WaveletOperatorTensorProd.from_parts(single_domain, plan.wavelets)
         return
     data, plan, filters = (
-        (planar, of_single_domain.plan, of_product.filters)
-        if case.startswith("planar")
+        (single_domain, of_single_domain.plan, of_product.filters)
+        if case.startswith("single-domain")
         else (product, of_product.plan, of_single_domain.filters)
     )
     with pytest.raises(TypeError, match=r"the plan and the filters come from different operators"):
@@ -164,8 +171,8 @@ def test_parts_of_another_geometry_are_refused(case: str) -> None:
 
 
 def test_arguments_are_checked_at_construction() -> None:
-    """The errors of maths.md §3.1 and §3.10, at construction, saying what to do: planar data,
-    a mask or a NaN (OP-41), the spectrum (LF23), ``lowpass``, J and L per block (OP-83), the
+    """The errors of maths.md §3.1 and §3.10, at construction, saying what to do: single-domain
+    data, a mask or a NaN (OP-41), the spectrum (LF23), ``lowpass``, J and L per block (OP-83), the
     sizes (OP-8), and data that differ from the plan when applied."""
     data = _space_time()
     with pytest.raises(TypeError, match=r"for 1D and 2D data, use STOperator"):

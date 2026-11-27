@@ -152,7 +152,7 @@ def test_normalised_statistics_equal_the_fixture() -> None:
 def test_one_block_equals_the_cartesian_oracle(
     ndim: int, shape: tuple[int, ...], pbc: bool
 ) -> None:
-    """With ``lowpass=None``, a tensor product of one block is the planar geometry (OP-82):
+    """With ``lowpass=None``, a tensor product of one block is its Cartesian geometry (OP-82):
     same families, same full grids, the 1D block with its tensor default L = 2."""
     field = np.random.default_rng(12).standard_normal((2, *shape))
     out = spec.spec_apply_tensor_prod(field, [ndim], [pbc], [2], lowpass=None, norm="self")

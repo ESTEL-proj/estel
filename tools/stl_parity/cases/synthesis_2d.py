@@ -1,7 +1,7 @@
 """Parity case: the first iterations of a periodic synthesis of STL `master` (Part II, §14.2,
 §14.3; task T6.1, issue #28, decisions 2 and 3 of 21 November 2026; maths.md section 5).
 
-One periodic planar case, one channel, float64: a 64 x 64 target, J = 4, L = 4. STL runs its
+One periodic 2D case, one channel, float64: a 64 x 64 target, J = 4, L = 4. STL runs its
 synthesis from maps with its own settings (M-SYN-LBFGS: step 1.0, 50 correction pairs, strong
 Wolfe line search, tolerances 1e-12 and 1e-15, ⌊5 max_iter / 4⌋ evaluations; seed 26, the
 Nyquist pre-filter, the weights 3.5 and 3.5² of S3 and S4, ``mean_field=True``), without the

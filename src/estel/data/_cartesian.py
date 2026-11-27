@@ -53,7 +53,7 @@ class DataCartesian(Data):
     def _meta(self) -> tuple[Any, ...]:
         """The static metadata of the geometry beyond the mask and ``pbc``, hashable: what
         :meth:`_from_parts` needs, with them, to rebuild an object of this class. A geometry
-        with more metadata overrides it and :meth:`_set_meta`; planar data have none."""
+        with more metadata overrides it and :meth:`_set_meta`; Cartesian data have none."""
         return ()
 
     @classmethod
@@ -114,9 +114,9 @@ class DataCartesian(Data):
         return "circular" if pbc else "replicate"
 
     def _conv(self, x: Any, tables: Any, level: int) -> Any:
-        """Planar ``_conv``: pad by ⌊K/2⌋ on each side of every spatial axis, then correlate with
+        """Cartesian ``_conv``: pad by ⌊K/2⌋ on each side of every spatial axis, then correlate with
         each kernel (maths.md M-CONV, M-W1, OP-1). The ``tables`` are the kernel bank, and
-        ``level`` does not matter: the planar kernels are the same at every level (M-WAV-2D,
+        ``level`` does not matter: the Cartesian kernels are the same at every level (M-WAV-2D,
         M-WAV-1D). The filtering itself is :meth:`_conv_along`, on the spatial axes.
         """
         self._check_array(x, "_conv")
@@ -124,7 +124,7 @@ class DataCartesian(Data):
             x,
             tables,
             axes=self._spatial_axes(),
-            pbc=cast(bool, self.pbc),  # planar data: one boolean
+            pbc=cast(bool, self.pbc),  # Cartesian data: one boolean
             backend=self.backend,
             owner=f"{type(self).__name__}._conv",
         )
@@ -140,7 +140,7 @@ class DataCartesian(Data):
         backend: str,
         owner: str,
     ) -> Any:
-        """The planar filtering along ``axes`` of ``x``, contiguous and increasing, the
+        """The Cartesian filtering along ``axes`` of ``x``, contiguous and increasing, the
         ``cls.ndim`` axes of the geometry or of one block of a tensor product (Part II, §12.4):
         padded and correlated along these axes only, every other axis carried through, none moved
         (maths.md M-CONV; M-NOT-TENSORPROD, the block convolution ⋆_a).
@@ -191,7 +191,7 @@ class DataCartesian(Data):
         return array_backend.real_pairs_to_complex(xp.permute_dims(y, (0, first + 1, *rest, first)))
 
     def _downsample(self, x: Any, weights: DownsampleWeights, level: int) -> Any:
-        """Planar ``_downsample``: one step of maths.md M-DOWN, normalised as in M-DOWN-MASK when
+        """Cartesian ``_downsample``: one step of maths.md M-DOWN, normalised as in M-DOWN-MASK when
         the data have missing values; :meth:`_downsample_along`, on the spatial axes. ``level``
         does not matter: the smoothing kernel is the same at every level.
         """
@@ -200,7 +200,7 @@ class DataCartesian(Data):
             x,
             weights,
             axes=self._spatial_axes(),
-            pbc=cast(bool, self.pbc),  # planar data: one boolean
+            pbc=cast(bool, self.pbc),  # Cartesian data: one boolean
             backend=self.backend,
             owner=f"{type(self).__name__}._downsample",
         )
@@ -216,7 +216,7 @@ class DataCartesian(Data):
         backend: str,
         owner: str,
     ) -> Any:
-        """One planar downsampling step along ``axes`` of ``x``, contiguous and increasing, the
+        """One Cartesian downsampling step along ``axes`` of ``x``, contiguous and increasing, the
         axes of the geometry or of one block of a tensor product (maths.md M-DOWN, M-DOWN-MASK;
         M-NOT-TENSORPROD): every other axis is carried through, none moved.
 
@@ -267,7 +267,7 @@ class DataCartesian(Data):
         return out if reweight is None else out * reweight
 
     def _crop_weights(self, level: int, border: int) -> NDArray[np.float64]:
-        """Planar ``_crop_weights``: :meth:`_crop_weights_along` on the spatial shape."""
+        """Cartesian ``_crop_weights``: :meth:`_crop_weights_along` on the spatial shape."""
         return type(self)._crop_weights_along(
             self.shape[2:], level, border, owner=f"{type(self).__name__}._crop_weights"
         )
@@ -348,7 +348,7 @@ def nyquist_filter(backend: Backend, x: Any) -> Any:
 
 
 class Data2D(DataCartesian):
-    """2D planar data, shape ``(Nb, Nc, N1, N2)``.
+    """2D data, shape ``(Nb, Nc, N1, N2)``.
 
     ``Data2D(array, mask=None, *, pbc)``: see :class:`estel.Data` for the parameters.
     A 2D array is promoted to ``(1, 1, N1, N2)``, a 3D array to ``(1, Nc, N1, N2)``
@@ -369,7 +369,7 @@ class Data2D(DataCartesian):
 
 
 class Data1D(DataCartesian):
-    """1D planar data, shape ``(Nb, Nc, N)``.
+    """1D data, shape ``(Nb, Nc, N)``.
 
     ``Data1D(array, mask=None, *, pbc)``: see :class:`estel.Data` for the parameters.
     A 1D array is promoted to ``(1, 1, N)``; a 2D array to ``(1, Nc, N)``, its first axis read

@@ -427,7 +427,7 @@ def synthesize_from_stats(
             "full-sky HEALPix fields (maths.md section 5). Pass the statistics of estel.Data2D "
             "or estel.DataHealpix maps, computed with estel.STOperator."
         )
-    plan = cast(STPlanSingleDomain, stats._plan)  # a single geometry: a tensor product raised above
+    plan = cast(STPlanSingleDomain, stats._plan)  # single-domain: a tensor product raised above
     backend = _check_backend(stats._backend)
     if plan.geometry._geometry not in _GEOMETRIES:
         raise ValueError(
@@ -805,7 +805,7 @@ def _settings(
 ) -> dict[str, Any]:
     if not isinstance(lr, int | float) or isinstance(lr, bool) or not lr > 0:
         raise ValueError(f"lr={lr!r}: pass a positive step size (STL's: 1.0).")
-    # Syntheses are of single geometries.
+    # Syntheses are single-domain: a tensor product was refused above.
     spectrum = cast(STPlanSingleDomain, operator.plan).spectrum
     return {
         "entry": entry,

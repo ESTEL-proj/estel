@@ -1,4 +1,4 @@
-"""Planar wavelet banks and the smoothing kernel (Part II, §12.5; task T2.2).
+"""Cartesian wavelet banks and the smoothing kernel (Part II, §12.5; task T2.2).
 
 Built once, in NumPy float64, when an operator is built; never traced, never differentiated (tag
 N of Part II, §12). The operator casts them to its dtype and backend.
@@ -218,11 +218,14 @@ def wavelet_bank_cartesian(
                 "wavelet and its conjugate (maths.md M-WAV-1D)."
             )
         return bump_steerable_1d(size=size, conjugate=n_orientations == 2)
-    raise ValueError(f"STOperator handles 1D and 2D planar data; got {ndim} spatial axes.")
+    raise ValueError(
+        f"STOperator builds the bump-steerable wavelets for 1D and 2D data only; got {ndim} "
+        "spatial axes: build the data with Data1D or Data2D."
+    )
 
 
 def smoothing_kernel_cartesian(ndim: int) -> NDArray[np.float64]:
-    """The smoothing kernel, the anti-aliasing filter applied before each planar downsampling.
+    """The smoothing kernel, the anti-aliasing filter applied before each Cartesian downsampling.
 
     Float64, a new array at each call.
 
@@ -240,7 +243,7 @@ def smoothing_kernel_cartesian(ndim: int) -> NDArray[np.float64]:
     """
     if isinstance(ndim, bool) or ndim not in (1, 2):
         raise ValueError(
-            f"ndim={ndim!r}: the planar smoothing kernel exists for 1D and 2D data; pass "
+            f"ndim={ndim!r}: the Cartesian smoothing kernel exists for 1D and 2D data; pass "
             "ndim=1 or ndim=2."
         )
     if ndim == 2:

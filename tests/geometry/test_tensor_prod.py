@@ -1,10 +1,10 @@
-"""Tensor products of planar geometries: ``DataTensorProd`` and the wavelet operator composed
+"""Tensor products of Cartesian geometries: ``DataTensorProd`` and the wavelet operator composed
 from those of its blocks (task T3.1; Part II, §12.4, §12.5; maths.md M-NOT-TENSORPROD,
 M-DATA-TENSORPROD, M-W1-TENSORPROD, M-BORDER-TENSORPROD, M-DEF-TENSORPROD; OP-4, OP-8, OP-41, OP-82,
 OP-83).
 
 The hooks of a tensor product act on one block, along its axes, without moving any: they are
-compared with the plain geometry applied to the same field with the block's axes moved here,
+compared with the Cartesian geometry applied to the same field with the block's axes moved here,
 in the test. Run on the backend and dtype of the test run; tolerances of Part I, §5.2
 (``docs/agents/testing.md``), with atol relative to the largest expected modulus.
 """
@@ -86,10 +86,10 @@ def _smoothing(backend: Backend, geometry: type[DataCartesian], dtype: DType) ->
 @pytest.mark.maths("M-DATA-TENSORPROD", "M-W1-TENSORPROD", "M-BORDER-TENSORPROD")
 @pytest.mark.parametrize("pbc", [True, False])
 @pytest.mark.parametrize("geometry", [Data2D, Data1D])
-def test_one_block_hooks_equal_the_plain_geometry(
+def test_one_block_hooks_equal_the_cartesian_geometry(
     backend: Backend, dtype: DType, geometry: type[Data2D] | type[Data1D], pbc: bool
 ) -> None:
-    """A tensor product of one block filters, downsamples and crops as its plain geometry,
+    """A tensor product of one block filters, downsamples and crops as its Cartesian geometry,
     bit for bit (OP-82)."""
     values = backend.asarray(_field((2, 3, *(16,) * geometry.ndim)), dtype)
     plain = geometry(values, pbc=pbc)
@@ -122,7 +122,7 @@ def _moved(backend: Backend, x: Any, axes: tuple[int, ...]) -> Any:
 def _back(
     backend: Backend, y: Any, x_shape: tuple[int, ...], axes: tuple[int, ...], oriented: bool
 ) -> Any:
-    """The inverse of :func:`_moved` on a result of the plain geometry, ``(Nb, L, Nc', *block)``
+    """The inverse of :func:`_moved` on a result of the Cartesian geometry, ``(Nb, L, Nc', *block)``
     if ``oriented``, else ``(Nb, Nc', *block)``: ``(Nb, [L,] Nc, *spatial)``, the block's axes
     back in place."""
     xp = backend.xp
@@ -157,14 +157,14 @@ def _product(
 @pytest.mark.maths("M-NOT-TENSORPROD", "M-W1-TENSORPROD")
 @pytest.mark.parametrize("block", [0, 1])
 @pytest.mark.parametrize(("blocks", "pbc"), CASES)
-def test_block_hooks_equal_the_plain_geometry_with_its_axes_moved(
+def test_block_hooks_equal_the_cartesian_geometry_with_its_axes_moved(
     backend: Backend,
     dtype: DType,
     blocks: tuple[type[Data], ...],
     pbc: tuple[bool, ...],
     block: int,
 ) -> None:
-    """Along a block, ``_conv`` and ``_downsample`` give the plain geometry of the block
+    """Along a block, ``_conv`` and ``_downsample`` give the Cartesian geometry of the block
     applied with the block's axes moved last and the other axes read as channels, to
     rounding: the dispatch along the block's axes moves nothing and changes nothing else."""
     product = _product(backend, dtype, blocks, pbc)
@@ -368,7 +368,7 @@ def test_the_pytree_holds_the_array_only() -> None:
     [((8,), 1), ((12,), 1), ((16,), 2), ((31,), 2), ((32,), 3), ((64,), 4), ((32, 8), 1)],
 )
 def test_default_scales_of_a_block(shape: tuple[int, ...], expected: int) -> None:
-    """The rule of planar data, block by block (M-DEF-TENSORPROD), one implementation."""
+    """The rule of Cartesian data, block by block (M-DEF-TENSORPROD), one implementation."""
     assert default_scales_of_cartesian(shape) == expected
 
 

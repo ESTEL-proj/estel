@@ -126,7 +126,7 @@ class FamilyGrid:
     shapes: NDArray[np.int32] | None = None
     """``(n_kinds, n_orientation_axes)``: the dense shape of the orientations of the chunks of
     each kind, a corner of :attr:`orientations` (the positions from 0 along each axis), or
-    ``None`` when every kind holds every orientation (planar statistics, and the families of
+    ``None`` when every kind holds every orientation (single-domain statistics, and the families of
     tensor products without a low-pass scale). Read-only."""
 
     def __post_init__(self) -> None:
@@ -243,9 +243,9 @@ class FamilyGrid:
     @property
     def present(self) -> NDArray[np.bool_]:
         """True where a coefficient exists, over the axes after the batch axis: built on demand
-        from the chunks, for the full-grid views and the tests of planar statistics; read-only.
-        A family with several orientation shapes (tensor products) has no such mask: nothing
-        the size of its full grid is built (task T3.6)."""
+        from the chunks, for the full-grid views and the tests of single-domain statistics;
+        read-only. A family with several orientation shapes (tensor products) has no such mask:
+        nothing the size of its full grid is built (task T3.6)."""
         if self.shapes is not None:
             raise ValueError(
                 f"{self.name}: the chunks of this family have several orientation shapes (a "

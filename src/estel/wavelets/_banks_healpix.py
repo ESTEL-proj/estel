@@ -60,7 +60,7 @@ def kernel_weights_healpix(*, kernel_size: int = KERNEL_SIZE_HEALPIX) -> NDArray
     Dtypes:
         complex128, whatever the dtype of the data: the plan casts it (OP-46).
     Values:
-        Sums to zero (checked, as the planar kernels, Part III, §20.11) and the sum of its
+        Sums to zero (checked, as the Cartesian kernels, Part III, §20.11) and the sum of its
         moduli is 1. ψ[-u, v] = conj ψ[u, v] and ψ[u, -v] = ψ[u, v].
     Edge cases:
         ``kernel_size`` is an odd integer ≥ 3, else ``TypeError`` or ``ValueError``.

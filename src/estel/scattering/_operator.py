@@ -212,13 +212,13 @@ class STOperator:
 
     @property
     def J(self) -> int | tuple[int, ...]:  # noqa: N802 (maths.md notation)
-        """The number of scales: an int for a single geometry, one per block for a tensor
+        """The number of scales: an int for single-domain data, one per block for a tensor
         product."""
         return self._plan.J
 
     @property
     def L(self) -> int | tuple[int, ...]:  # noqa: N802
-        """The number of orientations: an int for a single geometry, one per block for a
+        """The number of orientations: an int for single-domain data, one per block for a
         tensor product."""
         return self._plan.L
 
@@ -280,7 +280,7 @@ class STOperator:
 
 
 class STOperatorTensorProd(STOperator):
-    """The scattering operator of a tensor product of planar geometries: the scattering
+    """The scattering operator of a tensor product of Cartesian geometries: the scattering
     statistics mean, var and S1 to S4 with multi-index scales (maths.md §3; Part II, §12.6;
     task T3.2), STL's ``ST_Operator_TensorProd``.
 

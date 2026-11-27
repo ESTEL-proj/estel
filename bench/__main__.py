@@ -50,7 +50,7 @@ CONTAINER_PYTHON = "/opt/venv/master/bin/python"
 # takes more than about 30 minutes (issue #89, decision 8).
 TIMEOUT_SECONDS = 45 * 60
 # The gradient of the loss against that of ``main``: max |g - g_main| <= this x max |g_main|
-# (Part II, §15.2, T2.12 to T2.15; issue #90, decision 2). Until the planar syntheses exist
+# (Part II, §15.2, T2.12 to T2.15; issue #90, decision 2). Until the 2D syntheses exist
 # (T6.1), this comparison is what validates the gradients of an optimisation.
 MAIN_GRADIENT_RTOL = 1e-4
 MAIN_REF = "origin/main"

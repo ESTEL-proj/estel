@@ -1,4 +1,4 @@
-"""The planar geometry hooks ``_conv`` and ``_downsample`` (Part II, §12.4; maths.md M-CONV,
+"""The Cartesian geometry hooks ``_conv`` and ``_downsample`` (Part II, §12.4; maths.md M-CONV,
 M-W1, M-DOWN, M-DOWN-MASK; task T2.2).
 
 Run on the backend and dtype of the test run, against a NumPy float64 reference written here:

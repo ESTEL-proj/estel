@@ -5,7 +5,7 @@ Internal, a :class:`~estel.wavelets._operator.WaveletOperator`, beside the
 :class:`~estel.wavelets._operator.WaveletOperatorSingleDomain` of 1D, 2D and HEALPix data. A tensor
 product of B blocks (``DataTensorProd``) has one J and one L per block, and its levels are
 multi-indices d = (d₀, …, d_{B-1}): the field downsampled d_a times along block a
-(M-NOT-TENSORPROD). Each block has the static part and the arrays of a planar wavelet operator,
+(M-NOT-TENSORPROD). Each block has the static part and the arrays of a Cartesian wavelet operator,
 built for its geometry, its sizes and its ``pbc``
 (:class:`~estel.wavelets._operator.WaveletPlanCartesian`,
 :class:`~estel.wavelets._operator.WaveletFiltersCartesian`), a ``WaveletPlan`` and its
@@ -33,7 +33,7 @@ them (``estel.scattering._loop_tensor_prod``). A block has a low-pass filter whe
 level J_a, one downsampling more than its wavelets need. Tensor products have no missing
 values in 1.0.0 (LF8), so the blocks have no masks.
 
-**Defaults** (M-DEF-TENSORPROD): J_a = ⌊log₂ min N⁽ᵃ⁾⌋ - 2, the rule of planar data, shared with
+**Defaults** (M-DEF-TENSORPROD): J_a = ⌊log₂ min N⁽ᵃ⁾⌋ - 2, the rule of Cartesian data, shared with
 ``_operator.py``, and L_a = 4 for a 2D block, 2 for a 1D block. **Arguments** (OP-83,
 OP-8): J and L are lists with one entry per block, an entry ``None`` giving the default of the
 block; they are validated when the operator is built, with the sizes of each block divisible
@@ -448,8 +448,8 @@ class WaveletOperatorTensorProd(WaveletOperator):
         the earlier blocks, so that the blocks applied in block order give the layout of
         M-W1-TENSORPROD, ``(Nb, Nc, L₀, …, L_{B-1}, *spatial)``. Calls the hook ``_conv`` of the
         block, with the bank of the block; the hook places the orientation right after the
-        batch axis, as for planar data, and this method moves it in front of the spatial axes.
-        Pure: nothing is modified, nothing depends on array values.
+        batch axis, as for single-domain data, and this method moves it in front of the spatial
+        axes. Pure: nothing is modified, nothing depends on array values.
         """
         lead, spatial = self._split(x, level, "apply")
         out = self.convolve(x, j, block=block, level=level)  # (Nb, L_a, Nc, *O, *spatial)

@@ -39,7 +39,7 @@ class MaskMaps:
     """
 
     pbc: bool
-    """Planar data: the padding mode of the maps, periodic or not. HEALPix: no padding is
+    """Cartesian data: the padding mode of the maps, periodic or not. HEALPix: no padding is
     involved; whether the data are a full sky, ``DataHealpix.pbc``."""
     full_res: BoolMap
     """m⁽⁰⁾, the full-resolution mask."""
@@ -118,7 +118,7 @@ def propagate_mask_conv(mask: BoolMap, footprint: Sequence[int], pbc: bool) -> B
 REWEIGHT_FLOOR = 1e-8
 """The floor of 1 - f in the reweighting maps (maths.md M-MASK-HEALPIX). It never acts: a valid
 pixel has f ≤ τ < 1, so 1 - f ≥ 1 - τ (0.5 or more for every geometry of 1.0.0); it is kept so
-that the rule of M-MASK-HEALPIX is written once, and it changes no planar or HEALPix value."""
+that the rule of M-MASK-HEALPIX is written once, and it changes no Cartesian or HEALPix value."""
 
 SUPPORT_THRESHOLD_HEALPIX = 1e-12
 """Above it, the support of a HEALPix pixel touches an invalid pixel (maths.md M-MASK-HEALPIX); and
@@ -149,7 +149,7 @@ def build_mask_maps(
     pbc: bool,
 ) -> MaskMaps:
     """The static maps of ``mask`` for the scales of ``scale_levels`` (M-DOWN-MASK, M-MASK), on
-    planar data: :func:`build_mask_maps_with` with the box footprint of the wavelets and the
+    Cartesian data: :func:`build_mask_maps_with` with the box footprint of the wavelets and the
     smoothing step.
 
     ``mask`` is the full-resolution mask (True = missing), with one axis per spatial axis;
@@ -188,7 +188,7 @@ def build_mask_maps_with(
     M-MASK-HEALPIX), each map on the pixels of its level, for any geometry.
 
     ``support(d, invalid)``: the invalid outputs of a convolution at level ``d`` of data whose
-    invalid pixels are ``invalid`` (planar: the box footprint touches one, M-MASK; HEALPix: the
+    invalid pixels are ``invalid`` (Cartesian: the box footprint touches one, M-MASK; HEALPix: the
     support test of M-MASK-HEALPIX); ``decimate(d, a)``: one downsampling step of the map ``a``
     from level ``d`` to ``d + 1`` (M-DOWN, M-DOWN-HEALPIX), applied to the 0/1 invalid map, after
     its own thresholding, as STL does. ``pbc`` goes to :attr:`MaskMaps.pbc`. The maps are

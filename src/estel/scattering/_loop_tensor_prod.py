@@ -5,7 +5,7 @@ M-BORDER-TENSORPROD; maths_step2.md M-GRAM; task T3.2).
 :func:`values_tensor_prod` is the counterpart of ``_loop_single_domain.values_single_domain``
 for a ``DataTensorProd``: the data, the plan and the filters in, the statistics without
 normalisation out, in the compact buffer of ``statistics._layout.layout_tensor_prod`` (task
-T3.6). It shares the code of the planar loop for what does not depend on the geometry
+T3.6). It shares the code of the single-domain loop for what does not depend on the geometry
 (``_loop``: the means of the field, the sums of S1 and S2 of a scale, the Gram products of a
 level, the sums then the division with the hook of distributed runs, ``_loop._global_sum``,
 read from its module at each call so that a replaced hook reaches this loop too); it differs
