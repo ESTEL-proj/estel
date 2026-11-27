@@ -32,7 +32,7 @@ Spectra of non-periodic 2D data, with or without missing values, from an estimat
 ## Inputs
 
 - Read: Part III §20.2; maths M-PS-2D ("Estimators", "Choice of estimator"), OP-20, OP-21; Part II §12.8 (`estimate_tapered`); Part I §5.1, the row "Consistency of the estimators"; Part II §15.2, T2.16.
-- Modules: `src/estel/spectra/` (`_estimators.py`, `_bins.py`, from T4.1) and the selection of `method="auto"`; `src/estel/_spec/planar.py`; `tests/consistency/test_estimators.py`; `api/manifest.json` (the method names; protected).
+- Modules: `src/estel/spectra/` (`_estimators.py`, `_bins.py`, from T4.1) and the selection of `method="auto"`; `src/estel/_spec/cartesian.py`; `tests/consistency/test_estimators.py`; `api/manifest.json` (the method names; protected).
 
 ## Tasks
 
