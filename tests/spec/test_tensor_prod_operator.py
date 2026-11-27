@@ -1,8 +1,8 @@
 """``STOperatorTensorProd`` against the oracle of tensor products (task T3.2, issue #23; Part I,
 §4.2; maths.md section 3).
 
-The oracle ``spec_apply_tensor_prod`` (T3.3) transcribes maths.md §3 apart from STL's loop: it brings
-the field to the level of a scale in every block first, then applies the block convolutions,
+The oracle ``spec_apply_tensor_prod`` (T3.3) transcribes maths.md §3 apart from STL's loop: it
+brings the field to the level of a scale in every block first, then applies the block convolutions,
 and sums each mean over its own window. ESTEL interleaves the downsamplings and the block
 convolutions as STL does and sums the second layer as Gram products: the difference is rounding,
 compared with the float64 tolerances of Part II, §14.3.

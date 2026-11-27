@@ -403,15 +403,14 @@ def spec_scattering_tensor_prod(
     """The scattering statistics S1 to S4 of ``x``, ``(Nb, Nc, *spatial)``, in STL's full
     grids. Implements M-S-TP, with M-IDX-TP, M-LP, M-BORDER-TP and M-CHAN.
 
-    S1 and S2 (M-S1, M-S2) at every scale of J_all, on W_{j,l} of ``spec_first_layer_tensor_prod``: the
-    centred field at the scale with the low-pass filter in every block, orientation 0 only along
+    S1 and S2 (M-S1, M-S2) at every scale of J_all, on W_{j,l} of ``spec_first_layer_tensor_prod``:
+    the centred field at the scale with the low-pass filter in every block, orientation 0 only along
     a block at its low-pass scale. S3 and S4 (M-S3, M-S4) on the wavelet scales only (OP-43):
-    U_{j₂,l₂} at level j₂ is downsampled block by block to the level of j₃ (D_{j₂→j₃}), then
-    the block convolutions of scale j₃ are applied (``spec_wavelet_transform_tensor_prod``). Every mean
-    is taken at the level of its arguments, over the pixels left by the larger of their two
-    borders, block by block. S1 and S2 are filled for the pairs c1 ≤ c2 of ``cross_matrix``
-    only; S3 and S4 for both orders of each pair. Everything is stored complex, and NaN where
-    it is not computed.
+    U_{j₂,l₂} at level j₂ is downsampled block by block to the level of j₃ (D_{j₂→j₃}), then the
+    block convolutions of scale j₃ are applied (``spec_wavelet_transform_tensor_prod``). Every mean
+    is taken at the level of its arguments, over the pixels left by the larger of their two borders,
+    block by block. S1 and S2 are filled for the pairs c1 ≤ c2 of ``cross_matrix`` only; S3 and S4
+    for both orders of each pair. Everything is stored complex, and NaN where it is not computed.
     """
     blocks = _check_blocks(blocks)
     n_blocks, n_spatial = len(blocks), sum(blocks)
