@@ -62,7 +62,7 @@ from ..spectra._estimators import spectrum_floats
 from ..statistics._layout import gather_loop, loop_gather, spectrum_pairs
 from ..wavelets._operator import WaveletOperatorSingleDomain
 from . import _loop
-from ._filters import STFiltersSingleDomain, window
+from ._filters import STFiltersSingleDomain, window_single_domain
 from ._loop import (
     ScatteringValues,
     _divide_level,
@@ -104,7 +104,11 @@ def values_single_domain(
         x = xp.where(filters.valid, x, xp.zeros_like(x))
     moments = plan.moments
     x, pending, mean_pre_std, std_pre_std = field_moments(
-        x, window(moments, filters.moments), moments.denominator, axes, plan.standardize
+        x,
+        window_single_domain(moments, filters.moments),
+        moments.denominator,
+        axes,
+        plan.standardize,
     )
     field = x  # at full resolution, after the standardisation: the field of the spectrum
     divided: list[Any] = []  # the divided sums of each level, as real (Nb, n) arrays
@@ -118,7 +122,7 @@ def values_single_domain(
             moduli = {**moduli, j3: u}
 
             if j3 in plan.first_layer:
-                weights = window(plan.first_layer[j3], filters.first_layer[j3])
+                weights = window_single_domain(plan.first_layer[j3], filters.first_layer[j3])
                 denominator = plan.first_layer[j3].denominator
                 pending.extend(first_layer_sums(w, u, weights, denominator, pairs, axes))
 

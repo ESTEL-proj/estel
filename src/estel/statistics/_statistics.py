@@ -41,7 +41,7 @@ from ..scattering._plan import (
     STPlan,
     STPlanSingleDomain,
     STPlanTensorProd,
-    build_plan,
+    build_plan_single_domain,
     build_statistics_plan_tensor_prod,
 )
 from . import _layout as compact
@@ -1015,7 +1015,7 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)  # OP-3 and OP-13 were shown when computed
             spectrum = spec["spectrum"]
-            plan = build_plan(
+            plan = build_plan_single_domain(
                 example,
                 spec["J"],
                 spec["L"],

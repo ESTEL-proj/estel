@@ -8,13 +8,13 @@ them: the valid pixels, the weights of the means of the field and of the first l
 windows of the second-layer maps, with their border crops, where the data have missing values
 (M-MEAN, M-BORDER, M-MASK; maths_step2.md M-GRAM, M-WIN), and the gather from the sums of the
 loop to the compact buffer (Part III, §19.9). They are backend arrays in the operator's dtype,
-built once from the plan (:func:`build_filters`) and passed to the computation as an argument
+built once from the plan (:func:`build_filters_single_domain`) and passed to the computation as an argument
 rather than baked in (Part I, §3.1, rules 4 and 7).
 
 ``STFilters`` is public as a name only (Part II, §12.6): users get it from an operator's
 ``filters`` and pass it to ``estel.functional.scattering``. It is the base class of the filters
 of each geometry: :class:`STFiltersSingleDomain`, whose fields are those of the private base class
-``_FilterFields``, and :class:`STFiltersTensorProd` (task T3.2). Each is a named tuple, so JAX
+``_FilterFieldsSingleDomain``, and :class:`STFiltersTensorProd` (task T3.2). Each is a named tuple, so JAX
 takes it as a pytree whose leaves are the arrays.
 """
 
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from ._plan import STPlanSingleDomain, STPlanTensorProd
 
 
-class _FilterFields(NamedTuple):
+class _FilterFieldsSingleDomain(NamedTuple):
     """The fields of :class:`STFilters`, internal to ESTEL."""
 
     wavelets: WaveletFilters
@@ -51,7 +51,7 @@ class _FilterFields(NamedTuple):
     """The weights of ``mean`` and ``var`` (``plan.moments``), or ``None`` when their window
     needs none: only a window of kind ``weights``, that of data with missing values, has an
     array (maths_step2.md M-WIN); the loop reads the other kinds from the plan
-    (:func:`window`)."""
+    (:func:`window_single_domain`)."""
     first_layer: Mapping[int, Any]
     """The weights of S1 and S2, per scale of ``plan.first_layer``, or ``None`` likewise."""
     second_layer: Mapping[int, Any]
@@ -93,9 +93,9 @@ class STFilters:
         raise NotImplementedError
 
 
-class STFiltersSingleDomain(_FilterFields, STFilters):
+class STFiltersSingleDomain(_FilterFieldsSingleDomain, STFilters):
     """The :class:`STFilters` of single-domain data, 1D, 2D and HEALPix (``STOperator.filters``),
-    built by :func:`build_filters`; its fields are those of ``_FilterFields``."""
+    built by :func:`build_filters_single_domain`; its fields are those of ``_FilterFieldsSingleDomain``."""
 
     __slots__ = ()
 
@@ -107,7 +107,7 @@ class STFiltersSingleDomain(_FilterFields, STFilters):
 # ---------------------------------------------------------------------- windows
 
 
-def window(weights: MeanWeights, array: Any) -> Any:
+def window_single_domain(weights: MeanWeights, array: Any) -> Any:
     """The window of a mean as the sums take it (``sum_valid``; maths_step2.md M-WIN):
     ``None`` for a full window, a tuple of slices for a rectangle, both read from the plan, and
     ``array``, the weights of the filters, otherwise."""
@@ -121,12 +121,12 @@ def window(weights: MeanWeights, array: Any) -> Any:
 # ---------------------------------------------------------------------- construction
 
 
-def build_filters(
+def build_filters_single_domain(
     plan: STPlanSingleDomain, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
 ) -> STFiltersSingleDomain:
     """The filters of ``plan`` on the backend ``backend_name``, cast once to ``dtype`` on
     ``device`` (Part I, §3.1, rules 4 and 7); ``tables``, those the plan was built with
-    (``build_plan_with_tables``), go to the filters of its wavelets."""
+    (``build_plan_with_tables_single_domain``), go to the filters of its wavelets."""
     backend = _registry.backend_named(backend_name)
 
     def real(a: NDArray[Any]) -> Any:

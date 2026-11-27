@@ -21,7 +21,7 @@ import pytest
 from numpy.typing import NDArray
 
 from estel import Data, Data1D, Data2D
-from estel.scattering._plan import STPlanSingleDomain, build_plan
+from estel.scattering._plan import STPlanSingleDomain, build_plan_single_domain
 from tests.parity._compare import load_fixture, read_manifest
 
 CASES: dict[str, type[Data]] = {"empty_means_2d": Data2D, "empty_means_1d": Data1D}
@@ -45,7 +45,7 @@ def _plan(case: str, name: str, fixture: dict[str, NDArray[Any]]) -> STPlanSingl
     data = cls(np.zeros(mask.shape), mask=mask, pbc=config["pbc"])
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-3 and OP-13, tested in tests/scattering
-        return build_plan(data, config["J"], parameters["L"])
+        return build_plan_single_domain(data, config["J"], parameters["L"])
 
 
 def _per_index(nan: NDArray[np.float64], n_scale_axes: int) -> dict[tuple[int, ...], bool]:

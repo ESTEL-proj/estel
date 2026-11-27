@@ -6,7 +6,7 @@ These tests, written before the spectrum operator (T4.1), take the raw statistic
 (``spec_apply(..., norm="none")``) on its fields, the raw spectrum of the target from
 ``<config>_raw_PS``, and that of the second field from ``<config>_load_PS`` times the product of
 the spectrum references (``<config>_ps_ref``). They place them in the layout of a plan with the
-spectrum (``build_plan(..., compute_PS=True)``, the private path until T4.1), and read them back
+spectrum (``build_plan_single_domain(..., compute_PS=True)``, the private path until T4.1), and read them back
 through ``STStatistics``: the positions, the normalisation, its references and the flat vectors
 are compared with the fixture, in float64, with the tolerances of Part II, §14.3.
 """
@@ -25,7 +25,7 @@ from numpy.typing import NDArray
 from estel import Data2D, STOperator, STStatistics, _config
 from estel._spec import cartesian as spec
 from estel.backend import _registry
-from estel.scattering._plan import STPlanSingleDomain, build_plan
+from estel.scattering._plan import STPlanSingleDomain, build_plan_single_domain
 from estel.statistics import _grid, _layout, _normalization, _statistics
 from estel.statistics._arrays import constant
 from estel.statistics._statistics import statistics_of
@@ -66,7 +66,7 @@ def _plan(name: str, field: str = "field", **options: Any) -> STPlanSingleDomain
     data = Data2D(arrays[f"{name}_{field}"], mask=mask, pbc=config["pbc"])
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13: tested elsewhere
-        plan = build_plan(
+        plan = build_plan_single_domain(
             data,
             config["J"],
             4,
@@ -235,7 +235,7 @@ def _with_reference(reference: Any, **spectrum: Any) -> STStatistics:
     ``reference``."""
     rng = np.random.default_rng(5)
     data = Data2D(rng.standard_normal((2, 2, 64, 64)), pbc=False)
-    plan = build_plan(data, 3, 4, compute_PS=True, **spectrum)
+    plan = build_plan_single_domain(data, 3, 4, compute_PS=True, **spectrum)
     buffer = _registry.current_backend().asarray(
         rng.random((2, _layout.base_layout(plan).n_floats)) + 0.5, "float64", None
     )
@@ -270,7 +270,7 @@ def test_reference_with_the_spectrum_on_statistics_without_it() -> None:
     stripped = dataclasses.replace(reference, sigma_ps=None, spectrum=None)
     rng = np.random.default_rng(8)
     data = Data2D(rng.standard_normal((2, 2, 32, 32)), pbc=True)
-    plan = build_plan(data, 3, 4)
+    plan = build_plan_single_domain(data, 3, 4)
     assert plan.spectrum is None
     buffer = _registry.current_backend().asarray(
         rng.random((2, _layout.base_layout(plan).n_floats)) + 0.5, "float64", None
@@ -294,7 +294,7 @@ def test_gradients_through_the_spectrum_reference() -> None:
     xp = backend.xp
     rng = np.random.default_rng(9)
     data = Data2D(rng.standard_normal((1, 2, 32, 32)), pbc=True)
-    plan = build_plan(data, 3, 4, compute_PS=True)
+    plan = build_plan_single_domain(data, 3, 4, compute_PS=True)
     layout = _layout.base_layout(plan)
     n_bins = layout.grid("PS").n_orientations
     starts = layout.chunk_starts("PS")  # the pairs (0, 0), (0, 1), (1, 1)
@@ -363,9 +363,9 @@ def test_plan_refuses_a_spectrum_it_cannot_compute(
     ``TypeError`` when ``n_bins`` or ``Jmin`` is not an integer, a ``ValueError`` otherwise."""
     data = Data2D(np.zeros((1, 1, *shape)), pbc=True)
     with pytest.raises(error, match=match):
-        build_plan(data, L=4, compute_PS=True, **options)
+        build_plan_single_domain(data, L=4, compute_PS=True, **options)
     with pytest.raises(ValueError, match="act only on the power spectrum"):
-        build_plan(Data2D(np.zeros((1, 1, 32, 32)), pbc=True), None, 4, n_bins=5)
+        build_plan_single_domain(Data2D(np.zeros((1, 1, 32, 32)), pbc=True), None, 4, n_bins=5)
 
 
 def test_spectrum_tables_grow_with_the_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -378,7 +378,7 @@ def test_spectrum_tables_grow_with_the_chunks(monkeypatch: pytest.MonkeyPatch) -
     normalisation (``norm="self"``) on."""
     rng = np.random.default_rng(7)
     data = Data2D(rng.standard_normal((1, 3, 32, 32)), pbc=True)
-    plan = build_plan(data, 3, 4, compute_PS=True, n_bins=96)
+    plan = build_plan_single_domain(data, 3, 4, compute_PS=True, n_bins=96)
     layout = _layout.base_layout(plan)
     grid = layout.grid("PS")
     n_coefficients = grid.n_chunks * grid.n_orientations

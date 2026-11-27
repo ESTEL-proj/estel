@@ -19,7 +19,7 @@ from numpy.typing import NDArray
 
 from estel import Data, Data1D, Data2D
 from estel.data._masks import build_mask_maps
-from estel.scattering._plan import STPlanSingleDomain, build_plan
+from estel.scattering._plan import STPlanSingleDomain, build_plan_single_domain
 from estel.wavelets._banks_cartesian import smoothing_kernel_cartesian
 from estel.wavelets._operator import MeanWeights, border_width_cartesian
 
@@ -33,7 +33,7 @@ def _data(ndim: int, n: int, pbc: bool, mask: NDArray[np.bool_] | None = None) -
 def _plan(data: Data, J: int, L: int = 4) -> STPlanSingleDomain:  # noqa: N803
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-13, tested on its own below
-        return build_plan(data, J, L)
+        return build_plan_single_domain(data, J, L)
 
 
 def _all_means(plan: STPlanSingleDomain) -> list[MeanWeights]:
@@ -172,7 +172,7 @@ def test_a_border_too_large_is_reduced_with_one_warning(ndim: int) -> None:
     data = _data(ndim, 32, pbc=False)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        plan = build_plan(data, 4, 1)
+        plan = build_plan_single_domain(data, 4, 1)
     assert [str(w.message).count("OP-13") for w in caught] == [1]
     assert plan.first_layer[3].border == 2
     assert plan.first_layer[3].denominator == 2**ndim
@@ -180,7 +180,7 @@ def test_a_border_too_large_is_reduced_with_one_warning(ndim: int) -> None:
     assert plan.s3[(3, 3)].denominator == 2**ndim
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        build_plan(_data(ndim, 32, pbc=True), 4, 1)  # periodic: no crop, no warning
+        build_plan_single_domain(_data(ndim, 32, pbc=True), 4, 1)  # periodic: no crop, no warning
 
 
 # ---------------------------------------------------------------------- masks
@@ -331,7 +331,7 @@ def test_means_without_valid_pixel_are_listed_not_computed(ndim: int) -> None:
     data = _data(ndim, n, pbc=False, mask=mask)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        plan = build_plan(data, 4, 1)
+        plan = build_plan_single_domain(data, 4, 1)
     expected = _expected_invalid(ndim, mask, 4, pbc=False)
 
     def empty(key: Any, level: int, border: int) -> bool:
@@ -369,7 +369,7 @@ def test_means_without_valid_pixel_are_listed_not_computed(ndim: int) -> None:
         assert f"S4 (j1={j1}, j2={j2}, j3={j3})" in messages[0]
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        periodic = build_plan(_data(ndim, n, pbc=True, mask=mask), 4, 1)
+        periodic = build_plan_single_domain(_data(ndim, n, pbc=True, mask=mask), 4, 1)
     assert periodic.empty_s3_pairs == ()
     assert periodic.empty_s4_triples == ()
 
@@ -461,14 +461,14 @@ def test_sizes_must_be_divisible_by_two_to_the_j_minus_one() -> None:
 def test_build_plan_rejects_bad_arguments() -> None:
     data = _data(2, 32, pbc=True)
     with pytest.raises(TypeError, match="Data"):
-        build_plan(np.zeros((32, 32)), 3, 4)  # type: ignore[arg-type]
+        build_plan_single_domain(np.zeros((32, 32)), 3, 4)  # type: ignore[arg-type]
     with pytest.raises(TypeError, match="integer"):
-        build_plan(data, 2.0, 4)  # type: ignore[arg-type]
+        build_plan_single_domain(data, 2.0, 4)  # type: ignore[arg-type]
     with pytest.raises(TypeError, match="integer"):
-        build_plan(data, True, 4)
+        build_plan_single_domain(data, True, 4)
     with pytest.raises(ValueError, match="at least 1"):
-        build_plan(data, 0, 4)
+        build_plan_single_domain(data, 0, 4)
     with pytest.raises(ValueError, match="at least 1"):
-        build_plan(data, 3, 0)
+        build_plan_single_domain(data, 3, 0)
     with pytest.raises(ValueError, match="odd"):
-        build_plan(data, 3, 4, kernel_size=4)
+        build_plan_single_domain(data, 3, 4, kernel_size=4)

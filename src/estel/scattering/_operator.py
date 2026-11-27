@@ -2,7 +2,7 @@
 tasks T2.4, T2.5, T5.6).
 
 An operator is a frozen plan plus a pure function (Part I, §2.3): ``STOperator(data, ...)``
-builds the static plan (``build_plan``) and the filters (``build_filters``), cast once to the
+builds the static plan (``build_plan_single_domain``) and the filters (``build_filters_single_domain``), cast once to the
 default dtype, and ``apply(data, ref=None, *, norm="self", ref_batch_mean=False)`` calls
 ``estel.functional.scattering``. Every option is set in one place only (review rule A6): the
 normalisation, ``norm`` and ``ref_batch_mean``, at each call of ``apply``, so that one operator
@@ -45,7 +45,7 @@ from ._plan import (
     STPlan,
     STPlanSingleDomain,
     STPlanTensorProd,
-    build_plan_with_tables,
+    build_plan_with_tables_single_domain,
     build_statistics_plan_tensor_prod,
     spectrum_2d_only,
 )
@@ -135,7 +135,7 @@ class STOperator:
             raise TypeError(
                 f"STOperator takes a Data object, such as estel.Data2D, got {type(data).__name__}."
             )
-        plan, tables = build_plan_with_tables(
+        plan, tables = build_plan_with_tables_single_domain(
             data,
             J,
             L,
@@ -184,7 +184,7 @@ class STOperator:
         """The state of an operator: its plan, its filters built once on ``backend`` in
         ``dtype`` by the plan (``STPlan._build_filters``), its engine checked in the registry
         (Part II, §9.4), and its reference. ``tables``: the tables the plan was built with
-        (``build_plan_with_tables``), passed to the filters once and not kept (task T5.7)."""
+        (``build_plan_with_tables_single_domain``), passed to the filters once and not kept (task T5.7)."""
         capabilities = _engines.resolve(engine)
         capabilities.check(geometry=plan.geometry._geometry, dtype=dtype)
         self._plan = plan
