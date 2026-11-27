@@ -147,6 +147,7 @@ class STOperator:
             spectrum_method=spectrum_method,
         )
         plan.wavelets.bank()  # validates L for the geometry (M-WAV-1D)
+        _warn_channels_without_auto(plan)
         self._setup(plan, data.backend, default_dtype(), default_device(), engine, None, tables)
 
     @classmethod
@@ -250,7 +251,8 @@ class STOperator:
         through it. ``norm="none"`` does not normalise. ``ref`` is taken with ``norm="ref"``
         only. ``ref_batch_mean=True`` averages the ``norm="self"`` reference over the batch, and
         is taken with ``norm="self"`` only. A channel of ``cross_matrix`` without auto
-        statistics has no normalisation scale, with a ``UserWarning`` (OP-30).
+        statistics has no normalisation scale: its normalised cross statistics are NaN, which
+        the constructor warns of (OP-30).
         """
         name = type(self).__name__
         stats, self._reference = apply_operator(
@@ -263,8 +265,6 @@ class STOperator:
             norm,
             ref_batch_mean,
         )
-        if norm != "none":
-            _warn_channels_without_auto(self._plan)
         return stats
 
     def __repr__(self) -> str:
@@ -361,6 +361,7 @@ class STOperatorTensorProd(STOperator):
         )
         for block in plan.wavelets.blocks:
             block.bank()  # validates L for the geometry of the block (M-WAV-1D)
+        _warn_channels_without_auto(plan)
         self._setup(plan, data.backend, default_dtype(), default_device(), engine, None)
 
     @property
@@ -407,14 +408,17 @@ def _as_numpy(matrix: Any) -> Any:
 
 
 def _warn_channels_without_auto(plan: PlanarPlan | TensorProdPlan) -> None:
-    """STL's warning of a normalised call (maths.md M-CHAN, OP-30), at the line that calls
-    ``apply`` with ``norm="self"`` or ``"ref"``: Python shows it once per line."""
+    """STL's warning of the channels without auto statistics (maths.md M-CHAN, OP-30), given
+    once, at construction, which knows the channel pairs; the normalisation is chosen later, at
+    each call, so the warning says what happens if the statistics are normalised. It covers
+    every path, ``apply``, ``estel.functional.scattering`` and the syntheses."""
     missing = [c for c in range(plan.n_channels) if c not in plan.pairs.auto]
     if missing:
         warnings.warn(
             f"cross_matrix: channel(s) {missing} have no auto statistics, so no "
-            "normalisation scale: their cross statistics are NaN after normalisation "
-            "(maths.md M-CHAN, OP-30). Set their diagonal entries to normalise them.",
+            "normalisation scale: if the statistics are normalised (norm='self' or 'ref'), "
+            "their cross coefficients are NaN (maths.md M-CHAN, OP-30). Set their diagonal "
+            "entries to normalise them.",
             UserWarning,
             stacklevel=3,
         )

@@ -21,7 +21,7 @@ All differentiation tests run in float64 on small inputs.
 
 1. **No `custom_vjp` in the Python engine** (it removes JAX forward mode). If a custom rule is needed, use `custom_jvp`.
 2. **No in-place operations** in L1 and L2: they break double backward.
-3. **Safe modulus, double `where`:** `m = |z|² > 0; r = sqrt(where(m, |z|², 1)); |z| = where(m, r, 0)`. A single `where` fixes the value but not the gradient (0 × NaN = NaN from the discarded branch). Same care for STL's regularised division `z / sqrt(|z| + 1e-8)`.
+3. **Safe modulus, double `where`:** `m = |z|² > 0; r = sqrt(where(m, |z|², 1)); |z| = where(m, r, 0 · |z|²)`. A single `where` fixes the value but not the gradient (0 × NaN = NaN from the discarded branch). The branch `0 · |z|²` is 0 with zero derivatives wherever z is finite, and keeps a NaN z NaN, as `abs` does (a constant map, standardised, gives NaN statistics). Same care for STL's regularised division `z / sqrt(|z| + 1e-8)`.
 4. **Masks are weights**, never boolean indexing or `nanmean`.
 5. **The reference follows the normalisation:** with `norm="self"` gradients flow through the reference; with `norm="ref"` it is a constant (maths.md OP-18).
 

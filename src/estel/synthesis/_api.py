@@ -319,14 +319,15 @@ def _maps_setup(
     """The target and the operators of a synthesis from maps (M-SYN-TARGET, M-SYN-OPS): the
     target pre-filtered by its geometry (``Data._nyquist_filter``), standardised, then its
     statistics with ``norm="self"``, reweighted and flattened; the running statistics with
-    ``norm="ref"`` and the target's reference. With the target's shape one operator computes
-    both, as STL's two operators with the same settings would (M-SYN-OPS); with another
-    ``running_shape`` (2D only, OP-101) the running fields have an operator of their own, a plan
-    being static for one shape. Both are built with ``standardize=False``: the synthesis
-    standardises the target itself (M-SYN-TARGET), and STL's running operator does not
-    standardise. They take J and, with the spectrum, the number of
-    bins: the smaller of the two fields' defaults, each from its own size, whatever J (STL: the
-    smaller ``get_CS_op().n_bins``); J_min 0, and the estimator ``fft`` of periodic fields. J is
+    ``norm="ref"`` and the target's reference. When the running data pass the check of the
+    target's plan (``STPlan._check_data``: the same shape, ``pbc`` and mask), one operator
+    computes both, as STL's two operators with the same settings would (M-SYN-OPS); otherwise,
+    with another ``running_shape`` (2D only, OP-101), the running fields have an operator of
+    their own, a plan being static for one shape. Both are built with ``standardize=False``: the
+    synthesis standardises the target itself (M-SYN-TARGET), and STL's running operator does not
+    standardise. They take J and, with the spectrum, the number of bins: the smaller of the two
+    fields' defaults, each from its own size, whatever J (STL: the smaller
+    ``get_CS_op().n_bins``); J_min 0, and the estimator ``fft`` of periodic fields. J is
     resolved before the operators are built, and both, with their spectrum, receive it: with the
     target's shape, the default of the geometry, as its wavelet plan computes it (M-DEF,
     M-DEF-HPX)."""
@@ -352,7 +353,7 @@ def _maps_setup(
     assert reference is not None  # norm="self"
     running_op = (
         target_op
-        if running.shape[2:] == target_data.shape[2:]
+        if _fits(target_op, running)
         else STOperator(running, J, standardize=False, **spectrum)
     )
     objective = Objective(
@@ -759,6 +760,16 @@ def _running_shape(
 
 def _xp_dtype(backend: Backend, dtype: str) -> Any:
     return getattr(backend.xp, dtype)
+
+
+def _fits(operator: STOperator, data: Data) -> bool:
+    """Whether ``operator`` computes the statistics of ``data``: the check of its plan
+    (``STPlan._check_data``: geometry, shape, ``pbc``, mask and static metadata)."""
+    try:
+        operator.plan._check_data(data, operator.filters)
+    except ValueError:
+        return False
+    return True
 
 
 def _running_data(target: Data, shape: tuple[int, ...], backend: Backend) -> Data:

@@ -12,6 +12,7 @@ the life of the reference in the operator, the gradients through it, the round t
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -376,41 +377,69 @@ def test_one_operator_serves_every_normalisation(dtype: str) -> None:
 def _normalisation_error(case: str) -> tuple[dict[str, Any], type[Exception], str]:
     """The arguments of ``apply`` and of ``functional.scattering`` for one invalid
     normalisation (maths.md M-NORM; issue #192, decisions, point 2), the error and its
-    message."""
+    message. A case that passes ``ref`` computes it, in one scattering pass, two for the
+    statistics of ``norm="ref"``, which need a reference first."""
     data = Data2D(_field((1, 2, 32, 32)), pbc=True)
-    target = _operator(data, 3).apply(data)
-    raw = _operator(data, 3).apply(data, norm="none")
-    loaded = _operator(data, 3).apply(data, ref=target, norm="ref")
-    cases: dict[str, tuple[dict[str, Any], type[Exception], str]] = {
-        "unknown norm": ({"norm": "store_ref"}, ValueError, "'self', 'ref', 'none'"),
-        "norm not a string": ({"norm": None}, ValueError, "'self', 'ref', 'none'"),
-        "ref without a reference": ({"norm": "ref"}, ValueError, 'norm="ref" needs a reference'),
-        "ref with norm=self": ({"ref": target}, ValueError, 'norm="self" takes no reference'),
+
+    def statistics(**options: Any) -> STStatistics:
+        return _operator(data, 3).apply(data, **options)
+
+    def loaded() -> STStatistics:
+        operator = _operator(data, 3)
+        operator.apply(data)  # stores the reference, read by the norm="ref" call
+        return operator.apply(data, norm="ref")
+
+    cases: dict[str, tuple[Callable[[], dict[str, Any]], type[Exception], str]] = {
+        "unknown norm": (lambda: {"norm": "store_ref"}, ValueError, "'self', 'ref', 'none'"),
+        "norm not a string": (lambda: {"norm": None}, ValueError, "'self', 'ref', 'none'"),
+        "ref without a reference": (
+            lambda: {"norm": "ref"},
+            ValueError,
+            'norm="ref" needs a reference',
+        ),
+        "ref with norm=self": (
+            lambda: {"ref": statistics()},
+            ValueError,
+            'norm="self" takes no reference',
+        ),
         "ref with norm=none": (
-            {"ref": target, "norm": "none"},
+            lambda: {"ref": statistics(), "norm": "none"},
             ValueError,
             'norm="none" takes no reference',
         ),
         "ref not statistics": (
-            {"ref": object(), "norm": "ref"},
+            lambda: {"ref": object(), "norm": "ref"},
             TypeError,
             "pass STStatistics",
         ),
-        "ref of norm=none": ({"ref": raw, "norm": "ref"}, ValueError, 'computed with norm="none"'),
-        "ref of norm=ref": ({"ref": loaded, "norm": "ref"}, ValueError, 'computed with norm="ref"'),
+        "ref of norm=none": (
+            lambda: {"ref": statistics(norm="none"), "norm": "ref"},
+            ValueError,
+            'computed with norm="none"',
+        ),
+        "ref of norm=ref": (
+            lambda: {"ref": loaded(), "norm": "ref"},
+            ValueError,
+            'computed with norm="ref"',
+        ),
         "ref_batch_mean with norm=ref": (
-            {"ref": target, "norm": "ref", "ref_batch_mean": True},
+            lambda: {"ref": statistics(), "norm": "ref", "ref_batch_mean": True},
             ValueError,
             'ref_batch_mean=True with norm="ref"',
         ),
         "ref_batch_mean with norm=none": (
-            {"norm": "none", "ref_batch_mean": True},
+            lambda: {"norm": "none", "ref_batch_mean": True},
             ValueError,
             'ref_batch_mean=True with norm="none"',
         ),
-        "ref_batch_mean not a boolean": ({"ref_batch_mean": 1}, TypeError, "pass True or False"),
+        "ref_batch_mean not a boolean": (
+            lambda: {"ref_batch_mean": 1},
+            TypeError,
+            "pass True or False",
+        ),
     }
-    return cases[case]
+    options, error, message = cases[case]
+    return options(), error, message
 
 
 @pytest.mark.parametrize(
@@ -498,16 +527,19 @@ def test_reference_of_another_plan_is_refused(
         estel.functional.scattering(data, loading.plan, loading.filters, ref=reference, norm="ref")
 
 
-def test_channels_without_auto_statistics_warn_at_a_normalised_apply() -> None:
-    """OP-30: the warning comes with the normalisation, chosen at ``apply`` (task T2.19)."""
+def test_channels_without_auto_statistics_warn_at_construction() -> None:
+    """OP-30: the constructor, which knows the channel pairs, warns once that the cross
+    coefficients of a channel without auto statistics are NaN if the statistics are normalised;
+    no call warns again, whatever its normalisation (task T2.19, decisions on #192)."""
     data = Data2D(_field((1, 3, 16, 16)), pbc=True)
     matrix = np.array([[True, False, True], [False, False, True], [False, False, True]])
+    with pytest.warns(UserWarning, match=r"channel\(s\) \[1\].*if the statistics are normalised"):
+        operator = STOperator(data, 2, cross_matrix=matrix, compute_PS=False)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        operator = STOperator(data, 2, cross_matrix=matrix, compute_PS=False)
         operator.apply(data, norm="none")
-    with pytest.warns(UserWarning, match=r"channel\(s\) \[1\]"):
-        operator.apply(data)
+        stats = operator.apply(data)
+        estel.functional.scattering(data, operator.plan, operator.filters, ref=stats, norm="ref")
 
 
 @pytest.mark.slow

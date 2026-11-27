@@ -20,6 +20,7 @@ import pytest
 from numpy.typing import NDArray
 
 from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
+from estel._spec import planar as spec
 from estel.backend._protocol import Backend, DType
 from estel.scattering._plan import PlanarPlan, channel_pairs
 
@@ -200,6 +201,22 @@ def test_standardize_is_on_by_default(cls: type[Data2D] | type[Data1D], dtype: s
     np.testing.assert_allclose(values["var"], 1.0, rtol=10 * rtol)
     axes = tuple(range(2, field.ndim))
     np.testing.assert_allclose(values["mean_pre_std"], field.mean(axis=axes), rtol=rtol)
+
+
+def test_a_constant_map_has_nan_statistics_when_standardized() -> None:
+    """A map of zero variance, standardised (by default), has NaN statistics in every family, as
+    the oracle and STL, with no special case (M-STD, OP-120): the safe modulus keeps a NaN field
+    NaN (Part I, §3.2.3, rule 3). The oracle reads a NaN field as missing pixels and has no
+    spectrum of it: PS is checked in ESTEL alone."""
+    field = np.full((1, 2, 16, 16), 3.0)
+    data = Data2D(field, pbc=True)
+    stats = STOperator(data, 2).apply(data, norm="none")
+    with np.errstate(invalid="ignore"):  # the oracle divides 0 by 0, as STL
+        oracle = spec.spec_apply(field, 2, True, None, 2, 4, norm="none")
+    for family in ("mean", "var", *FAMILIES):
+        assert np.isnan(oracle[family]).all(), family
+        assert np.isnan(np.asarray(stats.full_grid(family))).all(), family
+    assert np.isnan(np.asarray(stats.full_grid("PS"))).all()
 
 
 def test_standardize_returns_the_moments_removed(dtype: str) -> None:

@@ -133,9 +133,10 @@ def test_checkpoints_are_written_and_resume_the_same_run(backend: Backend, tmp_p
 
 
 def test_from_maps_builds_one_operator_unless_another_shape(backend: Backend) -> None:
-    """With the target's shape, one operator computes the target's statistics (``norm="self"``)
-    and the running ones (``norm="ref"``); with another ``running_shape`` (2D only, OP-101), the
-    running fields have an operator of their own, a plan being static for one shape. Both are
+    """When the running data pass the check of the target's plan (the same shape, ``pbc`` and
+    mask), one operator computes the target's statistics (``norm="self"``) and the running ones
+    (``norm="ref"``); with another ``running_shape`` (2D only, OP-101), the running fields have an
+    operator of their own, a plan being static for one shape. Both are
     built with ``standardize=False`` (M-SYN-OPS; issue #192, decisions, point 5)."""
     data = Data2D(_maps(), pbc=True)
     same = _maps_setup(backend, data, (1, 1, N, N), True, False, {"J": 2})
