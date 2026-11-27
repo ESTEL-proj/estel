@@ -29,7 +29,7 @@ from numpy.typing import NDArray
 from .._config import FloatDType
 from ..backend import _registry
 from ..spectra._estimators import SpectrumFilters, build_spectrum_filters
-from ..statistics._layout import ChunkTables, loop_gather, tensor_prod_gather
+from ..statistics._layout import ChunkTables, gather_tensor_prod, loop_gather
 from ..wavelets._operator import MeanWeights, WaveletFilters
 from ..wavelets._operator_tensor_prod import build_wavelet_filters_tensor_prod
 from ._tensor_prod import ScaleTensorProd
@@ -212,7 +212,7 @@ def build_filters_tensor_prod(
         return backend.asarray(np.asarray(a).astype(np.int32), "int32", device)
 
     second = loop.second_layer
-    pack = tensor_prod_gather(plan)
+    pack = gather_tensor_prod(plan)
     return STFiltersTensorProd(
         wavelets=build_wavelet_filters_tensor_prod(plan.wavelets, backend_name, dtype, device),
         arm_crops={s.j3: tuple(real(c) for c in s.arm_crops) for s in second},

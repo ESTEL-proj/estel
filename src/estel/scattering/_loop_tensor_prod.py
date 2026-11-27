@@ -4,7 +4,7 @@ maths_step2.md M-GRAM; task T3.2).
 
 :func:`values_tensor_prod` is the counterpart of ``_loop_single_domain.values_single_domain``
 for a ``DataTensorProd``: the data, the plan and the filters in, the statistics without
-normalisation out, in the compact buffer of ``statistics._layout.tensor_prod_layout`` (task
+normalisation out, in the compact buffer of ``statistics._layout.layout_tensor_prod`` (task
 T3.6). It shares the code of the planar loop for what does not depend on the geometry
 (``_loop``: the means of the field, the sums of S1 and S2 of a scale, the Gram products of a
 level, the sums then the division with the hook of distributed runs, ``_loop._global_sum``,
@@ -51,7 +51,7 @@ from ..backend import _registry
 from ..backend._protocol import Backend
 from ..data._base import Data
 from ..data._moments import modulus
-from ..statistics._layout import pack, tensor_prod_gather
+from ..statistics._layout import gather_tensor_prod, pack
 from ..wavelets._operator_tensor_prod import WaveletOperatorTensorProd
 from . import _loop
 from ._filters import STFiltersTensorProd
@@ -75,7 +75,7 @@ def values_tensor_prod(
 ) -> ScatteringValues:
     """The statistics of ``data``, a ``DataTensorProd``, without normalisation (maths.md
     M-MOM, M-S-TP), STL's ``ST_Operator_TensorProd`` with ``norm="vanilla"`` and no spectrum, in
-    the compact buffer of ``tensor_prod_layout(plan)``. Pure."""
+    the compact buffer of ``layout_tensor_prod(plan)``. Pure."""
     backend = _registry.backend_named(data.backend)
     xp = backend.xp
     loop = plan.loop
@@ -120,7 +120,7 @@ def values_tensor_prod(
 
     n_batch = int(x.shape[0])
     s4_dense = xp.concat(s4, axis=1)
-    s4_floats = pack(backend, s4_dense, tensor_prod_gather(plan), filters.s4_pack)
+    s4_floats = pack(backend, s4_dense, gather_tensor_prod(plan), filters.s4_pack)
     buffer = xp.concat(
         [
             *moments,

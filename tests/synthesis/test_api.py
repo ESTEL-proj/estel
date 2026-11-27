@@ -343,7 +343,7 @@ def test_maps_errors_say_what_to_do(backend: Backend, case: str) -> None:
         ("synthesize_from_stats", "Pass the statistics of estel.Data2D or estel.DataHealpix maps"),
     ],
 )
-def test_tensor_products_are_refused_first(function: str, advice: str) -> None:
+def test_tensor_prod_data_are_refused_first(function: str, advice: str) -> None:
     """Syntheses on tensor products are not part of ESTEL 1.0.0: refused before any other
     check, on every backend, including a non-periodic product of one 2D block, whose ``ndim``
     is 2 and whose ``pbc``, ``(False,)``, is a non-empty tuple."""

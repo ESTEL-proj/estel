@@ -50,9 +50,9 @@ from ._grid import REAL_PART_ONLY, FamilyGrid
 from ._layout import Chunked, Copy, FamilyChunks, Layout, Pack, Take, Unpack
 from ._normalization import (
     NORMS,
+    BlocksTensorProd,
     SpectrumParameters,
     SpectrumReference,
-    TensorProdBlocks,
     _NormReference,
     as_constant,
     normalize,
@@ -81,7 +81,7 @@ _FULL_GRID_LIMIT = 2 * 1024**3
 in its dtype (Part II, §12.7; Part IV, §22, "No role for the full grid in tensor products"):
 beyond it ``full_grid`` raises. Internal and temporary: removed after 1.0.0 (LF65)."""
 
-_TENSOR_PROD_SELECT = ("c", "c1", "c2")
+_SELECT_TENSOR_PROD = ("c", "c1", "c2")
 """The axes ``select`` takes on the statistics of a tensor product, with ``family`` and the
 shorthand ``channel``: the channels only (Part II, §12.7; naming the blocks is LF44)."""
 
@@ -274,7 +274,7 @@ class STStatistics:
         index = _expand_channel(index)
         tensor_prod = self._plan.geometry._geometry == "tensor_prod"
         if tensor_prod:
-            others = sorted(a for a in index if a not in _TENSOR_PROD_SELECT)
+            others = sorted(a for a in index if a not in _SELECT_TENSOR_PROD)
             if others:
                 raise ValueError(
                     f"select({', '.join(f'{a}=...' for a in others)}): on the statistics of a "
@@ -290,7 +290,7 @@ class STStatistics:
             the axes of the blocks having no public name yet (LF44)."""
             if not tensor_prod:
                 return grid.axes
-            return tuple(a for a in grid.axes if a in _TENSOR_PROD_SELECT)
+            return tuple(a for a in grid.axes if a in _SELECT_TENSOR_PROD)
 
         chosen = [g for g in self._grids if g.name in names]
         valid = sorted({a for g in chosen for a in named(g)})
@@ -958,7 +958,7 @@ def _mask_positions(mask_st: Any, length: int) -> NDArray[np.int64]:
     return np.flatnonzero(found)
 
 
-def _blocks_content(blocks: TensorProdBlocks) -> dict[str, Any]:
+def _blocks_content(blocks: BlocksTensorProd) -> dict[str, Any]:
     return {
         "geometries": list(blocks.geometries),
         "J": list(blocks.J),
@@ -967,7 +967,7 @@ def _blocks_content(blocks: TensorProdBlocks) -> dict[str, Any]:
     }
 
 
-def _tensor_prod_plan(spec: dict[str, Any], cross_matrix: NDArray[np.bool_]) -> STPlanTensorProd:
+def _plan_tensor_prod(spec: dict[str, Any], cross_matrix: NDArray[np.bool_]) -> STPlanTensorProd:
     """The plan of a tensor product rebuilt from the parameters of a file: the data example
     takes the signature of ``DataTensorProd`` (blocks, no mask, one ``pbc`` per block)."""
     cls = geometry_class(spec["geometry"])
@@ -1001,7 +1001,7 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
     cls = geometry_class(spec["geometry"])
     plan: Any
     if "blocks" in spec:
-        plan = _tensor_prod_plan(spec, arrays["plan__cross_matrix"].astype(bool))
+        plan = _plan_tensor_prod(spec, arrays["plan__cross_matrix"].astype(bool))
     else:
         prefix = "plan__"
         example = cls._example_from_content(
@@ -1069,7 +1069,7 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
             ref_batch_mean=bool(content["reference"]["ref_batch_mean"]),
             blocks=None
             if blocks is None
-            else TensorProdBlocks(
+            else BlocksTensorProd(
                 geometries=tuple(blocks["geometries"]),
                 J=tuple(int(n) for n in blocks["J"]),
                 L=tuple(int(n) for n in blocks["L"]),

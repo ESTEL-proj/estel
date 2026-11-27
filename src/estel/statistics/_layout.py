@@ -55,7 +55,7 @@ from ..backend._protocol import Backend
 from ..io._schema import SCHEMA_VERSION
 from ..wavelets._operator import Level
 from ._arrays import constant, dtype_name
-from ._grid import FamilyGrid, base_grids, tensor_prod_grids
+from ._grid import FamilyGrid, base_grids, grids_tensor_prod
 
 if TYPE_CHECKING:
     from ..scattering._plan import STPlanSingleDomain, STPlanTensorProd
@@ -478,16 +478,16 @@ def spectrum_pairs(layout: Layout) -> tuple[tuple[int, int], ...]:
 
 
 @functools.lru_cache(maxsize=64)
-def tensor_prod_layout(plan: STPlanTensorProd) -> Layout:
+def layout_tensor_prod(plan: STPlanTensorProd) -> Layout:
     """The layout of the statistics of a tensor product without normalisation, from the plan
-    alone (``_grid.tensor_prod_grids``; task T3.6): one segment per family and multi-index
+    alone (``_grid.grids_tensor_prod``; task T3.6): one segment per family and multi-index
     level, S1 and S2 at the level of their scale (the low-pass scale J_a of a block is its
     level J_a), S3 and S4 at the level of j3 (M-LP, M-S-TP), mean and var at level 0. Every
     table grows with the number of chunks, never with the full grid."""
     n_blocks = plan.n_blocks
     origin = (0,) * n_blocks
     families: list[FamilyChunks] = []
-    for grid in tensor_prod_grids(plan):
+    for grid in grids_tensor_prod(plan):
         if grid.name in ("mean", "var"):
             families.append(FamilyChunks(grid, (origin,), np.zeros(grid.n_chunks, dtype=np.int64)))
             continue
@@ -637,16 +637,16 @@ def loop_gather(plan: STPlanSingleDomain) -> LoopGather:
 
 
 @functools.lru_cache(maxsize=64)
-def tensor_prod_gather(plan: STPlanTensorProd) -> Pack:
+def gather_tensor_prod(plan: STPlanTensorProd) -> Pack:
     """The counterpart of :func:`loop_gather` for a tensor product (task T3.2): how the dense
     S4 chunks of the loop, ``(Nb, n, L³, 2)`` in the order of the buffer, are packed into the
     floats of S4 (:func:`pack`). S1, S2 and S3 need no table: their chunks are concatenated in
     the order of the buffer.
 
     Checks that the chunks the plan's loop computes (``STPlanTensorProd.loop``: the channel pairs
-    of S1 and S2, the rows of S3 and S4 per segment) are those of :func:`tensor_prod_layout`, in
+    of S1 and S2, the rows of S3 and S4 per segment) are those of :func:`layout_tensor_prod`, in
     its order, and raises otherwise: the two are built apart, from the same index sets."""
-    layout = tensor_prod_layout(plan)
+    layout = layout_tensor_prod(plan)
     loop = plan.loop
     n_blocks, nc = plan.n_blocks, plan.n_channels
 
@@ -675,7 +675,7 @@ def tensor_prod_gather(plan: STPlanTensorProd) -> Pack:
             raise RuntimeError(
                 f"{name}: the chunks of the loop of this tensor product ({len(rows)}) are not "
                 f"those of its layout ({len(expected)}), in its order; "
-                "scattering._tensor_prod.build_loop_tensor_prod and tensor_prod_layout disagree "
+                "scattering._tensor_prod.build_loop_tensor_prod and layout_tensor_prod disagree "
                 f"({n_blocks} block(s)): make them agree."
             )
     return pack_spec(layout, "S4")

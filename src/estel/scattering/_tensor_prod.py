@@ -15,7 +15,7 @@ what the loop of ``_loop_tensor_prod.py`` reads besides the plan of each block:
 * **the second layer**, one :class:`SecondLayerScale` per wavelet scale j3: the arms j2 ≤ j3
   in the order the loop stacks them, the crop of each block for each arm and for the band map,
   and, for the Gram products of the level, which of their rows are the chunks of the segments
-  of S3 and S4 at j3 in the compact layout of T3.6 (``tensor_prod_layout``), with their
+  of S3 and S4 at j3 in the compact layout of T3.6 (``layout_tensor_prod``), with their
   denominators, each the product of per-block counts of pixels (M-BORDER-TP);
 * **the gather**: the order of the channel pairs of the S1 and S2 segments; how the S4 chunks
   are packed comes from the layout, with the filters (``_filters.build_filters_tensor_prod``).
@@ -142,7 +142,7 @@ def build_loop_tensor_prod(
     the crops of the blocks (OP-13); the caller gives that warning once.
 
     The chunks of a segment follow the order of the compact layout of T3.6
-    (``tensor_prod_layout``): the channel pairs, then the scales, in lexicographic order. The
+    (``layout_tensor_prod``): the channel pairs, then the scales, in lexicographic order. The
     filters check it against the layout when they are built (``build_filters_tensor_prod``)."""
     blocks = wavelets.blocks
     n_blocks, nc = len(blocks), n_channels

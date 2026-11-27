@@ -28,7 +28,7 @@ each orientation axis it transforms with ``h`` (``hl2``, ``hdl``, …); ``scale_
 the scales of S3 by ``(k, a)`` and those of S4 by ``(k, a, b)`` (M-RED-ISO, M-RED-ANG,
 M-RED-SCALE). The batch axis comes first in every array and is not named.
 
-In a tensor product (:func:`tensor_prod_grids`; task T3.6) each scale and orientation axis is
+In a tensor product (:func:`grids_tensor_prod`; task T3.6) each scale and orientation axis is
 one axis per block, ``j[0]``, ``j[1]`` … (maths.md M-S-TP); ``select`` takes the channels only,
 naming the blocks being LF44.
 """
@@ -506,7 +506,7 @@ def _from_rows(
     )
 
 
-def tensor_prod_grids(plan: STPlanTensorProd) -> tuple[FamilyGrid, ...]:
+def grids_tensor_prod(plan: STPlanTensorProd) -> tuple[FamilyGrid, ...]:
     """The layout of the statistics of a tensor product without normalisation (maths.md
     M-S-TP, M-IDX-TP, M-LP, M-CHAN), from the plan alone, by chunks (Part III, §19.4; task
     T3.6): the chunks are the channel pairs crossed with the Cartesian product of the index
@@ -610,7 +610,7 @@ def tensor_prod_grids(plan: STPlanTensorProd) -> tuple[FamilyGrid, ...]:
     )
 
 
-def tensor_prod_auto_scales(plan: STPlanTensorProd) -> NDArray[np.bool_]:
+def auto_scales_tensor_prod(plan: STPlanTensorProd) -> NDArray[np.bool_]:
     """``(Nc, J'_0, …, J'_{B-1})``: where the normalisation scale sigma_c(j, l) of M-NORM-TP is
     defined: the channels with auto statistics, at every scale of S1 and S2, the low-pass
     scales included. Its size is that of the channels and the scales, not of the full grid."""

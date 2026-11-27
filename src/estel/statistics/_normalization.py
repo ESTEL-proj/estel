@@ -91,7 +91,7 @@ def spectrum_reference_of(spectrum: Any, pairs: Any) -> SpectrumReference:
     )
 
 
-class TensorProdBlocks(NamedTuple):
+class BlocksTensorProd(NamedTuple):
     """What a normalisation reference of a tensor product must share with the statistics it
     normalises (maths.md M-NORM-TP; task T3.6): the blocks, J, L and the low-pass flags; the
     sizes and the periodicity of the blocks are free, as in M-NORM."""
@@ -109,9 +109,9 @@ class TensorProdBlocks(NamedTuple):
         return orientations_at(scale, self.J, self.L)
 
 
-def tensor_prod_blocks(plan: STPlanTensorProd) -> TensorProdBlocks:
-    """The :class:`TensorProdBlocks` of ``plan``."""
-    return TensorProdBlocks(
+def blocks_tensor_prod(plan: STPlanTensorProd) -> BlocksTensorProd:
+    """The :class:`BlocksTensorProd` of ``plan``."""
+    return BlocksTensorProd(
         geometries=tuple(g.__name__ for g in plan.block_geometries),
         J=plan.J,
         L=plan.L,
@@ -133,16 +133,16 @@ class _NormReference:
     """``var_ref``, ``(Nr, Nc)``, real; Nr = 1 with ``ref_batch_mean``, else the batch size."""
     sigma: Any
     """``(Nr, n)``, real: sigma_c(j, l) for every ``(c, j)`` of :attr:`present`, in order, and
-    every orientation l inside (in a tensor product, those of :meth:`TensorProdBlocks.row_shape`,
+    every orientation l inside (in a tensor product, those of :meth:`BlocksTensorProd.row_shape`,
     in C order)."""
     present: NDArray[np.bool_]
     """``(Nc, J)``, static: where sigma exists (``_grid.auto_scales``); ``(Nc, J'_0, …)`` in a
-    tensor product (``_grid.tensor_prod_auto_scales``)."""
+    tensor product (``_grid.auto_scales_tensor_prod``)."""
     n_orientations: int
     """L; in a tensor product, the product of the L_a."""
     ref_batch_mean: bool
     """Whether the reference was averaged over the batch."""
-    blocks: TensorProdBlocks | None = None
+    blocks: BlocksTensorProd | None = None
     """The blocks of a tensor product, or ``None`` for planar statistics."""
     sigma_ps: Any = None
     """``(Nr, n)``, real: σᴾˢ_c(b) = √PS_ref[c, c, b] for every channel ``c`` of
@@ -295,7 +295,7 @@ def _ranks(present: NDArray[np.bool_]) -> NDArray[np.int64]:
 def _sigma_rows(
     shape: tuple[int, ...],
     data: bytes,
-    blocks: TensorProdBlocks | None,
+    blocks: BlocksTensorProd | None,
     n_orientations: int,
 ) -> tuple[NDArray[np.int64], tuple[tuple[int, ...], ...], NDArray[np.int64]]:
     """:meth:`_NormReference.rows` of the ``present`` given by ``shape`` and ``data``."""
@@ -327,11 +327,11 @@ def _reference_tables(
     shape: tuple[int, ...],
     data: bytes,
     n_orientations: int,
-    blocks: TensorProdBlocks | None = None,
+    blocks: BlocksTensorProd | None = None,
 ) -> tuple[NDArray[np.int64], NDArray[np.int64]]:
     """The floats of var and of the auto S2 at every sigma of the ``present`` given by
     ``shape`` and ``data``, in a buffer of ``layout``, a layout of the loop
-    (``_layout.base_layout``, ``_layout.tensor_prod_layout``): one real chunk of S2 per sigma
+    (``_layout.base_layout``, ``_layout.layout_tensor_prod``): one real chunk of S2 per sigma
     row, of L floats (of the orientations of its row in a tensor product)."""
     positions, shapes, _ = _sigma_rows(shape, data, blocks, n_orientations)
     channels = np.arange(int(shape[0]), dtype=np.int64)[:, None]
@@ -363,7 +363,7 @@ def self_reference(
     present: NDArray[np.bool_],
     n_orientations: int,
     ref_batch_mean: bool,
-    blocks: TensorProdBlocks | None = None,
+    blocks: BlocksTensorProd | None = None,
     spectrum: SpectrumReference | None = None,
 ) -> _NormReference:
     """The reference of ``norm="self"``, from the statistics being normalised (M-NORM,
@@ -475,7 +475,7 @@ def _norm_tables(
     shape: tuple[int, ...],
     data: bytes,
     n_orientations: int,
-    blocks: TensorProdBlocks | None = None,
+    blocks: BlocksTensorProd | None = None,
     spectrum: bytes | None = None,
 ) -> _NormTables:
     """:class:`_NormTables` of ``layout``, a layout of the loop, whose chunk positions are the
@@ -546,19 +546,19 @@ def normalize(
     sigma_{c1}(j2, l2) sigma_{c2}(j3, l3); S4 by sigma_{c1}(j1, l1) sigma_{c2}(j2, l2); PS by
     σᴾˢ_{c1}(b) σᴾˢ_{c2}(b) (maths.md §1.9). The reference broadcasts over the batch (Nr = 1)
     or matches it. ``layout`` is a layout of the loop (``_layout.base_layout``,
-    ``_layout.tensor_prod_layout``). In a tensor product the scales and orientations are
+    ``_layout.layout_tensor_prod``). In a tensor product the scales and orientations are
     multi-indices, and S3 and S4 read the wavelet scales of the reference only (M-NORM-TP).
     """
     present = reference.present
     if reference.blocks is not None:
-        key_tp = (layout, present.shape, present.tobytes(), reference.n_orientations)
-        tables_tp = _norm_tables(*key_tp, reference.blocks)
-        divide_tp = _compiled_tp(backend.name, *key_tp, reference.blocks)
-        chunks = map_tables(backend, tables_tp.transform, buffer)
-        found = _factor_tables(backend, tables_tp, reference, buffer)
+        key_tensor_prod = (layout, present.shape, present.tobytes(), reference.n_orientations)
+        tables_tensor_prod = _norm_tables(*key_tensor_prod, reference.blocks)
+        divide_tensor_prod = _compiled_tensor_prod(backend.name, *key_tensor_prod, reference.blocks)
+        chunks = map_tables(backend, tables_tensor_prod.transform, buffer)
+        found = _factor_tables(backend, tables_tensor_prod, reference, buffer)
         return (
-            divide_tp(buffer, reference.var, reference.sigma, chunks, found),
-            tables_tp.transform.layout,
+            divide_tensor_prod(buffer, reference.var, reference.sigma, chunks, found),
+            tables_tensor_prod.transform.layout,
         )
     spectrum = None
     if "PS" in layout.names and reference.spectrum is not None:
@@ -682,26 +682,26 @@ def _factor_tables(
 
 
 @functools.lru_cache(maxsize=64)
-def _compiled_tp(
+def _compiled_tensor_prod(
     backend_name: str,
     layout: Layout,
     shape: tuple[int, ...],
     data: bytes,
     n_orientations: int,
-    blocks: TensorProdBlocks,
+    blocks: BlocksTensorProd,
 ) -> Any:
     """The division of :func:`normalize` on a tensor product, a function of the buffer,
     ``var_ref``, sigma, the tables of the chunks and those of the factors, compiled once where
     the backend compiles (``Backend.jit``; the identity on PyTorch)."""
     backend = _registry.backend_named(backend_name)
     tables = _norm_tables(layout, shape, data, n_orientations, blocks)
-    return backend.jit(functools.partial(_divide_tp, backend, tables, blocks))
+    return backend.jit(functools.partial(_divide_tensor_prod, backend, tables, blocks))
 
 
-def _divide_tp(
+def _divide_tensor_prod(
     backend: Backend,
     tables: _NormTables,
-    blocks: TensorProdBlocks,
+    blocks: BlocksTensorProd,
     buffer: Any,
     var: Any,
     sigma: Any,
@@ -852,7 +852,7 @@ def _check_spectrum(reference: _NormReference, plan: Any) -> None:
         )
 
 
-def check_tensor_prod_reference(
+def check_reference_tensor_prod(
     reference: _NormReference, plan: STPlanTensorProd, n_batch: int, dtype: Any
 ) -> None:
     """Raise unless ``reference`` can normalise the statistics of the tensor product ``plan``
@@ -860,7 +860,7 @@ def check_tensor_prod_reference(
     same blocks, J, L, low-pass flags and number of channels, with a normalisation scale for
     every channel the plan normalises; the sizes and the periodicity of the blocks are free, as
     in M-NORM. The batch and the dtype follow :func:`check_reference`."""
-    expected = tensor_prod_blocks(plan)
+    expected = blocks_tensor_prod(plan)
     found = reference.blocks
     if found is None:
         raise ValueError(

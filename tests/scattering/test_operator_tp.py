@@ -24,7 +24,7 @@ from estel import Data1D, Data2D, DataTensorProd, STOperator, STOperatorTensorPr
 from estel.backend import _registry
 from estel.functional import _scattering
 from estel.scattering._plan import STPlanTensorProd
-from estel.statistics._layout import tensor_prod_gather, tensor_prod_layout
+from estel.statistics._layout import gather_tensor_prod, layout_tensor_prod
 from estel.wavelets._operator_tensor_prod import WaveletOperatorTensorProd
 from tests.parity._compare import assert_parity
 
@@ -220,7 +220,7 @@ def test_warnings_of_the_lowpass_filter_and_of_the_borders() -> None:
 
 def test_tables_of_the_loop_grow_with_the_chunks() -> None:
     """The index and denominator tables of the loop, in the plan (``STPlanTensorProd.loop``), and
-    of its gather (``tensor_prod_gather``)
+    of its gather (``gather_tensor_prod``)
     hold one entry per chunk of a segment, and the pack of S4 one row per kind of chunk, never
     one per coefficient (issue #23, decisions, point 4): here 2D + 1D + 1D, 16⁴, J = (2, 2, 2),
     269,508 coefficients. The crops are the only pixel arrays, of the shape of one block. The
@@ -238,9 +238,9 @@ def test_tables_of_the_loop_grow_with_the_chunks() -> None:
         s.s3_rows.size + s.s4_rows.size + s.s3_denominators.size + s.s4_denominators.size
         for s in loop.second_layer
     )
-    pack = tensor_prod_gather(plan)
+    pack = gather_tensor_prod(plan)
     tables = n_chunks + pack.within.size + pack.kinds.size + pack.starts.size
-    n_floats = tensor_prod_layout(plan).n_floats  # 531,652
+    n_floats = layout_tensor_prod(plan).n_floats  # 531,652
     # 16,694 here: 310 chunks of S3 and S4 (rows and denominators), and the pack of S4, whose
     # table of the floats within a chunk is one row of L³ = 4,096 orientations per kind.
     assert tables < n_floats / 20

@@ -85,7 +85,7 @@ def test_wavelets_and_data_may_use_the_geometry_hooks(tmp_path: Path) -> None:
             id="type-name-ne-outside-l1-l2",
         ),
         pytest.param(
-            "src/estel/_spec/_planar.py",
+            "src/estel/_spec/cartesian.py",
             "ok = x.__class__.__name__ in ('A', 'B')\n",
             "compares a class name as a string (`x.__class__.__name__`)",
             id="class-name-in-oracle",
@@ -225,7 +225,7 @@ def test_crafted_violation_fails(tmp_path: Path, path: str, source: str, message
     ],
 )
 def test_in_place_allowed_outside_l1_l2(tmp_path: Path, source: str) -> None:
-    for path in ("src/estel/backend/torch/_conv.py", "src/estel/_spec/_planar.py"):
+    for path in ("src/estel/backend/torch/_conv.py", "src/estel/_spec/cartesian.py"):
         write(tmp_path, {path: source})
     code, _, err = check(fake_repo(tmp_path))
     assert code == 0, err
