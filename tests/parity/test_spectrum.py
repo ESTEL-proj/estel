@@ -35,6 +35,7 @@ from numpy.typing import NDArray
 from estel import Data2D, STOperator, _config
 from estel.backend import _registry
 from estel.backend._protocol import DType
+from estel.scattering._plan import STPlanSingleDomain
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
 pytestmark = pytest.mark.maths("M-PS-2D", "M-NORM", "M-FLAT")
@@ -112,11 +113,16 @@ def test_spectrum_equals_stl(name: str, dtype: DType) -> None:
             )
         stats = operator.apply(data, norm="none")
         assert_parity(_numpy(stats.full_grid("PS")), arrays[key], dtype)
+        plan = operator.plan
+        assert isinstance(plan, STPlanSingleDomain)
+        assert plan.spectrum is not None
         if method == "auto":
-            chosen = operator._plan.spectrum.method  # type: ignore[attr-defined]
+            chosen = plan.spectrum.method
             assert ESTIMATORS.index(chosen) == int(arrays[f"{name}_auto_method"][0])
             assert_parity(stats.bin_centers, arrays[f"{name}_bin_centers"])
-    bins = operator._plan.spectrum.bins()  # type: ignore[attr-defined]
+    assert isinstance(plan, STPlanSingleDomain)
+    assert plan.spectrum is not None
+    bins = plan.spectrum.bins()
     assert_parity(bins.windows, arrays[f"{name}_bin_windows"])
     assert_parity(bins.norm, arrays[f"{name}_bin_norm"])
     np.testing.assert_array_equal(bins.n_modes, arrays[f"{name}_n_modes_radial"])

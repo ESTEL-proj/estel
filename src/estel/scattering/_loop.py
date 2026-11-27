@@ -8,12 +8,13 @@ tensor products ``_loop_tensor_prod.values_tensor_prod``; both return
 III, §19.2), to which ``estel.functional.scattering`` adds the normalisation.
 
 **Sums, then division.** Every mean is a weighted sum over the pixels divided by a denominator
-of the plan (M-MEAN). A loop takes the sums of a level, stacks them, passes them once to
-:func:`_global_sum`, then divides (:func:`_divide_level`). In 1.0.0 :func:`_global_sum` is the
-identity; in step 2 it adds the partial sums of the partitions of the data across MPI ranks
-(Part III, §18.3), between the sum and the division, so that the statistics are global. Both
-loops read it from this module at each call (``_loop._global_sum``), never as a name imported
-from it, so that a replaced hook reaches both.
+of the plan (M-MEAN). A loop takes the sums of a level (single-domain data) or of a scale
+(tensor products), stacks them, passes them to :func:`_global_sum`, then divides
+(:func:`_divide_level`); :func:`_global_sum` says when each loop calls it, and on what. In 1.0.0
+it is the identity; in step 2 it adds the partial sums of the partitions of the data across MPI
+ranks (Part III, §18.3), between the sum and the division, so that the statistics are global.
+Both loops read it from this module at each call (``_loop._global_sum``), never as a name
+imported from it, so that a replaced hook reaches both.
 """
 
 from __future__ import annotations
@@ -33,12 +34,19 @@ S1_EPSILON = 1e-8
 
 
 def _global_sum(partial_sums: Any) -> Any:
-    """The sum, over the partitions of the data, of the weighted pixel sums of a level's means:
-    the hook of distributed runs (Part II, §9.4; Part III, §18.3).
+    """The sum, over the partitions of the data, of weighted pixel sums of the means: the hook
+    of distributed runs (Part II, §9.4; Part III, §18.3).
 
-    ``partial_sums`` is ``(Nb, n)``, real: every weighted sum the loop takes at one level,
-    stacked, before the division by the denominators of the plan. Called once per level that
-    has means, and once for each of the two moments of ``standardize``.
+    ``partial_sums`` holds weighted sums over the pixels, before their division by the
+    denominators of the plan, the batch axis first. The loop of single-domain data calls it once
+    per level that has means, on every sum of that level stacked as one real ``(Nb, n)`` array.
+    The loop of tensor products calls it once for the mean and var of the field, once per scale
+    of the first layer and once per wavelet scale of the second, each time on the sums of that
+    scale stacked as one real ``(Nb, n)`` array, and once on the sum of the field at the scale
+    with the low-pass filter in every block, before it is centred (M-LP, OP-42): a real
+    ``(Nb, 1, …, 1, Nc)`` array, unstacked, one axis per block. With ``standardize``, both loops
+    call it once more for each of the two moments, on a real ``(Nb, Nc)`` array. It must
+    therefore add element by element, whatever the shape, as an Allreduce does.
 
     In 1.0.0 the data are never partitioned, and this is the identity. In step 2, each MPI rank
     holds a partition of the data (``DataHealpix(partition=…)``), and this is an MPI Allreduce

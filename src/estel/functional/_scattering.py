@@ -25,9 +25,9 @@ from collections.abc import Callable
 
 from ..backend import _registry
 from ..data._base import Data
-from ..scattering._filters import STFilters, STFiltersSingleDomain, STFiltersTensorProd
+from ..scattering._filters import STFilters
 from ..scattering._loop import ScatteringValues
-from ..scattering._plan import STPlan, STPlanSingleDomain, STPlanTensorProd
+from ..scattering._plan import STPlan
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics, check_normalization, finish
 
@@ -81,10 +81,7 @@ def scattering(
 def _parts(plan: STPlan, filters: STFilters) -> tuple[STPlan, STFilters]:
     """The plan and the filters of a scattering operator, or a clear error: the type check of
     :func:`scattering`."""
-    if not (
-        isinstance(plan, STPlanSingleDomain | STPlanTensorProd)
-        and isinstance(filters, STFiltersSingleDomain | STFiltersTensorProd)
-    ):
+    if not (isinstance(plan, STPlan) and isinstance(filters, STFilters)):
         raise TypeError(
             f"expected the plan and the filters of a scattering operator, op.plan and "
             f"op.filters of an STOperator; got {type(plan).__name__} and "

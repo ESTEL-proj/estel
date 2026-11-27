@@ -801,9 +801,8 @@ def _settings(
 ) -> dict[str, Any]:
     if not isinstance(lr, int | float) or isinstance(lr, bool) or not lr > 0:
         raise ValueError(f"lr={lr!r}: pass a positive step size (STL's: 1.0).")
-    spectrum = cast(
-        STPlanSingleDomain, operator.plan
-    ).spectrum  # syntheses are of single geometries
+    # Syntheses are of single geometries.
+    spectrum = cast(STPlanSingleDomain, operator.plan).spectrum
     return {
         "entry": entry,
         "backend": backend.name,

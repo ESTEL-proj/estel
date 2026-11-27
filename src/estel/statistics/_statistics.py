@@ -463,9 +463,8 @@ class STStatistics:
             # The power spectrum alone (select("PS")): every reduction
             # leaves it unchanged (maths.md §1.9, "Reductions").
             return self
-        plan = cast(
-            STPlanSingleDomain, self._plan
-        )  # a single geometry: a tensor product raised above
+        # A single geometry: a tensor product raised above.
+        plan = cast(STPlanSingleDomain, self._plan)
         L, J = plan.L, plan.J  # noqa: N806
         n_angular = _check_count("angular_harmonics", angular_harmonics, L, "L")
         n_scale = _check_count("scale_harmonics", scale_harmonics, J, "J")

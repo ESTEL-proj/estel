@@ -87,10 +87,11 @@ def test_global_sum_is_called_by_the_loop_of_tensor_prod_data(
     data = DataTensorProd(field, [Data2D, Data1D], pbc=[True, True])
     operator = STOperatorTensorProd(data, J=(1, 1), L=(4, 2), standardize=standardize)
     baseline = _vector(data, operator)
-    calls: list[tuple[int, ...]] = []
+    calls: list[tuple[tuple[int, ...], bool]] = []
 
     def counting(partial_sums: Any) -> Any:
-        calls.append(tuple(int(n) for n in partial_sums.shape))
+        is_complex = "complex" in str(partial_sums.dtype)
+        calls.append((tuple(int(n) for n in partial_sums.shape), is_complex))
         return partial_sums
 
     replace_global_sum(counting)
@@ -101,7 +102,16 @@ def test_global_sum_is_called_by_the_loop_of_tensor_prod_data(
     centred = sum(scale.centred for scale in loop.first_layer)
     assert centred == 1
     assert len(calls) == 1 + len(loop.first_layer) + centred + len(loop.second_layer) + extra
-    assert all(shape[0] == 2 for shape in calls)
+    # Every call but one takes the sums of a scale (or a moment) stacked as a real (Nb, n)
+    # array, as the single-domain loop does for a level. The exception is the sum of the field
+    # at the scale with the low-pass filter in every block, before its centring (M-LP, OP-42):
+    # the loop passes it unstacked, (Nb, 1, 1, Nc), one orientation per block; it is real, the
+    # loop makes the field complex only after centring it.
+    stacked = [shape for shape, is_complex in calls if len(shape) == 2]
+    assert not any(is_complex for _, is_complex in calls)
+    assert all(shape[0] == 2 for shape in stacked)
+    assert [call for call in calls if len(call[0]) != 2] == [((2, 1, 1, 1), False)]
+    assert len(stacked) == len(calls) - 1
 
 
 def test_global_sum_sits_between_the_sum_and_the_division(

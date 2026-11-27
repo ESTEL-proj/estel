@@ -71,7 +71,7 @@ Step 1 rebuilds what STL computes inside the architecture of Part I, and proves,
 | `engine=` argument, engine registry and protocol, `diff_order` | only `"python"`, order 2 | the Rust engine (Part III, §18) |
 | `STStatistics` accessors (`family`, `select`, `to_vector`, `full_grid`) | backed by the compact layout (Part III, §19; T2.15), the full-grid tensors being views built on demand | the canonical set (LF20, Part III, §19.8), with no API change |
 | `DataHealpix(cell_ids=…, partition=…)` | `partition=None` only: the whole sky, or the partial sky of `cell_ids`; any other value raises a clear error (LF34) | MPI in process (Part III, §18.3) |
-| `_global_sum`, internal: the hook between the weighted pixel sums of the means and their division, called once per level on the stacked sums (issue #17) | identity | MPI in process, as an MPI Allreduce with a sum (Part III, §18.3) |
+| `_global_sum`, internal: the hook between the weighted pixel sums of the means and their division, called by both loops: for single-domain data once per level, on its stacked sums; for tensor products once per scale of each layer, on its stacked sums, and once on the sum of the field before its centring (issue #17) | identity | MPI in process, as an MPI Allreduce with a sum (Part III, §18.3) |
 | `estel.io`, with a versioned schema | ESTEL format | the JSON formats of STL-Dev-MPI (Part III, §18.3) |
 | `spectrum_method=` of `STOperator` for 1D, tensor-product and HEALPix data | accepted names, raising a clear error that names LF23 or LF24 | LF23, LF24 |
 
