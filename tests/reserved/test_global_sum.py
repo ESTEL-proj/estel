@@ -77,7 +77,7 @@ def test_global_sum_is_called_once_per_level(
 
 
 @pytest.mark.parametrize(("standardize", "extra"), [(False, 0), (True, 2)])
-def test_global_sum_is_called_by_the_loop_of_tensor_products(
+def test_global_sum_is_called_by_the_loop_of_tensor_prod_data(
     replace_global_sum: Callable[[Any], None], standardize: bool, extra: int
 ) -> None:
     """The loop of tensor products reaches a replaced hook too: once for the moments of the
