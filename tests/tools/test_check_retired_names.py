@@ -64,7 +64,7 @@ GOOD = {
 def test_repository_passes() -> None:
     """Slow: the tool reads every file of the repository (about 2 s); `make check-tools` runs it
     on every pull request anyway."""
-    result = run_tool("check_retired_names.py", "--root", str(REPO))
+    result = run_tool("check_retired_names.py", "--root", str(REPO), "--strict")
     assert result.returncode == 0, result.stderr
     assert "OK" in result.stdout
 
@@ -379,6 +379,49 @@ def test_strict_fails_while_a_row_is_not_done(tmp_path: Path) -> None:
     status, output = names(tmp_path, rows, strict=True)
     assert status == 1
     assert "not done" in output
+
+
+@pytest.mark.parametrize(
+    ("files", "fails"),
+    [
+        pytest.param({"docs/maths_step2.md": "## 6.4 Low pass — M-LP2\n"}, False, id="step2"),
+        pytest.param(
+            {"docs/maths_step2.md": "## 6.4 Low pass — M-LP2\n", "docs/guide.md": "See M-LP2.\n"},
+            False,
+            id="step2-cited",
+        ),
+        pytest.param({"docs/maths.md": "## 1.1 Low pass — M-LP2\n"}, True, id="step1"),
+        pytest.param(
+            {
+                "docs/maths_step2.md": "## 6.4 Low pass — M-LP2\n",
+                "docs/maths.md": "## 1.1 Low pass — M-LP2\n",
+            },
+            True,
+            id="entered-step1",
+        ),
+        pytest.param(
+            {"docs/maths_step2.md": "## 6.4 Low pass — M-LP2-HPX\n"}, True, id="step2-retired-word"
+        ),
+        pytest.param(
+            {"docs/maths_step2.md": "## 6.4 Low pass — M-LP2\nAs M-CONV-HPX.\n"},
+            True,
+            id="step2-cites-step1",
+        ),
+    ],
+)
+def test_the_form_of_an_id_of_step2_is_checked_when_it_enters_maths(
+    tmp_path: Path, files: dict[str, str], fails: bool
+) -> None:
+    status, output = names(tmp_path, files, strict=True)
+    assert status == int(fails), output
+    assert ("rule 9" in output) == fails
+
+
+@pytest.mark.parametrize(("task", "fails"), [("LF9", False), ("T8.1", False), ("later", True)])
+def test_a_later_rename_names_its_task_or_its_card(tmp_path: Path, task: str, fails: bool) -> None:
+    rows = table(row("estel.data._cartesian:old_name", "new_name", task, done=True))
+    status, output = names(tmp_path, rows, strict=True)
+    assert status == int(fails), output
 
 
 @pytest.mark.parametrize(
