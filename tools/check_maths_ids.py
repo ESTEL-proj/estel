@@ -17,7 +17,7 @@ syntheses (Part IV, §22, row of 21 November 2026, "No oracle for the syntheses"
 Each of their IDs needs at least one test; a ``_spec`` function that cites one is an error, and
 so is an entry whose section defines no ID.
 
-**Not yet implemented.** The oracle covers sections 1 (planar 2D) and 2 (1D) of
+**Not yet implemented.** The oracle covers sections 1 (2D) and 2 (1D) of
 ``docs/maths.md`` (task T2.6, issue #18), section 3 (tensor products; task T3.3, issue #126),
 the 2D power spectrum M-PS-2D (task T4.2, issue #149) and section 4 (HEALPix; task T5.4, issue
 #165): both lists are empty. ``NOT_YET_IMPLEMENTED_SECTIONS``

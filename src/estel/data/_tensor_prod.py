@@ -1,4 +1,4 @@
-"""Tensor products of planar geometries: ``DataTensorProd`` (Part II, §12.4; maths.md
+"""Tensor products of Cartesian geometries: ``DataTensorProd`` (Part II, §12.4; maths.md
 M-NOT-TENSORPROD, M-DATA-TENSORPROD).
 
 A tensor-product field is one array whose spatial axes are those of its blocks, in block order:
@@ -43,7 +43,7 @@ class BlockSpecTensorProd(NamedTuple):
 
 
 class DataTensorProd(Data):
-    """A tensor product of planar geometries, one array (maths.md M-DATA-TENSORPROD).
+    """A tensor product of Cartesian geometries, one array (maths.md M-DATA-TENSORPROD).
 
     Parameters
     ----------
@@ -181,11 +181,11 @@ class DataTensorProd(Data):
         """The block convolution ⋆_a of maths.md M-NOT-TENSORPROD, a = ``block``: the filtering of
         the geometry of block a (M-CONV, or its 1D form), with the padding of that block, along
         the axes of that block only; ``tables`` are the wavelet bank of block a, and ``level``
-        its level, which the planar kernels do not depend on.
+        its level, which the Cartesian kernels do not depend on.
 
         ``x`` is ``(Nb, Nc, *spatial)``, real or complex, at any level of the other blocks; the
         result is complex, ``(Nb, L_a, Nc, *spatial)``, the orientation of this convolution
-        right after the batch axis, as for planar data.
+        right after the batch axis, as for single-domain data.
         """
         spec = self._spec(block, "_conv")
         self._check_array(x, "_conv")

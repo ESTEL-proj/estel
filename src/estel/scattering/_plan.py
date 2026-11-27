@@ -909,7 +909,7 @@ def build_statistics_plan_tensor_prod(
     matrix = _cross_matrix(cross_matrix, data.n_channels)
     pairs = channel_pairs(matrix)
     # The crops of the blocks warn for each border too large for a block (OP-13): the plan
-    # gives the first of these warnings, once, as the planar plan does (mean_weights).
+    # gives the first of these warnings, once, as the single-domain plan does (mean_weights).
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         loop = build_loop_tensor_prod(

@@ -119,7 +119,7 @@ def test_jvp_and_hvp_of_the_tensor_prod_operator_match_finite_differences(
     backend: Backend,
 ) -> None:
     """The hooks of ``DataTensorProd``, through its wavelet operator, differentiated to second
-    order: ``Backend.jvp`` and ``Backend.hvp`` against central differences, as for the planar
+    order: ``Backend.jvp`` and ``Backend.hvp`` against central differences, as for the Cartesian
     operator (task T3.1).
 
     Slow: second-order derivatives belong to the full tier (AGENTS.md, golden rule 13; the
@@ -172,7 +172,7 @@ def _layers_healpix(backend: Backend) -> tuple[Any, Callable[[Any], Any]]:
 @pytest.mark.maths("M-CONV-HEALPIX", "M-DOWN-HEALPIX", "M-MASK-HEALPIX")
 def test_jvp_and_hvp_of_the_healpix_operator_match_finite_differences(backend: Backend) -> None:
     """The hooks of ``DataHealpix`` (``gather_weighted``, ``segment_sum``), through its wavelet
-    operator, differentiated to second order, as for the planar operator (issue #166,
+    operator, differentiated to second order, as for the Cartesian operator (issue #166,
     decision 5)."""
     x, function = _layers_healpix(backend)
     v = direction_like(backend, x, seed=1)

@@ -148,7 +148,7 @@ def default_scales_of_cartesian(
     tensor_prod: bool = False,
 ) -> int:
     """J = ⌊log₂ min N⌋ - 2 on a grid of full-resolution shape ``spatial``, at least 1: the
-    default of planar data (maths.md M-DEF, M-DEF-1D) and of each block of a tensor product
+    default of Cartesian data (maths.md M-DEF, M-DEF-1D) and of each block of a tensor product
     (M-DATA-TENSORPROD, M-DEF-TENSORPROD), one rule. ``name`` (J, or J_a for block a) and ``what``
     name the number of scales and the grid in the message; ``tensor_prod`` makes it cite
     M-DEF-TENSORPROD instead of M-DEF."""
@@ -291,8 +291,8 @@ class WaveletPlanSingleDomain(WaveletPlan):
     of the smoothing kernels of J downsamplings, as in STL (maths.md M-NOT, M-LP)."""
     lowpass_level: int
     """The level at which the low-pass filter is read, one below the level of the last wavelet
-    scale: J in 1.0.0, the data downsampled J times. The planar statistics of 1.0.0 compute no
-    low-pass coefficient, and their :attr:`levels` stop before it; a block of a tensor product
+    scale: J in 1.0.0, the data downsampled J times. The single-domain statistics of 1.0.0 compute
+    no low-pass coefficient, and their :attr:`levels` stop before it; a block of a tensor product
     with a low-pass filter goes down to it (:attr:`has_lowpass`; task T3.2)."""
     masks: MaskMaps | None
     """The static masks and reweighting maps of the data (M-DOWN-MASK, M-MASK), or ``None``
@@ -536,8 +536,8 @@ def _wavelet_plan_cartesian(
 
     With ``lowpass``, the plan goes down to the level of the low-pass filter too, one level
     below that of its last wavelet scale (maths.md M-LP): the blocks of a tensor product that
-    have a low-pass filter (task T3.2). The planar statistics of 1.0.0 have none."""
-    ndim = cast(int, geometry.ndim)  # the class constant of a planar geometry
+    have a low-pass filter (task T3.2). The single-domain statistics of 1.0.0 have none."""
+    ndim = cast(int, geometry.ndim)  # the class constant of a Cartesian geometry
     # The level of each scale: in 1.0.0, scale j at level d = j (maths.md M-NOT).
     scale_levels = tuple(range(n_scales))
     # The low-pass filter φ_J is read one level below the last wavelet scale: in 1.0.0, the
@@ -638,7 +638,7 @@ class WaveletFiltersCartesian(WaveletFilters):
     arrays, in the order of its fields (:func:`_register_filters`)."""
 
     kernels: Any
-    """The tables of ``_conv``: for planar data the complex wavelet bank, ``(L, *kernel)``, the
+    """The tables of ``_conv``: for Cartesian data the complex wavelet bank, ``(L, *kernel)``, the
     same at every level (M-WAV-2D, M-WAV-1D)."""
     smoothing: Any
     """The real smoothing kernel of the downsampling (M-SMOOTH-2D, M-SMOOTH-1D)."""
@@ -1127,11 +1127,11 @@ def _check_scales_cartesian(
     tensor_prod: bool = False,
 ) -> int:
     """J as an int, :func:`default_scales_of_cartesian` if ``value`` is None: at least 1, and every
-    size of the grid of full-resolution shape ``spatial`` divisible by 2^(J-1). One rule for planar
-    data (maths.md M-DATA-2D, M-DATA-1D, OP-8) and for each block of a tensor product
+    size of the grid of full-resolution shape ``spatial`` divisible by 2^(J-1). One rule for
+    Cartesian data (maths.md M-DATA-2D, M-DATA-1D, OP-8) and for each block of a tensor product
     (M-DATA-TENSORPROD, OP-8, OP-83). ``name`` is J, or J_a for block a; ``label`` the argument as
     the caller wrote it, J or J[a]; ``what`` the grid; ``tensor_prod`` makes the messages cite the
-    rules of tensor products (M-DEF-TENSORPROD, M-DATA-TENSORPROD) instead of those of planar
+    rules of tensor products (M-DEF-TENSORPROD, M-DATA-TENSORPROD) instead of those of Cartesian
     data."""
     default_rule, size_rule = _rules_cartesian(tensor_prod)
     if value is None:
@@ -1159,6 +1159,6 @@ def _check_scales_cartesian(
 
 
 def _rules_cartesian(tensor_prod: bool) -> tuple[str, str]:
-    """The maths IDs of the default J and of the sizes, for planar data or for a block of a
+    """The maths IDs of the default J and of the sizes, for Cartesian data or for a block of a
     tensor product, cited by the messages of :func:`_check_scales_cartesian`."""
     return ("M-DEF-TENSORPROD", "M-DATA-TENSORPROD") if tensor_prod else ("M-DEF", "M-DATA-2D")

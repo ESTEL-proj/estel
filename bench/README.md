@@ -9,8 +9,8 @@ and this benchmark shows its gain.
 ## Cases
 
 [`cases.toml`](cases.toml) holds them. All are on CPU, in float32, one batch element, without
-power spectrum, without standardisation (`standardize=False`, as STL), `norm="none"`; the planar
-ones are 2D:
+power spectrum, without standardisation (`standardize=False`, as STL), `norm="none"`; the first
+four are 2D:
 
 | Case | Field | J, L | Borders | Missing pixels |
 | --- | --- | --- | --- | --- |
@@ -117,7 +117,7 @@ The native run is compared with `main` too, on the same inputs (Part II, §15.2,
 the statistics within the same float32 tolerances, and the gradient of the loss within
 max |g − g_main| ≤ 1e-4 × max |g_main|, every value finite. `make bench` fails otherwise: an
 optimisation of step 1 changes no value beyond the parity tolerance (Part I, §3.1, rule 8), and
-until the planar syntheses exist (T6.1) this comparison is what validates its gradients. The
+until the 2D syntheses exist (T6.1) this comparison is what validates its gradients. The
 measured differences are printed, each relative to the largest value of `main`, and recorded
 with the run (`check_main`).
 

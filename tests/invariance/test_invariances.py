@@ -1,7 +1,7 @@
 """Invariances of the scattering statistics (Part I, §5.1; task T2.8, issue #20; maths.md M-MOM,
 M-S1 to M-S4, M-NORM, M-CHAN, M-WAV-1D).
 
-What the statistics of 1D and 2D planar data must satisfy whatever the field, with ``pbc`` on and
+What the statistics of 1D and 2D data must satisfy whatever the field, with ``pbc`` on and
 off, through ``STOperator.apply`` and through ``estel.functional.scattering``:
 
 - **scaling**, x → a·x with a > 0 and a < 0: mean ∝ a; var, S2 and S4 ∝ a²; the auto S1 ∝ |a|;

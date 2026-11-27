@@ -13,7 +13,7 @@ issue = 0
 
 ## Goal
 
-The largest scales enter every family: S1 and S2 at the low-pass scale j = J, and S3 and S4 with it, in planar 2D and 1D, tensor products and HEALPix, without STL's final downsampling, so that no size constraint remains (OP-34).
+The largest scales enter every family: S1 and S2 at the low-pass scale j = J, and S3 and S4 with it, in 2D and 1D, tensor products and HEALPix, without STL's final downsampling, so that no size constraint remains (OP-34).
 
 ## Decisions
 
@@ -31,14 +31,14 @@ The largest scales enter every family: S1 and S2 at the low-pass scale j = J, an
 Waits for LF33: every low-pass term is centred. Task 2 feeds LF60's study, whose result sets the crop of task 3.
 1. M-LP2 completed: the decisions of 23 November 2026, with the formulas of the low-pass filter as a first filter, and what it leaves unwritten, the smoothing without stride on masked data (M-DOWN-MASK, its threshold) and on HEALPix (M-DOWN-HEALPIX's Gaussian without the decimation) [human review].
 2. `_spec`: the low-pass terms of M-LP2, centred (LF33's `_spec`), in every geometry of `_spec`; tests.
-3. Planar 2D and 1D: the low-pass scale in the plan, the wavelet operator and the loop; references regenerated, `STATISTICS_REFERENCE` bumped, broken STL parity tests removed [human].
+3. 2D and 1D: the low-pass scale in the plan, the wavelet operator and the loop; references regenerated, `STATISTICS_REFERENCE` bumped, broken STL parity tests removed [human].
 4. Tensor products: the low-pass filter without the final downsampling (OP-34 gone) and in S3 and S4, all combinations, the mixed scales included (OP-43); references, as in 3 [human].
 5. HEALPix; references, as in 3 [human].
 6. Cost on the benchmark of step 2 (LF62).
 
 ## Done when
 
-- In planar 2D and 1D, tensor products and HEALPix, S1 and S2 at j = J and every S3 and S4 with the low-pass filter (all combinations) equal `_spec` within the parity tolerance, in float32 and float64.
+- In 2D and 1D, tensor products and HEALPix, S1 and S2 at j = J and every S3 and S4 with the low-pass filter (all combinations) equal `_spec` within the parity tolerance, in float32 and float64.
 - The coefficient counts follow §20.1: plain 2D gains S1[J] and S2[J], 1,474 → 1,476 before S3 and S4 (G1), and 1,670 with S3 and S4 (J = 4, L = 4); the 2D+1D and 2D+1D+1D cases of the STOC deliverable gain 38.2 % and 111.8 %.
 - A tensor-product block whose size is not divisible by 2^(J_a) has its low-pass filter, without warning (M-LP, case F: size 12, J = 3).
 - On periodic data, S2[J] equals the variance of Φ x^(J−1) computed apart in NumPy; x → x + c leaves every low-pass term unchanged, masks included.

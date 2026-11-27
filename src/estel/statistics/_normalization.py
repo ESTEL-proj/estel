@@ -144,7 +144,7 @@ class _NormReference:
     ref_batch_mean: bool
     """Whether the reference was averaged over the batch."""
     blocks: BlocksTensorProd | None = None
-    """The blocks of a tensor product, or ``None`` for planar statistics."""
+    """The blocks of a tensor product, or ``None`` for single-domain statistics."""
     sigma_ps: Any = None
     """``(Nr, n)``, real: σᴾˢ_c(b) = √PS_ref[c, c, b] for every channel ``c`` of
     ``spectrum.present``, in order, and every bin b inside; ``None`` when the statistics hold no

@@ -40,7 +40,7 @@ Each part opens in its own tab, with a detailed contents at its top.
   - 21\. Critical review: failure modes
   - 22\. Decision log
 - maths.md — Mathematics of step 1 (sections 1 (2D), 2 (1D) and 3 (tensor products) checked numerically by the oracle `estel._spec`; sections 4 (HEALPix) and 5 (syntheses) checked against STL's code; its sections have their own numbering)
-  - 1\. Planar 2D
+  - 1\. 2D
   - 2\. 1D
   - 3\. Tensor products
   - 4\. HEALPix

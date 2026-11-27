@@ -4,7 +4,7 @@ One pixel axis, NESTED ordering, on the full sky or on the partial sky of ``cell
 resolution is ``depth`` = log₂ ``nside`` (rule A4): inferred from the number of pixels on a full
 sky, required with ``cell_ids`` (maths.md OP-91); ``cell_ids`` strictly increasing (OP-90).
 ``pbc`` is not an argument: it is True on a full sky and False with ``cell_ids`` (M-DATA-HEALPIX).
-The mask of missing values is read or checked as for the planar classes (OP-26).
+The mask of missing values is read or checked as for the Cartesian classes (OP-26).
 
 The geometry hooks apply the static tables of each level that the wavelet operator gives them
 (``estel.wavelets._operator_healpix``), built in NumPy with the plan from the tables of

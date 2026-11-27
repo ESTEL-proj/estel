@@ -62,15 +62,15 @@ def test_print_reproduces_the_manifest(tmp_path: Path) -> None:
     ("extra", "manifest", "message"),
     [
         pytest.param(
-            {"src/estel/data/planar.py": "def helper(x):\n    pass\n"},
+            {"src/estel/data/cartesian.py": "def helper(x):\n    pass\n"},
             MANIFEST,
-            "estel.data.planar.helper is public but not in api/manifest.json",
+            "estel.data.cartesian.helper is public but not in api/manifest.json",
             id="public-function-in-public-module",
         ),
         pytest.param(
-            {"src/estel/data/planar.py": "class Data2D:\n    def crop(self):\n        pass\n"},
+            {"src/estel/data/cartesian.py": "class Data2D:\n    def crop(self):\n        pass\n"},
             MANIFEST,
-            "estel.data.planar.Data2D.crop is public but not in api/manifest.json",
+            "estel.data.cartesian.Data2D.crop is public but not in api/manifest.json",
             id="public-method-of-public-class",
         ),
         pytest.param(
@@ -123,7 +123,7 @@ def test_private_names_are_not_api(tmp_path: Path) -> None:
         tmp_path,
         MANIFEST,
         {
-            "src/estel/data/planar.py": "def _helper(x):\n    pass\n_TABLE = 1\n",
+            "src/estel/data/cartesian.py": "def _helper(x):\n    pass\n_TABLE = 1\n",
             "src/estel/data/_masks.py": "def build_masks(x):\n    pass\n",
         },
     )

@@ -96,8 +96,8 @@ def field_moments(
     """The field standardised when ``standardized`` (STL's ``apply(standardize=True)``, M-MOM,
     M-STD), with the mean and the standard deviation removed, and the sums of its ``mean`` and
     ``var`` over the window ``weights`` (``window_single_domain``), waiting for their division
-    (M-MOM). Shared by the loops of planar data and of tensor products; every sum goes through
-    :func:`_global_sum`."""
+    (M-MOM). Shared by the loops of single-domain data and of tensor products; every sum goes
+    through :func:`_global_sum`."""
     mean_pre_std = std_pre_std = None
     if standardized:
         x, mean_pre_std, std_pre_std = standardize(
@@ -118,8 +118,8 @@ def first_layer_sums(
     cross pairs, pair by pair; then S2 alike. ``w`` is the first-layer map W_j x and ``u`` its
     modulus,
     ``(Nb, L, Nc, *spatial)``, ``weights`` the window of the means (``window_single_domain``).
-    Shared by the loops of planar data and of tensor products, whose orientations are flattened into
-    L."""
+    Shared by the loops of single-domain data and of tensor products, whose orientations are
+    flattened into L."""
     auto_s1 = sum_valid(u, weights, axes)  # (Nb, L, Nc)
     auto_s2 = cov_sum_valid(u, u, weights, axes)
     sums = [_Sum("S1", auto_s1[:, :, c], denominator) for c in pairs.auto]
@@ -146,7 +146,7 @@ def gram_sums(v: Any, band: Any, with_s3: bool, with_s4: bool) -> tuple[Any, Any
     and ``band`` the band map W_{j3} x, ``(Nb, L3, Nc, *spatial)``, both already zero outside
     their windows. Returns the products with the band map, ``(Nb, L3, P, Nc)``, and the Gram
     matrix, ``(Nb, L3, P, P)``, P = n_arms · r, each ``None`` when not asked. Shared by the
-    loops of planar data and of tensor products."""
+    loops of single-domain data and of tensor products."""
     xp = _backend_of(v).xp
     n_batch, n_band = int(v.shape[0]), int(v.shape[1])
     rows = xp.reshape(v, (n_batch, n_band, int(v.shape[2]) * int(v.shape[3]), -1))

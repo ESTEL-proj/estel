@@ -74,7 +74,8 @@ def test_cases_file_holds_the_six_cases() -> None:
     assert sky.estel_only
     assert not sky.tensor_prod
     assert (sky.shape, sky.depth, sky.J, sky.L, sky.channels) == ((49152,), 6, 5, 4, 1)
-    assert not any(case.estel_only for name, case in cases.items() if name.startswith("planar"))
+    two_d = ("planar-cross", "planar-masked", "planar-open", "planar-periodic")  # the 2D cases
+    assert not any(cases[name].estel_only for name in two_d)
 
 
 def test_harness_measures_and_checks_a_tiny_case(

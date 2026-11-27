@@ -350,8 +350,8 @@ def _flat(grid: NDArray[Any], real_part: bool) -> NDArray[Any]:
 @pytest.mark.parametrize("reduction", ["iso", "angular_fourier", "scale_cosine"])
 def test_reduce_raises_before_computing(reduction: str) -> None:
     """The reductions are not defined on tensor products (maths.md M-NORM-TENSORPROD, OP-44): a
-    clear error, raised before any computation, even with arguments that planar statistics refuse
-    (``scale_cosine`` without ``iso``)."""
+    clear error, raised before any computation, even with arguments that single-domain statistics
+    refuse (``scale_cosine`` without ``iso``)."""
     with pytest.raises(ValueError, match=r"OP-44.*LF26"):
         _two_channels().reduce(**{reduction: True})
 
@@ -381,9 +381,9 @@ def test_save_and_load_round_trip(tmp_path: Path) -> None:
 
 def test_reference_of_other_tensor_prod_data_is_accepted() -> None:
     """A reference from another tensor product with the same blocks, J, L, low-pass flags and
-    channels is accepted, whatever its sizes and periodicity (maths.md M-NORM-TENSORPROD); a planar
-    reference is refused on a tensor product, and the reference of a tensor product on planar
-    statistics."""
+    channels is accepted, whatever its sizes and periodicity (maths.md M-NORM-TENSORPROD); a
+    single-domain reference is refused on a tensor product, and the reference of a tensor
+    product on single-domain statistics."""
     reference = _two_channels()._reference
     assert reference is not None
     rng = np.random.default_rng(3)
@@ -393,16 +393,16 @@ def test_reference_of_other_tensor_prod_data_is_accepted() -> None:
     )
     stats = statistics_of(buffer, other, reference, norm="ref")
     assert stats._reference is not None
-    planar = estel.STOperator(
+    single_domain = estel.STOperator(
         Data2D(rng.standard_normal((2, 2, 16, 16)), pbc=True), 2, compute_PS=False
     ).apply(Data2D(rng.standard_normal((2, 2, 16, 16)), pbc=True))
-    assert planar._reference is not None
+    assert single_domain._reference is not None
     with pytest.raises(ValueError, match="single-domain statistics, and these are"):
-        statistics_of(buffer, other, planar._reference, norm="ref")
-    assert isinstance(planar._plan, STPlanSingleDomain)
+        statistics_of(buffer, other, single_domain._reference, norm="ref")
+    assert isinstance(single_domain._plan, STPlanSingleDomain)
     with pytest.raises(ValueError, match="tensor product"):
         _normalization.check_reference_single_domain(
-            reference, planar._plan, 2, reference.var.dtype
+            reference, single_domain._plan, 2, reference.var.dtype
         )
 
 

@@ -6,7 +6,7 @@ never modify one. Subclasses (``Data1D``, ``Data2D`` in ``_cartesian.py``, under
 ``DataCartesian``) set the number of spatial axes and the geometry constants, and override only
 the geometry hooks (tag G of §12.4);
 ``DataHealpix`` (``_healpix.py``) has one pixel axis on the sphere; ``DataTensorProd``
-(``_tensor_prod.py``) composes the planar ones, one geometry per block.
+(``_tensor_prod.py``) composes Cartesian ones, one geometry per block.
 
 Validation happens once, here, when the object is built (review rule B1): the array is converted
 to the backend, promoted to ``(Nb, Nc, *spatial)``, and its NaN become the mask. The mask is a
@@ -41,7 +41,7 @@ class Data:
 
     Build a geometry instead: ``Data1D``, ``Data2D`` or ``DataHealpix``. The mother class holds
     the shared logic; a subclass sets ``ndim``, the number of spatial axes (a class constant of a
-    single geometry), and overrides only the geometry hooks.
+    single-domain geometry), and overrides only the geometry hooks.
 
     Parameters
     ----------
@@ -61,7 +61,7 @@ class Data:
 
     @property
     def ndim(self) -> int:
-        """The number of spatial axes of the array: a class constant of a single geometry
+        """The number of spatial axes of the array: a class constant of a single-domain geometry
         (``Data1D.ndim``, ``Data2D.ndim``, ``DataHealpix.ndim``), those of every block for a
         tensor product (``DataTensorProd.ndim``). It counts axes and does not name the geometry:
         ``DataHealpix.ndim`` is 1, its pixels lying on one axis, though the sphere is a 2D
@@ -149,7 +149,7 @@ class Data:
         """A new object from parts already validated: no conversion, no check of values, so
         that it works inside traced code. ``meta`` is the static metadata of the geometry
         beyond the mask and ``pbc``, :meth:`_meta` of an object of the same class: ``()`` for
-        planar data, ``(depth, cell_ids)`` for ``DataHealpix``."""
+        Cartesian data, ``(depth, cell_ids)`` for ``DataHealpix``."""
         new = cls.__new__(cls)
         new._set(array, mask, pbc, backend, meta)
         return new
@@ -235,7 +235,7 @@ class Data:
 
     @property
     def pbc(self) -> bool | tuple[bool, ...]:
-        """Whether the boundary conditions are periodic: one boolean for a single geometry, one
+        """Whether the boundary conditions are periodic: one boolean for single-domain data, one
         per block for a tensor product (``DataTensorProd.pbc``)."""
         return self._pbc
 
@@ -355,14 +355,14 @@ class Data:
         static ``tables`` of that level, given by the ``WaveletOperator``.
 
         ``x`` is an array of this object's backend, ``(Nb, Nc, *spatial)`` at that level, real
-        or complex; ``tables`` are, for planar data, the complex bank of the geometry, cast to
+        or complex; ``tables`` are, for Cartesian data, the complex bank of the geometry, cast to
         the backend and to the complex dtype matching ``x``. The result is complex, with the
         orientation axis of the convolution right after the batch axis:
         ``(Nb, L, Nc, *spatial)``, for the first and the second layer alike. The maps of one
         orientation are then contiguous, and those of the second layer form the matrix of the
         Gram form without a copy (Part III, §19.12, point 2; maths_step2.md M-GRAM). The hook
         builds the result in that layout directly. Each geometry implements it
-        (planar: ``pad`` + ``conv_axes``, M-CONV).
+        (Cartesian: ``pad`` + ``conv_axes``, M-CONV).
         """
         raise NotImplementedError(
             f"{type(self).__name__} does not implement the geometry hook _conv: every geometry "
@@ -377,7 +377,7 @@ class Data:
         or complex; ``weights`` the static weights of the step (:class:`DownsampleWeights`),
         given by the ``WaveletOperator``.
         The result has the shape of the coarser level and the dtype of ``x``. Each geometry
-        implements it (planar: a normalised strided correlation with the smoothing kernel).
+        implements it (Cartesian: a normalised strided correlation with the smoothing kernel).
         """
         raise NotImplementedError(
             f"{type(self).__name__} does not implement the geometry hook _downsample: every "
@@ -391,7 +391,7 @@ class Data:
         means, 0 where the crop removes it, ``border`` pixels on each side of every spatial
         axis. The wavelet operator computes ``border`` from the convolutions applied (M-BORDER)
         and multiplies these weights by the valid pixels of the mask, once, when an operator
-        is built (Part I, §3.1.1). Each geometry implements it (planar: STL's ``_crop``, with its
+        is built (Part I, §3.1.1). Each geometry implements it (Cartesian: STL's ``_crop``, with its
         reduction of a border too large for the array, OP-13; HEALPix: no crop).
         """
         raise NotImplementedError(
@@ -482,7 +482,7 @@ class DownsampleWeights(NamedTuple):
     """
 
     kernel: Any
-    """The static kernel of the step, with the real dtype of the data: planar, the smoothing
+    """The static kernel of the step, with the real dtype of the data: Cartesian, the smoothing
     kernel of maths.md M-SMOOTH-2D, M-SMOOTH-1D; HEALPix, the decimation tables of the step
     (``DownTablesHealpix``, M-DOWN-HEALPIX)."""
     valid: Any = None
@@ -570,7 +570,7 @@ def _to_backend(array: Any, backend_name: str, cls: type[Data]) -> Any:
 
 def _promote(array: Any, cls: type[Data]) -> Any:
     """Promote ``array`` to ``(Nb, Nc, *spatial)`` (maths.md M-DATA-2D, M-DATA-1D, OP-29)."""
-    ndim = cast(int, cls.ndim)  # the class constant of a single geometry
+    ndim = cast(int, cls.ndim)  # the class constant of a single-domain geometry
     return _promote_spatial(array, ndim, cls.__name__, cls._accepted_shapes())
 
 

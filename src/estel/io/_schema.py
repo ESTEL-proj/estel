@@ -39,10 +39,10 @@ SCHEMA_VERSION = 10
 normalisation reference; version 4 stores the layout by chunks (task T3.7): one row per channel
 pair and scale combination, the buffer unchanged; version 5 adds the statistics of tensor
 products (task T3.6): their blocks, J, L and low-pass flags, the orientation shape of each kind
-of chunk, and the blocks of the reference, the content of planar statistics unchanged; version 6
-adds the 2D power spectrum (task T4.4): the parameters of the spectrum in the plan (``None``
-without it), the family ``"PS"`` in the layout, and the spectrum scales of the reference with
-their channels and bins; version 7 adds the spectrum operator (task T4.1): the estimator of the
+of chunk, and the blocks of the reference, the content of single-domain statistics unchanged;
+version 6 adds the 2D power spectrum (task T4.4): the parameters of the spectrum in the plan
+(``None`` without it), the family ``"PS"`` in the layout, and the spectrum scales of the reference
+with their channels and bins; version 7 adds the spectrum operator (task T4.1): the estimator of the
 spectrum in the plan (``"method"``), and the statistics of ``SpectrumOperator``, the family
 ``"PS"`` alone, with their plan (``"operator": "SpectrumOperator"``) and a reference without
 scattering scales; version 8 adds the statistics of HEALPix data (task T5.6): the static

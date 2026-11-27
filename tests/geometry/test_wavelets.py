@@ -1,5 +1,5 @@
-"""Unit tests of the planar wavelet banks and of the smoothing kernel (maths.md M-WAV-2D, M-WAV-1D,
-M-SMOOTH-2D, M-SMOOTH-1D;
+"""Unit tests of the Cartesian wavelet banks and of the smoothing kernel (maths.md M-WAV-2D,
+M-WAV-1D, M-SMOOTH-2D, M-SMOOTH-1D;
 task T2.2).
 
 Properties that hold by construction, and the validation of the parameters. Equality with STL's
