@@ -1,10 +1,6 @@
 {
   "schema": 1,
   "public": {
-    "estel.BackendMismatchError": {
-      "kind": "class",
-      "signature": "()"
-    },
     "estel.Data": {
       "kind": "class",
       "signature": "(self, array: Any, mask: Any=None, *, pbc: bool) -> None"

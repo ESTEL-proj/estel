@@ -3,7 +3,7 @@
 from . import functional
 from ._config import set_default_device, set_default_dtype
 from ._reference import STATISTICS_REFERENCE, SYNTHESIS_REFERENCE
-from .backend._registry import BackendMismatchError, get_backend, set_backend
+from .backend._registry import get_backend, set_backend
 from .data._base import Data
 from .data._cartesian import Data1D, Data2D
 from .data._healpix import DataHealpix
@@ -17,7 +17,6 @@ from .synthesis._api import SynthesisResult, synthesize_from_maps, synthesize_fr
 __all__ = [
     "STATISTICS_REFERENCE",
     "SYNTHESIS_REFERENCE",
-    "BackendMismatchError",
     "Data",
     "Data1D",
     "Data2D",

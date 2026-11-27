@@ -117,7 +117,7 @@ At construction, an operator builds an `STPlan` in NumPy: scale and orientation 
 #### 2.2.3 Backend selection
 
 - **A global default, read when an operator is built.** `estel.set_backend("jax")` sets the default; every operator records the backend it was built with.
-- **Mixing raises an error.** A torch tensor passed to a JAX-built operator raises `BackendMismatchError`, whose message says how to fix it.
+- **Mixing raises an error.** A torch tensor passed to a JAX-built operator raises a `TypeError` whose message says how to fix it, as every other error of ESTEL.
 - **Inputs are converted at the boundary.** `Data` constructors accept NumPy and backend arrays and convert them to the current backend. They never convert silently from one backend to another.
 
 #### 2.2.4 Engines
