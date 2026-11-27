@@ -1,4 +1,4 @@
-"""``WaveletOperator``: the only way to the wavelets and to the geometry of the pyramid
+"""``WaveletOperator``: the only way to the wavelets and to the levels of the pyramid
 (Part I, §2.3; Part II, §12.5; task T2.10).
 
 Internal: ESTEL computes scattering statistics, and STL's ``data.get_wavelet_op()`` has no
@@ -736,7 +736,7 @@ def downsample_maps_of(
 class WaveletOperator(ABC):
     """The wavelets of any geometry, level by level, bound to data: internal (Part II, §12.5;
     Part I, §2.3.1). Abstract, the root of the wavelet operators, and the only way to the
-    wavelets and to the geometry of the pyramid (Part I, §2.3). Its children are
+    wavelets and to the levels of the pyramid (Part I, §2.3). Its children are
     :class:`WaveletOperatorSingleDomain`, for 1D, 2D and HEALPix data, and
     ``_operator_tensor_prod.WaveletOperatorTensorProd``, which composes the operators of its
     blocks, with multi-index levels.

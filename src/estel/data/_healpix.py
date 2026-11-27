@@ -380,7 +380,7 @@ class DataHealpix(Data):
     def _spectrum_grids(self) -> Any:
         """Not in 1.0.0: the angular spectrum of HEALPix data comes later (LF24)."""
         raise NotImplementedError(
-            "DataHealpix has no spectrum geometry in ESTEL 1.0.0: the angular spectrum of "
+            "DataHealpix has no power spectrum in ESTEL 1.0.0: the angular spectrum of "
             "HEALPix data comes later (LF24); compute the statistics with compute_PS=False."
         )
 
