@@ -129,7 +129,7 @@ def test_a_wrong_reference_is_refused_before_the_loop(monkeypatch: pytest.Monkey
     monkeypatch.setattr(_scattering, "_loop", no_loop)
     with pytest.raises(ValueError, match=r"J = \[1, 1\] \(the operator has \[2, 1\]\)"):
         operator.apply(data, ref=other, norm="ref")
-    with pytest.raises(ValueError, match=r"comes from planar statistics"):
+    with pytest.raises(ValueError, match=r"comes from single-domain statistics"):
         operator.apply(data, ref=stats_single_domain, norm="ref")
     with pytest.raises(ValueError, match=r'norm="ref" needs a reference'):
         operator.apply(data, norm="ref")

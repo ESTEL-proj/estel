@@ -212,7 +212,9 @@ class _NormReference:
         placed in the grid of the channels and the scales."""
         xp = backend.xp
         if self.blocks is None:
-            raise ValueError("this reference is planar: it has no blocks of a tensor product.")
+            raise ValueError(
+                "this reference is single-domain: it has no blocks of a tensor product."
+            )
         full = self.blocks.L
         positions, shapes, starts = self.rows()
         n_ref = int(self.sigma.shape[0])
@@ -786,8 +788,9 @@ def check_reference_single_domain(
     """
     if reference.blocks is not None:
         raise ValueError(
-            "the reference comes from a tensor product, and these statistics are planar: "
-            "normalise with planar statistics of the same J, L and channels (maths.md M-NORM)."
+            "the reference comes from a tensor product, and these statistics are single-domain: "
+            "normalise with single-domain statistics of the same J, L and channels (maths.md "
+            "M-NORM)."
         )
     found_nc, found_j = (int(n) for n in reference.present.shape)
     found_l = reference.n_orientations
@@ -866,7 +869,7 @@ def check_reference_tensor_prod(
     found = reference.blocks
     if found is None:
         raise ValueError(
-            "the reference comes from planar statistics, and these are a tensor product: "
+            "the reference comes from single-domain statistics, and these are a tensor product: "
             "normalise with statistics of a tensor product with the same blocks, J, L and "
             "low-pass flags (maths.md M-NORM-TP)."
         )

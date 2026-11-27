@@ -392,7 +392,7 @@ def test_reference_of_other_tensor_prod_data_is_accepted() -> None:
         Data2D(rng.standard_normal((2, 2, 16, 16)), pbc=True), 2, compute_PS=False
     ).apply(Data2D(rng.standard_normal((2, 2, 16, 16)), pbc=True))
     assert planar._reference is not None
-    with pytest.raises(ValueError, match="planar"):
+    with pytest.raises(ValueError, match="single-domain statistics, and these are"):
         statistics_of(buffer, other, planar._reference, norm="ref")
     assert isinstance(planar._plan, STPlanSingleDomain)
     with pytest.raises(ValueError, match="tensor product"):
