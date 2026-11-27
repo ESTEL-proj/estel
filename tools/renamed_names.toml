@@ -1,7 +1,7 @@
 # The table of renamed names of phase P7 (Part I, §2.4.1; tools/check_retired_names.py; T7.2).
 #
-# One row per name of `main` that breaks the rule of names, or that the hierarchy of Part I,
-# §2.3.1 and the decisions of the maintainer rename, with the task of phase P7 that renames it.
+# One row per name that broke the rule of names, or that the hierarchy of Part I, §2.3.1 and the
+# decisions of the maintainer renamed, with the task of phase P7 that renamed it.
 #
 #   old   the name, qualified: a module (`estel.data._planar`), a definition
 #         (`estel.scattering._plan:PlanarPlan`, a method `module:Class.method`), a file that is
@@ -10,14 +10,20 @@
 #   new   the new name: in the same module unless qualified; for a split, the new modules;
 #   kind  rename, split, move (to another module), reintroduce (the old name back with a new
 #         meaning, once its rename row is done: rule 6);
-#   task  the task of phase P7 that renames it (T7.3 to T7.11; T7.12 for the IDs it settles);
-#   done  false until its task is merged: the task sets it to true in its own pull request;
+#   task  the task that renames it: of phase P7 (T7.3 to T7.11), or a later task (`Tn.m`) or
+#         card of the register (`LFn`);
+#   done  true once its task is merged: the task sets it in its own pull request;
 #   note  optional: where the name comes from, or why.
 #
-# The tool fails on a violation with no row, reports the violations of the rows not done (one
-# line per task; --report lists them), and fails when the old name of a row done occurs again
-# outside history. A task that renames a name the tool does not detect adds its row too (done =
-# true), so that the proof (tools/prove_unchanged.py) maps it. T7.12 makes the tool strict.
+# The tool is strict since T7.12 (`make check` runs it with --strict): it fails on a violation
+# with no row, on a row not done, and when the old name of a row done occurs again outside
+# history. The table stays after phase P7 so that no old name comes back (rule 6). Rows are no
+# longer added for P7: a later rename of a name that breaks the rule adds its row, done, in its
+# own pull request. A task that renames a name the tool does not detect adds its row too (done =
+# true), so that the proof (tools/prove_unchanged.py) maps it.
+#
+# The IDs of docs/maths_step2.md are proposals of step 2: their form (rule 9) is checked when
+# they enter docs/maths.md (T7.12, decision 2 on #203), so M-LP2 and M-ISO2 have no row.
 
 row = [
 
@@ -403,10 +409,4 @@ row = [
     { old = "tests/tools/test_check_maths_ids.py#planar", new = "Cartesian or single-domain, by hand (rule 10)", kind = "rename", task = "T7.11", done = true, note = "prose" },
     { old = "tools/check_maths_ids.py#planar", new = "Cartesian or single-domain, by hand (rule 10)", kind = "rename", task = "T7.11", done = true, note = "prose" },
     { old = "tools/stl_parity/cases/synthesis_2d.py#planar", new = "Cartesian or single-domain, by hand (rule 10)", kind = "rename", task = "T7.11", done = true, note = "prose" },
-  # T7.12: the IDs of docs/maths_step2.md that break rule 9 by their digit ("second version";
-  # decision on #193, point 1). Their new names are Pablo Richard's to choose: if he names them
-  # before T7.12, the task in progress renames them and takes these rows; otherwise T7.12 writes
-  # a dated, commented exemption for these two IDs only, and the tool is strict on the rest.
-    { old = "M-ISO2", new = "", kind = "rename", task = "T7.12", done = false, note = "rule 9: a digit outside S1 to S4 and W1; an ID of docs/maths_step2.md, named by Pablo Richard (decision on #193)" },
-    { old = "M-LP2", new = "", kind = "rename", task = "T7.12", done = false, note = "rule 9: a digit outside S1 to S4 and W1; an ID of docs/maths_step2.md, named by Pablo Richard (decision on #193)" },
 ]

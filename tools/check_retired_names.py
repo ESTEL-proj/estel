@@ -23,15 +23,21 @@ backticked names right after "STL's") and the phrase "vanilla ScatCov"; for a na
   ``tensor_product`` are retired;
 * rule 3: a name defined in a module of one geometry and used (imported, or read through its
   module) outside the modules of that geometry carries that geometry;
-* rule 9: the maths IDs read ``M-<TOPIC>[-<VARIANT>]*[-<GEOMETRY>]*``;
+* rule 9: the maths IDs read ``M-<TOPIC>[-<VARIANT>]*[-<GEOMETRY>]*``. An ID defined by a
+  heading of ``docs/maths_step2.md`` (and by none of ``docs/maths.md``) is a proposal of step 2,
+  named by its author: its form is checked when it enters ``docs/maths.md``. Until then only the
+  retired geometry words of rule 2 (``-HPX``, ``-TP``, ``-PLANAR``) are reported in it; this is
+  a scope, not a list of names (rule 7). The IDs of step 1 it cites stay checked in full;
 * rule 10: "planar", "single geometry" and "plain geometry" are retired, in identifiers, paths
   and prose, except in a quote of STL followed by "(STL's word)";
 * rule 7: the closed lists below; nothing else is exempt;
-* rule 6, through the table ``tools/renamed_names.toml``: one row per name that breaks the rule,
-  with the task of phase P7 that renames it. A violation with no row fails; a violation covered
-  by a row not done is reported, one line per task (``--report`` lists them); a row done whose
+* rule 6, through the table ``tools/renamed_names.toml``: one row per name renamed because it
+  broke the rule, with the task that renamed it. A violation with no row fails; a row done whose
   old name still occurs fails, except a ``reintroduce`` row done, which lets the old name come
-  back with its new meaning, defined in the module the row names.
+  back with its new meaning, defined in the module the row names. The tool is strict since every
+  task of phase P7 is merged (T7.12): ``make check`` runs it with ``--strict``, which also fails
+  on a row not done. Without ``--strict``, a violation covered by a row not done is reported,
+  one line per task (``--report`` lists them).
 
 And the import contracts of ``pyproject.toml`` may lose no module: every module they name
 exists, or is in ``RESERVED_MODULES``.
@@ -41,9 +47,9 @@ The meaning of a suffix, and rules 4, 5, 8 and 11, are left to review
 
 Usage::
 
-    python tools/check_retired_names.py            # fail on a violation; one line per task
+    python tools/check_retired_names.py --strict   # as make check: also fail on a row not done
+    python tools/check_retired_names.py            # report the rows not done, one line per task
     python tools/check_retired_names.py --report   # also list every violation a row covers
-    python tools/check_retired_names.py --strict   # also fail while a row is not done (T7.12)
 """
 
 from __future__ import annotations
@@ -62,6 +68,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from api_manifest import public_definitions
+from check_maths_ids import defined_ids
 
 REPO = Path(__file__).resolve().parents[1]
 TABLE = "tools/renamed_names.toml"
@@ -278,6 +285,8 @@ RETIRED_WORDS = {
 ID_GEOMETRIES = frozenset({"1D", "2D", "HEALPIX", "TENSORPROD"})
 ID_RETIRED = {"HPX": "HEALPIX", "TP": "TENSORPROD", "PLANAR": "a geometry of rule 2"}
 ID_QUANTITIES = frozenset({"S1", "S2", "S3", "S4", "W1"})
+# The IDs of step 2: defined by a heading of the first file and by none of the second (rule 9).
+MATHS_STEP2 = ("docs/maths_step2.md", "docs/maths.md")
 
 WORD_RE = re.compile(
     r"(?i:healpix[_-]analyse|healpix[_-]geo(?![a-z]))|(?i:tensor_?product)|(?i:tensor_?prod)|(?i:single_?domain)|(?i:healpix)"
@@ -416,7 +425,8 @@ class Row:
 
 
 KINDS = frozenset({"rename", "split", "move", "reintroduce"})
-TASKS = frozenset(f"T7.{n}" for n in range(3, 13))
+# The task of a row: of phase P7 (T7.3 to T7.12), or a later one, by its task or its card.
+TASK_RE = re.compile(r"^(?:T\d+\.\d+|LF\d+)$")
 
 
 def load_table(root: Path) -> tuple[list[Row], list[str]]:
@@ -433,8 +443,10 @@ def load_table(root: Path) -> tuple[list[Row], list[str]]:
             continue
         if row.kind not in KINDS:
             errors.append(f"{TABLE}: row {number} ({row.old}): kind is one of {sorted(KINDS)}")
-        if row.task not in TASKS:
-            errors.append(f"{TABLE}: row {number} ({row.old}): task is one of T7.3 to T7.12")
+        if not TASK_RE.match(row.task):
+            errors.append(
+                f"{TABLE}: row {number} ({row.old}): task names a task (`T7.5`) or a card (`LF9`)"
+            )
         rows.append(row)
     olds = [(r.old, r.kind) for r in rows]
     for old, kind in sorted({o for o in olds if olds.count(o) > 1}):
@@ -701,8 +713,12 @@ def _segments(rel: str, text: str) -> Iterator[tuple[int, str, bool]]:
         yield number, line, False
 
 
-def _maths_id_problems(identifier: str) -> list[str]:
+def _maths_id_problems(identifier: str, *, step2: bool = False) -> list[str]:
+    """What breaks rule 9 in ``identifier``; for an ID of step 2 (``step2``), only the retired
+    geometry words of rule 2, its form being checked when it enters ``docs/maths.md``."""
     parts = identifier.split("-")[1:]
+    if step2:
+        return [f"`-{p}` is written `-{ID_RETIRED[p]}`" for p in parts if p in ID_RETIRED]
     problems = []
     geometric = [p in ID_GEOMETRIES or p in ID_RETIRED for p in parts]
     if parts and all(geometric):
@@ -746,7 +762,15 @@ def _skipped_lines(rel: str, lines: list[str]) -> set[int]:
     return skip
 
 
-def check_text(rel: str, text: str) -> Iterator[Violation]:
+def step2_ids(texts: Mapping[str, str]) -> frozenset[str]:
+    """The IDs of step 2: defined by a heading of ``docs/maths_step2.md``, and by none of
+    ``docs/maths.md`` (rule 9)."""
+    step2, step1 = (set(defined_ids(texts.get(rel, ""))[0]) for rel in MATHS_STEP2)
+    return frozenset(step2 - step1)
+
+
+def check_text(rel: str, text: str, step2: frozenset[str] = frozenset()) -> Iterator[Violation]:
+    """Rules 2, 9 and 10 in the text of ``rel``; ``step2``: the IDs of step 2 (rule 9)."""
     skip = _skipped_lines(rel, text.split("\n"))
     for number, segment, is_code in _segments(rel, text):
         if number in skip:
@@ -770,14 +794,14 @@ def check_text(rel: str, text: str) -> Iterator[Violation]:
                     at = [i for i, p in enumerate(parts) if p.upper() in ID_RETIRED]
                     if piece.startswith("m-") and at:
                         identifier = "-".join(parts[: at[-1] + 1])
-                        yield from _check_maths_id(rel, number, identifier.upper(), piece)
+                        yield from _check_maths_id(rel, number, identifier.upper(), piece, step2)
             segment = ANCHOR_RE.sub(lambda m: _anchor_words(m.group(1)), segment)
         tokens = [segment] if is_code else [m.group(0) for m in TOKEN_RE.finditer(segment)]
         positions = [0] if is_code else [m.end() for m in TOKEN_RE.finditer(segment)]
         for token, end in zip(tokens, positions, strict=True):
             token = token.replace("\\", "")
             if MATHS_ID_RE.match(token):
-                yield from _check_maths_id(rel, number, token, token)
+                yield from _check_maths_id(rel, number, token, token, step2)
                 continue
             if not RETIRED_TEXT_RE.search(token):
                 continue
@@ -809,8 +833,10 @@ def check_text(rel: str, text: str) -> Iterator[Violation]:
                 )
 
 
-def _check_maths_id(rel: str, number: int, identifier: str, written: str) -> Iterator[Violation]:
-    for problem in _maths_id_problems(identifier):
+def _check_maths_id(
+    rel: str, number: int, identifier: str, written: str, step2: frozenset[str] = frozenset()
+) -> Iterator[Violation]:
+    for problem in _maths_id_problems(identifier, step2=identifier in step2):
         yield Violation(
             "rule 9", identifier, f"{rel}:{number}", f"the maths ID `{written}`: {problem}"
         )
@@ -1050,10 +1076,11 @@ def collect(
     index_code(modules)
     for module, info in modules.items():
         found += check_definitions(info.rel, module, info.tree, fixtures)
+    step2 = step2_ids(texts)
     for rel, text in texts.items():
         if is_history(rel) or rel in INSTRUMENTS:
             continue
-        found += check_text(rel, text)
+        found += check_text(rel, text, step2)
     found += check_rule3(modules)
     return found, modules
 
@@ -1137,8 +1164,8 @@ def evaluate(violations: list[Violation], rows: list[Row], *, strict: bool = Fal
             continue
         outcome.failures.append(
             f"{violation.where}: {violation.rule} (Part I, §2.4.1): {violation.detail}. "
-            "Follow the rule; a name of `main` that a task of phase P7 renames needs a row "
-            f"in {TABLE} with that task."
+            "Rename it by the rule; the rename needs a row, done, in its own pull request "
+            f"in {TABLE}, so that the old name stays out (rule 6)."
         )
     for row in rows:
         if not row.done:
@@ -1148,7 +1175,8 @@ def evaluate(violations: list[Violation], rows: list[Row], *, strict: bool = Fal
             if not row.done:
                 outcome.failures.append(
                     f"{TABLE}: the row {row.old} -> {row.new} ({row.task}) is not done: "
-                    "the tool is strict once every task of phase P7 is merged (T7.12)."
+                    "the tool is strict since every task of phase P7 is merged (T7.12). Do the "
+                    "rename the row names and set `done = true`."
                 )
     return outcome
 
@@ -1418,7 +1446,7 @@ def run(root: Path, *, report: bool = False, strict: bool = False) -> tuple[int,
         for e in check_done_occurrences(rows, texts, modules)
         if e.split(": ", 1)[0] not in reported
     ]
-    for task in sorted(outcome.pending, key=lambda t: int(t.split(".")[1])):
+    for task in sorted(outcome.pending, key=lambda t: [int(n) for n in re.findall(r"\d+", t)]):
         covered = outcome.covered.get(task, [])
         lines.append(
             f"check_retired_names: {task}: {outcome.pending[task]} rows to rename, "
@@ -1434,10 +1462,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", type=Path, default=REPO, help="repository root")
     parser.add_argument("--report", action="store_true", help="list every reported violation")
-    parser.add_argument("--strict", action="store_true", help="fail while a row is not done")
+    parser.add_argument(
+        "--strict", action="store_true", help="also fail on a row not done (make check)"
+    )
     args = parser.parse_args(argv)
     status, lines = run(args.root, report=args.report, strict=args.strict)
-    errors = [line for line in lines if not line.startswith(("check_retired_names: T7", "  "))]
+    pending = re.compile(r"check_retired_names: \w+\.?\d*: \d+ rows to rename|  ")
+    errors = [line for line in lines if not pending.match(line)]
     for line in errors:
         print(
             line if line.startswith("check_retired_names") else f"check_retired_names: {line}",

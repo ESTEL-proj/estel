@@ -110,10 +110,10 @@ maths-ids:
 
 # Public names retired by a renaming task stay out of the specification, AGENTS.md and the
 # docstrings of public names (Part IV, §22.5, R-A12); the list is in the tool. And the rule of names
-# of Part I, §2.4.1, through the table tools/renamed_names.toml (phase P7, T7.2): a name that
-# breaks it fails unless its row names the task that renames it (--report lists them).
+# of Part I, §2.4.1, through the table tools/renamed_names.toml (phase P7, T7.2), strict since
+# T7.12: a name that breaks it fails, as a row not done and the old name of a row done.
 retired-names:
-	$(RUN) python tools/check_retired_names.py
+	$(RUN) python tools/check_retired_names.py --strict
 
 # Every identifier of the lists of the specification that is cited (OP-n, LFn, Wn, Qn, Fn, Tn.m,
 # R-…, Gn) has a row in its list or in the decision log, Part IV, §22 (issue #107).
