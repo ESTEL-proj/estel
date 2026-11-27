@@ -32,7 +32,8 @@ from ..backend._protocol import Backend, LbfgsState
 from ..data._base import Data, geometry_class
 from ..data._moments import Standardized
 from ..scattering._operator import STOperator
-from ..scattering._plan import STPlanSingleDomain, build_spectrum_plan, resolve_compute_ps
+from ..scattering._plan import STPlanSingleDomain, resolve_compute_ps
+from ..spectra._estimators import build_spectrum_plan_2d
 from ..statistics._arrays import device_of
 from ..statistics._grid import FAMILIES
 from ..statistics._statistics import _NO_REDUCTION, STStatistics
@@ -343,7 +344,10 @@ def _maps_setup(
         # The default J of the geometry (M-DEF, M-DEF-HPX), as STOperator computes it.
         J = build_wavelet_plan(target_data).J  # noqa: N806
     spectrum: dict[str, Any] = (
-        {"compute_PS": True, "n_bins": min(_default_n_bins(target_data), _default_n_bins(running))}
+        {
+            "compute_PS": True,
+            "n_bins": min(_default_n_bins_2d(target_data), _default_n_bins_2d(running)),
+        }
         if with_spectrum
         else {"compute_PS": False}
     )
@@ -704,12 +708,12 @@ def _check_periodic(data: Data, subject: str) -> None:
     )
 
 
-def _default_n_bins(data: Data) -> int:
+def _default_n_bins_2d(data: Data) -> int:
     """The number of bins of the spectrum of an operator built on ``data`` with its defaults
     (maths.md §1.9, "Number of bins"): J the default of an operator on these data, ⌊log₂ N_max⌋ - 1,
     and J_min 0. STL's ``get_CS_op().n_bins``, of which a synthesis takes the smaller (M-SYN-OPS),
     whatever the J of the synthesis."""
-    return build_spectrum_plan(data.shape[2:], type(data), None, None, 0).n_bins
+    return build_spectrum_plan_2d(data.shape[2:], type(data), None, None, 0).n_bins
 
 
 def _check_flag(name: str, value: object) -> None:

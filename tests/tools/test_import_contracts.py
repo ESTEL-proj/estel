@@ -137,6 +137,16 @@ def test_clean_layered_package_keeps_every_contract(tmp_path: Path) -> None:
             "estel._spec imports NumPy only, and nothing from estel",
             id="oracle-imports-estel",
         ),
+        pytest.param(
+            {
+                "estel/scattering/__init__.py": "",
+                "estel/scattering/_plan.py": "",
+                "estel/spectra/__init__.py": "",
+                "estel/spectra/_estimators.py": "from estel.scattering import _plan\n",
+            },
+            "estel.spectra imports nothing from estel.scattering (T7.9)",
+            id="spectra-imports-scattering",
+        ),
     ],
 )
 def test_crafted_violation_breaks_its_contract(

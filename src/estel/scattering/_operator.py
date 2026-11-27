@@ -38,6 +38,7 @@ from ..backend import _registry
 from ..data._base import Data
 from ..engines import _registry as _engines
 from ..functional._scattering import apply_operator
+from ..spectra._estimators import spectrum_only_2d
 from ..statistics._arrays import dtype_name
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
@@ -48,7 +49,6 @@ from ._plan import (
     STPlanTensorProd,
     build_plan_with_tables_single_domain,
     build_statistics_plan_tensor_prod,
-    spectrum_2d_only,
 )
 
 _WIDE = ("float64", "complex128")
@@ -348,7 +348,7 @@ class STOperatorTensorProd(STOperator):
         if compute_PS:
             raise ValueError(
                 "compute_PS=True: "
-                + spectrum_2d_only(
+                + spectrum_only_2d(
                     type(data).__name__, "Pass compute_PS=False, or leave it to None."
                 )
             )

@@ -211,7 +211,9 @@ layers = [
     "(engines)",
     # One layer, L2, whose packages may import one another: the operator returns STStatistics and
     # calls estel.functional, which runs the loop of estel.scattering (T2.5); estel.spectra holds
-    # the spectrum operator and its estimators, which the loop of STOperator calls too (T4.1).
+    # the bricks of the spectrum of STOperator, its plan, filters and estimators, which the plan
+    # and the loop of STOperator call (T4.6, T7.9); it imports nothing from estel.scattering
+    # (the contract spectra-not-scattering).
     "(scattering) : (statistics) : (synthesis) : (functional) : (spectra)",
     # L1: the wavelet operator of estel.wavelets calls the geometry hooks of estel.data and
     # reads its mask builders (T2.10); estel.data imports nothing from estel.wavelets.
@@ -223,6 +225,15 @@ layers = [
 # the engine registry, which holds declarations only and imports nothing from L2 (T2.5).
 ignore_imports = ["estel.scattering._operator -> estel.engines._registry"]
 unmatched_ignore_imports_alerting = "none"
+
+[[tool.importlinter.contracts]]
+id = "spectra-not-scattering"
+name = "estel.spectra imports nothing from estel.scattering (T7.9)"
+type = "optional_forbidden"
+# The bricks of the spectrum are imported by the plan and the loop of STOperator, never the
+# reverse (decision 4 on #200): the layer above lets the packages of L2 import one another.
+source_modules = ["estel.spectra"]
+forbidden_modules = ["estel.scattering"]
 
 [[tool.importlinter.contracts]]
 id = "oracle-independence"

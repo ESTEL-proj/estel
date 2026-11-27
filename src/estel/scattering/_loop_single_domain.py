@@ -58,7 +58,7 @@ from ..backend import _registry
 from ..backend._protocol import Backend
 from ..data._base import Data
 from ..data._moments import modulus
-from ..spectra._estimators import spectrum_floats
+from ..spectra._estimators import spectrum_floats_2d
 from ..statistics._layout import (
     gather_loop_single_domain,
     loop_gather_single_domain,
@@ -154,7 +154,7 @@ def values_single_domain(
     if plan.spectrum is not None and filters.spectrum is not None:
         # The power spectrum, the last floats of the buffer (maths.md §1.9, M-FLAT; task T4.1),
         # with the estimators of spectra._estimators, on the field after the standardisation.
-        floats = spectrum_floats(
+        floats = spectrum_floats_2d(
             backend, field, plan.spectrum, filters.spectrum, spectrum_pairs(plan._layout())
         )
         buffer = xp.concat([buffer, floats], axis=1)

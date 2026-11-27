@@ -43,7 +43,7 @@ def _field(shape: tuple[int, ...], seed: int = 0) -> NDArray[np.float64]:
     return values
 
 
-def _data(seed: int = 0, n_batch: int = 2, pbc: bool = True) -> Data2D:
+def _data_2d(seed: int = 0, n_batch: int = 2, pbc: bool = True) -> Data2D:
     return Data2D(_field((n_batch, 2, 32, 32), seed), pbc=pbc)
 
 
@@ -60,7 +60,7 @@ def test_norm_ref_takes_a_reference_with_the_same_spectrum() -> None:
     """``norm="ref"`` divides the spectrum by σᴾˢ of the reference, statistics whose spectrum
     has the same ``n_bins``, J and ``Jmin``, and names what differs otherwise (maths.md M-NORM);
     without a reference, or by one without the spectrum, it raises with what to do."""
-    target, other = _data(), _data(seed=1)
+    target, other = _data_2d(), _data_2d(seed=1)
     stored = _operator(target).apply(target)
     loading = _operator(other)
     ps_ref = _numpy(stored._reference.ps_sqrt)  # type: ignore[union-attr]
@@ -82,7 +82,7 @@ def test_norm_ref_takes_a_reference_with_the_same_spectrum() -> None:
 def test_norm_self_keeps_the_reference_of_the_spectrum() -> None:
     """With ``norm="self"`` and ``ref_batch_mean`` the operator keeps σᴾˢ of the batch mean,
     replacing it with a warning at each call (M-NORM): the auto spectra average to 1."""
-    data = _data()
+    data = _data_2d()
     operator = _operator(data)
     stats = operator.apply(data, ref_batch_mean=True)
     reference = stats._reference
@@ -123,15 +123,15 @@ def _frame() -> NDArray[np.bool_]:
             lambda: Data2D(_field((1, 1, 34, 34)), pbc=True), {"J": 2}, None, None, id="even"
         ),
         pytest.param(
-            lambda: _data(),
+            lambda: _data_2d(),
             {"J": 3, "Jmin": 2},
             ValueError,
             r"Jmin=2 with J = 3.*OP-93.*compute_PS=False",
             id="J-Jmin",
         ),
-        pytest.param(lambda: _data(), {"J": 1}, ValueError, "OP-93", id="J1"),
+        pytest.param(lambda: _data_2d(), {"J": 1}, ValueError, "OP-93", id="J1"),
         pytest.param(
-            lambda: _data(),
+            lambda: _data_2d(),
             {"spectrum_method": "anafast"},
             ValueError,
             "'auto', 'fft'",
@@ -151,7 +151,7 @@ def _frame() -> NDArray[np.bool_]:
             r"bin\(s\) \[0, 1, 2, 3\] have no observed pixel inside their border",
             id="pbc-nan-mask-empty-bin",
         ),
-        pytest.param(lambda: _data(), {"J": 3.0}, TypeError, r"J=3\.0", id="J-type"),
+        pytest.param(lambda: _data_2d(), {"J": 3.0}, TypeError, r"J=3\.0", id="J-type"),
     ],
 )
 def test_construction_errors_say_what_to_do(
@@ -173,7 +173,7 @@ def test_statistics_of_the_spectrum_alone() -> None:
     part), every reduction leaving it unchanged, and ``bin_centers`` in cycles per pixel, which
     follow a selection that keeps the axis ``bin`` and raise when an integer dropped it;
     ``bin_centers`` of statistics without the spectrum raises."""
-    data = _data()
+    data = _data_2d()
     stats = _operator(data).apply(data, norm="none").select("PS")
     grid = _ps(stats)
     assert grid.shape == (2, 2, 2, 6)
@@ -262,7 +262,7 @@ def test_from_statistics_computes_the_spectrum_again() -> None:
     its options: from ``norm="self"`` statistics it computes them again; from ``norm="ref"``
     statistics it holds the reference they were normalised with, and normalises other data by
     it, with no ``ref``, as the original operator did."""
-    target, other = _data(), _data(seed=1)
+    target, other = _data_2d(), _data_2d(seed=1)
     options: dict[str, Any] = {"n_bins": 4, "Jmin": 1, "spectrum_method": "pbc_mask"}
     stats = _operator(target, **options).apply(target)
     rebuilt = STOperator.from_statistics(stats)

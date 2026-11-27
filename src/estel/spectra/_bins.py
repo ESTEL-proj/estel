@@ -1,15 +1,15 @@
 """The bins of the 2D power spectrum, built once in NumPy with the plan (maths.md §1.9,
 "Frequencies and bins" and the border of ``pbc_mask``; Part II, §12.8; task T4.1).
 
-:func:`log_gaussian_bins` gives, for data of an even spatial shape (N₁, N₂) and the range J, J_min
-of the spectrum (J the J of the operator), everything static the estimators need: in mode units, the
-radial frequency round(|(k₁, k₂)|) of every Fourier mode (k₁, k₂) of the half plane of the real FFT
-and its weight w(k₁, k₂) (2, or 1 on the zero and Nyquist columns), the number N_k of modes of each
-radial frequency k = 0 … N_max, the log-Gaussian windows W_b(k), their normalisations
+:func:`log_gaussian_bins_2d` gives, for data of an even spatial shape (N₁, N₂) and the range J,
+J_min of the spectrum (J the J of the operator), everything static the estimators need: in mode
+units, the radial frequency round(|(k₁, k₂)|) of every Fourier mode (k₁, k₂) of the half plane of
+the real FFT and its weight w(k₁, k₂) (2, or 1 on the zero and Nyquist columns), the number N_k of
+modes of each radial frequency k = 0 … N_max, the log-Gaussian windows W_b(k), their normalisations
 Z_b = Σ_k N_k W_b(k), the centres c_b, and the border β_b of each bin in pixels (the Hankel
-transform of W_b, 60 % of its energy within rho ≤ N_max; OP-21, OP-96). Every array is float64
-and read-only, whatever the dtype of the data: the operator casts what it needs once, when it
-builds its filters.
+transform of W_b, 60 % of its energy within rho ≤ N_max; OP-21, OP-96). Every array is float64 and
+read-only, whatever the dtype of the data: the operator casts what it needs once, when it builds its
+filters.
 
 **The Bessel function J₀** (:func:`bessel_j0`). NumPy has none and SciPy is not a dependency
 of ESTEL (decision on #148): ESTEL computes it here, in float64, to an absolute error of at most
@@ -30,7 +30,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-ENERGY_FRACTION = 0.60
+ENERGY_FRACTION_2D = 0.60
 """The fraction of the energy of the kernel of a bin within its border (maths.md §1.9; OP-21:
 fixed, not an option)."""
 
@@ -120,9 +120,9 @@ def _asymptotic(x: NDArray[np.float64]) -> NDArray[np.float64]:
 
 
 @dataclass(frozen=True, eq=False)
-class SpectrumBins:
+class SpectrumBins2D:
     """The static tables of the spectrum of one spatial shape and range (maths.md §1.9), in mode
-    units, float64, read-only. Built by :func:`log_gaussian_bins`, cached."""
+    units, float64, read-only. Built by :func:`log_gaussian_bins_2d`, cached."""
 
     spatial_shape: tuple[int, int]
     """(N₁, N₂), even."""
@@ -185,16 +185,16 @@ def _read_only(array: NDArray[Any]) -> NDArray[Any]:
 
 
 @functools.lru_cache(maxsize=32)
-def log_gaussian_bins(
+def log_gaussian_bins_2d(
     spatial_shape: tuple[int, int],
     J: int,  # noqa: N803 (maths.md notation)
     Jmin: int,  # noqa: N803
     n_bins: int,
-) -> SpectrumBins:
-    """The :class:`SpectrumBins` of data of the even ``spatial_shape`` with the range ``J``
+) -> SpectrumBins2D:
+    """The :class:`SpectrumBins2D` of data of the even ``spatial_shape`` with the range ``J``
     (the J of the operator) and ``Jmin`` (J_min) and ``n_bins`` bins (maths.md §1.9; STL
     ``_build_log_gaussian_bin_masks``, ``estimate_pbc_border_crop``). The arguments were checked
-    by the plan (``scattering._plan.build_spectrum_plan``)."""
+    by the plan (``spectra._estimators.build_spectrum_plan_2d``)."""
     n1, n2 = (int(n) for n in spatial_shape)
     n_max = min(n1, n2) // 2
     k_min = n_max / (math.sqrt(2.0) * 2.0 ** (J - 1))
@@ -224,7 +224,7 @@ def log_gaussian_bins(
     windows[:, 0] = 0.0
     norm = windows @ n_modes
 
-    return SpectrumBins(
+    return SpectrumBins2D(
         spatial_shape=(n1, n2),
         J=int(J),
         Jmin=int(Jmin),
@@ -238,11 +238,11 @@ def log_gaussian_bins(
         centers=_read_only(np.exp(log_centers)),
         windows=_read_only(windows),
         norm=_read_only(norm),
-        borders=_read_only(_borders(windows, n_max)),
+        borders=_read_only(_borders_2d(windows, n_max)),
     )
 
 
-def _borders(windows: NDArray[np.float64], n_max: int) -> NDArray[np.int64]:
+def _borders_2d(windows: NDArray[np.float64], n_max: int) -> NDArray[np.int64]:
     """β_b (maths.md §1.9): g_b(rho) = π / (2 N_max²) Σ_k W_b(k) k J₀(π rho k / N_max) at the
     integer radii rho = 0 … N_max, Q_b the cumulative trapezoidal rule of 2π rho g_b(rho)², and
     β_b the smallest rho with Q_b(rho) ≥ 0.60 Q_b(N_max); 0 when Q_b(N_max) = 0. From W_b, not
@@ -254,6 +254,6 @@ def _borders(windows: NDArray[np.float64], n_max: int) -> NDArray[np.int64]:
     steps = 0.5 * (energy[:, 1:] + energy[:, :-1])
     cumulative = np.concatenate([np.zeros((windows.shape[0], 1)), np.cumsum(steps, axis=1)], axis=1)
     total = cumulative[:, -1:]
-    reached = cumulative >= ENERGY_FRACTION * total
+    reached = cumulative >= ENERGY_FRACTION_2D * total
     found = np.where(total[:, 0] > 0.0, np.argmax(reached, axis=1), 0)
     return found.astype(np.int64)
