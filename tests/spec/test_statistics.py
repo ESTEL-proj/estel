@@ -23,6 +23,7 @@ M- ID and the coefficients in an issue.
 
 from __future__ import annotations
 
+import inspect
 import warnings
 from typing import Any
 
@@ -36,6 +37,7 @@ from estel.scattering._plan import PlanarPlan
 from tests.parity._compare import assert_parity
 
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
+APPLY = inspect.signature(STOperator.apply)
 GEOMETRIES: dict[int, type[Data]] = {1: Data1D, 2: Data2D}
 SIZES = {1: 64, 2: 32}
 """Pixels per axis: the smallest sizes at which the masked, non-periodic cases keep valid pixels
@@ -147,12 +149,10 @@ def _check_case(
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13, OP-30: tested elsewhere
-        raw = STOperator(data, J, L, norm="none", **estel_options).apply(data)
-        operator = STOperator(
-            data, J, L, norm="self", ref_batch_mean=ref_batch_mean, **estel_options
-        )
-        stored = operator.apply(data)
-        loaded = STOperator(data, J, L, norm="ref", **estel_options).apply(second, ref=stored)
+        operator = STOperator(data, J, L, **estel_options)
+        raw = operator.apply(data, norm="none")
+        stored = operator.apply(data, norm="self", ref_batch_mean=ref_batch_mean)
+        loaded = operator.apply(second, norm="ref")
 
     expected = oracle(target, norm="none", flatten=True)
     scale = float(np.sqrt(np.max(expected["var"])))
@@ -277,8 +277,9 @@ def test_defaults_equal_the_oracle(ndim: int) -> None:
         "L": operator.L,
         "K": plan.kernel_size,
         "nan_threshold": plan.nan_threshold,
-        "norm": operator.norm,
-        "ref_batch_mean": plan.ref_batch_mean,
+        # The normalisation is chosen at apply: its defaults are those of M-DEF.
+        "norm": APPLY.parameters["norm"].default,
+        "ref_batch_mean": APPLY.parameters["ref_batch_mean"].default,
         "standardize": operator.standardize,
         "cross_matrix": "upper triangle",
     }

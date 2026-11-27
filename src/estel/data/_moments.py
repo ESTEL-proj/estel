@@ -50,10 +50,12 @@ def _is_complex(xp: Any, x: Any) -> bool:
 def modulus(x: Any) -> Any:
     """|x|, real, with the safe double ``where`` (Part I, §3.2.3, rule 3).
 
-    ``m = |x|² > 0; |x| = where(m, sqrt(where(m, |x|², 1)), 0)``: the values are those of
-    ``abs`` up to rounding, and the first and second derivatives are finite at ``x = 0``
-    (zero there), where those of ``abs`` are not. Works on real and complex arrays; the result
-    has the real dtype matching ``x``.
+    ``m = |x|² > 0; |x| = where(m, sqrt(where(m, |x|², 1)), 0 · |x|²)``: the values are those
+    of ``abs`` up to rounding, and the first and second derivatives are finite at ``x = 0``
+    (zero there), where those of ``abs`` are not. The branch ``0 · |x|²`` is 0, with zero first
+    and second derivatives, wherever ``x`` is finite, and NaN where ``x`` is NaN, as ``abs``:
+    a NaN field (a map of zero variance, standardised) gives NaN statistics, not 0. Works on
+    real and complex arrays; the result has the real dtype matching ``x``.
     """
     xp = _backend(x).xp
     if _is_complex(xp, x):
@@ -63,7 +65,7 @@ def modulus(x: Any) -> Any:
         square = x * x
     positive = square > 0
     root = xp.sqrt(xp.where(positive, square, xp.ones_like(square)))
-    return xp.where(positive, root, xp.zeros_like(square))
+    return xp.where(positive, root, 0 * square)
 
 
 def divide(x: Any, y: Any, eps: float = 1e-8, pow: float = 1.0) -> Any:

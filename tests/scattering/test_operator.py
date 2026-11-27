@@ -20,6 +20,7 @@ import pytest
 from numpy.typing import NDArray
 
 from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
+from estel._spec import planar as spec
 from estel.backend._protocol import Backend, DType
 from estel.scattering._plan import PlanarPlan, channel_pairs
 
@@ -45,7 +46,11 @@ def _hole(n: int, ndim: int) -> NDArray[np.bool_]:
 
 
 def _operator(data: Data, J: int | None, **kwargs: Any) -> STOperator:  # noqa: N803
-    options: dict[str, Any] = {"norm": "none", "compute_PS": False if data.ndim == 2 else None}
+    """An operator without standardisation, applied below with ``norm="none"``."""
+    options: dict[str, Any] = {
+        "standardize": False,
+        "compute_PS": False if data.ndim == 2 else None,
+    }
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13: tested with the plan
         return STOperator(data, J, **{**options, **kwargs})
@@ -73,7 +78,7 @@ def test_full_grids_have_stls_shapes_dtypes_and_nan(
 ) -> None:
     J, nb, nc = 3, 2, 2  # noqa: N806
     data = cls(_field((nb, nc) + (n,) * cls.ndim), pbc=True)
-    values = _numpy(_operator(data, J, L=L).apply(data))
+    values = _numpy(_operator(data, J, L=L).apply(data, norm="none"))
     complex_dtype = {"float32": np.complex64, "float64": np.complex128}[dtype]
     assert values["mean"].shape == values["var"].shape == (nb, nc)
     assert values["mean"].dtype == values["var"].dtype == np.dtype(dtype)
@@ -114,7 +119,7 @@ def test_empty_means_are_nan_and_the_rest_finite() -> None:
     assert isinstance(plan, PlanarPlan)
     assert plan.empty_s3_pairs
     assert plan.empty_s4_triples
-    values = _numpy(operator.apply(data))
+    values = _numpy(operator.apply(data, norm="none"))
     for j2, j3 in plan.s3_pairs:
         s3 = values["S3"][0, 0, 0, j2, j3]
         assert np.isnan(s3).all() if (j2, j3) in plan.empty_s3_pairs else np.isfinite(s3).all()
@@ -128,7 +133,7 @@ def test_custom_cross_matrix(dtype: str) -> None:
     diagonal are ignored, as in STL."""
     matrix = np.array([[True, False, True], [True, False, True], [True, True, True]])
     data = Data2D(_field((1, 3, 16, 16)), pbc=True)
-    values = _numpy(_operator(data, 2, cross_matrix=matrix).apply(data))
+    values = _numpy(_operator(data, 2, cross_matrix=matrix).apply(data, norm="none"))
     computed_s1 = ~np.isnan(values["S1"][0, :, :, 0, 0])
     np.testing.assert_array_equal(
         computed_s1, np.triu(matrix) & ~np.eye(3, dtype=bool) | np.diag([1, 0, 1]).astype(bool)
@@ -156,7 +161,7 @@ def test_missing_values_are_never_read(cls: type[Data2D] | type[Data1D], n: int,
     field = _field((2, 2) + (n,) * cls.ndim)
     operator = _operator(cls(field, mask=mask, pbc=pbc), 3, standardize=True)
     results = [
-        _numpy(operator.apply(cls(np.where(mask, fill, field), mask=mask, pbc=pbc)))
+        _numpy(operator.apply(cls(np.where(mask, fill, field), mask=mask, pbc=pbc), norm="none"))
         for fill in (np.nan, 0.0, 1e30)
     ]
     for other in results[1:]:
@@ -172,26 +177,58 @@ def test_apply_is_pure_and_batch_elements_are_independent(backend: Backend, dtyp
     data = Data2D(field, pbc=False)
     before = backend.to_numpy(data.array).copy()
     operator = _operator(data, 3)
-    first = _numpy(operator.apply(data))
+    first = _numpy(operator.apply(data, norm="none"))
     np.testing.assert_array_equal(backend.to_numpy(data.array), before)
-    again = _numpy(operator.apply(data))
-    single = _numpy(operator.apply(data[1]))
+    again = _numpy(operator.apply(data, norm="none"))
+    single = _numpy(operator.apply(data[1], norm="none"))
     rtol = 1e-5 if dtype == "float32" else 1e-12
     for key, value in first.items():
         np.testing.assert_array_equal(again[key], value, err_msg=key)
         np.testing.assert_allclose(single[key][0], value[1], rtol=rtol, atol=rtol, err_msg=key)
 
 
+@pytest.mark.parametrize("cls", [Data2D, Data1D])
+def test_standardize_is_on_by_default(cls: type[Data2D] | type[Data1D], dtype: str) -> None:
+    """``standardize=True`` by default (OP-120): ``mean`` 0 and ``var`` 1 up to rounding
+    (M-ORDER), and the moments removed kept with the statistics."""
+    field = 3.0 + 2.0 * _field((1, 2) + (32,) * cls.ndim)
+    data = cls(field, pbc=True)
+    operator = STOperator(data, 2)
+    assert operator.standardize
+    values = _numpy(operator.apply(data, norm="none"))
+    rtol = 1e-5 if dtype == "float32" else 1e-12
+    np.testing.assert_allclose(values["mean"], 0.0, atol=10 * rtol)
+    np.testing.assert_allclose(values["var"], 1.0, rtol=10 * rtol)
+    axes = tuple(range(2, field.ndim))
+    np.testing.assert_allclose(values["mean_pre_std"], field.mean(axis=axes), rtol=rtol)
+
+
+def test_a_constant_map_has_nan_statistics_when_standardized() -> None:
+    """A map of zero variance, standardised (by default), has NaN statistics in every family, as
+    the oracle and STL, with no special case (M-STD, OP-120): the safe modulus keeps a NaN field
+    NaN (Part I, §3.2.3, rule 3). The oracle reads a NaN field as missing pixels and has no
+    spectrum of it: PS is checked in ESTEL alone."""
+    field = np.full((1, 2, 16, 16), 3.0)
+    data = Data2D(field, pbc=True)
+    stats = STOperator(data, 2).apply(data, norm="none")
+    with np.errstate(invalid="ignore"):  # the oracle divides 0 by 0, as STL
+        oracle = spec.spec_apply(field, 2, True, None, 2, 4, norm="none")
+    for family in ("mean", "var", *FAMILIES):
+        assert np.isnan(oracle[family]).all(), family
+        assert np.isnan(np.asarray(stats.full_grid(family))).all(), family
+    assert np.isnan(np.asarray(stats.full_grid("PS"))).all()
+
+
 def test_standardize_returns_the_moments_removed(dtype: str) -> None:
     field = 5.0 + 2.0 * _field((2, 1, 32, 32))
     data = Data2D(field, pbc=True)
-    values = _numpy(_operator(data, 2, standardize=True).apply(data))
+    values = _numpy(_operator(data, 2, standardize=True).apply(data, norm="none"))
     rtol = 1e-5 if dtype == "float32" else 1e-12
     np.testing.assert_allclose(values["mean_pre_std"], field.mean(axis=(-2, -1)), rtol=rtol)
     np.testing.assert_allclose(values["std_pre_std"], field.std(axis=(-2, -1)), rtol=rtol)
     np.testing.assert_allclose(values["var"], 1.0, rtol=10 * rtol)
     np.testing.assert_allclose(values["mean"], 0.0, atol=10 * rtol)
-    assert "mean_pre_std" not in _numpy(_operator(data, 2).apply(data))
+    assert "mean_pre_std" not in _numpy(_operator(data, 2).apply(data, norm="none"))
 
 
 # ---------------------------------------------------------------------- differentiation
@@ -214,7 +251,7 @@ def test_gradients_are_finite_with_missing_values(
     xp = backend.xp
 
     def loss(array: Any) -> Any:
-        stats = operator.apply(data.with_array(array))
+        stats = operator.apply(data.with_array(array), norm="none")
         total = xp.sum(stats.full_grid("var"))
         for family in FAMILIES:
             pairs = backend.complex_to_real_pairs(stats.full_grid(family))
@@ -233,33 +270,33 @@ def test_gradients_are_finite_with_missing_values(
 # ---------------------------------------------------------------------- errors
 
 
-def test_norm_is_checked() -> None:
+def test_the_normalisation_is_chosen_at_apply() -> None:
+    """``norm`` and ``ref_batch_mean`` are arguments of ``apply``, not of the constructor (task
+    T2.19); the errors of ``apply`` are tested with the valid cases, in
+    ``tests/statistics/test_statistics.py``."""
     data = Data2D(_field((16, 16)), pbc=True)
-    with pytest.raises(ValueError, match="'none', 'self', 'ref'"):
-        STOperator(data, 2, norm="store_ref", compute_PS=False)
-    with pytest.raises(TypeError, match="ref_batch_mean"):
-        STOperator(data, 2, ref_batch_mean=1, compute_PS=False)  # type: ignore[arg-type]
-    operator = _operator(data, 2)
-    with pytest.raises(ValueError, match="takes no reference"):
-        operator.apply(data, ref=object())  # type: ignore[arg-type]
+    for option in ({"norm": "self"}, {"ref_batch_mean": True}):
+        with pytest.raises(TypeError, match="unexpected keyword"):
+            STOperator(data, 2, compute_PS=False, **option)
+    assert "norm" not in repr(_operator(data, 2))
 
 
 def test_compute_ps() -> None:
     """The spectrum is computed by default on 2D data (task T4.1), and only with it do its
     options act (decisions on #148)."""
     data = Data2D(_field((16, 16)), pbc=True)
-    stats = STOperator(data, 2, norm="none").apply(data)
+    stats = STOperator(data, 2).apply(data, norm="none")
     assert stats._layout.names[-1] == "PS"
-    plain = STOperator(data, 2, norm="none", compute_PS=False).apply(data)
+    plain = STOperator(data, 2, compute_PS=False).apply(data, norm="none")
     assert "PS" not in plain._layout.names
     for option in ({"n_bins": 5}, {"Jmin": 1}, {"spectrum_method": "fft"}):
         with pytest.raises(ValueError, match=r"act only on the power spectrum"):
-            STOperator(data, 2, norm="none", compute_PS=False, **option)
+            STOperator(data, 2, compute_PS=False, **option)
         with pytest.raises(ValueError, match=r"act only on the power spectrum"):
-            STOperator(Data1D(_field((32,)), pbc=True), 2, norm="none", **option)
+            STOperator(Data1D(_field((32,)), pbc=True), 2, **option)
     with pytest.raises(ValueError, match="LF23"):
-        STOperator(Data1D(_field((32,)), pbc=True), 2, norm="none", compute_PS=True)
-    STOperator(Data1D(_field((32,)), pbc=True), 2, norm="none", compute_PS=False)
+        STOperator(Data1D(_field((32,)), pbc=True), 2, compute_PS=True)
+    STOperator(Data1D(_field((32,)), pbc=True), 2, compute_PS=False)
 
 
 def test_defaults_follow_m_def() -> None:
@@ -283,15 +320,15 @@ def test_apply_refuses_other_data(dtype: str) -> None:
         Data1D(_field((2, 16)), pbc=True),
     ):
         with pytest.raises(ValueError, match="build a new STOperator"):
-            operator.apply(other)
+            operator.apply(other, norm="none")
     with pytest.raises(TypeError, match="Data object"):
-        operator.apply(_field((2, 16, 16)))  # type: ignore[arg-type]
+        operator.apply(_field((2, 16, 16)), norm="none")  # type: ignore[arg-type]
     other_dtype = "float64" if dtype == "float32" else "float32"
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(_config, "_dtype", other_dtype)
         mismatched = Data2D(_field((2, 16, 16)), pbc=True)
     with pytest.raises(TypeError, match="set_default_dtype"):
-        operator.apply(mismatched)
+        operator.apply(mismatched, norm="none")
 
 
 def test_cross_matrix_errors() -> None:
@@ -304,9 +341,9 @@ def test_cross_matrix_errors() -> None:
         _operator(data, 2, cross_matrix=np.ones((2, 2), dtype=bool))
     operator = _operator(data, 2, cross_matrix=np.ones((3, 3), dtype=bool))
     with pytest.raises(ValueError, match="channel"):
-        operator.apply(Data2D(_field((2, 16, 16)), pbc=True))
+        operator.apply(Data2D(_field((2, 16, 16)), pbc=True), norm="none")
     # The number of channels is fixed at construction, with the default matrix too (issue #17).
     with pytest.raises(ValueError, match="fixed at construction"):
-        _operator(data, 2).apply(Data2D(_field((2, 16, 16)), pbc=True))
+        _operator(data, 2).apply(Data2D(_field((2, 16, 16)), pbc=True), norm="none")
     with pytest.raises(TypeError, match="standardize"):
         _operator(data, 2, standardize=1)

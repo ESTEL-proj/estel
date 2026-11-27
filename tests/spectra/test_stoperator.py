@@ -62,34 +62,34 @@ def test_norm_ref_takes_a_reference_with_the_same_spectrum() -> None:
     without a reference, or by one without the spectrum, it raises with what to do."""
     target, other = _data(), _data(seed=1)
     stored = _operator(target).apply(target)
-    loading = _operator(other, norm="ref")
+    loading = _operator(other)
     ps_ref = _numpy(stored._reference.ps_sqrt)  # type: ignore[union-attr]
-    raw = _ps(_operator(other, norm="none").apply(other))
+    raw = _ps(_operator(other).apply(other, norm="none"))
     np.testing.assert_allclose(
-        _ps(loading.apply(other, ref=stored)),
+        _ps(loading.apply(other, ref=stored, norm="ref")),
         raw / (ps_ref[:, :, None, :] * ps_ref[:, None, :, :]),
         rtol=1e-12,
     )
     with pytest.raises(ValueError, match=r"n_bins = 6 \(the operator has 5\)"):
-        _operator(other, norm="ref", n_bins=5).apply(other, ref=stored)
+        _operator(other, n_bins=5).apply(other, ref=stored, norm="ref")
     without = _operator(target, compute_PS=False).apply(target)
     with pytest.raises(ValueError, match=r"holds no power spectrum"):
-        loading.apply(other, ref=without)
+        loading.apply(other, ref=without, norm="ref")
     with pytest.raises(ValueError, match=r'norm="ref" needs a reference'):
-        loading.apply(other)
+        loading.apply(other, norm="ref")
 
 
 def test_norm_self_keeps_the_reference_of_the_spectrum() -> None:
     """With ``norm="self"`` and ``ref_batch_mean`` the operator keeps σᴾˢ of the batch mean,
     replacing it with a warning at each call (M-NORM): the auto spectra average to 1."""
     data = _data()
-    operator = _operator(data, ref_batch_mean=True)
-    stats = operator.apply(data)
+    operator = _operator(data)
+    stats = operator.apply(data, ref_batch_mean=True)
     reference = stats._reference
     assert reference is not None
     assert tuple(_numpy(reference.ps_sqrt).shape) == (1, 2, 6)
     with pytest.warns(UserWarning, match="replaces the reference"):
-        operator.apply(data)
+        operator.apply(data, ref_batch_mean=True)
     auto = _ps(stats)[:, [0, 1], [0, 1]]
     np.testing.assert_allclose(auto.real.mean(axis=0), 1.0, rtol=1e-12)
 
@@ -174,7 +174,7 @@ def test_statistics_of_the_spectrum_alone() -> None:
     follow a selection that keeps the axis ``bin`` and raise when an integer dropped it;
     ``bin_centers`` of statistics without the spectrum raises."""
     data = _data()
-    stats = _operator(data, norm="none").apply(data).select("PS")
+    stats = _operator(data).apply(data, norm="none").select("PS")
     grid = _ps(stats)
     assert grid.shape == (2, 2, 2, 6)
     assert np.isnan(grid[:, 1, 0]).all()
@@ -210,10 +210,11 @@ def test_bin_centers_do_not_depend_on_the_size() -> None:
 
 
 def test_save_and_load_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """``estel.io``, schema version 9: statistics with the spectrum of non-periodic data with
+    """``estel.io``, schema version 10: statistics with the spectrum of non-periodic data with
     missing pixels, its plan (``n_bins``, J, ``Jmin``, the estimator ``nan_mask``), its
-    reference and its parameters, and ``bin_centers`` come back unchanged; a file of version 8,
-    as ``SpectrumOperator`` wrote, is refused, with what to do (decision 6 on #191)."""
+    reference and its parameters, their normalisation, and ``bin_centers`` come back unchanged;
+    a file of version 9, whose plan held the normalisation, is refused, with what to do
+    (decision 6 on #191; issue #192, decisions, point 4)."""
     mask = np.zeros((32, 32), dtype=bool)
     mask[4:9, 10:12] = True
     data = Data2D(_field((2, 2, 32, 32)), mask=mask, pbc=False)
@@ -246,12 +247,13 @@ def test_save_and_load_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
         _numpy(loaded._reference.ps_sqrt), _numpy(stats._reference.ps_sqrt)
     )
     np.testing.assert_array_equal(loaded.bin_centers, stats.bin_centers)
-    old = tmp_path / "version8.npz"
-    monkeypatch.setattr(_schema, "SCHEMA_VERSION", 8)
+    assert (loaded._norm, loaded._ref_batch_mean) == (stats._norm, stats._ref_batch_mean)
+    old = tmp_path / "version9.npz"
+    monkeypatch.setattr(_schema, "SCHEMA_VERSION", 9)
     stats.save(old)
     monkeypatch.undo()
-    assert _schema.SCHEMA_VERSION == 9
-    with pytest.raises(ValueError, match=r"schema version 8.*reads version 9"):
+    assert _schema.SCHEMA_VERSION == 10
+    with pytest.raises(ValueError, match=r"schema version 9.*reads version 10"):
         STStatistics.load(old)
 
 
@@ -268,6 +270,6 @@ def test_from_statistics_computes_the_spectrum_again() -> None:
     with pytest.warns(UserWarning, match="replaces the reference"):
         again = rebuilt.apply(target)
     np.testing.assert_array_equal(_numpy(again.to_vector()), _numpy(stats.to_vector()))
-    normalised = _operator(other, norm="ref", **options).apply(other, ref=stats)
-    by_held = STOperator.from_statistics(normalised).apply(other)
+    normalised = _operator(other, **options).apply(other, ref=stats, norm="ref")
+    by_held = STOperator.from_statistics(normalised).apply(other, norm="ref")
     np.testing.assert_array_equal(_numpy(by_held.to_vector()), _numpy(normalised.to_vector()))

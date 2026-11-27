@@ -260,13 +260,13 @@ The two other methods in the code (`largest_scale_second_layer`, `layer_flexible
 \text{mean}_{b,c} = \langle x_{b,c} \rangle, \qquad \text{var}_{b,c} = \langle x_{b,c}\, \bar x_{b,c} \rangle = \langle x_{b,c}^2 \rangle
 ```
 
-- `var` is **not centred**: it is the second moment, not the variance, unless the data was standardised first (`standardize=True`, off by default). The same holds for every "covariance" in STL: `cov(a, b)` = ⟨a · conj(b)⟩, without subtracting means. **⚠ OP-11**
+- `var` is **not centred**: it is the second moment, not the variance, unless the data was standardised first (`standardize=True`: off by default in STL, on by default in ESTEL, OP-120). The same holds for every "covariance" in STL: `cov(a, b)` = ⟨a · conj(b)⟩, without subtracting means. **⚠ OP-11**
 - With standardisation (`standardize=True`): see M-STD.
 - **Source:** `ST_Operator.apply`, `cov`, `standardize`.
 
 #### M-STD — Standardisation
 
-With `standardize=True` (off by default), the field is centred and scaled before the transform, for each batch element and channel, with the masked mean ⟨·⟩ of M-MEAN:
+With `standardize=True` (off by default in STL, on by default in ESTEL: OP-120), the field is centred and scaled before the transform, for each batch element and channel, with the masked mean ⟨·⟩ of M-MEAN:
 
 ```latex
 \mu_{b,c} = \langle x_{b,c} \rangle, \qquad \sigma_{b,c}^2 = \big\langle (x_{b,c} - \mu_{b,c})^2 \big\rangle, \qquad x'_{b,c} = \frac{x_{b,c} - \mu_{b,c}}{\sigma_{b,c}}
@@ -274,6 +274,7 @@ With `standardize=True` (off by default), the field is centred and scaled before
 
 - The field is centred first, then σ² is the second moment of the centred field: this is the one place where STL computes a true variance.
 - Population normalisation: divided by the number of valid pixels, not minus one.
+- A map of zero variance has σ = 0, and its standardised field, hence its statistics, are NaN, as in STL with `standardize=True`: no special case. With ESTEL's default `standardize=True`, a constant map gives NaN statistics; `standardize=False` computes them (OP-120).
 - μ and σ are kept with the statistics (`mean_pre_std`, `std_pre_std`).
 - STL's function has a `mean_field` option, which averages μ over the batch and takes for σ the square root of the batch mean of the variances (M-SYN-TARGET). The operator always calls it with `mean_field=False`; the syntheses call it with their own `mean_field` (M-SYN-TARGET).
 - The inverse, used by the syntheses: x = x′ σ + μ.
@@ -375,7 +376,9 @@ With `norm="self"` (STL's `store_ref`; the default), the reference is the statis
 | S4\[c₁, c₂, j₁, j₂, j₃, ℓ₁, ℓ₂, ℓ₃\] | σ\_{c₁}(j₁, ℓ₁) · σ\_{c₂}(j₂, ℓ₂) |
 | PS\[c₁, c₂, b\] | σᴾˢ\_{c₁}(b) · σᴾˢ\_{c₂}(b), with σᴾˢ\_c(b) = √PS\_ref\[c, c, b\] (checked, §1.9) |
 
-**Other values of `norm`.** `norm="none"` (STL's `vanilla`) computes the statistics without any normalisation. `norm` must be given: `None` in both the constructor and `apply` is an error. With `norm="self"`, passing a reference to `apply` is an error.
+**Other values of `norm`.** `norm="none"` (STL's `vanilla`) computes the statistics without any normalisation. In STL, `norm` is given to the constructor or to `apply`, and must be given: `None` in both the constructor and `apply` is an error. With `norm="self"`, passing a reference to `apply` is an error.
+
+**In ESTEL** (task T2.19; Part IV, §22, "One operator for every normalisation"), `norm` and `ref_batch_mean` are arguments of `apply` only, and of `estel.functional.scattering`, chosen at each call: `norm="self"` and `ref_batch_mean=False` by default. One operator serves every normalisation, as STL's one operator applied with STL's `store_ref`, then with STL's `load_ref`. `norm="self"` stores the reference in the operator, replacing the one it held with a warning; `norm="ref"` uses the reference passed as `ref`, else the one the operator holds, and without either is an error that says to call `apply` with `norm="self"` first or to pass `ref`; `norm="none"` stores and reads nothing. A `ref` with `norm="self"` or `norm="none"` is an error, and so is `ref_batch_mean=True` with another `norm` than `"self"`, on which it has no effect. The statistics record the `norm` and the `ref_batch_mean` they were computed with.
 
 **The spectrum alone.** ESTEL computes the power spectrum within `STOperator` only (`compute_PS`; decisions of 26 November 2026 on #191), normalised as above, with the same `norm` and `ref_batch_mean` as the scattering statistics. STL's spectrum operator alone normalises nothing, as `norm="none"`: its values are those of the family PS of `STOperator` with `norm="none"` and the same J.
 
@@ -578,10 +581,10 @@ Not transferred: the legacy windows (`binning_type="legacy"`), `largest_crop`, t
 | Wavelet type | bump-steerable |
 | τ (NaN threshold) | 0.33 |
 | Border method | fully flexible |
-| `norm` | `"self"` (STL's `store_ref`), with `ref_batch_mean=False` (STL's `norm_batch_mean`) |
+| `norm` | `"self"` (STL's `store_ref`), with `ref_batch_mean=False` (STL's `norm_batch_mean`); in ESTEL, arguments of `apply`, not of the constructor (M-NORM) |
 | `compute_PS` | True |
 | `cross_matrix` (STL's `compute_cross_matrix`) | upper triangle (all pairs c₁ ≤ c₂) |
-| `standardize` | False |
+| `standardize` | False in STL; True in ESTEL (OP-120) |
 | `replace_nan_value` | NaN |
 | PS estimator | automatic, from `pbc` and the missing pixels of the example data (§1.9) |
 | PS range | J, the J of the operator, J\_min = 0 |
@@ -657,6 +660,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 | OP-95 | The legacy windows of the spectrum (§1.9), the Littlewood-Paley windows of STL v1.x, have compact support: when J is large or J\_min > 0, a bin holds no Fourier mode, Z\_b = 0 and its coefficient is NaN (0 / 0), with a border of 0. Checked: 44 of 229 configurations (16 to 128 pixels, every J and J\_min), for example 32 × 32 with J = 5 or 64 × 64 with J = 6 (one bin each); never at the default J with J\_min = 0 | decided on #148: the legacy windows are not transferred (Part II, §10) | closed |
 | OP-97 | Sizes: the spectrum requires even sizes (OP-20), the scattering loop sizes divisible by 2^(J−1) (OP-8). How to accept sizes as general as possible for every statistic | to take up after 1.0.0 (LF61) | open |
 | OP-98 | The missing pixels of the spectrum: STL's spectrum operator reads them from the NaN of each map at `apply`, so that they may differ per batch element and channel, and `fft` or `pbc_mask` fail at `apply` on data with NaN. ESTEL's missing pixels are one static mask shared by every map (M-DATA-2D, OP-26): data whose missing pixels differ per map are out of reach (the configuration `nan_per_map` of `spectrum_2d`: given the union of its missing pixels, ESTEL equals the oracle to 1.2e-15, and STL's values differ by up to 29 %), and a forced `fft` or `pbc_mask` with missing pixels raises at construction | ESTEL keeps one static mask in 1.0.0; masks per map are LF54 (PR #161) | differs |
+| OP-120 | STL's operators do not standardise by default (`standardize=False`): `var` is then a second moment, and the statistics depend on the mean and the scale of the field | decided on 25 November 2026 (Part IV, §22, "One operator for every normalisation"): ESTEL standardises by default, `standardize=True` on `STOperator` and `STOperatorTensorProd` (M-STD, M-DEF); the spectrum, computed on the standardised field (M-ORDER), changes too by default; a map of zero variance gives NaN statistics, as STL with `standardize=True`; STL's values are reached with `standardize=False`, which the parity tests pass | differs |
 
 ## 2. 1D
 
@@ -733,6 +737,7 @@ M-S1 to M-S4, M-CHAN, M-NORM, M-RED-ISO, M-RED-ANG, M-RED-SCALE and M-FLAT apply
 | τ (NaN threshold) | 0.5 |
 | Border method | fully flexible |
 | `compute_PS` | True in STL; unavailable for 1D data in ESTEL 1.0.0 |
+| `norm`, `ref_batch_mean`, `standardize` | as in M-DEF: `standardize` False in STL, True in ESTEL (OP-120) |
 | Other parameters | as in M-DEF |
 
 ### 2.6 Open points found in the 1D code
@@ -909,7 +914,8 @@ Here W\_{j₃,ℓ₃} applied to a field already at level d = j₃ means the blo
 | Wavelet type | bump-steerable in every block |
 | Border method | fully flexible in every block |
 | `lowpass` | `"ST"` |
-| `norm` | as in M-DEF |
+| `norm`, `ref_batch_mean` | as in M-DEF, arguments of `apply` in ESTEL |
+| `standardize` | as in M-DEF: False in STL, True in ESTEL (OP-120) |
 | `compute_PS` | True in STL; unavailable for tensor products in ESTEL 1.0.0 |
 | Masks | not supported |
 | Other parameters | those of each block's geometry (M-DEF, M-DEF-1D) |
@@ -1097,6 +1103,8 @@ x^{(d+1)}[n_0] = \frac{\sum_{\gamma \le \rho} e^{-\gamma^2 / 2\sigma^2}\, x^{(d)
 | Border | none |
 | Decimation | radius 3 pixels, σ = radius / 2, weights of sum 1 |
 | `compute_PS` | True in STL: the angular spectrum; unavailable for HEALPix in ESTEL 1.0.0 (LF24) |
+| `norm`, `ref_batch_mean` | as in M-DEF, arguments of `apply` in ESTEL |
+| `standardize` | as in M-DEF: False in STL, True in ESTEL (OP-120) |
 
 - **Checked:** the wavelet operator that STL builds by default has L = 4, K = 5, the gauge `"cosmo"`, the ellipsoid `"WGS84"`, τ = 0.33, the cache enabled, no option passed to the decimation and a border of 0.
 
@@ -1261,6 +1269,8 @@ The optimised field is de-standardised, x = u σ + μ (M-STD), its missing pixel
 ### 5.7 Operators — M-SYN-OPS
 
 The user-level functions build two operators, one for the target and one for the running field, so that each has its own mask (after 1.0.0: Part III, §16, LF47). In the periodic case without missing data the two are distinct objects with the same settings.
+
+**In ESTEL** (task T2.19), where the normalisation is chosen at each call of `apply` (M-NORM), one operator serves both when the running field passes the check of the target's plan (the same shape, `pbc` and mask), as STL's two operators with the same settings would: `apply` on the target with `norm="self"` and `ref_batch_mean` equal to `mean_field`, then on the running field with `norm="ref"` and the reference it stored. With another `running_shape` (2D only, OP-101), the running field has an operator of its own, since a plan is static for one shape; it receives the target's reference through `ref`. Both are built with `standardize=False`: the synthesis standardises the target itself (M-SYN-TARGET, step 4), and STL's running operator does not standardise. From statistics, one running operator, built likewise, is given their reference. The values are those of STL's two operators.
 
 - **J.** For each, the default J (M-DEF) minus 1 if the field is not periodic; the synthesis uses the smaller of the two. **⚠ OP-52** After 1.0.0 (Part III, §16, LF47). In the periodic case, J is the default of M-DEF; it is passed explicitly to both operators, and sets the band of their spectrum (M-PS-2D). From statistics, J is that of the target's statistics.
 - **Other settings.** From maps, the user-level function passes only J, the number of bins and `has_fewer_convolutions`: L, the wavelet type and the kernel size are the defaults of M-DEF. From statistics, the running operator takes J, the number of bins and `has_fewer_convolutions` from the target's statistics, but not L nor the wavelet type: statistics computed with another L than the default make the synthesis fail on a shape mismatch. **⚠ OP-76**

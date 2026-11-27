@@ -69,30 +69,34 @@ class Run:
             J, L = cast(Any, case.J), cast(Any, case.L)  # noqa: N806 (maths.md notation)
             start = time.perf_counter()
             if case.tensor_prod:
-                self.operator = estel.STOperatorTensorProd(self.data, list(J), list(L), norm="none")
+                self.operator = estel.STOperatorTensorProd(
+                    self.data, list(J), list(L), standardize=False
+                )
             else:
-                self.operator = estel.STOperator(self.data, J, L, norm="none", compute_PS=False)
+                self.operator = estel.STOperator(
+                    self.data, J, L, standardize=False, compute_PS=False
+                )
             self.build_seconds = time.perf_counter() - start
         if built is not None:
             built()
         target_data = _data(inputs, inputs.target_field)
         # The first call of the operator: on JAX it compiles the loop (task T2.13).
         start = time.perf_counter()
-        first = self._done(self.operator.apply(target_data))
+        first = self._done(self.operator.apply(target_data, norm="none"))
         self.first_apply_seconds = time.perf_counter() - start
         target = self._backend.stop_gradient(first.to_vector())
         xp = self._backend.xp
         operator, data = self.operator, self.data
 
         def loss(array: Any) -> Any:
-            vector = operator.apply(data.with_array(array)).to_vector()
+            vector = operator.apply(data.with_array(array), norm="none").to_vector()
             return xp.sum((vector - target) ** 2)
 
         self._value_and_grad = self._backend.value_and_grad(loss)
 
     def forward(self) -> Any:
         """``STOperator.apply`` on the field: the statistics."""
-        return self._done(self.operator.apply(self.data))
+        return self._done(self.operator.apply(self.data, norm="none"))
 
     def gradient(self) -> Any:
         """The loss ``||to_vector(S(x)) - t||²`` and its gradient with respect to the field."""

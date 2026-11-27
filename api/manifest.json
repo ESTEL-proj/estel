@@ -93,7 +93,7 @@
     },
     "estel.STOperator": {
       "kind": "class",
-      "signature": "(self, data: Data, J: int | None=None, L: int | None=None, *, norm: str='self', ref_batch_mean: bool=False, standardize: bool=False, cross_matrix: Any=None, compute_PS: bool | None=None, n_bins: int | None=None, Jmin: int=0, spectrum_method: str='auto', engine: str='python') -> None"
+      "signature": "(self, data: Data, J: int | None=None, L: int | None=None, *, standardize: bool=True, cross_matrix: Any=None, compute_PS: bool | None=None, n_bins: int | None=None, Jmin: int=0, spectrum_method: str='auto', engine: str='python') -> None"
     },
     "estel.STOperator.J": {
       "kind": "property"
@@ -103,7 +103,7 @@
     },
     "estel.STOperator.apply": {
       "kind": "method",
-      "signature": "(self, data: Data, ref: STStatistics | None=None) -> STStatistics"
+      "signature": "(self, data: Data, ref: STStatistics | None=None, *, norm: str='self', ref_batch_mean: bool=False) -> STStatistics"
     },
     "estel.STOperator.filters": {
       "kind": "property"
@@ -111,9 +111,6 @@
     "estel.STOperator.from_statistics": {
       "kind": "method",
       "signature": "(cls, stats: STStatistics) -> STOperator"
-    },
-    "estel.STOperator.norm": {
-      "kind": "property"
     },
     "estel.STOperator.plan": {
       "kind": "property"
@@ -123,7 +120,7 @@
     },
     "estel.STOperatorTensorProd": {
       "kind": "class",
-      "signature": "(self, data: Data, J: Sequence[int | None] | None=None, L: Sequence[int | None] | None=None, *, lowpass: str | None='ST', norm: str='self', ref_batch_mean: bool=False, standardize: bool=False, cross_matrix: Any=None, compute_PS: bool | None=None, engine: str='python') -> None"
+      "signature": "(self, data: Data, J: Sequence[int | None] | None=None, L: Sequence[int | None] | None=None, *, lowpass: str | None='ST', standardize: bool=True, cross_matrix: Any=None, compute_PS: bool | None=None, engine: str='python') -> None"
     },
     "estel.STOperatorTensorProd.lowpass": {
       "kind": "property"
@@ -193,7 +190,7 @@
     },
     "estel.functional.scattering": {
       "kind": "function",
-      "signature": "(data: Data, plan: STPlan, filters: STFilters, ref: STStatistics | None=None) -> STStatistics"
+      "signature": "(data: Data, plan: STPlan, filters: STFilters, ref: STStatistics | None=None, *, norm: str='self', ref_batch_mean: bool=False) -> STStatistics"
     },
     "estel.get_backend": {
       "kind": "function",

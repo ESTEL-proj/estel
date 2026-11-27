@@ -22,6 +22,7 @@ from tests.differentiation._cases import (
     coefficients,
     data_of,
     direction_like,
+    normalisation_of,
     operator_of,
 )
 
@@ -50,7 +51,9 @@ def test_implicit_differentiation_end_to_end(backend: Backend) -> None:
     u = direction_like(backend, d, seed=1)
 
     def statistics(array: Any) -> Any:
-        stats = estel.functional.scattering(data.with_array(array), operator.plan, operator.filters)
+        stats = estel.functional.scattering(
+            data.with_array(array), operator.plan, operator.filters, **normalisation_of(IMPLICIT)
+        )
         return coefficients(backend, stats)
 
     def loss(theta: Any, phi: Any) -> Any:

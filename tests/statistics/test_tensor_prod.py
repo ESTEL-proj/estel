@@ -137,10 +137,17 @@ def _statistics_tp() -> dict[str, Any]:
 
     def run(key: str, norm: str, ref: Any = None, batch_mean: bool = False) -> STStatistics:
         raw = spec.spec_tensor_prod(
-            arrays[key], [AXES[b] for b in blocks], pbc, J, lowpass="ST", norm="none"
+            arrays[key],
+            [AXES[b] for b in blocks],
+            pbc,
+            J,
+            lowpass="ST",
+            norm="none",
+            standardize=False,  # STL's default (OP-120)
         )
-        plan = _plan(arrays[key], blocks, pbc, J, norm=norm, ref_batch_mean=batch_mean)
-        return statistics_of(_buffer(_layout.tensor_prod_layout(plan), raw), plan, ref)
+        plan = _plan(arrays[key], blocks, pbc, J)
+        buffer = _buffer(_layout.tensor_prod_layout(plan), raw)
+        return statistics_of(buffer, plan, ref, norm=norm, ref_batch_mean=batch_mean)
 
     store = run("field", "self")
     return {
@@ -177,11 +184,11 @@ def test_normalisation_equals_the_fixture() -> None:
 # ---------------------------------------------------------------------- memory
 
 
-def _three_blocks(norm: str = "self") -> TensorProdPlan:
+def _three_blocks() -> TensorProdPlan:
     """2D + 1D + 1D, 16 x 16 x 16 x 16, J = (2, 2, 2), L = (4, 2, 2), with the low-pass filter
     of every block: its full-grid S4 has 2,097,152 entries for 262,144 coefficients."""
     field = np.zeros((1, 1, 16, 16, 16, 16))
-    return _plan(field, ["2D", "1D", "1D"], [True, False, True], [2, 2, 2], norm=norm)
+    return _plan(field, ["2D", "1D", "1D"], [True, False, True], [2, 2, 2])
 
 
 def test_three_block_layout_allocates_no_full_grid(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -234,7 +241,7 @@ def test_three_block_layout_allocates_no_full_grid(monkeypatch: pytest.MonkeyPat
     buffer = _registry.current_backend().asarray(
         np.random.default_rng(0).random((1, layout.n_floats)) + 0.5, "float64", None
     )
-    stats = statistics_of(buffer, plan)
+    stats = statistics_of(buffer, plan, norm="self")
     stats.to_vector()
     stats.select(("S1", "S3"), channel=(0, 0)).to_vector()
     assert sizes
@@ -371,20 +378,18 @@ def test_reference_of_another_tensor_product_is_accepted() -> None:
     reference = _two_channels()._reference
     assert reference is not None
     rng = np.random.default_rng(3)
-    other = _plan(
-        rng.standard_normal((2, 2, 32, 32, 16)), ["2D", "1D"], [False, True], [2, 1], norm="ref"
-    )
+    other = _plan(rng.standard_normal((2, 2, 32, 32, 16)), ["2D", "1D"], [False, True], [2, 1])
     buffer = _registry.current_backend().asarray(
         rng.random((2, _layout.tensor_prod_layout(other).n_floats)) + 0.5, "float64", None
     )
-    stats = statistics_of(buffer, other, reference)
+    stats = statistics_of(buffer, other, reference, norm="ref")
     assert stats._reference is not None
     planar = estel.STOperator(
         Data2D(rng.standard_normal((2, 2, 16, 16)), pbc=True), 2, compute_PS=False
     ).apply(Data2D(rng.standard_normal((2, 2, 16, 16)), pbc=True))
     assert planar._reference is not None
     with pytest.raises(ValueError, match="planar"):
-        statistics_of(buffer, other, planar._reference)
+        statistics_of(buffer, other, planar._reference, norm="ref")
     assert isinstance(planar._plan, PlanarPlan)
     with pytest.raises(ValueError, match="tensor product"):
         _normalization.check_reference(reference, planar._plan, 2, reference.var.dtype)
@@ -409,11 +414,11 @@ def test_reference_of_another_tensor_product_is_refused(
     with an error naming what differs (maths.md M-NORM-TP; Part IV, R-Y03)."""
     reference = _two_channels()._reference
     assert reference is not None
-    plan = _plan(np.zeros((2, 2, *shape)), blocks, [True, True], J, norm="ref")
+    plan = _plan(np.zeros((2, 2, *shape)), blocks, [True, True], J)
     n_floats = _layout.tensor_prod_layout(plan).n_floats
     data = _registry.current_backend().asarray(np.ones((2, n_floats)), "float64", None)
     with pytest.raises(ValueError, match=what):
-        statistics_of(data, plan, reference)
+        statistics_of(data, plan, reference, norm="ref")
 
 
 def test_layout_refuses_a_segment_of_another_orientation_shape() -> None:

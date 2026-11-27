@@ -52,8 +52,13 @@ def test_permuting_the_blocks_permutes_the_statistics(norm: str) -> None:
     field = rng.standard_normal((2, 2, 8, 8, 8)) + 0.3
     space_time = DataTensorProd(field, [Data2D, Data1D], pbc=[False, True])
     time_space = DataTensorProd(np.moveaxis(field, -1, 2), [Data1D, Data2D], pbc=[True, False])
-    first = STOperatorTensorProd(space_time, [2, 2], norm=norm).apply(space_time)
-    second = STOperatorTensorProd(time_space, [2, 2], norm=norm).apply(time_space)
+    # Without standardisation, so that mean is not zero up to rounding.
+    operators = (
+        STOperatorTensorProd(space_time, [2, 2], standardize=False),
+        STOperatorTensorProd(time_space, [2, 2], standardize=False),
+    )
+    first = operators[0].apply(space_time, norm=norm)
+    second = operators[1].apply(time_space, norm=norm)
     for family in ("mean", "var"):
         assert_parity(_numpy(second.full_grid(family)), _numpy(first.full_grid(family)))
     for family, groups in GROUPS.items():

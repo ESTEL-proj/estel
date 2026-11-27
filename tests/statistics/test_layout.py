@@ -41,11 +41,11 @@ def _field(shape: tuple[int, ...], seed: int = 0) -> NDArray[np.float64]:
     return field
 
 
-def _apply(data: Data, J: int, **kwargs: Any) -> STStatistics:  # noqa: N803
+def _apply(data: Data, J: int, norm: str = "self", **kwargs: Any) -> STStatistics:  # noqa: N803
     options: dict[str, Any] = {"compute_PS": False if data.ndim == 2 else None}
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13, OP-30
-        return STOperator(data, J, **{**options, **kwargs}).apply(data)
+        return STOperator(data, J, **{**options, **kwargs}).apply(data, norm=norm)
 
 
 @functools.lru_cache(maxsize=8)
@@ -174,11 +174,10 @@ def test_scattering_builds_no_full_grid_view(monkeypatch: pytest.MonkeyPatch, no
     data = Data2D(_field((1, 2, 16, 16)), pbc=False)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        storing = STOperator(data, 2, compute_PS=False)
-        operator = storing if norm == "self" else STOperator(data, 2, norm=norm, compute_PS=False)
+        operator = STOperator(data, 2, compute_PS=False)
     reference = None
     if norm == "ref":
-        reference = estel.functional.scattering(data, storing.plan, storing.filters)
+        reference = estel.functional.scattering(data, operator.plan, operator.filters)
 
     def refuse(*args: Any, **kwargs: Any) -> Any:
         raise AssertionError("scattering() built a full-grid view")
@@ -188,7 +187,9 @@ def test_scattering_builds_no_full_grid_view(monkeypatch: pytest.MonkeyPatch, no
     monkeypatch.setattr(type(backend), "scatter_to_grid", refuse)
     _scattering._loop.cache_clear()  # JAX: trace the loop again, with the patches
     try:
-        stats = estel.functional.scattering(data, operator.plan, operator.filters, reference)
+        stats = estel.functional.scattering(
+            data, operator.plan, operator.filters, reference, norm=norm
+        )
         stats.to_vector()
         stats.reduce(iso=True).to_vector()
     finally:

@@ -6,7 +6,8 @@ statistics, without normalisation and without spectrum, for each configuration o
 (``tools/stl_parity/cases/``): periodic and open, with and without missing values, two channels
 with every pair, a custom ``cross_matrix``, standardised data, L = 2 in 1D, and a deep
 open configuration where some means have no valid pixel. ESTEL's ``STOperator`` is
-built with the same parameters on the stored input, with ``norm="none"`` (STL's ``vanilla``),
+built with the same parameters on the stored input, ``standardize`` as STL's, and applied
+with ``norm="none"`` (STL's ``vanilla``),
 and every family of the ``STStatistics`` it returns is compared with ``assert_parity``: same
 full-grid shape, NaN at the same positions (structural, channel pairs not computed, empty
 means), values within the tolerances of Part II, §14.3.
@@ -84,12 +85,11 @@ def _statistics(
             data,
             config["J"],
             config.get("L", parameters["L"]),
-            norm="none",
             standardize=config.get("standardize", False),
             cross_matrix=None if matrix is None else np.array(matrix, dtype=bool),
             compute_PS=False,
         )
-    return operator.apply(data), config
+    return operator.apply(data, norm="none"), config
 
 
 @pytest.mark.parametrize(("case", "name"), _configs())

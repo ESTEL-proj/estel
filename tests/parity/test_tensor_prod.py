@@ -9,7 +9,7 @@ The fixtures of T3.4 (STL `2D+1D` at ``8f51143``):
   the manifest records;
 * ``statistics_tp``: the normalised statistics of three runs (``norm="self"``, ``norm="ref"`` by
   the first one's reference, ``norm="self"`` with ``ref_batch_mean``), their references and the
-  two flat vectors;
+  two flat vectors; ESTEL's operators are built with STL's ``standardize=False``;
 * ``gradient_tp``: the synthesis loss of M-SYN-LOSS on a running field against a target and its
   gradient with respect to the field (Part II, §14.3, "Gradients").
 
@@ -72,7 +72,8 @@ def _data(field: NDArray[np.float64], blocks: list[str], pbc: list[bool]) -> Dat
 def _operator(data: DataTensorProd, J: Any, **options: Any) -> STOperatorTensorProd:  # noqa: N803
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-13, OP-34: tested in tests/scattering
-        return STOperatorTensorProd(data, J, **options)
+        # STL's standardize=False (OP-120), unless the case standardises.
+        return STOperatorTensorProd(data, J, **{"standardize": False, **options})
 
 
 def _scattering_runs() -> list[Any]:
@@ -106,10 +107,9 @@ def test_statistics_equal_stl(name: str, lowpass: str | None) -> None:
         data,
         case["J"],
         lowpass=lowpass,
-        norm="none",
         standardize=config.get("standardize", False),
         cross_matrix=None if matrix is None else np.array(matrix, dtype=bool),
-    ).apply(data)
+    ).apply(data, norm="none")
     prefix = f"{name}_{MODES[lowpass]}"
     scale = float(np.sqrt(np.max(arrays[f"{prefix}_var"])))
     assert_parity(_numpy(stats.full_grid("mean")), arrays[f"{prefix}_mean"], scale=scale)
@@ -131,17 +131,17 @@ def test_statistics_equal_stl(name: str, lowpass: str | None) -> None:
 def test_normalised_statistics_equal_stl() -> None:
     """``statistics_tp``: the three runs, the references of the two ``norm="self"`` runs
     (``var_ref`` and ``S2_ref_sqrt_chan_diag``) and the real and complex flat vectors equal
-    STL's (maths.md M-NORM-TP, M-FLAT). The second run, STL's ``load_ref``, is an operator built
-    with ``norm="ref"``, applied to the other field with ``ref=`` the statistics of the first
-    run, whose reference normalises it."""
+    STL's (maths.md M-NORM-TP, M-FLAT). As in STL, the first two runs are one operator, applied
+    with ``norm="self"`` then ``norm="ref"`` (STL's ``store_ref`` then ``load_ref``), whose stored
+    reference normalises the other field; the third is a new operator (task T2.19)."""
     parameters = _parameters("statistics_tp")
     arrays = _arrays("statistics_tp")
     blocks, pbc, J = parameters["blocks"], parameters["pbc"], parameters["J"]  # noqa: N806
     field, other = (_data(arrays[k], blocks, pbc) for k in ("field", "other_field"))
-    storing = _operator(field, J, norm="self")
-    runs: dict[str, STStatistics] = {"store": storing.apply(field)}
-    runs["load"] = _operator(field, J, norm="ref").apply(other, ref=runs["store"])
-    runs["store_batch_mean"] = _operator(field, J, norm="self", ref_batch_mean=True).apply(field)
+    operator = _operator(field, J)
+    runs: dict[str, STStatistics] = {"store": operator.apply(field, norm="self")}
+    runs["load"] = operator.apply(other, norm="ref")
+    runs["store_batch_mean"] = _operator(field, J).apply(field, ref_batch_mean=True)
     for run, stats in runs.items():
         var_ref = arrays[
             "store_batch_mean_var_ref" if run == "store_batch_mean" else "store_var_ref"
@@ -171,13 +171,15 @@ def test_gradient_of_the_loss_equals_stl() -> None:
     blocks, pbc, J = parameters["blocks"], parameters["pbc"], parameters["J"]  # noqa: N806
     backend = _registry.current_backend()
     target = _data(arrays["target"], blocks, pbc)
-    target_stats = _operator(target, J, norm="self", ref_batch_mean=True).apply(target)
+    # One operator, as STL's synthesis model: norm="self" on the target, then norm="ref" on the
+    # running field, by the reference it stored (task T2.19).
+    operator = _operator(target, J)
+    target_stats = operator.apply(target, norm="self", ref_batch_mean=True)
     target_vector = flatten(target_stats, mean_field=True, keep_batch_dim=False)
-    running = _operator(target, J, norm="ref")
     field = _data(arrays["field"], blocks, pbc)
 
     def objective(u: Any) -> Any:
-        stats = running.apply(field.with_array(u), ref=target_stats)
+        stats = operator.apply(field.with_array(u), norm="ref")
         return loss(flatten(stats, mean_field=True, keep_batch_dim=False), target_vector)
 
     value, gradient = backend.value_and_grad(objective)(field.array)

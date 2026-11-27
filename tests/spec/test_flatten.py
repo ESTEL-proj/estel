@@ -37,7 +37,7 @@ def statistics() -> tuple[Any, dict[str, Any]]:
         data = Data2D(field, pbc=True)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
-            stats = STOperator(data, 2, 4, norm="none", compute_PS=False).apply(data)
+            stats = STOperator(data, 2, 4, compute_PS=False).apply(data, norm="none")
     return stats, spec.spec_apply(field, 2, True, None, 2, 4, norm="none")
 
 

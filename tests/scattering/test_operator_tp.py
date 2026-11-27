@@ -65,7 +65,8 @@ def test_one_block_without_lowpass_is_the_plain_geometry(
 ) -> None:
     """A tensor product of one block with ``lowpass=None`` gives the statistics of the plain
     geometry, family by family (maths.md OP-82, M-IDX-TP, "One block"), here open, with cross
-    channels and ``norm="self"``; with ``lowpass="ST"``, S1 and S2 have one scale more."""
+    channels, ``norm="self"`` and the standardisation; with ``lowpass="ST"``, S1 and S2 have one
+    scale more."""
     field = _field(shape)
     plain = cls(field, pbc=False)
     product = DataTensorProd(field, [cls], pbc=[False])
@@ -85,7 +86,7 @@ def test_functional_scattering_is_apply() -> None:
     """``estel.functional.scattering`` takes the plan and the filters of a tensor product: one
     pure function for both geometries, equal to ``apply``."""
     data = _space_time((2, 2, 8, 8, 8))
-    operator = STOperatorTensorProd(data, norm="self")
+    operator = STOperatorTensorProd(data)
     stats = operator.apply(data)
     found = estel.functional.scattering(data, operator.plan, operator.filters)
     np.testing.assert_array_equal(_numpy(found.to_vector()), _numpy(stats.to_vector()))
@@ -95,14 +96,15 @@ def test_from_statistics_rebuilds_the_operator(tmp_path: Any) -> None:
     """``from_statistics`` gives the operator of statistics computed, saved and loaded, with
     the reference they were normalised with; ``STOperator.from_statistics`` points to it."""
     data = _space_time((1, 1, 8, 8, 8))
-    stats = STOperatorTensorProd(data, [2, 1], norm="self").apply(data)
+    stats = STOperatorTensorProd(data, [2, 1]).apply(data)
     path = tmp_path / "stats.npz"
     stats.save(path)
     loaded = estel.STStatistics.load(path)
     rebuilt = STOperatorTensorProd.from_statistics(loaded)
     assert rebuilt.plan == stats._plan
     assert (rebuilt.J, rebuilt.L) == ((2, 1), (4, 2))
-    again = rebuilt.apply(data)
+    with pytest.warns(UserWarning, match="replaces the reference"):
+        again = rebuilt.apply(data)
     np.testing.assert_array_equal(_numpy(again.to_vector()), _numpy(stats.to_vector()))
     with pytest.raises(ValueError, match=r"use STOperatorTensorProd.from_statistics"):
         STOperator.from_statistics(stats)
@@ -116,8 +118,8 @@ def test_a_wrong_reference_is_refused_before_the_loop(monkeypatch: pytest.Monkey
     """With ``norm="ref"``, a reference of other blocks, J or low-pass flags, or of planar
     statistics, is refused before the loop runs (issue #23, decisions, point 4)."""
     data = _space_time()
-    operator = STOperatorTensorProd(data, [2, 1], norm="ref")
-    other = STOperatorTensorProd(data, [1, 1], norm="self").apply(data)
+    operator = STOperatorTensorProd(data, [2, 1])
+    other = STOperatorTensorProd(data, [1, 1]).apply(data)
     planar = STOperator(Data2D(_field((1, 1, 16, 16)), pbc=True), 2, compute_PS=False)
     planar_stats = planar.apply(Data2D(_field((1, 1, 16, 16)), pbc=True))
 
@@ -126,11 +128,11 @@ def test_a_wrong_reference_is_refused_before_the_loop(monkeypatch: pytest.Monkey
 
     monkeypatch.setattr(_scattering, "_loop", no_loop)
     with pytest.raises(ValueError, match=r"J = \[1, 1\] \(the operator has \[2, 1\]\)"):
-        operator.apply(data, ref=other)
+        operator.apply(data, ref=other, norm="ref")
     with pytest.raises(ValueError, match=r"comes from planar statistics"):
-        operator.apply(data, ref=planar_stats)
+        operator.apply(data, ref=planar_stats, norm="ref")
     with pytest.raises(ValueError, match=r'norm="ref" needs a reference'):
-        operator.apply(data)
+        operator.apply(data, norm="ref")
 
 
 @pytest.mark.parametrize(
@@ -144,8 +146,8 @@ def test_parts_of_another_geometry_are_refused(case: str) -> None:
     planar = Data2D(_field((1, 1, 8, 8)), pbc=True)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-34 on these small blocks
-        of_product = STOperatorTensorProd(product, [1, 1], norm="none")
-    of_planar = STOperator(planar, 1, norm="none", compute_PS=False)
+        of_product = STOperatorTensorProd(product, [1, 1])
+    of_planar = STOperator(planar, 1, compute_PS=False)
     if case == "wavelets":
         plan = of_product.plan
         assert isinstance(plan, TensorProdPlan)
@@ -228,7 +230,7 @@ def test_tables_of_the_loop_grow_with_the_chunks() -> None:
     )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        operator = STOperatorTensorProd(data, [2, 2, 2], norm="none")
+        operator = STOperatorTensorProd(data, [2, 2, 2])
     plan = operator.plan
     assert isinstance(plan, TensorProdPlan)
     loop = plan.loop

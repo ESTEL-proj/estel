@@ -545,7 +545,7 @@ def spec_defaults_hpx(nside: int) -> dict[str, Any]:
         "decimation_width": DECIMATION_WIDTH,
         "norm": "self",
         "ref_batch_mean": False,
-        "standardize": False,
+        "standardize": True,
         "cross_matrix": "upper triangle",
     }
 
@@ -809,7 +809,7 @@ def spec_apply_hpx(
     norm: str = "self",
     ref: Statistics | None = None,
     ref_batch_mean: bool = False,
-    standardize: bool = False,
+    standardize: bool = True,
     cross_matrix: Any = None,
     iso: bool = False,
     angular_fourier: bool = False,
@@ -831,7 +831,8 @@ def spec_apply_hpx(
     6. the reductions asked for, in the order ``iso``, ``angular_fourier``, ``scale_cosine``;
     7. the flattening, if asked (M-FLAT), in its real form, under ``"vector"``.
 
-    J and L default to M-DEF-HPX. There is no spectrum (LF24).
+    J and L default to M-DEF-HPX; ``standardize`` is True by default (M-DEF-HPX, OP-120). There
+    is no spectrum (LF24).
     """
     x, invalid, nside, ids = spec_data_hpx(array, nside, cell_ids, mask)  # 1
     defaults = spec_defaults_hpx(nside)

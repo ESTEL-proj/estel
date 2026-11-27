@@ -221,8 +221,8 @@ def _estimate(fields: NDArray[np.float64], mask: NDArray[np.bool_] | None, pbc: 
     data = Data2D(fields[:, None], mask=mask, pbc=pbc)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13: the means left out below
-        operator = STOperator(data, J, L, norm="none", compute_PS=False)
-    statistics = operator.apply(data)
+        operator = STOperator(data, J, L, standardize=False, compute_PS=False)
+    statistics = operator.apply(data, norm="none")
     values = {}
     for family in FAMILIES:
         grid = np.asarray(statistics.full_grid(family))

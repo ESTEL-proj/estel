@@ -41,9 +41,9 @@ Two independent choices: the **engine** (`engine=`: `"python"`, later `"rust"`) 
 - A `Data` object is an array plus static metadata, registered as a pytree (the array is the only leaf).
 - Masks and their reweighting maps are static, computed at construction, part of the plan.
 - The convolution history is plan data: the plan computes the crop width of every level once.
-- An operator is a frozen plan plus a pure function: `op.apply(data, ref=None)` calls `estel.functional.scattering(data, plan, filters, ref)`, with `op.plan` and `op.filters`, public and opaque.
+- An operator is a frozen plan plus a pure function: `op.apply(data, ref=None, *, norm="self", ref_batch_mean=False)` calls `estel.functional.scattering(data, plan, filters, ref, norm=..., ref_batch_mean=...)`, with `op.plan` and `op.filters`, public and opaque.
 - Everything that depends on the geometry goes through the generic `WaveletOperator`: convolution, downsampling, low-pass filter, level shapes, border and mask rules. `STOperator` does not depend on the geometry; only the wavelet operator calls the hooks of filtering and downsampling of `Data` (`_conv`, `_downsample`, `_crop_weights`, `_lowpass`), which receive the tables of the level; the wavelet operator is internal.
-- Every option is set once, at construction; `apply` takes only the data and an optional reference.
+- Every option is set in one place only: the normalisation (`norm`, `ref_batch_mean`) at each call of `apply`, so that one operator serves every normalisation, as in STL; everything else at construction, so that the plan stays static. `apply` takes the data, an optional reference and the normalisation. `norm="self"` stores its reference in the operator; operators share no state.
 - `estel.STOperator(data, ...)` is the entry point; class names are PEP 8 CapWords (`STOperator`, `STOperatorTensorProd`, `STStatistics`).
 - `STOperatorTensorProd` overrides a small, fixed set of hooks of the mother class, nothing else.
 

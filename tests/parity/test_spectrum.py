@@ -6,16 +6,16 @@ its default pairs (the auto spectra, passed here explicitly: OP-94) and each est
 with every pair c₁ ≤ c₂, and its bins. ESTEL computes them with ``STOperator`` at the J the
 configuration gave STL's spectrum (its fixture's J, 2 for ``periodic_J2``, the default
 elsewhere), which sets the band of the spectrum, L = 1, on which the spectrum does not depend,
-and ``norm="none"``, STL's operator normalising nothing (decisions on #191, second version). The
+``standardize=False`` and ``norm="none"``, STL's operator standardising and normalising nothing
+(decisions on #191, second version; OP-120). The
 configuration ``nan_per_map``, whose missing pixels differ per map, is left out: ESTEL's mask is
 one map shared by every batch element and channel (OP-98, LF54), and the comment on #24 gives
 the numbers.
 
 ``statistics_ps_2d`` (T4.3): STL's scattering operator with the spectrum, ``store_ref`` on a
-target and ``load_ref`` on a second field. ESTEL computes them with ``STOperator`` (the spectrum
-is on by default for 2D data), at the J of the configuration: its normalised spectra and its
-reference are those of ``SpectrumOperator`` with ``norm="self"`` and ``"ref"``, which T4.6
-removed.
+target and ``load_ref`` on a second field. ESTEL computes them with one ``STOperator`` (the
+spectrum is on by default for 2D data), at the J of the configuration, with STL's
+``standardize=False``, applied with ``norm="self"`` then ``norm="ref"`` (task T2.19).
 
 Every array is compared with ``assert_parity`` (same shape, NaN at the same positions, the
 tolerances of §14.3) in the run's dtype: float64, and float32 for the configurations marked
@@ -98,7 +98,8 @@ def test_spectrum_equals_stl(name: str, dtype: DType) -> None:
     field = arrays[f"{name}_field"]
     j_ps, j_min, n_bins = (int(v) for v in arrays[f"{name}_bin_scalars"][:3])
     data = _data(field, PBC[name])
-    options: dict[str, Any] = {"Jmin": j_min, "n_bins": n_bins, "norm": "none"}
+    # STL's spectrum operator normalises and standardises nothing (OP-120).
+    options: dict[str, Any] = {"Jmin": j_min, "n_bins": n_bins, "standardize": False}
     n_channels = int(field.shape[1])
     runs = [("auto", np.eye(n_channels, dtype=bool), f"{name}_auto")] + [
         (m, None, f"{name}_method_{m}") for m in ESTIMATORS if f"{name}_method_{m}" in arrays
@@ -109,7 +110,7 @@ def test_spectrum_equals_stl(name: str, dtype: DType) -> None:
             operator = STOperator(
                 data, j_ps, 1, spectrum_method=method, cross_matrix=pairs, **options
             )
-        stats = operator.apply(data)
+        stats = operator.apply(data, norm="none")
         assert_parity(_numpy(stats.full_grid("PS")), arrays[key], dtype)
         if method == "auto":
             chosen = operator._plan.spectrum.method  # type: ignore[union-attr]
@@ -140,8 +141,9 @@ def _statistics_configs() -> dict[str, dict[str, Any]]:
 
 
 class _Run:
-    """ESTEL on one configuration of ``statistics_ps_2d``: ``STOperator`` with the spectrum,
-    ``norm="self"`` on the target and ``norm="ref"`` on the second field."""
+    """ESTEL on one configuration of ``statistics_ps_2d``: one ``STOperator`` with the spectrum
+    and STL's ``standardize=False``, applied with ``norm="self"`` on the target and
+    ``norm="ref"`` on the second field, as STL's one operator (task T2.19)."""
 
     def __init__(self, name: str) -> None:
         config = _statistics_configs()[name]
@@ -163,22 +165,13 @@ class _Run:
                 target,
                 config["J"],
                 4,
-                ref_batch_mean=batch_mean,
+                standardize=False,
                 cross_matrix=pairs,
                 spectrum_method=method,
                 **spectrum,
             )
-            self.store = self.store_op.apply(target)
-            load_op = STOperator(
-                other,
-                config["J"],
-                4,
-                norm="ref",
-                cross_matrix=pairs,
-                spectrum_method=method,
-                **spectrum,
-            )
-            self.load = load_op.apply(other, ref=self.store)
+            self.store = self.store_op.apply(target, norm="self", ref_batch_mean=batch_mean)
+            self.load = self.store_op.apply(other, norm="ref")
 
 
 @functools.cache

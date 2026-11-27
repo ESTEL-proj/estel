@@ -126,7 +126,7 @@ def spec_defaults_tp(blocks: Sequence[int], spatial_shape: Sequence[int]) -> dic
         "lowpass": "ST",
         "norm": "self",
         "ref_batch_mean": False,
-        "standardize": False,
+        "standardize": True,
         "cross_matrix": "upper triangle",
     }
 
@@ -558,7 +558,7 @@ def spec_tensor_prod(
     norm: str | None = None,
     ref: Statistics | None = None,
     ref_batch_mean: bool = False,
-    standardize: bool = False,
+    standardize: bool = True,
     cross_matrix: Any = None,
     flatten: bool = False,
 ) -> Statistics:
@@ -577,7 +577,8 @@ def spec_tensor_prod(
 
     Returns the families, the ``"reference"`` used (``None`` with ``norm="none"``), the
     ``"J"``, ``"L"`` and ``"lowpass"`` flags of the blocks and, with ``standardize``,
-    ``"mean_pre_std"`` and ``"std_pre_std"``. ``norm`` must be given (M-NORM).
+    ``"mean_pre_std"`` and ``"std_pre_std"``. ``norm`` must be given (M-NORM); ``standardize`` is
+    True by default (M-DEF-TP, OP-120).
     """
     if norm not in ("self", "ref", "none"):
         raise ValueError(f'norm={norm!r}: pass "self", "ref" or "none" (M-NORM).')

@@ -53,6 +53,10 @@ if TYPE_CHECKING:
     from ..scattering._plan import PlanarPlan, TensorProdPlan
 
 
+NORMS = ("self", "ref", "none")
+"""The values of ``norm``, chosen at each call of ``apply`` (maths.md M-NORM; task T2.19)."""
+
+
 class SpectrumParameters(NamedTuple):
     """The parameters of a power spectrum that statistics normalised by a reference must share
     with it (maths.md §1.9, M-NORM; task T4.4), named as ``estel.io`` writes them."""
@@ -120,9 +124,9 @@ class _NormReference:
     """The normalisation reference of M-NORM: STL's ``var_ref`` and the scales of
     ``S2_ref_sqrt_chan_diag``.
 
-    Internal (issue #17): the operator stores it with ``norm="self"``, and ``norm="ref"`` reads it
-    from the operator or from the statistics passed to ``apply``. From step 2 it also holds the
-    first moments of the centred covariances (Part III, §20.11).
+    Internal (issue #17): the operator stores it at each call of ``apply`` with ``norm="self"``,
+    and ``norm="ref"`` reads it from the operator or from the statistics passed to ``apply``.
+    From step 2 it also holds the first moments of the centred covariances (Part III, §20.11).
     """
 
     var: Any

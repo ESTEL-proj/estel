@@ -143,19 +143,20 @@ def _mask(case: Case) -> NDArray[np.bool_] | None:
 def _statistics(
     case: Case, array: NDArray[np.float64], mask: NDArray[np.bool_] | None, **options: Any
 ) -> Statistics:
-    """The full grid of every family for ``array``, as NumPy, without normalisation unless
-    ``options`` say otherwise."""
+    """The full grid of every family for ``array``, as NumPy, without standardisation and
+    without normalisation unless ``options`` say otherwise."""
     data = GEOMETRIES[case.ndim](array, mask=mask, pbc=case.pbc)
-    settings: dict[str, Any] = {"norm": "none", **options}
+    settings: dict[str, Any] = {"standardize": False, **options}
+    norm = settings.pop("norm", "none")
     if case.ndim == 2:
         settings["compute_PS"] = False
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13, OP-30: tested elsewhere
         operator = STOperator(data, case.J, ORIENTATIONS[case.ndim], **settings)
-    if case.via == "operator":
-        values = operator.apply(data)
-    else:
-        values = estel.functional.scattering(data, operator.plan, operator.filters)
+        if case.via == "operator":
+            values = operator.apply(data, norm=norm)
+        else:
+            values = estel.functional.scattering(data, operator.plan, operator.filters, norm=norm)
     return {family: np.asarray(values.full_grid(family)) for family in FAMILIES}
 
 

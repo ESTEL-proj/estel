@@ -136,6 +136,7 @@ def test_statistics_with_the_spectrum_equal_the_fixture(name: str) -> None:
         "cross_matrix": cross_matrix,
         "compute_PS": True,
         "ref_batch_mean": config["norm_batch_mean"],
+        "standardize": False,  # as STL computed the fixture (OP-120)
         **{key: config[key] for key in ("Jmin", "n_bins", "spectrum_method") if key in config},
     }
     target, other = arrays[f"{name}_field"], arrays[f"{name}_ref_field"]

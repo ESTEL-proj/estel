@@ -98,6 +98,7 @@ def _raw(name: str, field: str) -> dict[str, NDArray[Any]]:
         config["J"],
         4,
         norm="none",
+        standardize=False,  # STL's default (OP-120)
         cross_matrix=_matrix(config),
     )
     grids = {family: raw[family] for family in SCATTERING}
@@ -136,13 +137,19 @@ def _runs(name: str) -> dict[str, STStatistics]:
     """The two runs of configuration ``name``: ``norm="self"`` on the target, with its
     ``ref_batch_mean``, and ``norm="ref"`` on the second field by the target's reference."""
     config = _configs()[name]
-    store_plan = _plan(name, norm="self", ref_batch_mean=config["norm_batch_mean"])
-    store = statistics_of(_buffer(_layout.base_layout(store_plan), _raw(name, "field")), store_plan)
-    load_plan = _plan(name, "ref_field", norm="ref")
+    store_plan = _plan(name)
+    store = statistics_of(
+        _buffer(_layout.base_layout(store_plan), _raw(name, "field")),
+        store_plan,
+        norm="self",
+        ref_batch_mean=config["norm_batch_mean"],
+    )
+    load_plan = _plan(name, "ref_field")
     load = statistics_of(
         _buffer(_layout.base_layout(load_plan), _raw(name, "ref_field")),
         load_plan,
         store._reference,
+        norm="ref",
     )
     return {"store": store, "load": load}
 
@@ -228,11 +235,11 @@ def _with_reference(reference: Any, **spectrum: Any) -> STStatistics:
     ``reference``."""
     rng = np.random.default_rng(5)
     data = Data2D(rng.standard_normal((2, 2, 64, 64)), pbc=False)
-    plan = build_plan(data, 3, 4, norm="ref", compute_PS=True, **spectrum)
+    plan = build_plan(data, 3, 4, compute_PS=True, **spectrum)
     buffer = _registry.current_backend().asarray(
         rng.random((2, _layout.base_layout(plan).n_floats)) + 0.5, "float64", None
     )
-    return statistics_of(buffer, plan, reference)
+    return statistics_of(buffer, plan, reference, norm="ref")
 
 
 def test_reference_of_another_operator() -> None:
@@ -263,15 +270,16 @@ def test_reference_with_the_spectrum_on_statistics_without_it() -> None:
     stripped = dataclasses.replace(reference, sigma_ps=None, spectrum=None)
     rng = np.random.default_rng(8)
     data = Data2D(rng.standard_normal((2, 2, 32, 32)), pbc=True)
-    plan = build_plan(data, 3, 4, norm="ref")
+    plan = build_plan(data, 3, 4)
     assert plan.spectrum is None
     buffer = _registry.current_backend().asarray(
         rng.random((2, _layout.base_layout(plan).n_floats)) + 0.5, "float64", None
     )
-    found = statistics_of(buffer, plan, reference)
+    found = statistics_of(buffer, plan, reference, norm="ref")
     assert "PS" not in found._layout.names
     np.testing.assert_array_equal(
-        _numpy(found.to_vector()), _numpy(statistics_of(buffer, plan, stripped).to_vector())
+        _numpy(found.to_vector()),
+        _numpy(statistics_of(buffer, plan, stripped, norm="ref").to_vector()),
     )
 
 
@@ -286,17 +294,17 @@ def test_gradients_through_the_spectrum_reference() -> None:
     xp = backend.xp
     rng = np.random.default_rng(9)
     data = Data2D(rng.standard_normal((1, 2, 32, 32)), pbc=True)
-    plans = {norm: build_plan(data, 3, 4, norm=norm, compute_PS=True) for norm in ("self", "ref")}
-    layout = _layout.base_layout(plans["self"])
+    plan = build_plan(data, 3, 4, compute_PS=True)
+    layout = _layout.base_layout(plan)
     n_bins = layout.grid("PS").n_orientations
     starts = layout.chunk_starts("PS")  # the pairs (0, 0), (0, 1), (1, 1)
     auto_0, cross, auto_1 = (int(a) + np.arange(n_bins) for a in starts)
     x = rng.random((1, layout.n_floats)) + 0.5
 
     def loss(buffer: Any, norm: str) -> Any:
-        stats = statistics_of(buffer, plans["self"])
+        stats = statistics_of(buffer, plan, norm="self")
         if norm == "ref":
-            stats = statistics_of(buffer, plans["ref"], stats._reference)
+            stats = statistics_of(buffer, plan, stats._reference, norm="ref")
         return xp.sum(stats.select("PS", channel=(0, 1)).to_vector())
 
     grads = {
@@ -370,7 +378,7 @@ def test_spectrum_tables_grow_with_the_chunks(monkeypatch: pytest.MonkeyPatch) -
     normalisation (``norm="self"``) on."""
     rng = np.random.default_rng(7)
     data = Data2D(rng.standard_normal((1, 3, 32, 32)), pbc=True)
-    plan = build_plan(data, 3, 4, norm="self", compute_PS=True, n_bins=96)
+    plan = build_plan(data, 3, 4, compute_PS=True, n_bins=96)
     layout = _layout.base_layout(plan)
     grid = layout.grid("PS")
     n_coefficients = grid.n_chunks * grid.n_orientations
@@ -394,7 +402,7 @@ def test_spectrum_tables_grow_with_the_chunks(monkeypatch: pytest.MonkeyPatch) -
 
     for module in (_layout, _normalization, _statistics):
         monkeypatch.setattr(module, "constant", recording)
-    stats = statistics_of(buffer, plan)
+    stats = statistics_of(buffer, plan, norm="self")
     stats.to_vector()
     stats.select("PS").to_vector()
     stats.select("PS", bin=[5, 2], c1=[2, 0]).to_vector()

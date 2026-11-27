@@ -435,6 +435,7 @@ def test_statistics_equal_the_fixture(name: str) -> None:
         "mask": None if mask is None else mask.astype(bool),
         "J": config["J"],
         "L": 4,
+        "standardize": False,  # as STL computed the fixture (OP-120)
     }
     vanilla = spec.spec_apply_hpx(expected("field"), norm="none", **options)
     reference = planar.spec_reference(vanilla, config["norm_batch_mean"])

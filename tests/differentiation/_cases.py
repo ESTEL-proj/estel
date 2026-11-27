@@ -11,9 +11,10 @@ The cases are the smallest data that run the whole loop, J = 2. Together they co
 HEALPix (task T5.6: the full sky at ``nside`` 4, and a partial sky of 80 pixels at ``nside`` 8
 with 2 missing pixels, the smallest where every mean keeps a valid pixel), ``pbc`` on
 and off, missing values, two channels with their cross terms, ``standardize``, a batch, and the
-three normalisations (M-NORM). With ``norm="self"`` the reference is part of
-the function, so its derivative is part of what is checked; with ``norm="ref"`` the reference
-comes from other data and is fixed.
+three normalisations (M-NORM), passed at the call of ``estel.functional.scattering`` (task
+T2.19). With ``norm="self"`` the reference is part of the function, so its derivative is part of
+what is checked; with ``norm="ref"`` the reference comes from other data and is fixed. The
+operators are built with ``standardize=False`` unless the case standardises.
 """
 
 from __future__ import annotations
@@ -31,6 +32,20 @@ from estel import Data, Data1D, Data2D, DataHealpix, STOperator, STStatistics
 from estel.backend._protocol import Backend
 
 Function = Callable[[Any], Any]
+
+
+NORMALISATION = ("norm", "ref_batch_mean")
+"""The options of a case passed to ``apply`` and ``estel.functional.scattering``, not to the
+operator (M-NORM; task T2.19)."""
+
+
+def split(options: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The options of a case: those of the operator, ``standardize=False`` unless they say
+    otherwise, and the normalisation of the call, ``norm="self"`` unless they say otherwise."""
+    construction = {"standardize": False}
+    construction.update({k: v for k, v in options.items() if k not in NORMALISATION})
+    call = {"norm": "self", **{k: v for k, v in options.items() if k in NORMALISATION}}
+    return construction, call
 
 
 @dataclass(frozen=True)
@@ -121,11 +136,17 @@ def data_of(case: Case, seed: int = 0) -> Data:
     return case.cls(field_of(case, seed), mask=mask, pbc=case.pbc)
 
 
-def operator_of(case: Case, data: Data, **options: Any) -> STOperator:
+def operator_of(case: Case, data: Data) -> STOperator:
+    """The operator of the case, without its normalisation (:func:`normalisation_of`)."""
     defaults: dict[str, Any] = {"compute_PS": False if data._geometry == "2d" else None}
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13: tested with the plan
-        return STOperator(data, J, **{**defaults, **case.options, **options})
+        return STOperator(data, J, **{**defaults, **split(case.options)[0]})
+
+
+def normalisation_of(case: Case) -> dict[str, Any]:
+    """``norm`` and ``ref_batch_mean`` of the case, for the call."""
+    return split(case.options)[1]
 
 
 def coefficients(backend: Backend, stats: STStatistics) -> Any:
@@ -153,14 +174,14 @@ def scattering_function(backend: Backend, case: Case) -> tuple[Data, Function]:
     ``data.array``. With ``norm="ref"``, the reference is that of other data (another seed)."""
     data = data_of(case)
     operator = operator_of(case, data)
+    normalisation = normalisation_of(case)
     reference = None
-    if operator.norm == "ref":
-        storing = operator_of(case, data, norm="self")
-        reference = estel.functional.scattering(data_of(case, 1), storing.plan, storing.filters)
+    if normalisation["norm"] == "ref":
+        reference = estel.functional.scattering(data_of(case, 1), operator.plan, operator.filters)
 
     def function(array: Any) -> Any:
         stats = estel.functional.scattering(
-            data.with_array(array), operator.plan, operator.filters, reference
+            data.with_array(array), operator.plan, operator.filters, reference, **normalisation
         )
         return coefficients(backend, stats)
 
@@ -235,21 +256,19 @@ def spectrum_function(backend: Backend, case: SpectrumCase) -> tuple[Data, Funct
     With ``norm="ref"``, the reference is that of other data."""
     data = spectrum_data_of(case)
 
-    def build(**options: Any) -> Any:
-        merged = {**case.options, **options}
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13: tested with the plan
-            return STOperator(data, case.J, case.L, **merged)
-
-    operator = build()
+    construction, normalisation = split(case.options)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)  # OP-3, OP-13: tested with the plan
+        operator = STOperator(data, case.J, case.L, **construction)
     pure = estel.functional.scattering
     reference = None
-    if operator.plan.norm == "ref":
-        storing = build(norm="self")
-        reference = pure(spectrum_data_of(case, 1), storing.plan, storing.filters)
+    if normalisation["norm"] == "ref":
+        reference = pure(spectrum_data_of(case, 1), operator.plan, operator.filters)
 
     def function(array: Any) -> Any:
-        stats = pure(data.with_array(array), operator.plan, operator.filters, reference)
+        stats = pure(
+            data.with_array(array), operator.plan, operator.filters, reference, **normalisation
+        )
         return coefficients(backend, stats)
 
     return data, function

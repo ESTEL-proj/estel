@@ -122,9 +122,19 @@ class Engine(Protocol):
         """What this engine computes."""
         ...
 
-    def forward(self, x: Any, plan: Plan, arrays: Any, ref: Any = None) -> ForwardResult:
-        """Compute the statistics of ``x`` with ``plan``; ``ref`` is the normalisation
-        reference, if any (``apply(data, ref)``).
+    def forward(
+        self,
+        x: Any,
+        plan: Plan,
+        arrays: Any,
+        ref: Any = None,
+        *,
+        norm: str = "self",
+        ref_batch_mean: bool = False,
+    ) -> ForwardResult:
+        """Compute the statistics of ``x`` with ``plan``, normalised by ``norm`` and
+        ``ref_batch_mean`` (static, chosen at each call: ``apply(data, ref, norm=...,
+        ref_batch_mean=...)``); ``ref`` is the normalisation reference, if any.
         """
         ...
 
