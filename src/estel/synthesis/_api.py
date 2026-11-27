@@ -32,7 +32,8 @@ from ..backend._protocol import Backend, LbfgsState
 from ..data._base import Data, geometry_class
 from ..data._moments import Standardized
 from ..scattering._operator import STOperator
-from ..scattering._plan import STPlanSingleDomain, build_spectrum_plan_2d, resolve_compute_ps
+from ..scattering._plan import STPlanSingleDomain, resolve_compute_ps
+from ..spectra._estimators import build_spectrum_plan_2d
 from ..statistics._arrays import device_of
 from ..statistics._grid import FAMILIES
 from ..statistics._statistics import _NO_REDUCTION, STStatistics

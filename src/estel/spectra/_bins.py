@@ -194,7 +194,7 @@ def log_gaussian_bins_2d(
     """The :class:`SpectrumBins2D` of data of the even ``spatial_shape`` with the range ``J``
     (the J of the operator) and ``Jmin`` (J_min) and ``n_bins`` bins (maths.md §1.9; STL
     ``_build_log_gaussian_bin_masks``, ``estimate_pbc_border_crop``). The arguments were checked
-    by the plan (``scattering._plan.build_spectrum_plan_2d``)."""
+    by the plan (``spectra._estimators.build_spectrum_plan_2d``)."""
     n1, n2 = (int(n) for n in spatial_shape)
     n_max = min(n1, n2) // 2
     k_min = n_max / (math.sqrt(2.0) * 2.0 ** (J - 1))
