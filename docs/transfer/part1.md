@@ -152,7 +152,7 @@ At construction, an operator builds an `STPlan` in NumPy: scale and orientation 
 
 #### 2.3.1 Geometries and the hierarchy of classes
 
-ESTEL has one tree of geometries. Every family of classes follows it, and every name says which node of the tree it covers (§2.4.1). Phase P7 (Part II, §15.2, T7.2 to T7.12) brings the code to the hierarchy below; until a task of P7 is merged, the code it concerns keeps its former names.
+ESTEL has one tree of geometries. Every family of classes follows it, and every name says which node of the tree it covers (§2.4.1). Phase P7 (Part II, §15.2, T7.2 to T7.12, merged on 27 November 2026) brought the code to the hierarchy below.
 
 ```
 (every geometry)                      bare
@@ -263,7 +263,7 @@ Every internal name follows the tree of geometries (§2.3.1). `tools/check_retir
 6. **An old name never has two meanings at once.** It comes back with a new meaning only after it has disappeared entirely: renamed by script in one commit, its absence checked by the tool on that commit, then reintroduced by hand in a later commit; the table records both steps.
 7. **Closed lists only.** No list of exempted project names. The tool holds commented lists: the names of the published HEALPix convention (Górski et al. 2005: `nest2xyf`, `xyf2nest`, `xyf2ang`, `ring2nest`), never a code source (§1.5, F23); package names (`healpix_analyse`, healpy, healpix-geo, `optax`); names fixed by another program; history (Part IV, §22, `docs/register/decisions.md`, `changes/`, `bench/results/`); STL's own names, and the reserved public `plot.nyquist_filter` (Part II, §12.10); the four benchmark labels `planar-*` of step 1.
 8. **"geometry"** names a node of the tree, and, in the fixed phrases "L1 geometry" and "geometry hooks", the layer and the hooks a geometry provides; the tables of pixels are "tables" or "stencils", and the shapes of the levels of the pyramid are "levels".
-9. **Maths IDs** read `M-<TOPIC>[-<VARIANT>]*[-<GEOMETRY>]*`, the geometry in the forms of rule 2 (`1D`, `2D`, `HEALPIX`, `TENSORPROD`), digits in a topic only for named quantities (S1 to S4, W1). Phase P7 changes `-HPX` into `-HEALPIX`, `-TP` into `-TENSORPROD` and `M-CONV-2D` into `M-CONV`; which bare IDs are general is decided with the structure of `docs/maths.md` (W7). An ID defined in `docs/maths_step2.md` takes this form when it enters `docs/maths.md`.
+9. **Maths IDs** read `M-<TOPIC>[-<VARIANT>]*[-<GEOMETRY>]*`, the geometry in the forms of rule 2 (`1D`, `2D`, `HEALPIX`, `TENSORPROD`), digits in a topic only for named quantities (S1 to S4, W1). Phase P7 changed `-HPX` into `-HEALPIX`, `-TP` into `-TENSORPROD` and `M-CONV-2D` into `M-CONV`; which bare IDs are general is decided with the structure of `docs/maths.md` (W7). An ID defined in `docs/maths_step2.md` takes this form when it enters `docs/maths.md`.
 10. **"planar"** is retired: "Cartesian" for 1D and 2D grids, "single-domain" for what is not a tensor product; so are its synonyms "single geometry" and "plain geometry". In prose it survives only in a quote of STL or STL-Dev-MPI, followed by "(STL's word)".
 11. **Messages** name public names only.
 
