@@ -31,7 +31,8 @@ def _check_n_orientations(value: object) -> int:
     n = int(value)
     if n < 1:
         raise ValueError(
-            f"L={n}: the number of orientations is at least 1; the default is 4 in 2D and 1 in 1D."
+            f"L={n}: the number of orientations is at least 1; the default is 4 in 2D, 1 in 1D "
+            "and 4 gauges on HEALPix data."
         )
     return n
 
