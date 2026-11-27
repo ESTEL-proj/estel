@@ -106,10 +106,10 @@ def test_spectra_equal_the_fixture(name: str) -> None:
     field = arrays[f"{name}_field"]
     auto = spec.spec_spectra_2d(field, config["pbc"], **options, cross_matrix=np.eye(config["Nc"]))
     assert auto["method"] == config["auto"]
-    assert auto["method"] == spec.METHODS[int(arrays[f"{name}_auto_method"][0])]
+    assert auto["method"] == spec.METHODS_2D[int(arrays[f"{name}_auto_method"][0])]
     assert_parity(auto["PS"], arrays[f"{name}_auto"])
     compared = 0
-    for method in spec.METHODS:
+    for method in spec.METHODS_2D:
         key = f"{name}_method_{method}"
         if key in arrays:
             out = spec.spec_spectra_2d(field, config["pbc"], **options, method=method)
@@ -150,7 +150,7 @@ def test_statistics_with_the_spectrum_equal_the_fixture(name: str) -> None:
     method = spec.spec_spectrum_method_2d(
         mask is not None, pbc, config.get("spectrum_method", "auto")
     )
-    assert method == spec.METHODS[int(arrays[f"{name}_ps_method"][0])]
+    assert method == spec.METHODS_2D[int(arrays[f"{name}_ps_method"][0])]
     x, _ = cartesian.spec_data(target, 2, J, mask, pbc)
     raw = spec.spec_spectra_2d(x, pbc, J, Jmin, config.get("n_bins"), method, cross_matrix)
     assert raw["bins"]["n_bins"] == n_bins

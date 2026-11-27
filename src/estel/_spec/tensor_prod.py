@@ -103,7 +103,7 @@ def spec_level_tensor_prod(
     """
     for a, n_axes in enumerate(blocks):
         for _ in range(steps[a]):
-            down = functools.partial(cartesian.spec_downsample, ndim=n_axes, pbc=pbc[a])
+            down = functools.partial(cartesian.spec_downsample_cartesian, ndim=n_axes, pbc=pbc[a])
             y = spec_along_block_tensor_prod(y, blocks, a, down)
     return y
 
@@ -125,7 +125,7 @@ def spec_defaults_tensor_prod(
     return {
         "J": [math.floor(math.log2(min(block))) - 2 for block in sizes],
         "L": [ORIENTATIONS[n_axes] for n_axes in blocks],
-        "K": cartesian.KERNEL_SIZE,
+        "K": cartesian.KERNEL_SIZE_CARTESIAN,
         "lowpass": "ST",
         "norm": "self",
         "ref_batch_mean": False,
@@ -291,14 +291,16 @@ def spec_wavelet_transform_tensor_prod(
         if not wavelet[a]:
             y = np.expand_dims(y, position)
             continue
-        psi = cartesian._wavelets(n_axes, L[a], cartesian.KERNEL_SIZE)
+        psi = cartesian._wavelets_cartesian(n_axes, L[a], cartesian.KERNEL_SIZE_CARTESIAN)
         y = np.stack(
             [
                 spec_along_block_tensor_prod(
                     y,
                     blocks,
                     a,
-                    functools.partial(cartesian.spec_correlate, kernel=psi[ell], pbc=pbc[a]),
+                    functools.partial(
+                        cartesian.spec_correlate_cartesian, kernel=psi[ell], pbc=pbc[a]
+                    ),
                 )
                 for ell in range(L[a])
             ],
@@ -347,7 +349,7 @@ def spec_border_tensor_prod(
     pass filter is not a convolution in this count (OP-81).
     """
     return [
-        cartesian.spec_border(history, level, periodic)
+        cartesian.spec_border_cartesian(history, level, periodic)
         for history, level, periodic in zip(histories, levels, pbc, strict=True)
     ]
 

@@ -51,7 +51,7 @@ from .common import (
 
 FOURIER_GRID = 256
 """N, the size of the grid on which the wavelets are designed (M-WAV-2D, M-WAV-1D)."""
-KERNEL_SIZE = 5
+KERNEL_SIZE_CARTESIAN = 5
 """K, the size of the wavelet kernels (M-DEF, M-DEF-1D)."""
 WIDTH_FACTOR = 2.5
 """c, the width factor of the 2D radial bump (M-WAV-2D)."""
@@ -78,7 +78,7 @@ def spec_defaults(spatial_shape: tuple[int, ...]) -> dict[str, Any]:
     return {
         "J": math.floor(math.log2(min(spatial_shape))) - 2,
         "L": 4 if ndim == 2 else 1,
-        "K": KERNEL_SIZE,
+        "K": KERNEL_SIZE_CARTESIAN,
         "nan_threshold": NAN_THRESHOLD[ndim],
         "norm": "self",
         "ref_batch_mean": False,
@@ -149,7 +149,7 @@ def _pad(a: Array, ndim: int, before: int, after: int, pbc: bool) -> Array:
     return np.pad(a, widths, mode="wrap" if pbc else "edge")
 
 
-def spec_correlate(a: Array, kernel: Array, pbc: bool) -> Array:
+def spec_correlate_cartesian(a: Array, kernel: Array, pbc: bool) -> Array:
     """The filtering of ``a`` by ``kernel`` along its last axes, one per axis of the kernel.
     Implements M-CONV-2D, and the filtering of M-WAV-1D.
 
@@ -190,7 +190,7 @@ def _inverse_dft(spectrum: Array, omega: Array, K: int) -> Array:  # noqa: N803
     return out
 
 
-def spec_wavelets_2d(L: int, K: int = KERNEL_SIZE) -> Array:  # noqa: N803
+def spec_wavelets_2d(L: int, K: int = KERNEL_SIZE_CARTESIAN) -> Array:  # noqa: N803
     """The ``L`` bump-steerable kernels, ``(L, K, K)``, complex. Implements M-WAV-2D.
 
     In Fourier space, on the N x N grid of integer frequencies ω_i in [-N/2, N/2), N = 256:
@@ -225,7 +225,7 @@ def spec_wavelets_2d(L: int, K: int = KERNEL_SIZE) -> Array:  # noqa: N803
     return np.stack(kernels)
 
 
-def spec_wavelets_1d(L: int, K: int = KERNEL_SIZE) -> Array:  # noqa: N803
+def spec_wavelets_1d(L: int, K: int = KERNEL_SIZE_CARTESIAN) -> Array:  # noqa: N803
     """The 1D bump-steerable kernels, ``(L, K)``, complex, L = 1 or 2. Implements M-WAV-1D.
 
     In Fourier space, on N = 256 integer frequencies ω in [-N/2, N/2), with ξ₀ = N/2:
@@ -244,7 +244,7 @@ def spec_wavelets_1d(L: int, K: int = KERNEL_SIZE) -> Array:  # noqa: N803
 
 
 @functools.cache
-def _wavelets(ndim: int, L: int, K: int) -> Array:  # noqa: N803
+def _wavelets_cartesian(ndim: int, L: int, K: int) -> Array:  # noqa: N803
     """The wavelet bank of M-WAV-2D or M-WAV-1D, built once per ``(ndim, L, K)`` and read-only,
     so that the cached array cannot be altered."""
     bank = spec_wavelets_2d(L, K) if ndim == 2 else spec_wavelets_1d(L, K)
@@ -285,7 +285,7 @@ def _smoothing_kernel(ndim: int) -> Array:
     return spec_smoothing_kernel_2d() if ndim == 2 else spec_smoothing_kernel_1d()
 
 
-def spec_downsample(x: Array, ndim: int, pbc: bool) -> Array:
+def spec_downsample_cartesian(x: Array, ndim: int, pbc: bool) -> Array:
     """One downsampling step of ``x`` along its last ``ndim`` axes, without mask. Implements
     M-DOWN (in 1D, the downsampling of M-SMOOTH-1D).
 
@@ -318,9 +318,9 @@ def spec_downsample_masked(
     divided by 1 - f, where f is the invalid mask, as 0/1, downsampled by the same step. An
     output pixel is invalid if f > τ (0.33 in 2D, 0.5 in 1D; OP-12), and holds NaN.
     """
-    fraction = spec_downsample(invalid.astype(np.float64), ndim, pbc)
+    fraction = spec_downsample_cartesian(invalid.astype(np.float64), ndim, pbc)
     invalid_out = fraction > NAN_THRESHOLD[ndim]
-    down = spec_downsample(np.where(invalid, 0.0, x), ndim, pbc)
+    down = spec_downsample_cartesian(np.where(invalid, 0.0, x), ndim, pbc)
     with np.errstate(divide="ignore", invalid="ignore"):
         reweighted = down / (1.0 - fraction)
     return np.where(invalid_out, np.nan, reweighted), invalid_out
@@ -329,14 +329,14 @@ def spec_downsample_masked(
 def _down(x: Array, invalid: Mask, ndim: int, pbc: bool) -> tuple[Array, Mask]:
     """One step, with M-DOWN-MASK when there is a mask and M-DOWN otherwise."""
     if invalid is None:
-        return spec_downsample(x, ndim, pbc), None
+        return spec_downsample_cartesian(x, ndim, pbc), None
     return spec_downsample_masked(x, invalid, ndim, pbc)
 
 
 # ---------------------------------------------------------------------- masks and borders
 
 
-def spec_mask_conv(invalid: Mask, ndim: int, pbc: bool, K: int = KERNEL_SIZE) -> Mask:  # noqa: N803
+def spec_mask_conv(invalid: Mask, ndim: int, pbc: bool, K: int = KERNEL_SIZE_CARTESIAN) -> Mask:  # noqa: N803
     """The invalid pixels of data filtered by a wavelet, from those of its input. Implements
     M-MASK (the rule of layers 1 and 2).
 
@@ -346,15 +346,17 @@ def spec_mask_conv(invalid: Mask, ndim: int, pbc: bool, K: int = KERNEL_SIZE) ->
     if invalid is None:
         return None
     support = np.ones((K,) * ndim)
-    touched: NDArray[np.bool_] = spec_correlate(invalid.astype(np.float64), support, pbc) > 0
+    touched: NDArray[np.bool_] = (
+        spec_correlate_cartesian(invalid.astype(np.float64), support, pbc) > 0
+    )
     return touched
 
 
-def spec_border(
+def spec_border_cartesian(
     history: tuple[int, ...],
     level: int,
     pbc: bool,
-    K: int = KERNEL_SIZE,  # noqa: N803
+    K: int = KERNEL_SIZE_CARTESIAN,  # noqa: N803
 ) -> int:
     """The border width β, in pixels at ``level``, of data filtered at the scales ``history``
     (none, one or two). Implements M-BORDER (the fully flexible method).
@@ -378,13 +380,13 @@ def spec_first_layer(
     ndim: int,
     L: int,  # noqa: N803
     pbc: bool,
-    K: int = KERNEL_SIZE,  # noqa: N803
+    K: int = KERNEL_SIZE_CARTESIAN,  # noqa: N803
 ) -> tuple[Array, Array]:
     """The first layer at one scale, from the field at that level, ``(Nb, Nc, *spatial)``:
     ``W = ψ_l ⋆ x^(j)`` and ``U = |W|``, ``(Nb, Nc, L, *spatial)`` each. Implements M-W1.
     """
-    psi = _wavelets(ndim, L, K)
-    w = np.stack([spec_correlate(x_level, psi[ell], pbc) for ell in range(L)], axis=2)
+    psi = _wavelets_cartesian(ndim, L, K)
+    w = np.stack([spec_correlate_cartesian(x_level, psi[ell], pbc) for ell in range(L)], axis=2)
     return w, np.abs(w)
 
 
@@ -399,7 +401,7 @@ def spec_scattering(
     pbc: bool,
     invalid: Mask = None,
     cross_matrix: Any = None,
-    K: int = KERNEL_SIZE,  # noqa: N803
+    K: int = KERNEL_SIZE_CARTESIAN,  # noqa: N803
 ) -> Statistics:
     """The scattering statistics S1 to S4 of ``x``, ``(Nb, Nc, *spatial)`` with NaN at its
     ``invalid`` pixels, in STL's full grids. Implements M-S1, M-S2, M-S3, M-S4 and M-CHAN, with
@@ -413,7 +415,7 @@ def spec_scattering(
     _check_ndim(ndim)
     nb, nc = x.shape[:2]
     pairs = _channel_pairs(cross_matrix, nc)
-    psi = _wavelets(ndim, L, K)
+    psi = _wavelets_cartesian(ndim, L, K)
 
     # Layer 0: the field and its mask at each level (M-DOWN, M-DOWN-MASK).
     field, field_invalid = [x], [invalid]
@@ -438,7 +440,9 @@ def spec_scattering(
         for j3 in range(j, J):
             if j3 > j:
                 modulus, modulus_invalid = _down(modulus, modulus_invalid, ndim, pbc)
-            v[j, j3] = np.stack([spec_correlate(modulus, psi[l3], pbc) for l3 in range(L)], axis=3)
+            v[j, j3] = np.stack(
+                [spec_correlate_cartesian(modulus, psi[l3], pbc) for l3 in range(L)], axis=3
+            )
             mask2[j, j3] = spec_mask_conv(modulus_invalid, ndim, pbc, K)
 
     s1 = np.full((nb, nc, nc, J, L), np.nan, dtype=np.complex128)
@@ -453,7 +457,7 @@ def spec_scattering(
             orders = [(c1, c2)] if c1 == c2 else [(c1, c2), (c2, c1)]
 
             for j in range(J):
-                border = spec_border((j,), j, pbc, K)
+                border = spec_border_cartesian((j,), j, pbc, K)
                 for ell in range(L):
                     z1, z2 = w[j][:, c1, ell], w[j][:, c2, ell]
                     if c1 == c2:
@@ -472,7 +476,8 @@ def spec_scattering(
                 for j3 in range(J):
                     for j2 in range(j3 + 1):
                         border = max(
-                            spec_border((j2, j3), j3, pbc, K), spec_border((j3,), j3, pbc, K)
+                            spec_border_cartesian((j2, j3), j3, pbc, K),
+                            spec_border_cartesian((j3,), j3, pbc, K),
                         )
                         union = _union(mask2[j2, j3], mask1[j3])
                         for l2 in range(L):
@@ -483,8 +488,8 @@ def spec_scattering(
                                 )
                         for j1 in range(j2 + 1):
                             border = max(
-                                spec_border((j1, j3), j3, pbc, K),
-                                spec_border((j2, j3), j3, pbc, K),
+                                spec_border_cartesian((j1, j3), j3, pbc, K),
+                                spec_border_cartesian((j2, j3), j3, pbc, K),
                             )
                             union = _union(mask2[j1, j3], mask2[j2, j3])
                             for l1 in range(L):
