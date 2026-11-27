@@ -250,7 +250,7 @@ def _healpix_centres(case: Case) -> NDArray[np.float64]:
     """The unit vectors of the pixel centres of a HEALPix case, NESTED, ``(Npix, 3)``: from
     ``estel``, imported here only, natively, where the inputs are written (the container never
     runs a HEALPix case)."""
-    from estel.wavelets._healpix_geometry import centres_lonlat
+    from estel.wavelets._tables_healpix import centres_lonlat
 
     lon, lat = centres_lonlat(np.arange(case.shape[0], dtype=np.int64), case.depth)
     return np.stack([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)], axis=-1)
@@ -291,7 +291,7 @@ def _healpix_field(case: Case, seed: int) -> NDArray[np.float64]:
     averaged :data:`HEALPIX_AVERAGES` times over the pixels within
     :data:`HEALPIX_AVERAGE_RADIUS` pixel sizes of each pixel, standardised, then exponentiated
     as on 2D data. No spherical-harmonic transform and no healpy (Part I, §1.5)."""
-    from estel.wavelets._healpix_geometry import _cone_pairs, centres_lonlat
+    from estel.wavelets._tables_healpix import _cone_pairs, centres_lonlat
 
     n_pix = case.shape[0]
     lon, lat = centres_lonlat(np.arange(n_pix, dtype=np.int64), case.depth)

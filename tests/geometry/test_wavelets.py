@@ -15,20 +15,20 @@ from typing import Any
 import numpy as np
 import pytest
 
-from estel.wavelets._banks import (
+from estel.wavelets._banks_cartesian import (
     FOURIER_GRID,
-    KERNEL_SIZE,
+    KERNEL_SIZE_CARTESIAN,
     _check_zero_sum,
     bump_steerable_1d,
     bump_steerable_2d,
-    smoothing_kernel,
+    smoothing_kernel_cartesian,
 )
 
 pytestmark = pytest.mark.maths("M-WAV-2D", "M-WAV-1D", "M-SMOOTH-2D", "M-SMOOTH-1D")
 
 
 @pytest.mark.parametrize("n_orientations", [1, 2, 3, 4, 8, 16])
-@pytest.mark.parametrize("size", [3, KERNEL_SIZE, 7])
+@pytest.mark.parametrize("size", [3, KERNEL_SIZE_CARTESIAN, 7])
 def test_bump_steerable_2d_shape_dtype_and_zero_mean(n_orientations: int, size: int) -> None:
     kernels = bump_steerable_2d(n_orientations, size)
     assert kernels.shape == (n_orientations, size, size)
@@ -48,8 +48,8 @@ def test_bump_steerable_2d_orientation_0_oscillates_along_axis_2() -> None:
 def test_bump_steerable_1d_shape_and_conjugate() -> None:
     analytic = bump_steerable_1d()
     both = bump_steerable_1d(conjugate=True)
-    assert analytic.shape == (1, KERNEL_SIZE)
-    assert both.shape == (2, KERNEL_SIZE)
+    assert analytic.shape == (1, KERNEL_SIZE_CARTESIAN)
+    assert both.shape == (2, KERNEL_SIZE_CARTESIAN)
     assert both.dtype == np.complex128
     np.testing.assert_array_equal(both[0], analytic[0])
     np.testing.assert_array_equal(both[1], np.conj(analytic[0]))
@@ -66,9 +66,9 @@ def test_banks_are_new_arrays() -> None:
     first = bump_steerable_2d(4)
     first[...] = 0.0
     assert np.abs(bump_steerable_2d(4)).max() > 0.0
-    s = smoothing_kernel(2)
+    s = smoothing_kernel_cartesian(2)
     s[...] = 0.0
-    assert smoothing_kernel(2).sum() > 0.5
+    assert smoothing_kernel_cartesian(2).sum() > 0.5
 
 
 def _assert_zero_sum(kernels: np.ndarray, ndim: int) -> None:
@@ -83,13 +83,13 @@ def _assert_zero_sum(kernels: np.ndarray, ndim: int) -> None:
 
 
 @pytest.mark.parametrize("n_orientations", [1, 2, 3, 4, 8, 16])
-@pytest.mark.parametrize("size", [3, KERNEL_SIZE, 7, 31])
+@pytest.mark.parametrize("size", [3, KERNEL_SIZE_CARTESIAN, 7, 31])
 def test_every_2d_band_pass_kernel_is_zero_sum(n_orientations: int, size: int) -> None:
     _assert_zero_sum(bump_steerable_2d(n_orientations, size), ndim=2)
 
 
 @pytest.mark.parametrize("xi0", [None, FOURIER_GRID / 4, FOURIER_GRID / 8, 10.0])
-@pytest.mark.parametrize("size", [3, KERNEL_SIZE, 7, 31])
+@pytest.mark.parametrize("size", [3, KERNEL_SIZE_CARTESIAN, 7, 31])
 @pytest.mark.parametrize("conjugate", [False, True])
 def test_every_1d_band_pass_kernel_is_zero_sum(
     xi0: float | None, size: int, conjugate: bool
@@ -143,8 +143,8 @@ def test_bump_steerable_1d_rejects_non_boolean_conjugate() -> None:
 def test_smoothing_kernel_2d_is_stls_table() -> None:
     """M-SMOOTH-2D: 6 x 6, symmetric, the product of the 1D kernel up to the rounding of STL's
     literals, summing to 1 up to that rounding (1.00000004)."""
-    h2 = smoothing_kernel(2)
-    h1 = smoothing_kernel(1)
+    h2 = smoothing_kernel_cartesian(2)
+    h1 = smoothing_kernel_cartesian(1)
     assert h2.shape == (6, 6)
     assert h2.dtype == np.float64
     np.testing.assert_array_equal(h2, h2.T)
@@ -156,8 +156,8 @@ def test_smoothing_kernel_2d_is_stls_table() -> None:
 
 def test_smoothing_kernel_1d_is_the_third_row_normalized() -> None:
     """M-SMOOTH-1D: the third row of the 2D table divided by its sum (0.49241182 at the centre)."""
-    h1 = smoothing_kernel(1)
-    row = smoothing_kernel(2)[2]
+    h1 = smoothing_kernel_cartesian(1)
+    row = smoothing_kernel_cartesian(2)[2]
     np.testing.assert_array_equal(h1, row / 0.49241182)  # the correctly rounded sum
     assert h1.sum() == pytest.approx(1.0, abs=1e-15)
     np.testing.assert_allclose(
@@ -168,4 +168,4 @@ def test_smoothing_kernel_1d_is_the_third_row_normalized() -> None:
 @pytest.mark.parametrize("ndim", [0, 3, True])
 def test_smoothing_kernel_rejects_other_dimensions(ndim: Any) -> None:
     with pytest.raises(ValueError, match="ndim=1 or ndim=2"):
-        smoothing_kernel(ndim)
+        smoothing_kernel_cartesian(ndim)

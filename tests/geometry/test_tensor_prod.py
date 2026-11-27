@@ -24,9 +24,9 @@ from estel._config import FloatDType, default_device
 from estel.backend._protocol import Backend, DType
 from estel.data._base import DownsampleWeights
 from estel.data._cartesian import DataCartesian
-from estel.wavelets._banks import smoothing_kernel
-from estel.wavelets._operator import WaveletOperatorSingleDomain, default_scales_of, wavelet_bank
-from estel.wavelets._tensor_prod import (
+from estel.wavelets._banks_cartesian import smoothing_kernel_cartesian, wavelet_bank_cartesian
+from estel.wavelets._operator import WaveletOperatorSingleDomain, default_scales_of_cartesian
+from estel.wavelets._operator_tensor_prod import (
     WaveletOperatorTensorProd,
     WaveletPlanTensorProd,
     build_wavelet_filters_tensor_prod,
@@ -55,7 +55,7 @@ def _assert_close(backend: Backend, actual: Any, expected: Any, dtype: str) -> N
 
 def _bank(backend: Backend, geometry: type[DataCartesian], dtype: str) -> Any:
     return backend.asarray(
-        wavelet_bank(geometry.ndim, 4 if geometry is Data2D else 2), COMPLEX[dtype]
+        wavelet_bank_cartesian(geometry.ndim, 4 if geometry is Data2D else 2), COMPLEX[dtype]
     )
 
 
@@ -72,7 +72,7 @@ def _operator(
 
 
 def _smoothing(backend: Backend, geometry: type[DataCartesian], dtype: DType) -> DownsampleWeights:
-    return DownsampleWeights(backend.asarray(smoothing_kernel(geometry.ndim), dtype))
+    return DownsampleWeights(backend.asarray(smoothing_kernel_cartesian(geometry.ndim), dtype))
 
 
 # ---------------------------------------------------------------------- one block (OP-82)
@@ -348,7 +348,7 @@ def test_the_pytree_holds_the_array_only() -> None:
 )
 def test_default_scales_of_a_block(shape: tuple[int, ...], expected: int) -> None:
     """The rule of planar data, block by block (M-DEF-TP), one implementation."""
-    assert default_scales_of(shape) == expected
+    assert default_scales_of_cartesian(shape) == expected
 
 
 @pytest.mark.maths("M-DATA-TP", "M-DEF-TP")

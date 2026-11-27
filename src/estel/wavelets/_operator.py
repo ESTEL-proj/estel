@@ -28,10 +28,10 @@ functions:
 
 The plans and the filters follow the tree of geometries (Part I, §2.3.1). :class:`WaveletPlan`,
 abstract, is the root of the plans: :class:`WaveletPlanSingleDomain`, abstract, with its leaves
-:class:`WaveletPlanCartesian` and ``_healpix_operator.WaveletPlanHealpix``, and
-``_tensor_prod.WaveletPlanTensorProd``, which holds the plans of its blocks.
+:class:`WaveletPlanCartesian` and ``_operator_healpix.WaveletPlanHealpix``, and
+``_operator_tensor_prod.WaveletPlanTensorProd``, which holds the plans of its blocks.
 :class:`WaveletFilters`, abstract, is the root of the filters of every single-domain geometry,
-:class:`WaveletFiltersCartesian` and ``_healpix_operator.WaveletFiltersHealpix``; a tensor product
+:class:`WaveletFiltersCartesian` and ``_operator_healpix.WaveletFiltersHealpix``; a tensor product
 holds one per block. Code that takes any plan or any filters names the root, and reads the
 filters only through their hooks; an abstract class cannot be built.
 
@@ -39,10 +39,10 @@ The code proper to each geometry stays in the hooks of its ``Data`` subclass and
 functions that build its tables. Only this module calls the hooks of filtering and
 downsampling, ``_conv(x, tables, level)``, ``_downsample(x, weights, level)`` and
 ``_crop_weights(level, border)``, and only this module reads the banks of ``estel.wavelets``
-and the mask builders of ``estel.data``: CI checks it (Part I, §2.4). A tensor product composes
-the plans and arrays of its blocks in ``_tensor_prod.py``, whose operator calls the hooks of
-``DataTensorProd`` block by block. The low-pass filter is
-described here and applied with its first user, the tensor products (task T3.2).
+and the mask builders of ``estel.data``: CI checks it (Part I, §2.4). A tensor product composes the
+plans and arrays of its blocks in ``_operator_tensor_prod.py``, whose operator calls the hooks of
+``DataTensorProd`` block by block. The low-pass filter is described here and applied with its first
+user, the tensor products (task T3.2).
 
 **Scales and levels** (maths.md M-NOT; Part III, §19.12, point 5): a scale ``j`` indexes a
 wavelet, a level ``d`` a resolution, the data downsampled ``d`` times. The plan holds the level
@@ -71,13 +71,15 @@ from ..data._base import Data, DownsampleWeights, _StaticMask
 from ..data._healpix import DataHealpix
 from ..data._masks import BoolMap, MaskMaps, RealMap, build_mask_maps
 from ..data._tensor_prod import DataTensorProd
-from ._banks import KERNEL_SIZE as KERNEL_SIZE  # the default K, for the plan (re-exported)
-from ._banks import (
+
+# The default K, for the plan (re-exported).
+from ._banks_cartesian import KERNEL_SIZE_CARTESIAN as KERNEL_SIZE_CARTESIAN
+from ._banks_cartesian import (
+    WAVELETS_CARTESIAN,
     _check_n_orientations,
-    _check_size,
-    bump_steerable_1d,
-    bump_steerable_2d,
-    smoothing_kernel,
+    _check_size_cartesian,
+    smoothing_kernel_cartesian,
+    wavelet_bank_cartesian,
 )
 
 History = tuple[int, ...]
@@ -93,9 +95,6 @@ Box = tuple[tuple[int, int], ...]
 WindowKind = Literal["full", "slice", "weights"]
 """The kinds of the window of a mean (maths_step2.md M-WIN)."""
 
-WAVELETS = ("bump_steerable",)
-"""The wavelets of 1.0.0 (maths.md M-WAV-2D, M-WAV-1D)."""
-
 COMPLEX: dict[FloatDType, DType] = {"float32": "complex64", "float64": "complex128"}
 
 _K = TypeVar("_K", bound=Hashable)
@@ -104,7 +103,7 @@ _K = TypeVar("_K", bound=Hashable)
 # ---------------------------------------------------------------------- rules
 
 
-def border_width(history: History, level: int, kernel_size: int, pbc: bool) -> int:
+def border_width_cartesian(history: History, level: int, kernel_size: int, pbc: bool) -> int:
     """The border β of maths.md M-BORDER ("fully flexible"), in pixels at ``level``, of data
     convolved at the scales ``history`` (STL ``_get_crop_border_size_fully_flexible``). As in
     M-BORDER, ``j``, ``j2`` and ``j3`` below are scales and ``d`` is ``level``: the exponents
@@ -130,26 +129,12 @@ def border_width(history: History, level: int, kernel_size: int, pbc: bool) -> i
     )
 
 
-def wavelet_bank(ndim: int, n_orientations: int, size: int = KERNEL_SIZE) -> NDArray[np.complex128]:
-    """The wavelet bank of the geometry, ``(L, *kernel)`` (maths.md M-WAV-2D, M-WAV-1D)."""
-    if ndim == 2:
-        return bump_steerable_2d(n_orientations, size)
-    if ndim == 1:
-        if n_orientations not in (1, 2):
-            raise ValueError(
-                f"L={n_orientations}: 1D data have L = 1 (the default) or L = 2, the analytic "
-                "wavelet and its conjugate (maths.md M-WAV-1D)."
-            )
-        return bump_steerable_1d(size=size, conjugate=n_orientations == 2)
-    raise ValueError(f"STOperator handles 1D and 2D planar data; got {ndim} spatial axes.")
-
-
-def default_scales(data: Data) -> int:
+def default_scales_cartesian(data: Data) -> int:
     """J = ⌊log₂ min N⌋ - 2 (maths.md M-DEF, M-DEF-1D), at least 1."""
-    return default_scales_of(data.shape[2:])
+    return default_scales_of_cartesian(data.shape[2:])
 
 
-def default_scales_of(
+def default_scales_of_cartesian(
     spatial: tuple[int, ...],
     name: str = "J",
     what: str = "the data",
@@ -166,13 +151,13 @@ def default_scales_of(
     if n < 1:
         raise ValueError(
             f"the default {name} = ⌊log2 {smallest}⌋ - 2 = {n} is below 1: {what} is too small "
-            f"for the default (maths.md {_rules(tensor_prod)[0]}). Pass {name} explicitly, or "
-            "use larger data."
+            f"for the default (maths.md {_rules_cartesian(tensor_prod)[0]}). Pass {name} "
+            "explicitly, or use larger data."
         )
     return n
 
 
-def default_orientations(data: Data) -> int:
+def default_orientations_cartesian(data: Data) -> int:
     """L = 4 in 2D, 1 in 1D (maths.md M-DEF, M-DEF-1D)."""
     return 4 if data.ndim == 2 else 1
 
@@ -233,7 +218,7 @@ def _refuse_abstract(cls: type, family: str) -> None:
 class WaveletPlan(ABC):
     """The static part of a wavelet operator, of any geometry, held by the ``STPlan``
     (Part I, §2.3.1): abstract, the root of the wavelet plans. Its children are
-    :class:`WaveletPlanSingleDomain`, abstract, and ``_tensor_prod.WaveletPlanTensorProd``,
+    :class:`WaveletPlanSingleDomain`, abstract, and ``_operator_tensor_prod.WaveletPlanTensorProd``,
     which holds the plans of its blocks. Every plan is NumPy only, frozen and hashable; two
     plans are equal, and hash equal, when their ``_key`` are."""
 
@@ -256,7 +241,7 @@ class WaveletPlanSingleDomain(WaveletPlan):
     (Part II, §12.6; Part I, §2.3.1): abstract, the fields and the rules shared by every
     single-domain plan, the low-pass filter included (LF6). Its leaves are
     :class:`WaveletPlanCartesian`, for 1D and 2D data, and
-    ``_healpix_operator.WaveletPlanHealpix``.
+    ``_operator_healpix.WaveletPlanHealpix``.
 
     Never built itself: the builders build its leaves, :func:`build_wavelet_plan` a
     :class:`WaveletPlanCartesian` or a ``WaveletPlanHealpix``. NumPy only, immutable and
@@ -340,8 +325,8 @@ class WaveletPlanSingleDomain(WaveletPlan):
     ) -> WaveletFilters:
         """The arrays of this plan on the backend ``backend_name``, cast once to ``dtype`` on
         ``device``: a hook, so that the operator and the ``STPlan`` build the filters of every
-        geometry with one call (Cartesian: :func:`build_wavelet_filters`; HEALPix:
-        ``_healpix_operator.build_wavelet_filters_healpix``). ``tables``: those
+        geometry with one call (Cartesian: :func:`build_wavelet_filters_cartesian`; HEALPix:
+        ``_operator_healpix.build_wavelet_filters_healpix``). ``tables``: those
         :func:`build_wavelet_plan_with_tables` returned with this plan, or ``None``."""
 
     @abstractmethod
@@ -426,18 +411,18 @@ class WaveletPlanCartesian(WaveletPlanSingleDomain):
     def bank(self) -> NDArray[np.complex128]:
         """The wavelet bank, ``(L, *kernel)``, NumPy complex128 (M-WAV-2D, M-WAV-1D). Raises a
         ``ValueError`` when the geometry has no bank with ``L`` orientations."""
-        return wavelet_bank(self.ndim, self.L, self.kernel_size)
+        return wavelet_bank_cartesian(self.ndim, self.L, self.kernel_size)
 
     def _build_filters(
         self, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
     ) -> WaveletFiltersCartesian:
-        """:func:`build_wavelet_filters`; 1D and 2D plans have no ``tables``."""
-        return build_wavelet_filters(self, backend_name, dtype, device)
+        """:func:`build_wavelet_filters_cartesian`; 1D and 2D plans have no ``tables``."""
+        return build_wavelet_filters_cartesian(self, backend_name, dtype, device)
 
     def border(self, history: History, level: int) -> int:
         """The border β, in pixels at ``level``, of data convolved at the scales ``history``
-        (M-BORDER; :func:`border_width`)."""
-        return border_width(history, level, self.kernel_size, self.pbc)
+        (M-BORDER; :func:`border_width_cartesian`)."""
+        return border_width_cartesian(history, level, self.kernel_size, self.pbc)
 
 
 def build_wavelet_plan(
@@ -446,7 +431,7 @@ def build_wavelet_plan(
     L: int | None = None,  # noqa: N803
     wavelet: str | None = None,
     *,
-    kernel_size: int = KERNEL_SIZE,
+    kernel_size: int = KERNEL_SIZE_CARTESIAN,
 ) -> WaveletPlanSingleDomain:
     """The plan of :func:`build_wavelet_plan_with_tables`, without its tables."""
     return build_wavelet_plan_with_tables(data, J, L, wavelet, kernel_size=kernel_size)[0]
@@ -458,7 +443,7 @@ def build_wavelet_plan_with_tables(
     L: int | None = None,  # noqa: N803
     wavelet: str | None = None,
     *,
-    kernel_size: int = KERNEL_SIZE,
+    kernel_size: int = KERNEL_SIZE_CARTESIAN,
 ) -> tuple[WaveletPlanSingleDomain, Any]:
     """The :class:`WaveletPlanSingleDomain` of wavelets with ``J`` scales and ``L`` orientations
     on data with the geometry, spatial shape, ``pbc`` and mask of ``data``; its values are not
@@ -474,7 +459,7 @@ def build_wavelet_plan_with_tables(
     geometry accepts ``None`` and its own name only: 1D and 2D data ``"bump_steerable"``,
     ``DataHealpix`` ``"healpix"``; another name raises a ``ValueError`` that lists them.
 
-    HEALPix data get a ``WaveletPlanHealpix`` (``_healpix_operator``), with their own defaults
+    HEALPix data get a ``WaveletPlanHealpix`` (``_operator_healpix``), with their own defaults
     and rules (maths.md M-DEF-HPX, M-MASK-HPX): the plan of each geometry is chosen here, once,
     and everything after it goes through the hooks of the plan and of its filters.
 
@@ -490,7 +475,7 @@ def build_wavelet_plan_with_tables(
     if isinstance(data, DataHealpix):
         # Imported here: the HEALPix plan subclasses WaveletPlanSingleDomain, defined in this
         # module.
-        from ._healpix_operator import build_wavelet_plan_with_tables_healpix
+        from ._operator_healpix import build_wavelet_plan_with_tables_healpix
 
         return build_wavelet_plan_with_tables_healpix(data, J, L, wavelet, kernel_size=kernel_size)
     if isinstance(data, DataTensorProd):
@@ -499,24 +484,24 @@ def build_wavelet_plan_with_tables(
             "a tensor product is STOperatorTensorProd, with one J and one L per block (maths.md "
             "§3)."
         )
-    _check_wavelet(wavelet)
-    n_scales = _check_scales(J, data.shape[2:])
-    n_orientations = _check_n_orientations(default_orientations(data) if L is None else L)
-    plan = _wavelet_plan(
+    _check_wavelet_cartesian(wavelet)
+    n_scales = _check_scales_cartesian(J, data.shape[2:])
+    n_orientations = _check_n_orientations(default_orientations_cartesian(data) if L is None else L)
+    plan = _wavelet_plan_cartesian(
         type(data),
         data.shape[2:],
         cast(bool, data.pbc),  # one boolean: a tensor product raised above
         data.mask,
         n_scales,
         n_orientations,
-        wavelet or WAVELETS[0],
-        _check_size(kernel_size),
+        wavelet or WAVELETS_CARTESIAN[0],
+        _check_size_cartesian(kernel_size),
     )
     return plan, None
 
 
-def _check_wavelet(wavelet: object) -> None:
-    if wavelet is not None and wavelet not in WAVELETS:
+def _check_wavelet_cartesian(wavelet: object) -> None:
+    if wavelet is not None and wavelet not in WAVELETS_CARTESIAN:
         raise ValueError(
             f"wavelet={wavelet!r}: 1D and 2D data accept wavelet=None (the default, their "
             'wavelet) or "bump_steerable", the only wavelets of ESTEL 1.0.0 for them (maths.md '
@@ -524,7 +509,7 @@ def _check_wavelet(wavelet: object) -> None:
         )
 
 
-def _wavelet_plan(
+def _wavelet_plan_cartesian(
     geometry: type[Data],
     spatial: tuple[int, ...],
     pbc: bool,
@@ -538,7 +523,7 @@ def _wavelet_plan(
 ) -> WaveletPlanCartesian:
     """The :class:`WaveletPlanCartesian` of a Cartesian ``geometry`` with the static metadata
     given, and J, L and K already validated: of data (:func:`build_wavelet_plan`), or of one
-    block of a tensor product (``estel.wavelets._tensor_prod``).
+    block of a tensor product (``estel.wavelets._operator_tensor_prod``).
 
     With ``lowpass``, the plan goes down to the level of the low-pass filter too, one level
     below that of its last wavelet scale (maths.md M-LP): the blocks of a tensor product that
@@ -556,7 +541,7 @@ def _wavelet_plan(
         else build_mask_maps(
             mask,
             scale_levels,
-            s=smoothing_kernel(ndim),
+            s=smoothing_kernel_cartesian(ndim),
             kernel_size=size,
             threshold=geometry._nan_threshold,
             pbc=pbc,
@@ -601,7 +586,7 @@ def _wavelet_plan(
 class WaveletFilters(ABC):
     """The arrays of a wavelet operator of one single-domain geometry, held by the ``STFilters``
     (Part II, §12.6; Part I, §2.3.1): abstract, the root of the wavelet filters,
-    :class:`WaveletFiltersCartesian` and ``_healpix_operator.WaveletFiltersHealpix``; a tensor
+    :class:`WaveletFiltersCartesian` and ``_operator_healpix.WaveletFiltersHealpix``; a tensor
     product holds a tuple of them, one per block. The operators read them only through the
     hooks below, and the maps of each downsampling step. Each leaf is a frozen dataclass, a
     pytree whose leaves are its arrays (:func:`_register_filters`)."""
@@ -640,8 +625,8 @@ class WaveletFilters(ABC):
 class WaveletFiltersCartesian(WaveletFilters):
     """The arrays of the wavelet operator of 1D and 2D data, and of the Cartesian blocks of a
     tensor product, held by the ``STFilters`` (Part II, §12.6): backend arrays in the operator's
-    dtype, built once by :func:`build_wavelet_filters`. A pytree whose leaves are its arrays, in
-    the order of its fields (:func:`_register_filters`)."""
+    dtype, built once by :func:`build_wavelet_filters_cartesian`. A pytree whose leaves are its
+    arrays, in the order of its fields (:func:`_register_filters`)."""
 
     kernels: Any
     """The tables of ``_conv``: for planar data the complex wavelet bank, ``(L, *kernel)``, the
@@ -690,7 +675,7 @@ def _register_filters(cls: type) -> None:
 _register_filters(WaveletFiltersCartesian)
 
 
-def build_wavelet_filters(
+def build_wavelet_filters_cartesian(
     plan: WaveletPlanCartesian, backend_name: str, dtype: FloatDType, device: Any
 ) -> WaveletFiltersCartesian:
     """The arrays of ``plan`` on the backend ``backend_name``, cast once to ``dtype`` on
@@ -699,7 +684,7 @@ def build_wavelet_filters(
     field_down, modulus_down = downsample_maps_of(plan, backend_name, dtype, device)
     return WaveletFiltersCartesian(
         kernels=backend.asarray(plan.bank(), COMPLEX[dtype], device),
-        smoothing=backend.asarray(smoothing_kernel(plan.ndim), dtype, device),
+        smoothing=backend.asarray(smoothing_kernel_cartesian(plan.ndim), dtype, device),
         field_down=field_down,
         modulus_down=modulus_down,
     )
@@ -777,7 +762,7 @@ class WaveletOperatorSingleDomain:
         L: int | None = None,  # noqa: N803
         wavelet: str | None = None,
         *,
-        kernel_size: int = KERNEL_SIZE,
+        kernel_size: int = KERNEL_SIZE_CARTESIAN,
     ) -> None:
         plan, tables = build_wavelet_plan_with_tables(data, J, L, wavelet, kernel_size=kernel_size)
         filters = plan._build_filters(data.backend, default_dtype(), default_device(), tables)
@@ -1025,7 +1010,7 @@ def _read_only(array: Any, dtype: Any = None) -> NDArray[Any]:
     return copy
 
 
-def _check_scales(
+def _check_scales_cartesian(
     value: object,
     spatial: tuple[int, ...],
     name: str = "J",
@@ -1034,15 +1019,15 @@ def _check_scales(
     *,
     tensor_prod: bool = False,
 ) -> int:
-    """J as an int, :func:`default_scales_of` if ``value`` is None: at least 1, and every size
-    of the grid of full-resolution shape ``spatial`` divisible by 2^(J-1). One rule for planar
-    data (maths.md M-DATA-2D, M-DATA-1D, OP-8) and for each block of a tensor product
-    (M-DATA-TP, OP-8, OP-83). ``name`` is J, or J_a for block a; ``label`` the argument as the
-    caller wrote it, J or J[a]; ``what`` the grid; ``tensor_prod`` makes the messages cite the
-    rules of tensor products (M-DEF-TP, M-DATA-TP) instead of those of planar data."""
-    default_rule, size_rule = _rules(tensor_prod)
+    """J as an int, :func:`default_scales_of_cartesian` if ``value`` is None: at least 1, and every
+    size of the grid of full-resolution shape ``spatial`` divisible by 2^(J-1). One rule for planar
+    data (maths.md M-DATA-2D, M-DATA-1D, OP-8) and for each block of a tensor product (M-DATA-TP,
+    OP-8, OP-83). ``name`` is J, or J_a for block a; ``label`` the argument as the caller wrote it,
+    J or J[a]; ``what`` the grid; ``tensor_prod`` makes the messages cite the rules of tensor
+    products (M-DEF-TP, M-DATA-TP) instead of those of planar data."""
+    default_rule, size_rule = _rules_cartesian(tensor_prod)
     if value is None:
-        n = default_scales_of(spatial, name, what, tensor_prod=tensor_prod)
+        n = default_scales_of_cartesian(spatial, name, what, tensor_prod=tensor_prod)
         source = f"the default {name} = {n}"
     else:
         if isinstance(value, bool) or not isinstance(value, Integral):
@@ -1065,7 +1050,7 @@ def _check_scales(
     return n
 
 
-def _rules(tensor_prod: bool) -> tuple[str, str]:
+def _rules_cartesian(tensor_prod: bool) -> tuple[str, str]:
     """The maths IDs of the default J and of the sizes, for planar data or for a block of a
-    tensor product, cited by the messages of :func:`_check_scales`."""
+    tensor product, cited by the messages of :func:`_check_scales_cartesian`."""
     return ("M-DEF-TP", "M-DATA-TP") if tensor_prod else ("M-DEF", "M-DATA-2D")

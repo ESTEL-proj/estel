@@ -7,7 +7,7 @@ November 2026: no cast through float32, unlike healpix-analyse's ``HealPixConv.s
 :func:`kernel_weights_healpix` is the kernel of maths.md M-WAV-HPX, ported from STL
 `HealpixUpdate` ``90eb1a9`` (``WaveletOperatorHealpixKernel_torch._wavelet_kernel``): one complex
 kernel on the K x K stencil of M-CONV-HPX, the same at every level and for every gauge; the
-orientations are the gauges of the stencil (``_healpix_geometry.stencils_healpix``), not
+orientations are the gauges of the stencil (``_tables_healpix.stencils_healpix``), not
 rotations of the kernel. ``tests/parity/test_healpix_tables.py`` checks it against STL's.
 """
 
@@ -18,7 +18,7 @@ from numbers import Integral
 import numpy as np
 from numpy.typing import NDArray
 
-from estel.wavelets._banks import _check_zero_sum
+from estel.wavelets._banks_cartesian import _check_zero_sum
 
 __all__ = ["GAUGES_HEALPIX", "KERNEL_SIZE_HEALPIX", "kernel_weights_healpix"]
 

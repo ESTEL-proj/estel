@@ -51,7 +51,7 @@ from ..backend._protocol import Backend
 from ..data._base import Data
 from ..data._moments import modulus
 from ..statistics._layout import pack, tensor_prod_gather
-from ..wavelets._tensor_prod import WaveletOperatorTensorProd
+from ..wavelets._operator_tensor_prod import WaveletOperatorTensorProd
 from ._filters import TensorProdFilters
 from ._loop import (
     ScatteringValues,

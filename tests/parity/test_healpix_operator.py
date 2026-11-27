@@ -23,8 +23,8 @@ from numpy.typing import NDArray
 from estel import DataHealpix, _config
 from estel.backend import _registry
 from estel.backend._protocol import DType
-from estel.wavelets._healpix_operator import WaveletPlanHealpix
 from estel.wavelets._operator import WaveletOperatorSingleDomain, build_wavelet_plan
+from estel.wavelets._operator_healpix import WaveletPlanHealpix
 from tests.parity._compare import assert_parity, load_fixture
 from tests.parity.test_healpix_tables import EXCLUDED_ROWS, _well_conditioned_rows
 

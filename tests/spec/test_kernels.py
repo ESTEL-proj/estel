@@ -13,23 +13,27 @@ import numpy as np
 import pytest
 
 from estel._spec import cartesian as spec
-from estel.wavelets import _banks
+from estel.wavelets import _banks_cartesian
 from tests.parity._compare import assert_parity
 
 
 @pytest.mark.maths("M-WAV-2D")
 @pytest.mark.parametrize("L", [1, 3, 4, 6])  # allow-large-L: #133
 def test_wavelets_2d_equal_the_oracle(L: int) -> None:  # noqa: N803 (maths.md notation)
-    assert_parity(_banks.bump_steerable_2d(L), spec.spec_wavelets_2d(L))
+    assert_parity(_banks_cartesian.bump_steerable_2d(L), spec.spec_wavelets_2d(L))
 
 
 @pytest.mark.maths("M-WAV-1D")
 @pytest.mark.parametrize("L", [1, 2])
 def test_wavelets_1d_equal_the_oracle(L: int) -> None:  # noqa: N803
-    assert_parity(_banks.bump_steerable_1d(conjugate=L == 2), spec.spec_wavelets_1d(L))
+    assert_parity(_banks_cartesian.bump_steerable_1d(conjugate=L == 2), spec.spec_wavelets_1d(L))
 
 
 @pytest.mark.maths("M-SMOOTH-2D", "M-SMOOTH-1D")
 def test_smoothing_kernels_equal_the_oracle() -> None:
-    assert np.array_equal(_banks.smoothing_kernel(2), spec.spec_smoothing_kernel_2d())
-    assert np.array_equal(_banks.smoothing_kernel(1), spec.spec_smoothing_kernel_1d())
+    assert np.array_equal(
+        _banks_cartesian.smoothing_kernel_cartesian(2), spec.spec_smoothing_kernel_2d()
+    )
+    assert np.array_equal(
+        _banks_cartesian.smoothing_kernel_cartesian(1), spec.spec_smoothing_kernel_1d()
+    )

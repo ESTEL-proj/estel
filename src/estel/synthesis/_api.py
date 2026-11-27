@@ -36,7 +36,7 @@ from ..scattering._plan import PlanarPlan, build_spectrum_plan, resolve_compute_
 from ..statistics._arrays import device_of
 from ..statistics._grid import FAMILIES
 from ..statistics._statistics import _NO_REDUCTION, STStatistics
-from ..wavelets._operator import build_wavelet_plan, default_scales
+from ..wavelets._operator import build_wavelet_plan, default_scales_cartesian
 from . import _checkpoints
 from ._init import gaussian_start, standardize_target, unstandardize
 from ._loss import WEIGHTS, Objective, flatten
@@ -338,7 +338,7 @@ def _maps_setup(
     J = options.get("J")  # noqa: N806 (maths.md notation)
     if J is None and running.shape[2:] != target_data.shape[2:]:
         # Another running shape, on 2D data only (OP-101): the smaller of the two defaults.
-        J = min(default_scales(target_data), default_scales(running))  # noqa: N806
+        J = min(default_scales_cartesian(target_data), default_scales_cartesian(running))  # noqa: N806
     elif J is None:
         # The default J of the geometry (M-DEF, M-DEF-HPX), as STOperator computes it.
         J = build_wavelet_plan(target_data).J  # noqa: N806

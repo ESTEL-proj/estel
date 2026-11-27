@@ -56,15 +56,15 @@ from ..backend import _registry
 from ..data._base import Data, DownsampleWeights
 from ..data._cartesian import Data1D
 from ..data._tensor_prod import DataTensorProd
-from ._banks import KERNEL_SIZE, _check_size
+from ._banks_cartesian import KERNEL_SIZE_CARTESIAN, _check_size_cartesian
 from ._operator import (
     WaveletFilters,
     WaveletPlan,
     WaveletPlanCartesian,
-    _check_scales,
-    _check_wavelet,
+    _check_scales_cartesian,
+    _check_wavelet_cartesian,
     _is_index,
-    _wavelet_plan,
+    _wavelet_plan_cartesian,
 )
 
 LevelTensorProd = tuple[int, ...]
@@ -167,7 +167,7 @@ def build_wavelet_plan_tensor_prod(
     L: Sequence[int | None] | None = None,  # noqa: N803
     wavelet: str = "bump_steerable",
     *,
-    kernel_size: int = KERNEL_SIZE,
+    kernel_size: int = KERNEL_SIZE_CARTESIAN,
     lowpass: str | None = None,
     stacklevel: int = 1,
 ) -> WaveletPlanTensorProd:
@@ -185,7 +185,7 @@ def build_wavelet_plan_tensor_prod(
             f"WaveletOperatorTensorProd takes a DataTensorProd, got {type(data).__name__}; for "
             "1D and 2D data, use WaveletOperatorSingleDomain."
         )
-    _check_wavelet(wavelet)
+    _check_wavelet_cartesian(wavelet)
     specs = data._block_specs
     shapes = tuple(tuple(data.shape[a] for a in spec.axes) for spec in specs)
     n_blocks = len(specs)
@@ -193,13 +193,15 @@ def build_wavelet_plan_tensor_prod(
     orientations = _per_block(
         L, "L", n_blocks, ", ".join(str(default_block_orientations(s.geometry)) for s in specs)
     )
-    size = _check_size(kernel_size)
+    size = _check_size_cartesian(kernel_size)
     plans = []
     for a, (spec, shape, j_value, l_value) in enumerate(
         zip(specs, shapes, scales, orientations, strict=True)
     ):
         what = f"block {a} ({spec.geometry.__name__} of shape {shape})"
-        n_scales = _check_scales(j_value, shape, f"J_{a}", f"J[{a}]", what, tensor_prod=True)
+        n_scales = _check_scales_cartesian(
+            j_value, shape, f"J_{a}", f"J[{a}]", what, tensor_prod=True
+        )
         n_orientations = _check_block_orientations(l_value, spec.geometry, what, a)
         has_lowpass = lowpass == "ST" and all(n % 2**n_scales == 0 for n in shape)
         if lowpass == "ST" and not has_lowpass:
@@ -213,7 +215,7 @@ def build_wavelet_plan_tensor_prod(
                 stacklevel=stacklevel + 1,
             )
         plans.append(
-            _wavelet_plan(
+            _wavelet_plan_cartesian(
                 spec.geometry,
                 shape,
                 spec.pbc,
@@ -322,7 +324,7 @@ class WaveletOperatorTensorProd:
         L: Sequence[int | None] | None = None,  # noqa: N803
         wavelet: str = "bump_steerable",
         *,
-        kernel_size: int = KERNEL_SIZE,
+        kernel_size: int = KERNEL_SIZE_CARTESIAN,
         lowpass: str | None = None,
     ) -> None:
         plan = build_wavelet_plan_tensor_prod(

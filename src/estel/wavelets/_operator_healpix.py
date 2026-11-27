@@ -53,16 +53,9 @@ from ..data._masks import (
     RealMap,
     build_mask_maps_with,
 )
-from . import _healpix_geometry
-from ._banks import _check_n_orientations
-from ._healpix_bank import GAUGES_HEALPIX, _check_kernel_size, kernel_weights_healpix
-from ._healpix_geometry import (
-    DecimationHealpix,
-    StencilsHealpix,
-    _check_depth,
-    decimation_healpix,
-    stencils_healpix,
-)
+from . import _tables_healpix
+from ._banks_cartesian import _check_n_orientations
+from ._banks_healpix import GAUGES_HEALPIX, _check_kernel_size, kernel_weights_healpix
 from ._operator import (
     History,
     WaveletFilters,
@@ -70,6 +63,13 @@ from ._operator import (
     _read_only,
     _register_filters,
     downsample_maps_of,
+)
+from ._tables_healpix import (
+    DecimationHealpix,
+    StencilsHealpix,
+    _check_depth,
+    decimation_healpix,
+    stencils_healpix,
 )
 
 WAVELETS_HEALPIX = ("healpix",)
@@ -286,7 +286,7 @@ def _masks_healpix(
     def support(level: int, invalid: BoolMap) -> BoolMap:
         index, weight = stencils(level)
         bad = invalid.astype(np.float64)
-        batch = _healpix_geometry._STENCIL_BATCH
+        batch = _tables_healpix._STENCIL_BATCH
 
         def touched(rows: slice) -> BoolMap:
             # One gauge and one batch of pixels at a time bound the temporaries (task T5.7).

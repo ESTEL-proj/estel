@@ -11,7 +11,7 @@ Its geometry hooks ``_conv``, ``_downsample`` and ``_crop_weights`` act on one b
 named by ``block=a``: they dispatch to the geometry of that block, along that block's own axes
 of the array, without moving any axis (no ``swapaxes``, unlike STL's ``_as_data_class_of``).
 Like every hook of filtering and downsampling, only the wavelet operator calls them
-(``estel.wavelets._tensor_prod``; Part I, §2.3, §2.4).
+(``estel.wavelets._operator_tensor_prod``; Part I, §2.3, §2.4).
 
 Missing values are not supported in tensor products in 1.0.0 (maths.md OP-41; LF8): data that
 hold a NaN, or are given a mask, raise at construction.
@@ -173,7 +173,7 @@ class DataTensorProd(Data):
 
     # ------------------------------------------------------------------ geometry hooks
 
-    # Only the wavelet operator of a tensor product (``estel.wavelets._tensor_prod``) calls
+    # Only the wavelet operator of a tensor product (``estel.wavelets._operator_tensor_prod``) calls
     # these hooks (Part I, §2.3, §2.4). Each acts on one block, named by ``block``, at the level
     # ``level`` of that block, and dispatches to the geometry of the block, along its axes.
 

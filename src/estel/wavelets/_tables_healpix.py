@@ -3,9 +3,9 @@
 Where each block comes from (the five blocks decided on 24 November 2026, Part IV, §22):
 
 1. the NESTED pixel numbering and centres (:func:`nest2xyf`, :func:`xyf2nest`, :func:`xyf2ang`)
-   and the RING to NESTED conversion (:func:`ring2nest`) are written in ``_healpix_pixels.py``
+   and the RING to NESTED conversion (:func:`ring2nest`) are written in ``_pixels_healpix.py``
    from the published HEALPix formulas only (Górski et al. 2005, ApJ 622, 759);
-2. the bilinear interpolation of 4 pixels (``_healpix_pixels.interpolation_ring``) is written
+2. the bilinear interpolation of 4 pixels (``_pixels_healpix.interpolation_ring``) is written
    from its definition in ``docs/maths.md``, M-CONV-HPX, step 3; :func:`interp_weights_nested`
    applies it to directions, through degrees as healpix-analyse ``aac5e26`` does;
 3. the rotations of the stencil, the gauge ``"cosmo"`` only (:func:`rotation_matrices`);
@@ -77,9 +77,9 @@ from numpy.typing import ArrayLike, NDArray
 
 from estel.data._healpix import check_cell_ids, check_depth
 from estel.data._masks import SUPPORT_THRESHOLD_HEALPIX
-from estel.wavelets._banks import _check_n_orientations
-from estel.wavelets._healpix_bank import GAUGES_HEALPIX, KERNEL_SIZE_HEALPIX, _check_kernel_size
-from estel.wavelets._healpix_pixels import (
+from estel.wavelets._banks_cartesian import _check_n_orientations
+from estel.wavelets._banks_healpix import GAUGES_HEALPIX, KERNEL_SIZE_HEALPIX, _check_kernel_size
+from estel.wavelets._pixels_healpix import (
     interpolation_ring,
     nest2xyf,
     ring2nest,

@@ -22,7 +22,7 @@ from estel import Data1D, Data2D, DataHealpix, DataTensorProd
 from estel.backend._protocol import Backend
 from estel.data._moments import modulus
 from estel.wavelets._operator import WaveletOperatorSingleDomain
-from estel.wavelets._tensor_prod import WaveletOperatorTensorProd
+from estel.wavelets._operator_tensor_prod import WaveletOperatorTensorProd
 from tests.differentiation._cases import direction_like
 
 STEP = 1e-6

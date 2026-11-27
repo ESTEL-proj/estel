@@ -90,8 +90,8 @@ def downsample_step(a: RealMap, s: RealMap, pbc: bool) -> RealMap:
     if s.ndim != a.ndim:
         raise ValueError(
             f"the smoothing kernel has {s.ndim} axes but the map has {a.ndim}: pass the "
-            "smoothing kernel of the geometry, smoothing_kernel(ndim) (maths.md M-SMOOTH-2D, "
-            "M-SMOOTH-1D)."
+            "smoothing kernel of the geometry, smoothing_kernel_cartesian(ndim) (maths.md "
+            "M-SMOOTH-2D, M-SMOOTH-1D)."
         )
     odd = [n for n in a.shape if n % 2]
     if odd:
@@ -123,7 +123,7 @@ that the rule of M-MASK-HPX is written once, and it changes no planar or HEALPix
 SUPPORT_THRESHOLD_HEALPIX = 1e-12
 """Above it, the support of a HEALPix pixel touches an invalid pixel (maths.md M-MASK-HPX); and
 an interpolation weight below it counts as absent in the stencils of a partial sky (M-CONV-HPX,
-OP-110; ``estel.wavelets._healpix_geometry``): one threshold, defined here."""
+OP-110; ``estel.wavelets._tables_healpix``): one threshold, defined here."""
 
 
 def _threshold(fraction: RealMap, threshold: float) -> tuple[BoolMap, RealMap]:
@@ -163,7 +163,7 @@ def build_mask_maps(
     if not np.isclose(s.sum(), 1.0):
         raise ValueError(
             f"the smoothing kernel sums to {s.sum()}, not 1: pass the smoothing kernel of the "
-            "geometry, smoothing_kernel(ndim) (maths.md M-SMOOTH-2D, M-SMOOTH-1D)."
+            "geometry, smoothing_kernel_cartesian(ndim) (maths.md M-SMOOTH-2D, M-SMOOTH-1D)."
         )
     footprint = (kernel_size,) * np.ndim(mask)
     return build_mask_maps_with(

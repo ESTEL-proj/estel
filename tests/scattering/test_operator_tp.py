@@ -25,7 +25,7 @@ from estel.backend import _registry
 from estel.functional import _scattering
 from estel.scattering._plan import TensorProdPlan
 from estel.statistics._layout import tensor_prod_gather, tensor_prod_layout
-from estel.wavelets._tensor_prod import WaveletOperatorTensorProd
+from estel.wavelets._operator_tensor_prod import WaveletOperatorTensorProd
 from tests.parity._compare import assert_parity
 
 pytestmark = [

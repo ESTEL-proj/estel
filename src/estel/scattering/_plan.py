@@ -116,14 +116,14 @@ from ..statistics._normalization import (
     tensor_prod_blocks,
 )
 from ..wavelets._operator import (
-    KERNEL_SIZE,
+    KERNEL_SIZE_CARTESIAN,
     History,
     MeanWeights,
     WaveletOperatorSingleDomain,
     WaveletPlanSingleDomain,
     build_wavelet_plan_with_tables,
 )
-from ..wavelets._tensor_prod import WaveletPlanTensorProd, build_wavelet_plan_tensor_prod
+from ..wavelets._operator_tensor_prod import WaveletPlanTensorProd, build_wavelet_plan_tensor_prod
 from ._filters import (
     PlanarFilters,
     STFilters,
@@ -599,7 +599,7 @@ def build_plan(
     J: int | None = None,  # noqa: N803 (maths.md notation)
     L: int | None = None,  # noqa: N803
     *,
-    kernel_size: int = KERNEL_SIZE,
+    kernel_size: int = KERNEL_SIZE_CARTESIAN,
     cross_matrix: Any = None,
     standardize: bool = False,
     compute_PS: bool | None = False,  # noqa: N803 (STL's name)
@@ -627,7 +627,7 @@ def build_plan_with_tables(
     J: int | None = None,  # noqa: N803 (maths.md notation)
     L: int | None = None,  # noqa: N803
     *,
-    kernel_size: int = KERNEL_SIZE,
+    kernel_size: int = KERNEL_SIZE_CARTESIAN,
     cross_matrix: Any = None,
     standardize: bool = False,
     compute_PS: bool | None = False,  # noqa: N803 (STL's name)
@@ -969,7 +969,7 @@ def build_tensor_prod_statistics_plan(
     L: Any = None,  # noqa: N803
     *,
     lowpass: str | None = "ST",
-    kernel_size: int = KERNEL_SIZE,
+    kernel_size: int = KERNEL_SIZE_CARTESIAN,
     cross_matrix: Any = None,
     standardize: bool = False,
     stacklevel: int = 1,

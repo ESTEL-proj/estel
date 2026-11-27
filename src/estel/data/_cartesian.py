@@ -233,7 +233,7 @@ class DataCartesian(Data):
         if len(kernel.shape) != len(axes):
             raise ValueError(
                 f"{owner}: the kernel has shape {tuple(kernel.shape)}; pass the smoothing kernel "
-                f"of the geometry, smoothing_kernel({len(axes)})."
+                f"of the geometry, smoothing_kernel_cartesian({len(axes)})."
             )
         if (valid is None) != (reweight is None):
             raise ValueError(

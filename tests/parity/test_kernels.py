@@ -14,11 +14,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from estel.wavelets._banks import (
-    KERNEL_SIZE,
+from estel.wavelets._banks_cartesian import (
+    KERNEL_SIZE_CARTESIAN,
     bump_steerable_1d,
     bump_steerable_2d,
-    smoothing_kernel,
+    smoothing_kernel_cartesian,
 )
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
@@ -26,7 +26,7 @@ from tests.parity._compare import assert_parity, load_fixture, read_manifest
 @pytest.mark.maths("M-WAV-2D")
 def test_bump_steerable_2d_equals_stl() -> None:
     parameters = read_manifest()["bump_steerable_kernel_2d.npz"]["parameters"]
-    assert parameters["K"] == KERNEL_SIZE
+    assert parameters["K"] == KERNEL_SIZE_CARTESIAN
     expected = load_fixture("bump_steerable_kernel_2d")["kernel"]  # (1, L, K, K)
     assert_parity(bump_steerable_2d(parameters["L"], parameters["K"])[None], expected)
 
@@ -36,7 +36,7 @@ def test_bump_steerable_2d_equals_stl() -> None:
 def test_bump_steerable_1d_equals_stl(n_orientations: int) -> None:
     parameters = read_manifest()["bump_steerable_kernel_1d.npz"]["parameters"]
     assert n_orientations in parameters["L"]
-    assert parameters["K"] == KERNEL_SIZE
+    assert parameters["K"] == KERNEL_SIZE_CARTESIAN
     expected = load_fixture("bump_steerable_kernel_1d")[f"kernel_L{n_orientations}"]  # (1, L, K)
     actual = bump_steerable_1d(size=parameters["K"], conjugate=n_orientations == 2)
     assert_parity(actual[None], expected)
@@ -50,5 +50,5 @@ def test_smoothing_kernel_equals_stl(case: str, ndim: int) -> None:
     exactly, so the last bit of the smoothing kernel decides whether that pixel is valid
     (M-DOWN-MASK)."""
     expected = load_fixture(case)["smooth_kernel"]
-    assert_parity(smoothing_kernel(ndim), expected)
-    np.testing.assert_array_equal(smoothing_kernel(ndim), expected)
+    assert_parity(smoothing_kernel_cartesian(ndim), expected)
+    np.testing.assert_array_equal(smoothing_kernel_cartesian(ndim), expected)

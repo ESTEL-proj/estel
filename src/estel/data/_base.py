@@ -476,8 +476,8 @@ class DownsampleWeights(NamedTuple):
     """The static weights of one downsampling step (:meth:`Data._downsample`), as arrays
     of the data's backend, built from the plan.
 
-    ``data`` does not import ``wavelets``, so the kernel is passed in rather than imported:
-    the wavelet operator casts ``smoothing_kernel(ndim)`` once and passes it at every step.
+    ``data`` does not import ``wavelets``, so the kernel is passed in rather than imported: the
+    wavelet operator casts ``smoothing_kernel_cartesian(ndim)`` once and passes it at every step.
     """
 
     kernel: Any

@@ -7,8 +7,8 @@ sky, required with ``cell_ids`` (maths.md OP-91); ``cell_ids`` strictly increasi
 The mask of missing values is read or checked as for the planar classes (OP-26).
 
 The geometry hooks apply the static tables of each level that the wavelet operator gives them
-(``estel.wavelets._healpix_operator``), built in NumPy with the plan from the tables of
-``estel.wavelets._healpix_geometry`` (T5.1), whose layout they follow:
+(``estel.wavelets._operator_healpix``), built in NumPy with the plan from the tables of
+``estel.wavelets._tables_healpix`` (T5.1), whose layout they follow:
 
 * ``_conv``: the stencils with ``gather_weighted``, then the product with ``kernel``, as real
   pairs (M-CONV-HPX; Part I, §3.1, rule 6); the wavelet operator folds the kernel of M-WAV-HPX
@@ -455,7 +455,7 @@ def _decimation_rows(
 
 def check_depth(depth: object, *, minimum: int = 0, owner: str = "") -> int:
     """``depth``, log₂ ``nside``, as an int ≥ ``minimum``: the one check of a depth, for the
-    data and for the tables of ``estel.wavelets._healpix_geometry``. ``owner`` prefixes the
+    data and for the tables of ``estel.wavelets._tables_healpix``. ``owner`` prefixes the
     messages (``"DataHealpix: "``)."""
     if isinstance(depth, bool) or not isinstance(depth, Integral):
         raise TypeError(
@@ -474,7 +474,7 @@ def check_depth(depth: object, *, minimum: int = 0, owner: str = "") -> int:
 def check_cell_ids(cell_ids: Any, depth: int, *, owner: str = "") -> NDArray[np.int64]:
     """``cell_ids`` as int64: a non-empty 1D array of integers within the 12 · 4^depth pixels of
     ``depth``, strictly increasing (maths.md OP-90). The one check of NESTED pixel indices, for
-    the data and for the tables of ``estel.wavelets._healpix_geometry``. ``owner`` prefixes the
+    the data and for the tables of ``estel.wavelets._tables_healpix``. ``owner`` prefixes the
     messages."""
     ids = np.asarray(cell_ids)
     if ids.ndim != 1 or ids.size == 0:

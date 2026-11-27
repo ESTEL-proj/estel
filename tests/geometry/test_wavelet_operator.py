@@ -21,7 +21,11 @@ from estel.backend._protocol import Backend
 from estel.data._base import DownsampleWeights
 from estel.data._masks import build_mask_maps
 from estel.data._moments import modulus
-from estel.wavelets._banks import bump_steerable_1d, bump_steerable_2d, smoothing_kernel
+from estel.wavelets._banks_cartesian import (
+    bump_steerable_1d,
+    bump_steerable_2d,
+    smoothing_kernel_cartesian,
+)
 from estel.wavelets._operator import (
     COMPLEX,
     WaveletFilters,
@@ -29,7 +33,7 @@ from estel.wavelets._operator import (
     WaveletPlan,
     WaveletPlanCartesian,
     WaveletPlanSingleDomain,
-    build_wavelet_filters,
+    build_wavelet_filters_cartesian,
     build_wavelet_plan,
 )
 
@@ -97,11 +101,16 @@ def test_downsample_is_the_hook_step_with_the_maps_of_its_level(
     operator = WaveletOperatorSingleDomain(data, 3, 1)
     x = data.array
     dtype = _dtype(backend, x)
-    s = backend.asarray(smoothing_kernel(ndim), dtype)
+    s = backend.asarray(smoothing_kernel_cartesian(ndim), dtype)
     maps = None
     if data.mask is not None:
         maps = build_mask_maps(
-            data.mask, (0, 1, 2), smoothing_kernel(ndim), 5, type(data)._nan_threshold, pbc=False
+            data.mask,
+            (0, 1, 2),
+            smoothing_kernel_cartesian(ndim),
+            5,
+            type(data)._nan_threshold,
+            pbc=False,
         )
 
     def weights(invalid: NDArray[np.bool_] | None, reweight: Any) -> DownsampleWeights:
@@ -218,6 +227,6 @@ def test_wavelet_operator_rejects_bad_arguments(backend: Backend) -> None:
         warnings.simplefilter("error")
         plan = operator.plan
         assert isinstance(plan, WaveletPlanCartesian)  # the plan of 1D and 2D data
-        filters = build_wavelet_filters(plan, data.backend, "float64", None)
+        filters = build_wavelet_filters_cartesian(plan, data.backend, "float64", None)
     assert tuple(filters.kernels.shape) == (1, 5)
     assert not filters.field_down

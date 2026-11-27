@@ -1,7 +1,7 @@
 """Unit tests of the HEALPix geometry tables (task T5.1, issue #26; maths.md M-CONV-HPX,
 M-WAV-HPX, M-DOWN-HPX).
 
-Each geometry function of ``estel.wavelets._healpix_geometry`` against healpy (``pix2ang``,
+Each geometry function of ``estel.wavelets._tables_healpix`` against healpy (``pix2ang``,
 ``ring2nest``, ``get_interp_weights``), which is imported here only: it is GPL-2 and never
 imported by ESTEL (Part I, §1.5). The rotations against the formula of M-CONV-HPX, step 2; the
 kernel against M-WAV-HPX; the search of the decimation's candidates against a brute-force search;
@@ -19,9 +19,10 @@ import numpy as np
 import pytest
 
 from estel import DataHealpix
-from estel.wavelets import _healpix_geometry, _healpix_operator
-from estel.wavelets._healpix_bank import kernel_weights_healpix
-from estel.wavelets._healpix_geometry import (
+from estel.wavelets import _operator_healpix, _tables_healpix
+from estel.wavelets._banks_healpix import kernel_weights_healpix
+from estel.wavelets._operator_healpix import build_wavelet_plan_healpix
+from estel.wavelets._tables_healpix import (
     MAX_DEPTH,
     _bind_support,
     _cone_pairs,
@@ -38,7 +39,6 @@ from estel.wavelets._healpix_geometry import (
     xyf2ang,
     xyf2nest,
 )
-from estel.wavelets._healpix_operator import build_wavelet_plan_healpix
 
 
 def _pixels(depth: int) -> np.ndarray:
@@ -197,13 +197,13 @@ def test_kernel_size_is_checked(size: object, error: type[Exception]) -> None:
 @pytest.mark.maths("M-DOWN-HPX")
 @pytest.mark.parametrize("depth", [1, 2, 4])
 @pytest.mark.parametrize("sky", ["full", "disc"])
-@pytest.mark.parametrize("chunk", [7, _healpix_geometry._CONE_CHUNK])
+@pytest.mark.parametrize("chunk", [7, _tables_healpix._CONE_CHUNK])
 def test_candidate_search_equals_brute_force(
     depth: int, sky: str, chunk: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Every fine pixel within rho of a coarse centre, and no other (decision 2 on #26), in one
     chunk of coarse pixels or in many (7 coarse pixels a chunk)."""
-    monkeypatch.setattr(_healpix_geometry, "_CONE_CHUNK", chunk)
+    monkeypatch.setattr(_tables_healpix, "_CONE_CHUNK", chunk)
     nside = 1 << depth
     fine = np.arange(12 * nside**2) if sky == "full" else _disc(depth, 1.4, 0.5, 0.6)
     coarse = np.unique(fine // 4)
@@ -271,7 +271,7 @@ def test_stencils_built_by_batches_equal_one_batch(
     depth = 2
     ids = None if sky == "full" else _disc(depth, 1.4, 0.5, 0.9)
     whole = stencils_healpix(ids, depth)
-    monkeypatch.setattr(_healpix_geometry, "_STENCIL_BATCH", 7)
+    monkeypatch.setattr(_tables_healpix, "_STENCIL_BATCH", 7)
     batched = stencils_healpix(ids, depth)
     np.testing.assert_array_equal(batched.index, whole.index)
     np.testing.assert_array_equal(batched.weight, whole.weight)
@@ -287,7 +287,7 @@ def test_masks_built_by_batches_equal_one_batch(monkeypatch: pytest.MonkeyPatch)
     mask[[5, 6, 70, 71, 140]] = True
     data = DataHealpix(np.ones(192), mask=mask)
     whole = build_wavelet_plan_healpix(data, 2, kernel_size=5).masks
-    monkeypatch.setattr(_healpix_geometry, "_STENCIL_BATCH", 7)
+    monkeypatch.setattr(_tables_healpix, "_STENCIL_BATCH", 7)
     batched = build_wavelet_plan_healpix(data, 2, kernel_size=5).masks
     assert whole is not None
     assert batched is not None
@@ -310,7 +310,7 @@ def test_kernel_folded_into_the_stencils(sky: str, monkeypatch: pytest.MonkeyPat
     ids = None if sky == "full" else _disc(depth, 1.4, 0.5, 0.9)
     tables = stencils_healpix(ids, depth)
     kernel = kernel_weights_healpix(kernel_size=5)
-    index, weight = _healpix_operator._fold_kernel(tables, kernel)
+    index, weight = _operator_healpix._fold_kernel(tables, kernel)
     rows, width = tables.index.shape[0], index.shape[-1]
     assert index.shape == weight.shape == (rows, 2, width)
     assert index.dtype == np.int32
@@ -320,8 +320,8 @@ def test_kernel_folded_into_the_stencils(sky: str, monkeypatch: pytest.MonkeyPat
     expected = (x[tables.index] * tables.weight).sum(axis=-1) @ kernel
     folded = (x[index] * weight).sum(axis=-1)
     np.testing.assert_allclose(folded[:, 0] + 1j * folded[:, 1], expected, rtol=0, atol=1e-14)
-    monkeypatch.setattr(_healpix_operator, "_FOLD_BATCH", 7)
-    batched = _healpix_operator._fold_kernel(tables, kernel)
+    monkeypatch.setattr(_operator_healpix, "_FOLD_BATCH", 7)
+    batched = _operator_healpix._fold_kernel(tables, kernel)
     np.testing.assert_array_equal(batched[0], index)
     np.testing.assert_array_equal(batched[1], weight)
 

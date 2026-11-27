@@ -6,7 +6,7 @@ entry points, on the sphere, without geometry cache and with the kernel in float
 OP-46): the dense matrices at ``nside`` 4, and the responses to 3 random maps at ``nside`` 8 and
 16, on the full sky and on a disc that crosses the equator. The tables are applied here as T5.5
 will apply them (``gather_weighted``, then ``segment_sum`` for the decimation; the layout is in
-the docstring of ``_healpix_geometry``), written in NumPy, and compared with the tolerances of
+the docstring of ``_tables_healpix``), written in NumPy, and compared with the tolerances of
 Part II, §14.3. The tables equal healpix-analyse's as operators, not entry by entry (OP-92).
 
 On the discs, STL's partial-sky rule (M-CONV-HPX, OP-50) is set by interpolation weights at the
@@ -26,8 +26,8 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel.wavelets._healpix_bank import kernel_weights_healpix
-from estel.wavelets._healpix_geometry import (
+from estel.wavelets._banks_healpix import kernel_weights_healpix
+from estel.wavelets._tables_healpix import (
     DecimationHealpix,
     StencilsHealpix,
     _stencil_interpolation,
