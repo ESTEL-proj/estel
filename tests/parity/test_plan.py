@@ -1,12 +1,12 @@
 """Parity of the plan's means with STL: borders, crops, masks and denominators (task T2.3,
 issue #15; maths.md M-BORDER, M-MASK, M-MEAN).
 
-Compares ``estel.scattering._plan.build_plan`` with the fixtures ``plan_2d`` (STL `master`) and
-``plan_1d`` (STL `2D+1D`), which record, for every mean of STL's loop, the border STL's border
-method returns, the number of pixels its ``maskmean`` divides by, and (for the configurations
-marked ``"weights"``) the pixels it averages, in the order of STL's loops (the cases'
-docstrings, ``tools/stl_parity/cases/plan_2d.py``). The comparison is exact: borders and counts
-are integers, weights 0 or 1.
+Compares ``estel.scattering._plan.build_plan_single_domain`` with the fixtures ``plan_2d`` (STL
+`master`) and ``plan_1d`` (STL `2D+1D`), which record, for every mean of STL's loop, the border
+STL's border method returns, the number of pixels its ``maskmean`` divides by, and (for the
+configurations marked ``"weights"``) the pixels it averages, in the order of STL's loops (the cases'
+docstrings, ``tools/stl_parity/cases/plan_2d.py``). The comparison is exact: borders and counts are
+integers, weights 0 or 1.
 
 Where STL divides by zero (a count of 0), the coefficient is NaN, in STL and in ESTEL (maths.md
 M-MEAN, OP-3): the test checks that the plan lists exactly those means as empty, leaves them
@@ -23,7 +23,7 @@ import pytest
 from numpy.typing import NDArray
 
 from estel import Data, Data1D, Data2D
-from estel.scattering._plan import PlanarPlan, build_plan
+from estel.scattering._plan import STPlanSingleDomain, build_plan_single_domain
 from estel.wavelets._operator import MeanWeights, border_width_cartesian
 from tests.parity._compare import load_fixture, read_manifest
 
@@ -55,7 +55,7 @@ def _stl_order(J: int) -> list[tuple[str, tuple[tuple[int, ...], ...], int, Any]
     return order
 
 
-def _lookup(plan: PlanarPlan, key: Any) -> MeanWeights:
+def _lookup(plan: STPlanSingleDomain, key: Any) -> MeanWeights:
     if key == "moments":
         return plan.moments
     family, *index = key
@@ -74,10 +74,10 @@ def _data(case: str, name: str, fixture: dict[str, NDArray[Any]]) -> tuple[Data,
     return cls(np.zeros(shape), mask=mask, pbc=config["pbc"]), config["J"]
 
 
-def _build(data: Data, J: int, L: int) -> PlanarPlan:  # noqa: N803
+def _build(data: Data, J: int, L: int) -> STPlanSingleDomain:  # noqa: N803
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-13, checked in tests/scattering
-        return build_plan(data, J, L)
+        return build_plan_single_domain(data, J, L)
 
 
 @pytest.mark.parametrize(("case", "name"), _configs())

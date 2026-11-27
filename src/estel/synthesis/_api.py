@@ -32,7 +32,7 @@ from ..backend._protocol import Backend, LbfgsState
 from ..data._base import Data, geometry_class
 from ..data._moments import Standardized
 from ..scattering._operator import STOperator
-from ..scattering._plan import PlanarPlan, build_spectrum_plan, resolve_compute_ps
+from ..scattering._plan import STPlanSingleDomain, build_spectrum_plan, resolve_compute_ps
 from ..statistics._arrays import device_of
 from ..statistics._grid import FAMILIES
 from ..statistics._statistics import _NO_REDUCTION, STStatistics
@@ -423,7 +423,7 @@ def synthesize_from_stats(
             "full-sky HEALPix fields (maths.md section 5). Pass the statistics of estel.Data2D "
             "or estel.DataHealpix maps, computed with estel.STOperator."
         )
-    plan = cast(PlanarPlan, stats._plan)  # a single geometry: a tensor product raised above
+    plan = cast(STPlanSingleDomain, stats._plan)  # a single geometry: a tensor product raised above
     backend = _check_backend(stats._backend)
     if plan.geometry._geometry not in _GEOMETRIES:
         raise ValueError(
@@ -801,7 +801,8 @@ def _settings(
 ) -> dict[str, Any]:
     if not isinstance(lr, int | float) or isinstance(lr, bool) or not lr > 0:
         raise ValueError(f"lr={lr!r}: pass a positive step size (STL's: 1.0).")
-    spectrum = cast(PlanarPlan, operator.plan).spectrum  # syntheses are of single geometries
+    # Syntheses are of single geometries.
+    spectrum = cast(STPlanSingleDomain, operator.plan).spectrum
     return {
         "entry": entry,
         "backend": backend.name,

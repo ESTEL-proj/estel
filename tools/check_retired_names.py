@@ -207,6 +207,10 @@ STL_NAMES = frozenset(
         # Source lines; imported by tools/stl_parity/cases/*_tp.py and smoke.py).
         "Tensor_Product_Kernel_Torch",
         "ST_Operator_Tensor_Product",
+        # STL-Dev `HealpixUpdate` at 90eb1a9: `ST_Operator.build_plan`, a method of its Python
+        # pyramid engine, not transferred (docs/maths.md §4, the table of its new methods;
+        # Part II, §10). ESTEL's own `build_plan` became `build_plan_single_domain` (T7.7).
+        "build_plan",
         # Reserved public name (Part II, §12.10).
         "nyquist_filter",
     }
@@ -1262,7 +1266,11 @@ def check_done_occurrences(
             continue
         for form in forms:
             anywhere.setdefault(form, row)
-        ambiguous = name in pending or any(m not in homes for m in defined.get(name, ()))
+        ambiguous = (
+            name in pending
+            or name in STL_NAMES  # STL's own name of the same spelling, cited bare
+            or any(m not in homes for m in defined.get(name, ()))
+        )
         if not ambiguous:
             (anywhere if _is_distinctive(name) else quoted).setdefault(name, row)
     errors += _done_in_prose(texts, ids, anywhere, quoted, local)

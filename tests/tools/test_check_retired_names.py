@@ -467,6 +467,29 @@ def test_a_row_done_fails_on_its_own_old_name(
     assert "its row is done" in output
 
 
+@pytest.mark.parametrize(
+    ("prose", "status"),
+    [
+        pytest.param(
+            "STL's pyramid engine adds `build_plan` to `ST_Operator`.\n", 0, id="stl-bare"
+        ),
+        pytest.param("See `_plan.build_plan`.\n", 1, id="estel-qualified"),
+    ],
+)
+def test_a_row_done_lets_stl_names_be_cited_bare(tmp_path: Path, prose: str, status: int) -> None:
+    """STL's own ``build_plan`` (``STL_NAMES``) keeps its bare name in the text once ESTEL's
+    ``build_plan`` is renamed; the qualified forms of ESTEL's name still fail."""
+    files = {
+        "src/estel/scattering/_plan.py": "def build_plan_single_domain():\n    pass\n",
+        "docs/other.md": prose,
+        **table(
+            row("estel.scattering._plan:build_plan", "build_plan_single_domain", "T7.7", done=True)
+        ),
+    }
+    found, output = names(tmp_path, files)
+    assert found == status, output
+
+
 MODULE_ROW = table(
     row("estel.wavelets._tensor_prod", "estel.wavelets._operator_tensor_prod", done=True)
 )

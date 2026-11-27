@@ -2,14 +2,15 @@
 form of the second layer (Part II, §12.6; maths.md M-W1-TP, M-LP, M-S-TP, M-BORDER-TP;
 maths_step2.md M-GRAM; task T3.2).
 
-:func:`tensor_prod_values` is the counterpart of ``_loop.scattering_values`` for a
-``DataTensorProd``: the data, the plan and the filters in, the statistics without normalisation
-out, in the compact buffer of ``statistics._layout.tensor_prod_layout`` (task T3.6). It shares
-the code of the planar loop for what does not depend on the geometry (``_loop``: the means of
-the field, the sums of S1 and S2 of a scale, the Gram products of a level, the sums then the
-division with the hook of distributed runs); it differs by the hooks of Part II, §12.6: the
-index sets and levels are multi-indices, and the first and the second layer apply the block
-convolutions one block after the other.
+:func:`values_tensor_prod` is the counterpart of ``_loop_single_domain.values_single_domain``
+for a ``DataTensorProd``: the data, the plan and the filters in, the statistics without
+normalisation out, in the compact buffer of ``statistics._layout.tensor_prod_layout`` (task
+T3.6). It shares the code of the planar loop for what does not depend on the geometry
+(``_loop``: the means of the field, the sums of S1 and S2 of a scale, the Gram products of a
+level, the sums then the division with the hook of distributed runs, ``_loop._global_sum``,
+read from its module at each call so that a replaced hook reaches this loop too); it differs
+by the hooks of Part II, §12.6: the index sets and levels are multi-indices, and the first and
+the second layer apply the block convolutions one block after the other.
 
 **The first layer** follows STL (M-W1-TP, "How STL reaches it"): the field is downsampled along
 block 0 to the level of j₀ and filtered along block 0; the complex result is downsampled along
@@ -52,25 +53,25 @@ from ..data._base import Data
 from ..data._moments import modulus
 from ..statistics._layout import pack, tensor_prod_gather
 from ..wavelets._operator_tensor_prod import WaveletOperatorTensorProd
-from ._filters import TensorProdFilters
+from . import _loop
+from ._filters import STFiltersTensorProd
 from ._loop import (
     ScatteringValues,
     _divide_level,
-    _global_sum,
     field_moments,
     first_layer_sums,
     gram_sums,
 )
-from ._tensor_prod import FirstLayerScale, Scale, SecondLayerScale, TensorProdLoop
+from ._tensor_prod import FirstLayerScale, LoopTensorProd, ScaleTensorProd, SecondLayerScale
 
 if TYPE_CHECKING:
-    from ._plan import TensorProdPlan
+    from ._plan import STPlanTensorProd
 
 # ---------------------------------------------------------------------- the loop
 
 
-def tensor_prod_values(
-    data: Data, plan: TensorProdPlan, filters: TensorProdFilters
+def values_tensor_prod(
+    data: Data, plan: STPlanTensorProd, filters: STFiltersTensorProd
 ) -> ScatteringValues:
     """The statistics of ``data``, a ``DataTensorProd``, without normalisation (maths.md
     M-MOM, M-S-TP), STL's ``ST_Operator_TensorProd`` with ``norm="vanilla"`` and no spectrum, in
@@ -86,20 +87,20 @@ def tensor_prod_values(
     x, sums, mean_pre_std, std_pre_std = field_moments(
         data.array, None, loop.moments_denominator, axes, plan.standardize
     )
-    moments = _divide_level(backend, sums, _global_sum)
+    moments = _divide_level(backend, sums, _loop._global_sum)
 
     # The first layer, every scale of S1 and S2 in lexicographic order: W_j x, (Nb, L'_{B-1},
     # …, L'_0, Nc, *spatial at level j), the orientations in reverse block order.
     maps = _first_layer(backend, wavelets, plan, x)
     scales = {s.scale: s for s in loop.first_layer}
     s12: dict[str, list[Any]] = {"S1": [], "S2": []}
-    band: dict[Scale, Any] = {}
-    moduli: dict[Scale, Any] = {}
+    band: dict[ScaleTensorProd, Any] = {}
+    moduli: dict[ScaleTensorProd, Any] = {}
     for scale, w in maps:
         info = scales[scale]
         if info.centred:  # X - ⟨X⟩ over every pixel of X (M-LP, OP-42), complex like the others
             # A mean of the loop: its sum goes through the hook of distributed runs too.
-            mean = _global_sum(xp.sum(w, axis=axes)) / info.denominator
+            mean = _loop._global_sum(xp.sum(w, axis=axes)) / info.denominator
             centred = w - xp.reshape(mean, (*tuple(mean.shape), *(1,) * len(axes)))
             w = xp.astype(centred, _complex_of(backend, w))
         u = modulus(w)
@@ -142,8 +143,8 @@ def _complex_of(backend: Backend, x: Any) -> Any:
 
 
 def _first_layer(
-    backend: Backend, wavelets: WaveletOperatorTensorProd, plan: TensorProdPlan, x: Any
-) -> list[tuple[Scale, Any]]:
+    backend: Backend, wavelets: WaveletOperatorTensorProd, plan: STPlanTensorProd, x: Any
+) -> list[tuple[ScaleTensorProd, Any]]:
     """W_j x for every scale j of S1 and S2, in lexicographic order, with STL's cache of
     prefixes (M-W1-TP): the map filtered along the blocks 0 … a - 1 is downsampled along block
     a level by level, filtered at each wavelet scale of block a, and, when the block has a
@@ -152,11 +153,13 @@ def _first_layer(
     n_blocks = len(blocks)
     xp = backend.xp
 
-    def stage(a: int, prefix: Scale, level: Scale, y: Any) -> list[tuple[Scale, Any]]:
+    def stage(
+        a: int, prefix: ScaleTensorProd, level: ScaleTensorProd, y: Any
+    ) -> list[tuple[ScaleTensorProd, Any]]:
         if a == n_blocks:
             return [(prefix, y)]
         block = blocks[a]
-        out: list[tuple[Scale, Any]] = []
+        out: list[tuple[ScaleTensorProd, Any]] = []
         chain, current = y, level
         for j in range(block.J):
             chain, current = _bring(wavelets, chain, current, a, block.scale_levels[j])
@@ -176,7 +179,7 @@ def _first_layer(
 
 def _first_layer_means(
     backend: Backend,
-    plan: TensorProdPlan,
+    plan: STPlanTensorProd,
     info: FirstLayerScale,
     w: Any,
     u: Any,
@@ -194,7 +197,7 @@ def _first_layer_means(
     flat_u = xp.reshape(u, (n_batch, n_o, plan.n_channels, *spatial))
     window = None if info.window is None else tuple(slice(a, b) for a, b in info.window)
     pending = first_layer_sums(flat_w, flat_u, window, info.denominator, plan.pairs, axes)
-    divided = _divide_level(backend, pending, _global_sum)
+    divided = _divide_level(backend, pending, _loop._global_sum)
     pairs = plan.pairs
     order = [
         *(("S1", (c, c)) for c in pairs.auto),
@@ -227,11 +230,11 @@ def _first_layer_means(
 def _second_layer_grams(
     backend: Backend,
     wavelets: WaveletOperatorTensorProd,
-    plan: TensorProdPlan,
-    moduli: dict[Scale, Any],
-    band: dict[Scale, Any],
-    filters: TensorProdFilters,
-) -> list[tuple[Scale, Any, Any]]:
+    plan: STPlanTensorProd,
+    moduli: dict[ScaleTensorProd, Any],
+    band: dict[ScaleTensorProd, Any],
+    filters: STFiltersTensorProd,
+) -> list[tuple[ScaleTensorProd, Any, Any]]:
     """For each wavelet scale j3, in lexicographic order, the Gram products of its level
     (M-GRAM): the products of the second-layer maps with the band map W_{j3} x,
     ``(Nb, L3, P, Nc)``, and their Gram matrix, ``(Nb, L3, P, P)``, the rows P being the arms
@@ -253,12 +256,14 @@ def _second_layer_grams(
         spatial = tuple(int(n) for n in u.shape[1 + n_blocks + 1 :])
         return xp.reshape(u, (int(u.shape[0]), 1, n_rows, *spatial))
 
-    def level_of(prefix: Scale, a: int, j: int, tail: Scale) -> Scale:
+    def level_of(prefix: ScaleTensorProd, a: int, j: int, tail: ScaleTensorProd) -> ScaleTensorProd:
         head = tuple(blocks[b].scale_levels[prefix[b]] for b in range(a))
         rest = tuple(blocks[a + 1 + i].scale_levels[t] for i, t in enumerate(tail))
         return (*head, blocks[a].scale_levels[j], *rest)
 
-    def stage(a: int, prefix: Scale, groups: dict[Scale, Any]) -> list[tuple[Scale, Any, Any]]:
+    def stage(
+        a: int, prefix: ScaleTensorProd, groups: dict[ScaleTensorProd, Any]
+    ) -> list[tuple[ScaleTensorProd, Any, Any]]:
         # ``groups``: for each tail (j2_a, …, j2_{B-1}), the arms with that tail and heads
         # (j2_0 … j2_{a-1}) ≤ prefix, filtered along the blocks 0 … a - 1, stacked on the axis
         # after the a band orientations: (Nb, L3_{a-1}, …, L3_0, n_arms, L·Nc, *spatial).
@@ -267,10 +272,10 @@ def _second_layer_grams(
             return [_leaf(backend, plan, loop, filters, prefix, stack, band[prefix])]
         block = blocks[a]
         tails = sorted({tail[1:] for tail in groups})
-        out: list[tuple[Scale, Any, Any]] = []
-        chains: dict[Scale, Any] = {}
+        out: list[tuple[ScaleTensorProd, Any, Any]] = []
+        chains: dict[ScaleTensorProd, Any] = {}
         for j in range(block.J):
-            filtered: dict[Scale, Any] = {}
+            filtered: dict[ScaleTensorProd, Any] = {}
             for tail in tails:
                 level = level_of(prefix, a, j, tail)
                 previous = chains.get(tail)
@@ -294,13 +299,13 @@ def _second_layer_grams(
 
 def _leaf(
     backend: Backend,
-    plan: TensorProdPlan,
-    loop: TensorProdLoop,
-    filters: TensorProdFilters,
-    j3: Scale,
+    plan: STPlanTensorProd,
+    loop: LoopTensorProd,
+    filters: STFiltersTensorProd,
+    j3: ScaleTensorProd,
     stack: Any,
     band: Any,
-) -> tuple[Scale, Any, Any]:
+) -> tuple[ScaleTensorProd, Any, Any]:
     """The Gram products of the level of j3: each map set to zero outside its window, block by
     block, then :func:`~estel.scattering._loop.gram_sums`."""
     xp = backend.xp
@@ -329,9 +334,9 @@ def _leaf(
 
 def _second_layer_means(
     backend: Backend,
-    plan: TensorProdPlan,
+    plan: STPlanTensorProd,
     info: SecondLayerScale,
-    filters: TensorProdFilters,
+    filters: STFiltersTensorProd,
     cross: Any,
     gram: Any,
 ) -> tuple[Any, Any]:
@@ -385,7 +390,7 @@ def _second_layer_means(
         shapes.append((int(info.s4_rows.shape[0]), n_o**3, 2))
     # Sums, then their global sum (the hook of distributed runs), then the division.
     flat = [xp.reshape(s, (n_batch, -1)) for s in sums]
-    total = _global_sum(xp.concat(flat, axis=1))
+    total = _loop._global_sum(xp.concat(flat, axis=1))
     out: list[Any] = []
     offset = 0
     denominators = [filters.s3_denominators[info.j3], filters.s4_denominators[info.j3]]
@@ -408,8 +413,8 @@ def _second_layer_means(
 
 
 def _bring(
-    wavelets: WaveletOperatorTensorProd, x: Any, level: Scale, a: int, target: int
-) -> tuple[Any, Scale]:
+    wavelets: WaveletOperatorTensorProd, x: Any, level: ScaleTensorProd, a: int, target: int
+) -> tuple[Any, ScaleTensorProd]:
     """``x`` at ``level``, downsampled along block a until d_a = ``target``."""
     while level[a] < target:
         x = wavelets.downsample(x, level, block=a)
@@ -417,7 +422,7 @@ def _bring(
     return x, level
 
 
-def _with(level: Scale, a: int, d: int) -> Scale:
+def _with(level: ScaleTensorProd, a: int, d: int) -> ScaleTensorProd:
     return (*level[:a], d, *level[a + 1 :])
 
 

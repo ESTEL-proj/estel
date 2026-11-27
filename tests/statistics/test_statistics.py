@@ -24,7 +24,7 @@ import estel
 from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
 from estel.backend._protocol import Backend, DType
 from estel.io import _schema
-from estel.scattering._plan import PlanarPlan
+from estel.scattering._plan import STPlanSingleDomain
 from tests._backends import backend_name
 
 pytestmark = pytest.mark.maths("M-NORM", "M-RED-ISO", "M-RED-ANG", "M-RED-SCALE", "M-FLAT")
@@ -87,7 +87,7 @@ def test_layout_predicts_every_nan() -> None:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)  # OP-30, tested below
             stats = _operator(data, 4, cross_matrix=matrix).apply(data, norm=norm)
-        assert isinstance(stats._plan, PlanarPlan)
+        assert isinstance(stats._plan, STPlanSingleDomain)
         assert stats._plan.empty_s3_pairs
         for reduced in (
             stats,

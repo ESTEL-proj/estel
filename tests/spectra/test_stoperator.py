@@ -23,7 +23,7 @@ from numpy.typing import NDArray
 from estel import Data2D, STOperator, STStatistics, _config
 from estel.backend import _registry
 from estel.io import _schema
-from estel.scattering._plan import PlanarPlan
+from estel.scattering._plan import STPlanSingleDomain
 from estel.statistics._normalization import SpectrumParameters
 
 pytestmark = pytest.mark.maths("M-PS-2D", "M-NORM")
@@ -227,8 +227,8 @@ def test_save_and_load_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     loaded = STStatistics.load(path)
     assert loaded._plan == stats._plan
     plan = loaded._plan
-    assert isinstance(plan, PlanarPlan)
-    assert isinstance(stats._plan, PlanarPlan)
+    assert isinstance(plan, STPlanSingleDomain)
+    assert isinstance(stats._plan, STPlanSingleDomain)
     assert plan.spectrum == stats._plan.spectrum
     assert plan.spectrum is not None
     assert plan.spectrum.content() == {"n_bins": 5, "J": 3, "Jmin": 1, "method": "nan_mask"}

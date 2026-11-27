@@ -28,14 +28,14 @@ What it holds, for STL's loop structure (maths.md §1.6 to 1.7; STL ``ST_Operato
   the pixels that enter the mean, 0 elsewhere, and their sum; and the means that have no
   valid pixel, whose coefficients are NaN (OP-3).
 
-* **The windows of the second layer** (``second_layer``, one :class:`SecondLayerWindows` per
-  scale j3 of the second convolution; maths_step2.md M-GRAM): the scales j2 whose second-layer
-  maps ψ_{j3} ⋆ U_{j2} are computed, and the window of each of these maps and of the band
-  map, the weights of a mean of that map alone. The loop sets each map to zero outside its own
-  window, takes one Gram product, and divides each mean by its denominator, which is the number
-  of pixels of the two windows' intersection: the weights of S3 and S4 above are the products
-  of two windows, and STL's windows are reproduced exactly. Weights are stored once per
-  distinct level, border and mask: the means that have the same three share one array.
+* **The windows of the second layer** (``second_layer``, one :class:`SecondLayerWindowsSingleDomain`
+  per scale j3 of the second convolution; maths_step2.md M-GRAM): the scales j2 whose second-layer
+  maps ψ_{j3} ⋆ U_{j2} are computed, and the window of each of these maps and of the band map, the
+  weights of a mean of that map alone. The loop sets each map to zero outside its own window, takes
+  one Gram product, and divides each mean by its denominator, which is the number of pixels of the
+  two windows' intersection: the weights of S3 and S4 above are the products of two windows, and
+  STL's windows are reproduced exactly. Weights are stored once per distinct level, border and mask:
+  the means that have the same three share one array.
 
 * **Windows have a kind** (``MeanWeights.kind``; maths_step2.md M-WIN; Part III, §19.12,
   point 1; task T2.13): ``full``, every pixel of the level (periodic data without missing
@@ -75,9 +75,9 @@ T2.19).
 
 **Public and opaque.** ``STPlan`` is public as a name only (Part II, §12.6): users get it
 from an operator's ``plan`` and pass it to ``estel.functional.scattering``, and it has no public
-field. It is the base class of the plan of each geometry: :class:`PlanarPlan`, whose fields are
-those of the private base class ``_PlanFields``, and :class:`TensorProdPlan` (task T3.2), both
-read by ESTEL only.
+field. It is the base class of the plan of each geometry: :class:`STPlanSingleDomain`, whose
+fields are those of the private base class ``_PlanFieldsSingleDomain``, and
+:class:`STPlanTensorProd` (task T3.2), both read by ESTEL only.
 
 A mean with no pixel left is where STL divides by zero, and its coefficient is NaN (M-MEAN,
 OP-3). The plan knows these means statically: it leaves them out of ``first_layer``, ``s3``
@@ -95,7 +95,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -124,15 +124,16 @@ from ..wavelets._operator import (
 )
 from ..wavelets._operator_tensor_prod import WaveletPlanTensorProd, build_wavelet_plan_tensor_prod
 from ._filters import (
-    PlanarFilters,
     STFilters,
-    TensorProdFilters,
-    build_filters,
-    build_tensor_prod_filters,
+    STFiltersSingleDomain,
+    STFiltersTensorProd,
+    build_filters_single_domain,
+    build_filters_tensor_prod,
 )
-from ._loop import ScatteringValues, scattering_values
-from ._loop_tp import tensor_prod_values
-from ._tensor_prod import TensorProdLoop, build_tensor_prod_loop
+from ._loop import ScatteringValues
+from ._loop_single_domain import values_single_domain
+from ._loop_tensor_prod import values_tensor_prod
+from ._tensor_prod import LoopTensorProd, build_loop_tensor_prod
 
 ChannelPair = tuple[int, int]
 
@@ -179,9 +180,10 @@ class SpectrumPlan:
     bins", "Choice of estimator"; tasks T4.4, T4.1): how many bins, J, J_min, the estimator
     chosen at construction, and the spatial shape whose bins, windows and borders it reads
     (:meth:`bins`, ``spectra._bins.log_gaussian_bins``, built once in NumPy). Hashable. In the
-    plan of ``STOperator`` its channel pairs are those of the plan (``PlanarPlan.pairs``): the
-    pairs c1 ≤ c2 of S1 and S2, one matrix for the scattering statistics and the spectrum
-    (M-CHAN; decision on #148); σᴾˢ exists for the channels of ``pairs.auto`` (M-NORM, OP-30)."""
+    plan of ``STOperator`` its channel pairs are those of the plan
+    (``STPlanSingleDomain.pairs``): the pairs c1 ≤ c2 of S1 and S2, one matrix for the
+    scattering statistics and the spectrum (M-CHAN; decision on #148); σᴾˢ exists for the
+    channels of ``pairs.auto`` (M-NORM, OP-30)."""
 
     n_bins: int
     """n_b, the number of bins: given, or max(4, round(3 (J - 1 - J_min)))."""
@@ -294,7 +296,7 @@ def build_spectrum_plan(
 
 
 @dataclass(frozen=True, eq=False)
-class SecondLayerWindows:
+class SecondLayerWindowsSingleDomain:
     """The second-layer maps of one scale j3 of the second convolution and their windows, for the
     Gram form (maths_step2.md M-GRAM; Part III, §19.3); they are computed at the level of j3.
 
@@ -328,6 +330,18 @@ class _SharedFields:
 
     geometry: type[Data]
     """The geometry of the data, the Data subclass the plan was built for."""
+    if TYPE_CHECKING:  # read-only here: each subclass declares its own type, int or tuple
+
+        @property
+        def J(self) -> int | tuple[int, ...]:  # noqa: N802 (maths.md notation)
+            """The number of scales: an int for single-domain data, one per block for a
+            tensor product."""
+
+        @property
+        def L(self) -> int | tuple[int, ...]:  # noqa: N802
+            """The number of orientations: an int for single-domain data, one per block for
+            a tensor product."""
+
     n_channels: int
     """Nc, fixed when the plan is built."""
     cross_matrix: NDArray[np.bool_]
@@ -344,12 +358,12 @@ class STPlan(_SharedFields):
     Get it from ``STOperator.plan`` or ``STOperatorTensorProd.plan`` and pass it, with the
     operator's filters, to ``estel.functional.scattering``. It is immutable and hashable, so
     that JAX can take it as a static argument; it has no public field. The plan of each
-    geometry is a subclass, internal to ESTEL: :class:`PlanarPlan` for single-domain data (1D,
-    2D and HEALPix), :class:`TensorProdPlan` for tensor products (task T3.2). Two plans are
-    equal, and hash equal, when they are of one class and were built from the same parameters
-    and the same static metadata of the data (geometry, spatial shape, ``pbc``, mask, number of
-    channels; on HEALPix, ``depth`` and ``cell_ids``;
-    for a tensor product, its blocks), so that they hold the same values.
+    geometry is a subclass, internal to ESTEL: :class:`STPlanSingleDomain` for single-domain
+    data (1D, 2D and HEALPix), :class:`STPlanTensorProd` for tensor products (task T3.2). Two
+    plans are equal, and hash equal, when they are of one class and were built from the same
+    parameters and the same static metadata of the data (geometry, spatial shape, ``pbc``, mask,
+    number of channels; on HEALPix, ``depth`` and ``cell_ids``; for a tensor product, its
+    blocks), so that they hold the same values.
 
     **Hooks** (Part I, §2.3; Part II, §12.6; issue #144). What depends on the geometry goes
     through a small, fixed set of internal hooks, declared here and implemented by each
@@ -388,7 +402,7 @@ class STPlan(_SharedFields):
     ) -> STFilters:
         """The filters of this plan on the backend ``backend_name``, cast once to ``dtype`` on
         ``device`` (Part I, §3.1, rules 4 and 7). ``tables``: those the plan was built with
-        (:func:`build_plan_with_tables`), read instead of built again, or ``None``."""
+        (:func:`build_plan_with_tables_single_domain`), read instead of built again, or ``None``."""
         raise NotImplementedError
 
     def _values(self, data: Data, filters: STFilters) -> ScatteringValues:
@@ -422,7 +436,7 @@ class STPlan(_SharedFields):
 
 
 @dataclass(frozen=True, eq=False)
-class _PlanFields:
+class _PlanFieldsSingleDomain:
     """The fields of :class:`STPlan`, internal to ESTEL (the plan is public and
     opaque)."""
 
@@ -480,7 +494,7 @@ class _PlanFields:
     s4: Mapping[tuple[int, int, int], MeanWeights]
     """For each triple of :attr:`s4_triples` not in :attr:`empty_s4_triples`: the weights of
     S4, at the level of scale ``j3`` (M-S4)."""
-    second_layer: Mapping[int, SecondLayerWindows]
+    second_layer: Mapping[int, SecondLayerWindowsSingleDomain]
     """For each scale j3 with an S3 or an S4 mean: its second-layer maps and their windows
     (M-GRAM)."""
     empty_scales: tuple[int, ...]
@@ -493,10 +507,10 @@ class _PlanFields:
     meta: tuple[Any, ...]
     """The static metadata of the data beyond the mask and ``pbc``, ``Data._meta()`` of the
     example: ``()`` for 1D and 2D data, ``(depth, cell_ids)`` for ``DataHealpix``. The data
-    given to the plan must have the same (:meth:`PlanarPlan._check_data`), and the files store it
-    (``Data._meta_content``). The equality and the hash of plans rest on the wavelet plan
-    (``wavelets._key``, in ``_key``), which holds the same metadata; ``meta`` is what
-    ``_check_data`` and the files read."""
+    given to the plan must have the same (:meth:`STPlanSingleDomain._check_data`), and the
+    files store it (``Data._meta_content``). The equality and the hash of plans rest on the
+    wavelet plan (``wavelets._key``, in ``_key``), which holds the same metadata; ``meta`` is
+    what ``_check_data`` and the files read."""
     _key: tuple[Any, ...] = field(repr=False)
     spectrum: SpectrumPlan | None = None
     """The power spectrum of the statistics (maths.md §1.9), or ``None`` when they do not hold
@@ -505,14 +519,15 @@ class _PlanFields:
     writes it after the values of the loop, the last floats of the buffer (task T4.1)."""
 
 
-class PlanarPlan(_PlanFields, STPlan):
+class STPlanSingleDomain(_PlanFieldsSingleDomain, STPlan):
     """The :class:`STPlan` of single-domain data, 1D, 2D and HEALPix (``STOperator.plan``),
-    built by :func:`build_plan`; its fields are those of ``_PlanFields``."""
+    built by :func:`build_plan_single_domain`; its fields are those of
+    ``_PlanFieldsSingleDomain``."""
 
     _operator_name: ClassVar[str] = "STOperator"
 
     def _check_data(self, data: Data, filters: STFilters) -> None:
-        if not isinstance(filters, PlanarFilters):
+        if not isinstance(filters, STFiltersSingleDomain):
             raise TypeError(_OTHER_OPERATORS)
         if data.mask is None or self.mask is None:
             same_mask = data.mask is None and self.mask is None
@@ -542,11 +557,12 @@ class PlanarPlan(_PlanFields, STPlan):
 
     def _build_filters(
         self, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
-    ) -> PlanarFilters:
-        return build_filters(self, backend_name, dtype, device, tables)
+    ) -> STFiltersSingleDomain:
+        return build_filters_single_domain(self, backend_name, dtype, device, tables)
 
     def _values(self, data: Data, filters: STFilters) -> ScatteringValues:
-        return scattering_values(data, self, cast(PlanarFilters, filters))  # by _check_data
+        # The cast holds by _check_data.
+        return values_single_domain(data, self, cast(STFiltersSingleDomain, filters))
 
     def _layout(self) -> Layout:
         return base_layout(self)
@@ -593,7 +609,7 @@ _OTHER_OPERATORS = (
 )
 
 
-def build_plan(
+def build_plan_single_domain(
     data: Data,
     J: int | None = None,  # noqa: N803 (maths.md notation)
     L: int | None = None,  # noqa: N803
@@ -605,9 +621,10 @@ def build_plan(
     n_bins: int | None = None,
     Jmin: int = 0,  # noqa: N803 (STL's name)
     spectrum_method: str = "auto",
-) -> PlanarPlan:
-    """The plan of :func:`build_plan_with_tables`, without the tables of its wavelets."""
-    return build_plan_with_tables(
+) -> STPlanSingleDomain:
+    """The plan of :func:`build_plan_with_tables_single_domain`, without the tables of its
+    wavelets."""
+    return build_plan_with_tables_single_domain(
         data,
         J,
         L,
@@ -621,7 +638,7 @@ def build_plan(
     )[0]
 
 
-def build_plan_with_tables(
+def build_plan_with_tables_single_domain(
     data: Data,
     J: int | None = None,  # noqa: N803 (maths.md notation)
     L: int | None = None,  # noqa: N803
@@ -633,8 +650,8 @@ def build_plan_with_tables(
     n_bins: int | None = None,
     Jmin: int = 0,  # noqa: N803 (STL's name)
     spectrum_method: str = "auto",
-) -> tuple[PlanarPlan, Any]:
-    """The :class:`PlanarPlan` of a scattering transform with ``J`` scales and ``L``
+) -> tuple[STPlanSingleDomain, Any]:
+    """The :class:`STPlanSingleDomain` of a scattering transform with ``J`` scales and ``L``
     orientations on data with the geometry, spatial shape, ``pbc``, mask and number of channels
     of ``data``; by default J and L are those of the geometry (M-DEF, M-DEF-1D) and the kernel
     size that of the wavelets of the geometry (``kernel_size=None``).
@@ -655,12 +672,13 @@ def build_plan_with_tables(
     their defaults (decision on #148).
 
     Beside the plan, the NumPy tables its wavelets were built with
-    (:func:`build_wavelet_plan_with_tables`), for :meth:`PlanarPlan._build_filters` of the same
-    operator (``tables=``; task T5.7): a value, not part of the plan.
+    (:func:`build_wavelet_plan_with_tables`), for :meth:`STPlanSingleDomain._build_filters` of
+    the same operator (``tables=``; task T5.7): a value, not part of the plan.
     """
     if not isinstance(data, Data):
         raise TypeError(
-            f"build_plan takes a Data object, such as estel.Data2D, got {type(data).__name__}."
+            "build_plan_single_domain takes a Data object, such as estel.Data2D, "
+            f"got {type(data).__name__}."
         )
     wavelets, tables = build_wavelet_plan_with_tables(data, J, L, kernel_size=kernel_size)
     matrix = _cross_matrix(cross_matrix, data.n_channels)
@@ -697,11 +715,11 @@ def build_plan_with_tables(
         {key: (histories, level) for key, (_, histories, level) in means.items()}
     )
     weights = {key: w for key, w in candidates.items() if w is not None}
-    _check_empty(means, weights)
+    _check_empty_single_domain(means, weights)
     s3 = {(j2, j3): weights[("S3", j2, j3)] for j2, j3 in s3_pairs if ("S3", j2, j3) in weights}
     s4 = {t: weights[("S4", *t)] for t in s4_triples if ("S4", *t) in weights}
 
-    plan = PlanarPlan(
+    plan = STPlanSingleDomain(
         geometry=wavelets.geometry,
         J=wavelets.J,
         L=wavelets.L,
@@ -731,7 +749,7 @@ def build_plan_with_tables(
             {
                 j3: maps
                 for j3 in scales
-                if (maps := _second_layer_windows(j3, weights, s3, s4)) is not None
+                if (maps := _second_layer_windows_single_domain(j3, weights, s3, s4)) is not None
             }
         ),
         empty_scales=tuple(j for j in scales if ("S1", j) not in weights),
@@ -774,10 +792,11 @@ def _spectrum(
     jmin: object,
     method: object = "auto",
 ) -> SpectrumPlan | None:
-    """The :class:`SpectrumPlan` of :func:`build_plan`, or ``None`` without ``compute_PS``, whose
-    options must then keep their defaults (decision on #148). ``compute_PS=None`` means the
-    default: the spectrum on 2D data, none on other data, where ESTEL 1.0.0 has none (Part II,
-    §12.6), and where ``compute_PS=True`` or a spectrum option raises :func:`spectrum_2d_only`."""
+    """The :class:`SpectrumPlan` of :func:`build_plan_single_domain`, or ``None`` without
+    ``compute_PS``, whose options must then keep their defaults (decision on #148).
+    ``compute_PS=None`` means the default: the spectrum on 2D data, none on other data, where ESTEL
+    1.0.0 has none (Part II, §12.6), and where ``compute_PS=True`` or a spectrum option raises
+    :func:`spectrum_2d_only`."""
     two_d = wavelets.geometry._geometry == "2d"
     if not resolve_compute_ps(compute_ps, wavelets.geometry):
         changed = [
@@ -818,19 +837,19 @@ def _spectrum(
 
 # ---------------------------------------------------------------------- tensor products
 
-LOWPASS_TP = ("ST", None)
+LOWPASS_TENSOR_PROD = ("ST", None)
 """The values of ``lowpass`` of a tensor product in ESTEL 1.0.0 (maths.md M-LP): ``"ST"``, the
 low-pass filter of each block where it exists, or ``None``. ESTEL 1.0.0 has no tensor-product
 spectrum, so STL's ``"PS"`` and ``("ST", "PS")`` are not taken."""
 
 
 @dataclass(frozen=True, eq=False)
-class TensorProdPlan(STPlan):
+class STPlanTensorProd(STPlan):
     """The static description of the statistics of a tensor product (maths.md M-NOT-TP, M-LP,
     M-IDX-TP, M-CHAN; Part II, §12.6; task T3.6): what the compact layout, the normalisation and
     the files need, and the static description of the loop of task T3.2 (:attr:`loop`).
 
-    Built by :func:`build_tensor_prod_statistics_plan` from the plan of the wavelet operator of
+    Built by :func:`build_statistics_plan_tensor_prod` from the plan of the wavelet operator of
     the tensor product (``WaveletPlanTensorProd``, task T3.1); NumPy only, immutable and
     hashable. Its index sets are those of each block (M-IDX-TP): the index set of the tensor
     product is their Cartesian product, which the layout enumerates chunk by chunk, never as a
@@ -856,7 +875,7 @@ class TensorProdPlan(STPlan):
     spatial_shape: tuple[int, ...]
     """The spatial shape of the data at full resolution, the axes of every block in order."""
     lowpass: str | None
-    """``"ST"`` or ``None`` (:data:`LOWPASS_TP`)."""
+    """``"ST"`` or ``None`` (:data:`LOWPASS_TENSOR_PROD`)."""
     lowpass_blocks: tuple[bool, ...]
     """Whether each block has a low-pass filter (M-LP): ``lowpass="ST"`` and every size of the
     block divisible by 2^J_a."""
@@ -868,7 +887,7 @@ class TensorProdPlan(STPlan):
     """The channel pairs of each family (M-CHAN)."""
     standardize: bool
     """Whether each map is standardised before the transform (M-MOM, M-STD)."""
-    loop: TensorProdLoop
+    loop: LoopTensorProd
     """The static description of the loop (``_tensor_prod``; task T3.2): per scale, the
     windows and denominators of S1 and S2; per wavelet scale j3, the arms, the crops of the
     blocks, and the rows and denominators of the chunks of S3 and S4. Determined by the other
@@ -897,7 +916,7 @@ class TensorProdPlan(STPlan):
         return orientations_at(scale, self.J, self.L)
 
     def _check_data(self, data: Data, filters: STFilters) -> None:
-        if not isinstance(filters, TensorProdFilters):
+        if not isinstance(filters, STFiltersTensorProd):
             raise TypeError(_OTHER_OPERATORS)
         # A DataTensorProd (isinstance), whose blocks L2 reads without importing its class
         # (Part I, §2.4).
@@ -918,12 +937,12 @@ class TensorProdPlan(STPlan):
 
     def _build_filters(
         self, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
-    ) -> TensorProdFilters:
+    ) -> STFiltersTensorProd:
         # A tensor product builds no tables with its plan: ``tables`` is None.
-        return build_tensor_prod_filters(self, backend_name, dtype, device)
+        return build_filters_tensor_prod(self, backend_name, dtype, device)
 
     def _values(self, data: Data, filters: STFilters) -> ScatteringValues:
-        return tensor_prod_values(data, self, cast(TensorProdFilters, filters))  # by _check_data
+        return values_tensor_prod(data, self, cast(STFiltersTensorProd, filters))  # by _check_data
 
     def _layout(self) -> Layout:
         return tensor_prod_layout(self)
@@ -962,7 +981,7 @@ class TensorProdPlan(STPlan):
         return content, {}
 
 
-def build_tensor_prod_statistics_plan(
+def build_statistics_plan_tensor_prod(
     data: Data,
     J: Any = None,  # noqa: N803 (maths.md notation)
     L: Any = None,  # noqa: N803
@@ -972,13 +991,13 @@ def build_tensor_prod_statistics_plan(
     cross_matrix: Any = None,
     standardize: bool = False,
     stacklevel: int = 1,
-) -> TensorProdPlan:
-    """The :class:`TensorProdPlan` of a ``DataTensorProd``, with one J and one L per block
+) -> STPlanTensorProd:
+    """The :class:`STPlanTensorProd` of a ``DataTensorProd``, with one J and one L per block
     (M-DATA-TP, M-DEF-TP: a list, an entry ``None`` giving the default of the block). The values
     of ``data`` are not read. ``lowpass`` is ``"ST"`` (STL's default) or ``None`` (M-LP);
     ``cross_matrix`` and ``standardize`` are those of
-    :func:`build_plan`. The static description of the loop, its index tables, crop widths and
-    mean denominators, is built here too (:attr:`TensorProdPlan.loop`).
+    :func:`build_plan_single_domain`. The static description of the loop, its index tables, crop
+    widths and mean denominators, is built here too (:attr:`STPlanTensorProd.loop`).
 
     Warns once, as STL does, for each block whose sizes are not divisible by 2^J_a: it has no
     low-pass filter (M-LP, OP-34); and once for the plan when a border is too large for a block
@@ -987,9 +1006,9 @@ def build_tensor_prod_statistics_plan(
     if not isinstance(data, Data) or data._geometry != "tensor_prod":
         raise TypeError(
             f"the statistics of a tensor product take a DataTensorProd, got "
-            f"{type(data).__name__}; for 1D, 2D and HEALPix data, use build_plan."
+            f"{type(data).__name__}; for 1D, 2D and HEALPix data, use build_plan_single_domain."
         )
-    if isinstance(lowpass, bool) or lowpass not in LOWPASS_TP:
+    if isinstance(lowpass, bool) or lowpass not in LOWPASS_TENSOR_PROD:
         raise ValueError(
             f'lowpass={lowpass!r}: pass "ST" (the low-pass filter of each block, the default) '
             'or None (maths.md M-LP); ESTEL 1.0.0 has no tensor-product spectrum, so "PS" is '
@@ -1006,7 +1025,7 @@ def build_tensor_prod_statistics_plan(
     # gives the first of these warnings, once, as the planar plan does (mean_weights).
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        loop = build_tensor_prod_loop(
+        loop = build_loop_tensor_prod(
             wavelets,
             tuple({(c, c) for c in pairs.auto} | set(pairs.cross)),
             pairs.ordered,
@@ -1016,7 +1035,7 @@ def build_tensor_prod_statistics_plan(
         warnings.warn(caught[0].message, stacklevel=stacklevel + 1)
     flags = list(wavelets.lowpass_blocks)
     scales = tuple(range(block.J) for block in wavelets.blocks)
-    return TensorProdPlan(
+    return STPlanTensorProd(
         geometry=type(data),
         wavelets=wavelets,
         block_geometries=tuple(b.geometry for b in wavelets.blocks),
@@ -1054,12 +1073,12 @@ def build_tensor_prod_statistics_plan(
 # ---------------------------------------------------------------------- helpers
 
 
-def _second_layer_windows(
+def _second_layer_windows_single_domain(
     j3: int,
     weights: Mapping[Any, MeanWeights],
     s3: Mapping[tuple[int, int], MeanWeights],
     s4: Mapping[tuple[int, int, int], MeanWeights],
-) -> SecondLayerWindows | None:
+) -> SecondLayerWindowsSingleDomain | None:
     """The second-layer maps of scale ``j3`` and their windows, or ``None`` when ``j3`` has no
     S3 and no S4 mean.
 
@@ -1078,11 +1097,13 @@ def _second_layer_windows(
     of_band = weights[("S1", j3)] if any(key[1] == j3 for key in s3) else None
     used = [*of_arms, *([] if of_band is None else [of_band])]
     if all(w.denominator == w.weights.size for w in used):
-        return SecondLayerWindows(arms=arms, windows=(), arm_windows=(), band_window=None)
+        return SecondLayerWindowsSingleDomain(
+            arms=arms, windows=(), arm_windows=(), band_window=None
+        )
     # The weights of one level, border and mask are one object (``mean_weights``).
     distinct = list({id(w.weights): w.weights for w in used}.values())
     position = {id(window): i for i, window in enumerate(distinct)}
-    return SecondLayerWindows(
+    return SecondLayerWindowsSingleDomain(
         arms=arms,
         windows=tuple(distinct),
         arm_windows=tuple(position[id(w.weights)] for w in of_arms),
@@ -1125,14 +1146,14 @@ def _check_standardize(standardize: object) -> None:
         raise TypeError(f"standardize={standardize!r}: pass True or False.")
 
 
-_FAMILIES = {"moments": "mean and var", "S1": "S1 and S2", "S3": "S3", "S4": "S4"}
+_FAMILIES_SINGLE_DOMAIN = {"moments": "mean and var", "S1": "S1 and S2", "S3": "S3", "S4": "S4"}
 
 
-def _mean_family(key: Any) -> str:
+def _mean_family_single_domain(key: Any) -> str:
     return "moments" if key == "moments" else str(key[0])
 
 
-def _check_empty(
+def _check_empty_single_domain(
     means: Mapping[Any, tuple[str, tuple[History, ...], int]], weights: Mapping[Any, MeanWeights]
 ) -> None:
     """Raise if a whole family has no mean with a valid pixel; otherwise warn once, listing the
@@ -1146,8 +1167,8 @@ def _check_empty(
         "1D and 2D data that are not periodic, the border crop grows with depth (pbc=True if "
         "they are periodic)."
     )
-    for family, name in _FAMILIES.items():
-        members = [key for key in means if _mean_family(key) == family]
+    for family, name in _FAMILIES_SINGLE_DOMAIN.items():
+        members = [key for key in means if _mean_family_single_domain(key) == family]
         if members and all(key not in weights for key in members):
             raise ValueError(
                 f"no {name} coefficient can be computed: the missing values and the border crops "

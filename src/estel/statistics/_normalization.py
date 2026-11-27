@@ -50,7 +50,7 @@ from ._layout import (
 )
 
 if TYPE_CHECKING:
-    from ..scattering._plan import PlanarPlan, TensorProdPlan
+    from ..scattering._plan import STPlanSingleDomain, STPlanTensorProd
 
 
 NORMS = ("self", "ref", "none")
@@ -109,7 +109,7 @@ class TensorProdBlocks(NamedTuple):
         return orientations_at(scale, self.J, self.L)
 
 
-def tensor_prod_blocks(plan: TensorProdPlan) -> TensorProdBlocks:
+def tensor_prod_blocks(plan: STPlanTensorProd) -> TensorProdBlocks:
     """The :class:`TensorProdBlocks` of ``plan``."""
     return TensorProdBlocks(
         geometries=tuple(g.__name__ for g in plan.block_geometries),
@@ -767,7 +767,9 @@ def _divide_tp(
     return apply(backend, buffer, tables.transform, scale, chunks)
 
 
-def check_reference(reference: _NormReference, plan: PlanarPlan, n_batch: int, dtype: Any) -> None:
+def check_reference(
+    reference: _NormReference, plan: STPlanSingleDomain, n_batch: int, dtype: Any
+) -> None:
     """Raise unless ``reference`` can normalise the statistics of ``plan``, before they are
     computed (maths.md M-NORM).
 
@@ -851,7 +853,7 @@ def _check_spectrum(reference: _NormReference, plan: Any) -> None:
 
 
 def check_tensor_prod_reference(
-    reference: _NormReference, plan: TensorProdPlan, n_batch: int, dtype: Any
+    reference: _NormReference, plan: STPlanTensorProd, n_batch: int, dtype: Any
 ) -> None:
     """Raise unless ``reference`` can normalise the statistics of the tensor product ``plan``
     (maths.md M-NORM-TP, M-NORM; Part IV, R-Y03): it must come from a tensor product with the

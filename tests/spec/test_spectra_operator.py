@@ -30,6 +30,7 @@ from estel._spec import cartesian as spec
 from estel._spec import spectra
 from estel.backend import _registry
 from estel.backend._protocol import DType
+from estel.scattering._plan import STPlanSingleDomain
 from tests.parity._compare import assert_parity
 
 pytestmark = [pytest.mark.maths("M-PS-2D", "M-NORM", "M-FLAT"), pytest.mark.dtype]
@@ -94,7 +95,10 @@ def test_spectrum_equals_the_oracle(name: str, dtype: DType) -> None:
         )
     oracle_field = field if mask is None else np.where(mask, np.nan, field)
     expected = spectra.spec_spectra_2d(oracle_field, pbc, **options)
-    assert operator._plan.spectrum.method == expected["method"]  # type: ignore[union-attr]
+    plan = operator.plan
+    assert isinstance(plan, STPlanSingleDomain)
+    assert plan.spectrum is not None
+    assert plan.spectrum.method == expected["method"]
     stats = operator.apply(data, norm="none")
     assert_parity(_numpy(stats.full_grid("PS")), expected["PS"], dtype)
 

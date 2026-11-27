@@ -28,10 +28,10 @@ geometry of the block:
 
 The wavelet W_j of M-W1-TP is the product of the block convolutions, applied block after
 block in block order, block 0 first, as STL does; the scattering loop of task T3.2 composes
-them (``estel.scattering._loop_tp``). A block has a low-pass filter when ``lowpass="ST"`` and
-its sizes are divisible by 2^J_a (M-LP, OP-34): its plan then goes down to level J_a, one
-downsampling more than its wavelets need. Tensor products have no missing values in 1.0.0
-(LF8), so the blocks have no masks.
+them (``estel.scattering._loop_tensor_prod``). A block has a low-pass filter when
+``lowpass="ST"`` and its sizes are divisible by 2^J_a (M-LP, OP-34): its plan then goes down to
+level J_a, one downsampling more than its wavelets need. Tensor products have no missing
+values in 1.0.0 (LF8), so the blocks have no masks.
 
 **Defaults** (M-DEF-TP): J_a = ⌊log₂ min N⁽ᵃ⁾⌋ - 2, the rule of planar data, shared with
 ``_operator.py``, and L_a = 4 for a 2D block, 2 for a 1D block. **Arguments** (OP-83,

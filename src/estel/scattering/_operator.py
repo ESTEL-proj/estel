@@ -2,14 +2,15 @@
 tasks T2.4, T2.5, T5.6).
 
 An operator is a frozen plan plus a pure function (Part I, §2.3): ``STOperator(data, ...)``
-builds the static plan (``build_plan``) and the filters (``build_filters``), cast once to the
-default dtype, and ``apply(data, ref=None, *, norm="self", ref_batch_mean=False)`` calls
+builds the static plan (``build_plan_single_domain``) and the filters
+(``build_filters_single_domain``), cast once to the default dtype, and
+``apply(data, ref=None, *, norm="self", ref_batch_mean=False)`` calls
 ``estel.functional.scattering``. Every option is set in one place only (review rule A6): the
 normalisation, ``norm`` and ``ref_batch_mean``, at each call of ``apply``, so that one operator
-serves every normalisation, as in STL (task T2.19); the rest at construction, the number of
-channels and ``cross_matrix`` too, read from the example data (issue #17). The operator records
-its backend, dtype and the static metadata of the data it was built for (geometry, spatial shape,
-``pbc``, mask, number of channels), and refuses other data.
+serves every normalisation, as in STL (task T2.19); the rest at construction, the number of channels
+and ``cross_matrix`` too, read from the example data (issue #17). The operator records its backend,
+dtype and the static metadata of the data it was built for (geometry, spatial shape, ``pbc``, mask,
+number of channels), and refuses other data.
 
 **The reference.** As in STL (maths.md M-NORM), each call of ``apply`` with ``norm="self"``
 stores the reference of the statistics it computes in the operator, replacing the one it held
@@ -40,13 +41,13 @@ from ..functional._scattering import apply_operator
 from ..statistics._arrays import dtype_name
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
-from ._filters import PlanarFilters, STFilters, TensorProdFilters
+from ._filters import STFilters
 from ._plan import (
-    PlanarPlan,
     STPlan,
-    TensorProdPlan,
-    build_plan_with_tables,
-    build_tensor_prod_statistics_plan,
+    STPlanSingleDomain,
+    STPlanTensorProd,
+    build_plan_with_tables_single_domain,
+    build_statistics_plan_tensor_prod,
     spectrum_2d_only,
 )
 
@@ -103,14 +104,14 @@ class STOperator:
         1.0.0.
     """
 
-    _plan: PlanarPlan | TensorProdPlan
-    _filters: PlanarFilters | TensorProdFilters
+    _plan: STPlan
+    _filters: STFilters
     _backend: str
     _dtype: FloatDType
     _device: Any
     _engine: str
     _reference: _NormReference | None
-    _plan_type: ClassVar[type[PlanarPlan] | type[TensorProdPlan]] = PlanarPlan
+    _plan_type: ClassVar[type[STPlan]] = STPlanSingleDomain
     """The plan of the operator's geometry, which :meth:`from_statistics` takes."""
     _other_statistics: ClassVar[str] = (
         "these are the statistics of a tensor product, which STOperator does not compute: use "
@@ -135,7 +136,7 @@ class STOperator:
             raise TypeError(
                 f"STOperator takes a Data object, such as estel.Data2D, got {type(data).__name__}."
             )
-        plan, tables = build_plan_with_tables(
+        plan, tables = build_plan_with_tables_single_domain(
             data,
             J,
             L,
@@ -173,7 +174,7 @@ class STOperator:
 
     def _setup(
         self,
-        plan: PlanarPlan | TensorProdPlan,
+        plan: STPlan,
         backend: str,
         dtype: FloatDType,
         device: Any,
@@ -184,7 +185,8 @@ class STOperator:
         """The state of an operator: its plan, its filters built once on ``backend`` in
         ``dtype`` by the plan (``STPlan._build_filters``), its engine checked in the registry
         (Part II, §9.4), and its reference. ``tables``: the tables the plan was built with
-        (``build_plan_with_tables``), passed to the filters once and not kept (task T5.7)."""
+        (``build_plan_with_tables_single_domain``), passed to the filters once and not kept (task
+        T5.7)."""
         capabilities = _engines.resolve(engine)
         capabilities.check(geometry=plan.geometry._geometry, dtype=dtype)
         self._plan = plan
@@ -268,7 +270,7 @@ class STOperator:
         return stats
 
     def __repr__(self) -> str:
-        plan = _plan_of(self, PlanarPlan)
+        plan = _plan_of(self, STPlanSingleDomain)
         return (
             f"STOperator(J={plan.J}, L={plan.L}, compute_PS={plan.spectrum is not None}, "
             f"standardize={plan.standardize}, "
@@ -286,10 +288,10 @@ class STOperatorTensorProd(STOperator):
     construction (J and L per block, ``lowpass``), ``lowpass``, ``__repr__`` and the plan that
     :meth:`from_statistics` takes, and inherits the rest, ``apply`` (and with it the
     normalisation chosen at each call), ``from_statistics``, ``plan``, ``filters``, ``J``, ``L``
-    and ``standardize``. Its plan and filters,
-    subclasses of ``STPlan`` and ``STFilters``, carry the hooks of its loop: the index sets,
-    the levels and the two layers (``_loop_tp``). Its statistics are stored in the compact layout of
-    tensor products; their full grid is a view built on demand, for small cases only.
+    and ``standardize``. Its plan and filters, subclasses of ``STPlan`` and ``STFilters``,
+    carry the hooks of its loop: the index sets, the levels and the two layers
+    (``_loop_tensor_prod``). Its statistics are stored in the compact layout of tensor
+    products; their full grid is a view built on demand, for small cases only.
 
     Parameters
     ----------
@@ -319,7 +321,7 @@ class STOperatorTensorProd(STOperator):
         1.0.0.
     """
 
-    _plan_type = TensorProdPlan
+    _plan_type = STPlanTensorProd
     _other_statistics = (
         "these are the statistics of single-domain data: use STOperator.from_statistics(stats)."
     )
@@ -350,7 +352,7 @@ class STOperatorTensorProd(STOperator):
                     type(data).__name__, "Pass compute_PS=False, or leave it to None."
                 )
             )
-        plan = build_tensor_prod_statistics_plan(
+        plan = build_statistics_plan_tensor_prod(
             data,
             J,
             L,
@@ -367,10 +369,10 @@ class STOperatorTensorProd(STOperator):
     @property
     def lowpass(self) -> str | None:
         """``"ST"`` or ``None`` (maths.md M-LP)."""
-        return _plan_of(self, TensorProdPlan).lowpass
+        return _plan_of(self, STPlanTensorProd).lowpass
 
     def __repr__(self) -> str:
-        plan = _plan_of(self, TensorProdPlan)
+        plan = _plan_of(self, STPlanTensorProd)
         names = ", ".join(g.__name__ for g in plan.block_geometries)
         return (
             f"STOperatorTensorProd(J={list(plan.J)}, L={list(plan.L)}, "
@@ -381,7 +383,7 @@ class STOperatorTensorProd(STOperator):
         )
 
 
-_P = TypeVar("_P", PlanarPlan, TensorProdPlan)
+_P = TypeVar("_P", STPlanSingleDomain, STPlanTensorProd)
 
 
 def _plan_of(operator: STOperator, kind: type[_P]) -> _P:
@@ -407,7 +409,7 @@ def _as_numpy(matrix: Any) -> Any:
     return matrix if name is None else _registry.backend_named(name).to_numpy(matrix)
 
 
-def _warn_channels_without_auto(plan: PlanarPlan | TensorProdPlan) -> None:
+def _warn_channels_without_auto(plan: STPlan) -> None:
     """STL's warning of the channels without auto statistics (maths.md M-CHAN, OP-30), given
     once, at construction, which knows the channel pairs; the normalisation is chosen later, at
     each call, so the warning says what happens if the statistics are normalised. It covers

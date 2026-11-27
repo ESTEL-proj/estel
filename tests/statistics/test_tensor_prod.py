@@ -27,7 +27,11 @@ import estel
 from estel import Data1D, Data2D, DataTensorProd, STStatistics
 from estel._spec import tensor_prod as spec
 from estel.backend import _registry
-from estel.scattering._plan import PlanarPlan, TensorProdPlan, build_tensor_prod_statistics_plan
+from estel.scattering._plan import (
+    STPlanSingleDomain,
+    STPlanTensorProd,
+    build_statistics_plan_tensor_prod,
+)
 from estel.statistics import _grid, _layout, _normalization, _statistics
 from estel.statistics._arrays import constant
 from estel.statistics._statistics import statistics_of
@@ -57,11 +61,11 @@ def _plan(
     pbc: list[bool],
     J: Any,  # noqa: N803 (maths.md notation)
     **options: Any,
-) -> TensorProdPlan:
+) -> STPlanTensorProd:
     data = DataTensorProd(field, [GEOMETRIES[b] for b in blocks], pbc=pbc)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-34
-        return build_tensor_prod_statistics_plan(data, J, **options)
+        return build_statistics_plan_tensor_prod(data, J, **options)
 
 
 def _buffer(layout: _layout.Layout, grids: dict[str, NDArray[Any]]) -> Any:
@@ -184,7 +188,7 @@ def test_normalisation_equals_the_fixture() -> None:
 # ---------------------------------------------------------------------- memory
 
 
-def _three_blocks() -> TensorProdPlan:
+def _three_blocks() -> STPlanTensorProd:
     """2D + 1D + 1D, 16 x 16 x 16 x 16, J = (2, 2, 2), L = (4, 2, 2), with the low-pass filter
     of every block: its full-grid S4 has 2,097,152 entries for 262,144 coefficients."""
     field = np.zeros((1, 1, 16, 16, 16, 16))
@@ -198,7 +202,7 @@ def test_three_block_layout_allocates_no_full_grid(monkeypatch: pytest.MonkeyPat
     coefficients the layout stores: one row per chunk. Applying the maps (the normalisation of
     ``norm="self"``, ``to_vector``, ``select``) makes no constant that large either."""
 
-    def build(plan: TensorProdPlan) -> tuple[_layout.Layout, Any]:
+    def build(plan: STPlanTensorProd) -> tuple[_layout.Layout, Any]:
         present = _grid.tensor_prod_auto_scales(plan)
         layout = _layout.tensor_prod_layout(plan)
         tables = _normalization._norm_tables(
@@ -390,7 +394,7 @@ def test_reference_of_another_tensor_product_is_accepted() -> None:
     assert planar._reference is not None
     with pytest.raises(ValueError, match="planar"):
         statistics_of(buffer, other, planar._reference, norm="ref")
-    assert isinstance(planar._plan, PlanarPlan)
+    assert isinstance(planar._plan, STPlanSingleDomain)
     with pytest.raises(ValueError, match="tensor product"):
         _normalization.check_reference(reference, planar._plan, 2, reference.var.dtype)
 

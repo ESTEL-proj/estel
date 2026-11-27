@@ -23,7 +23,7 @@ import estel
 from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
 from estel.backend import _registry
 from estel.functional import _scattering
-from estel.scattering._plan import PlanarPlan
+from estel.scattering._plan import STPlanSingleDomain
 from estel.statistics import _grid, _layout, _normalization, _statistics
 from estel.statistics import _reductions as reductions
 from estel.statistics._arrays import constant
@@ -220,7 +220,7 @@ def test_angular_fourier_is_applied_one_axis_at_a_time(dtype: str) -> None:
     ]
     assert widths
     plan = planar._plan
-    assert isinstance(plan, PlanarPlan)
+    assert isinstance(plan, STPlanSingleDomain)
     assert max(widths) <= 2 * plan.L
 
 
@@ -258,7 +258,7 @@ def test_layout_tables_grow_with_the_chunks(monkeypatch: pytest.MonkeyPatch) -> 
         warnings.simplefilter("ignore", UserWarning)
         operator = STOperator(data, 5, L=4, compute_PS=False)
     plan = operator.plan
-    assert isinstance(plan, PlanarPlan)
+    assert isinstance(plan, STPlanSingleDomain)
     layout = _layout.base_layout(plan)
     present = _grid.auto_scales(plan)
     tables = _normalization._norm_tables(layout, present.shape, present.tobytes(), plan.L)

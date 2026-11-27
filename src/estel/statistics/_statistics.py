@@ -38,11 +38,11 @@ from ..backend._protocol import Backend
 from ..data._base import geometry_class
 from ..io import _schema
 from ..scattering._plan import (
-    PlanarPlan,
     STPlan,
-    TensorProdPlan,
-    build_plan,
-    build_tensor_prod_statistics_plan,
+    STPlanSingleDomain,
+    STPlanTensorProd,
+    build_plan_single_domain,
+    build_statistics_plan_tensor_prod,
 )
 from . import _layout as compact
 from ._arrays import constant, dtype_name
@@ -463,7 +463,8 @@ class STStatistics:
             # The power spectrum alone (select("PS")): every reduction
             # leaves it unchanged (maths.md §1.9, "Reductions").
             return self
-        plan = cast(PlanarPlan, self._plan)  # a single geometry: a tensor product raised above
+        # A single geometry: a tensor product raised above.
+        plan = cast(STPlanSingleDomain, self._plan)
         L, J = plan.L, plan.J  # noqa: N806
         n_angular = _check_count("angular_harmonics", angular_harmonics, L, "L")
         n_scale = _check_count("scale_harmonics", scale_harmonics, J, "J")
@@ -966,7 +967,7 @@ def _blocks_content(blocks: TensorProdBlocks) -> dict[str, Any]:
     }
 
 
-def _tensor_prod_plan(spec: dict[str, Any], cross_matrix: NDArray[np.bool_]) -> TensorProdPlan:
+def _tensor_prod_plan(spec: dict[str, Any], cross_matrix: NDArray[np.bool_]) -> STPlanTensorProd:
     """The plan of a tensor product rebuilt from the parameters of a file: the data example
     takes the signature of ``DataTensorProd`` (blocks, no mask, one ``pbc`` per block)."""
     cls = geometry_class(spec["geometry"])
@@ -978,7 +979,7 @@ def _tensor_prod_plan(spec: dict[str, Any], cross_matrix: NDArray[np.bool_]) -> 
     )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-34 was shown when computed
-        plan = build_tensor_prod_statistics_plan(
+        plan = build_statistics_plan_tensor_prod(
             example,
             list(spec["J"]),
             list(spec["L"]),
@@ -1013,7 +1014,7 @@ def _from_payload(arrays: dict[str, NDArray[Any]], content: dict[str, Any]) -> S
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)  # OP-3 and OP-13 were shown when computed
             spectrum = spec["spectrum"]
-            plan = build_plan(
+            plan = build_plan_single_domain(
                 example,
                 spec["J"],
                 spec["L"],
