@@ -4,8 +4,8 @@ M-DATA-TP).
 A tensor-product field is one array whose spatial axes are those of its blocks, in block order:
 ``(Nb, Nc, *N⁽⁰⁾, …, *N⁽ᴮ⁻¹⁾)``, for example ``[Data2D, Data1D]`` for space and time. The
 object **composes** the geometries of its blocks: a static description per block
-(:class:`BlockSpecTensorProd`: its class, its axes, its ``pbc``), never a class created at run time nor
-an assignment to ``__class__`` (Part I, §2.4).
+(:class:`BlockSpecTensorProd`: its class, its axes, its ``pbc``), never a class created at run
+time nor an assignment to ``__class__`` (Part I, §2.4).
 
 Its geometry hooks ``_conv``, ``_downsample`` and ``_crop_weights`` act on one block at a time,
 named by ``block=a``: they dispatch to the geometry of that block, along that block's own axes
