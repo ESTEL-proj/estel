@@ -88,7 +88,7 @@ def test_borders_equal_stl(case: str, name: str) -> None:
     kernel_size = _parameters(case)["K"]
     expected = fixture[f"{name}_border"]
     pbc = data.pbc
-    assert isinstance(pbc, bool)  # single-domain data: one boolean
+    assert isinstance(pbc, bool)  # Cartesian data: one boolean
     got = [
         max(border_width_cartesian(h, level, kernel_size, pbc) for h in histories)
         for _, histories, level, _ in _stl_order(n_scales)

@@ -86,7 +86,7 @@ def _smoothing(backend: Backend, geometry: type[DataCartesian], dtype: DType) ->
 @pytest.mark.maths("M-DATA-TENSORPROD", "M-W1-TENSORPROD", "M-BORDER-TENSORPROD")
 @pytest.mark.parametrize("pbc", [True, False])
 @pytest.mark.parametrize("geometry", [Data2D, Data1D])
-def test_one_block_hooks_equal_the_plain_geometry(
+def test_one_block_hooks_equal_the_cartesian_geometry(
     backend: Backend, dtype: DType, geometry: type[Data2D] | type[Data1D], pbc: bool
 ) -> None:
     """A tensor product of one block filters, downsamples and crops as its Cartesian geometry,
@@ -157,7 +157,7 @@ def _product(
 @pytest.mark.maths("M-NOT-TENSORPROD", "M-W1-TENSORPROD")
 @pytest.mark.parametrize("block", [0, 1])
 @pytest.mark.parametrize(("blocks", "pbc"), CASES)
-def test_block_hooks_equal_the_plain_geometry_with_its_axes_moved(
+def test_block_hooks_equal_the_cartesian_geometry_with_its_axes_moved(
     backend: Backend,
     dtype: DType,
     blocks: tuple[type[Data], ...],

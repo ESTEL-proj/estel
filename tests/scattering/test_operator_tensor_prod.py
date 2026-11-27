@@ -58,7 +58,7 @@ def _space_time(shape: tuple[int, ...] = (1, 1, 8, 8, 8), seed: int = 0) -> Data
     [(Data2D, (2, 2, 16, 16), 4), (Data1D, (1, 2, 32), 2)],
     ids=["2D", "1D"],
 )
-def test_one_block_without_lowpass_is_the_plain_geometry(
+def test_one_block_without_lowpass_is_the_cartesian_geometry(
     cls: type[estel.Data],
     shape: tuple[int, ...],
     L: int,  # noqa: N803

@@ -805,7 +805,7 @@ def _settings(
 ) -> dict[str, Any]:
     if not isinstance(lr, int | float) or isinstance(lr, bool) or not lr > 0:
         raise ValueError(f"lr={lr!r}: pass a positive step size (STL's: 1.0).")
-    # Syntheses are of single geometries.
+    # Syntheses are single-domain: a tensor product was refused above.
     spectrum = cast(STPlanSingleDomain, operator.plan).spectrum
     return {
         "entry": entry,

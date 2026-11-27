@@ -179,7 +179,7 @@ Data [P]                               root; holds the single-domain behaviour
 ├── DataHealpix [P]
 └── DataTensorProd [P]                 its blocks: BlockSpecTensorProd (i)
 
-WaveletOperator (i, abstract)          the only way to the geometry (§2.3)
+WaveletOperator (i, abstract)          the only way to the wavelets and to the levels of the pyramid (§2.3)
 ├── WaveletOperatorSingleDomain (i)
 └── WaveletOperatorTensorProd (i)      composes the operators of its blocks
 

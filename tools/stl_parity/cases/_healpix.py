@@ -12,7 +12,7 @@ torch.float64)``, which ``make_fixtures.py`` sets for every case:
   by default; ESTEL computes on the sphere only (OP-45). The cases pass
   ``ellipsoid="sphere"`` to STL's wavelet operator, through ``ST_Operator(...,
   wavelet_op_kwargs=WAVELET_OP_KWARGS)`` or ``get_wavelet_op(**WAVELET_OP_KWARGS)``.
-* **No geometry cache.** healpix-analyse caches the interpolation weights of ``HealPixConv`` on
+* **No cache of tables.** healpix-analyse caches the interpolation weights of ``HealPixConv`` on
   disk in float32, and an operator built after the first one of a geometry reads them back in
   float32 (OP-46). The cases pass ``conv_cache_dir=None``, which disables the cache: every
   operator computes its weights in float64.

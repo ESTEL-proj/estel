@@ -968,10 +968,10 @@ The rule of §1.11 applies. OP-4, OP-8, OP-13 and OP-34 also concern tensor prod
 | `spectrum_method` renamed `power_spectrum_method`; the spectrum operator built only with `compute_PS=True`, and an error at `apply` if the spectrum is asked without one | no: spectrum only | no value of S1 to S4 |
 | ten new methods (`build_plan`, `apply_pyramid`, `apply_patched`, `apply_local` and their reverse passes): the pyramid engine (Part II, §10) | no: `apply` calls none of them | no |
 | two new fields of `ST_Statistics`, `data_example` and `pix_shape`, filled by `apply` | yes | no: the syntheses read them, the statistics do not |
-| six hunks holding eight index expressions of the loop: `x[:, c, :, :, :]` becomes `x[:, c]`, `x[:, :, None, :, :, :]` becomes `x[:, :, None]`, and so on (three of them in the variant with fewer convolutions, not transferred: STL l. 682, 709, 710) | yes | no: on Cartesian arrays the trailing axes are implicit and the result is the same. This change is what lets the loop run on one pixel axis |
+| six hunks holding eight index expressions of the loop: `x[:, c, :, :, :]` becomes `x[:, c]`, `x[:, :, None, :, :, :]` becomes `x[:, :, None]`, and so on (three of them in the variant with fewer convolutions, not transferred: STL l. 682, 709, 710) | yes | no: on 2D arrays the trailing axes are implicit and the result is the same. This change is what lets the loop run on one pixel axis |
 | an assertion message, a comment translated | — | no |
 
-What the loop calls outside these files changes in the same way: `torch_backend.maskmean` accepts any set of trailing axes (`dim=-1` on HEALPix, the same sums for `(-2, -1)`), and the base data class infers `N0` through `_infer_N0` (the trailing axes for Cartesian data, `nside` for HEALPix).
+What the loop calls outside these files changes in the same way: `torch_backend.maskmean` accepts any set of trailing axes (`dim=-1` on HEALPix, the same sums for `(-2, -1)`), and the base data class infers `N0` through `_infer_N0` (the trailing axes for 2D data, `nside` for HEALPix).
 
 **Checked, the two loops.** The `ST_Operator.py` of `master`, loaded in the environment of `HealpixUpdate`, and that of `HealpixUpdate`, on the same 2D kernel, give the same statistics bit for bit (difference 0), at 32 × 32, J = 3: periodic, two maps of two channels; non-periodic; a mask of 42 NaN; without normalisation, and with `norm="self"` followed by `iso`, `angular_fourier` and `scale_cosine`. On HEALPix data the loop of `master` raises `IndexError` (too many indices) at the first S1.
 

@@ -3,7 +3,7 @@
 OP-77).
 
 One full-sky case at ``nside`` 16, one channel, float64, L = 4 gauges, with the settings of
-``_healpix.py`` (the sphere, no geometry cache, the kernel in float64; OP-45, OP-46). STL runs
+``_healpix.py`` (the sphere, no cache of tables, the kernel in float64; OP-45, OP-46). STL runs
 its synthesis from maps with its own settings (M-SYN-LBFGS: step 1.0, 50 correction pairs,
 strong Wolfe line search, tolerances 1e-12 and 1e-15, ⌊5 max_iter / 4⌋ evaluations; seed 26,
 the weights 3.5 and 3.5² of S3 and S4, ``mean_field=True``), without the band limit of the

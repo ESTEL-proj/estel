@@ -219,8 +219,8 @@ def wavelet_bank_cartesian(
             )
         return bump_steerable_1d(size=size, conjugate=n_orientations == 2)
     raise ValueError(
-        f"STOperator builds this wavelet bank for 1D and 2D data only; got {ndim} spatial axes: "
-        "build the data with Data1D or Data2D."
+        f"STOperator builds the bump-steerable wavelets for 1D and 2D data only; got {ndim} "
+        "spatial axes: build the data with Data1D or Data2D."
     )
 
 

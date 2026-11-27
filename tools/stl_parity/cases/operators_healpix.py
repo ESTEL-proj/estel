@@ -7,7 +7,7 @@ healpix-analyse's ``HealPixConv`` (the wavelet kernel, L = 4 gauges) and decimat
 ``HealPixDown``. ESTEL builds its own tables (T5.1), which equal healpix-analyse's as linear
 operators, not entry by entry (OP-92): so this case stores the operators by what they do, through
 STL's own entry points, ``apply(data, 0)`` and ``downsample(data, 1)``, with the settings of
-``_healpix.py`` (the sphere, no geometry cache, the kernel in float64; OP-45, OP-46).
+``_healpix.py`` (the sphere, no cache of tables, the kernel in float64; OP-45, OP-46).
 
 It stores:
 

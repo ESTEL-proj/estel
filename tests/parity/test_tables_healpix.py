@@ -2,7 +2,7 @@
 M-CONV-HEALPIX, M-WAV-HEALPIX, M-DOWN-HEALPIX, OP-92).
 
 The fixture ``operators_healpix`` (T5.3) holds STL's convolution and decimation through STL's own
-entry points, on the sphere, without geometry cache and with the kernel in float64 (OP-45,
+entry points, on the sphere, without cache of tables and with the kernel in float64 (OP-45,
 OP-46): the dense matrices at ``nside`` 4, and the responses to 3 random maps at ``nside`` 8 and
 16, on the full sky and on a disc that crosses the equator. The tables are applied here as T5.5
 will apply them (``gather_weighted``, then ``segment_sum`` for the decimation; the layout is in
