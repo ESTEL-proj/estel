@@ -75,9 +75,9 @@ T2.19).
 
 **Public and opaque.** ``STPlan`` is public as a name only (Part II, §12.6): users get it
 from an operator's ``plan`` and pass it to ``estel.functional.scattering``, and it has no public
-field. It is the base class of the plan of each geometry: :class:`STPlanSingleDomain`, whose fields are
-those of the private base class ``_PlanFields``, and :class:`STPlanTensorProd` (task T3.2), both
-read by ESTEL only.
+field. It is the base class of the plan of each geometry: :class:`STPlanSingleDomain`, whose
+fields are those of the private base class ``_PlanFields``, and :class:`STPlanTensorProd` (task
+T3.2), both read by ESTEL only.
 
 A mean with no pixel left is where STL divides by zero, and its coefficient is NaN (M-MEAN,
 OP-3). The plan knows these means statically: it leaves them out of ``first_layer``, ``s3``
@@ -179,9 +179,10 @@ class SpectrumPlan:
     bins", "Choice of estimator"; tasks T4.4, T4.1): how many bins, J, J_min, the estimator
     chosen at construction, and the spatial shape whose bins, windows and borders it reads
     (:meth:`bins`, ``spectra._bins.log_gaussian_bins``, built once in NumPy). Hashable. In the
-    plan of ``STOperator`` its channel pairs are those of the plan (``STPlanSingleDomain.pairs``): the
-    pairs c1 ≤ c2 of S1 and S2, one matrix for the scattering statistics and the spectrum
-    (M-CHAN; decision on #148); σᴾˢ exists for the channels of ``pairs.auto`` (M-NORM, OP-30)."""
+    plan of ``STOperator`` its channel pairs are those of the plan
+    (``STPlanSingleDomain.pairs``): the pairs c1 ≤ c2 of S1 and S2, one matrix for the
+    scattering statistics and the spectrum (M-CHAN; decision on #148); σᴾˢ exists for the
+    channels of ``pairs.auto`` (M-NORM, OP-30)."""
 
     n_bins: int
     """n_b, the number of bins: given, or max(4, round(3 (J - 1 - J_min)))."""
@@ -344,12 +345,12 @@ class STPlan(_SharedFields):
     Get it from ``STOperator.plan`` or ``STOperatorTensorProd.plan`` and pass it, with the
     operator's filters, to ``estel.functional.scattering``. It is immutable and hashable, so
     that JAX can take it as a static argument; it has no public field. The plan of each
-    geometry is a subclass, internal to ESTEL: :class:`STPlanSingleDomain` for single-domain data (1D,
-    2D and HEALPix), :class:`STPlanTensorProd` for tensor products (task T3.2). Two plans are
-    equal, and hash equal, when they are of one class and were built from the same parameters
-    and the same static metadata of the data (geometry, spatial shape, ``pbc``, mask, number of
-    channels; on HEALPix, ``depth`` and ``cell_ids``;
-    for a tensor product, its blocks), so that they hold the same values.
+    geometry is a subclass, internal to ESTEL: :class:`STPlanSingleDomain` for single-domain
+    data (1D, 2D and HEALPix), :class:`STPlanTensorProd` for tensor products (task T3.2). Two
+    plans are equal, and hash equal, when they are of one class and were built from the same
+    parameters and the same static metadata of the data (geometry, spatial shape, ``pbc``, mask,
+    number of channels; on HEALPix, ``depth`` and ``cell_ids``; for a tensor product, its
+    blocks), so that they hold the same values.
 
     **Hooks** (Part I, §2.3; Part II, §12.6; issue #144). What depends on the geometry goes
     through a small, fixed set of internal hooks, declared here and implemented by each
@@ -493,10 +494,10 @@ class _PlanFields:
     meta: tuple[Any, ...]
     """The static metadata of the data beyond the mask and ``pbc``, ``Data._meta()`` of the
     example: ``()`` for 1D and 2D data, ``(depth, cell_ids)`` for ``DataHealpix``. The data
-    given to the plan must have the same (:meth:`STPlanSingleDomain._check_data`), and the files store it
-    (``Data._meta_content``). The equality and the hash of plans rest on the wavelet plan
-    (``wavelets._key``, in ``_key``), which holds the same metadata; ``meta`` is what
-    ``_check_data`` and the files read."""
+    given to the plan must have the same (:meth:`STPlanSingleDomain._check_data`), and the
+    files store it (``Data._meta_content``). The equality and the hash of plans rest on the
+    wavelet plan (``wavelets._key``, in ``_key``), which holds the same metadata; ``meta`` is
+    what ``_check_data`` and the files read."""
     _key: tuple[Any, ...] = field(repr=False)
     spectrum: SpectrumPlan | None = None
     """The power spectrum of the statistics (maths.md §1.9), or ``None`` when they do not hold
@@ -655,8 +656,8 @@ def build_plan_with_tables(
     their defaults (decision on #148).
 
     Beside the plan, the NumPy tables its wavelets were built with
-    (:func:`build_wavelet_plan_with_tables`), for :meth:`STPlanSingleDomain._build_filters` of the same
-    operator (``tables=``; task T5.7): a value, not part of the plan.
+    (:func:`build_wavelet_plan_with_tables`), for :meth:`STPlanSingleDomain._build_filters` of
+    the same operator (``tables=``; task T5.7): a value, not part of the plan.
     """
     if not isinstance(data, Data):
         raise TypeError(
