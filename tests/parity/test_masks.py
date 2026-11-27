@@ -6,7 +6,7 @@ must be equal; the reweighting maps equal within the float64 parity tolerances o
 with NaN where STL marks a pixel invalid. ESTEL stores a boolean mask and a reweighting of 0
 there instead (OP-27), turned back into NaN here for the comparison.
 
-The maps are built with ESTEL's own smoothing kernel, ``smoothing_kernel(ndim)`` (maths.md
+The maps are built with ESTEL's own smoothing kernel, ``smoothing_kernel_cartesian(ndim)`` (maths.md
 M-SMOOTH-2D, M-SMOOTH-1D; task T2.2, issue #14), not with the kernel STL used, stored in the
 fixture as ``smooth_kernel``: ``tests/parity/test_kernels.py`` compares the two kernels.
 """
@@ -21,7 +21,7 @@ from numpy.typing import NDArray
 
 from estel.data._cartesian import Data1D, Data2D
 from estel.data._masks import MaskMaps, build_mask_maps
-from estel.wavelets._banks import smoothing_kernel
+from estel.wavelets._banks_cartesian import smoothing_kernel_cartesian
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
 CASES: dict[str, type[Data2D] | type[Data1D]] = {"masks_2d": Data2D, "masks_1d": Data1D}
@@ -34,7 +34,7 @@ def _maps(case: str, pbc: bool) -> tuple[MaskMaps, dict[str, NDArray[Any]], dict
     maps = build_mask_maps(
         fixture["mask_full_res"] > 0,
         scale_levels=tuple(range(parameters["J"])),
-        s=smoothing_kernel(CASES[case].ndim),
+        s=smoothing_kernel_cartesian(CASES[case].ndim),
         kernel_size=parameters["K"],
         threshold=CASES[case]._nan_threshold,
         pbc=pbc,

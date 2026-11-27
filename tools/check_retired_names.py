@@ -57,7 +57,7 @@ import sys
 import tokenize
 import tomllib
 from collections import defaultdict
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -1213,6 +1213,7 @@ def check_done_occurrences(
     errors: list[str] = []
     ids: dict[str, Row] = {}
     anywhere: dict[str, Row] = {}  # prose forms matched anywhere
+    local: dict[str, dict[str, Row]] = defaultdict(dict)  # forms matched in a package only
     quoted: dict[str, Row] = {}  # prose forms matched in backticks only
     for row in rows:
         if not row.done or row.kind == "reintroduce" or "#" in row.old:
@@ -1238,6 +1239,12 @@ def check_done_occurrences(
             parts = row.old.split(".")
             forms = {".".join(parts[i:]) for i in range(len(parts) - 1)}
             forms |= {"/".join(parts[i:]) + ".py" for i in range(len(parts))}
+            if any(m not in homes for m in defined.get(parts[-1], ())):
+                # Another module has its name: its file name alone may cite that one, except
+                # in the files of its own package, whose siblings cite it that way.
+                forms.discard(parts[-1] + ".py")
+                package = _module_path(row.old).rsplit("/", 1)[0] + "/"
+                local[package].setdefault(parts[-1] + ".py", row)
             if not lifted:
                 for info in modules.values():
                     lines = sorted(
@@ -1258,7 +1265,7 @@ def check_done_occurrences(
         ambiguous = name in pending or any(m not in homes for m in defined.get(name, ()))
         if not ambiguous:
             (anywhere if _is_distinctive(name) else quoted).setdefault(name, row)
-    errors += _done_in_prose(texts, ids, anywhere, quoted)
+    errors += _done_in_prose(texts, ids, anywhere, quoted, local)
     errors += _reintroduced_elsewhere(rows, modules, renamed_modules)
     return errors
 
@@ -1315,14 +1322,27 @@ def _alternation(names: dict[str, Row]) -> re.Pattern[str] | None:
 
 
 def _done_in_prose(
-    texts: dict[str, str], ids: dict[str, Row], anywhere: dict[str, Row], quoted: dict[str, Row]
+    texts: dict[str, str],
+    ids: dict[str, Row],
+    anywhere: dict[str, Row],
+    quoted: dict[str, Row],
+    local: Mapping[str, dict[str, Row]] | None = None,
 ) -> list[str]:
     errors = []
-    any_re, quoted_re = _alternation(anywhere), _alternation({**anywhere, **quoted})
     ids_re = _alternation(ids)
+    compiled: dict[
+        tuple[str, ...], tuple[dict[str, Row], re.Pattern[str] | None, re.Pattern[str] | None]
+    ] = {}
     for rel, text in texts.items():
         if is_history(rel) or rel in INSTRUMENTS:
             continue
+        packages = tuple(p for p in (local or {}) if rel.startswith(p))
+        if packages not in compiled:
+            here = dict(anywhere)
+            for package in packages:
+                here |= (local or {})[package]
+            compiled[packages] = (here, _alternation(here), _alternation({**here, **quoted}))
+        here, any_re, quoted_re = compiled[packages]
         skip = _skipped_lines(rel, text.split("\n"))
         for number, segment, is_code in _segments(rel, text):
             if number in skip or is_code:
@@ -1332,11 +1352,11 @@ def _done_in_prose(
             if ids_re:
                 found |= {m.group(1): ids[m.group(1)] for m in ids_re.finditer(segment)}
             if any_re:
-                found |= {m.group(1): anywhere[m.group(1)] for m in any_re.finditer(segment)}
+                found |= {m.group(1): here[m.group(1)] for m in any_re.finditer(segment)}
             if quoted_re:
                 for span in BACKTICKS_RE.findall(segment):
                     for m in quoted_re.finditer(span):
-                        found[m.group(1)] = {**anywhere, **quoted}[m.group(1)]
+                        found[m.group(1)] = {**here, **quoted}[m.group(1)]
             for form, row in found.items():
                 errors.append(_done_message(f"{rel}:{number}", form, row))
     return errors

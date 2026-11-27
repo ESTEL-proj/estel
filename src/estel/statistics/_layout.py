@@ -53,7 +53,7 @@ from numpy.typing import NDArray
 
 from ..backend._protocol import Backend
 from ..io._schema import SCHEMA_VERSION
-from ..wavelets._tensor_prod import Level
+from ..wavelets._operator import Level
 from ._arrays import constant, dtype_name
 from ._grid import FamilyGrid, base_grids, tensor_prod_grids
 

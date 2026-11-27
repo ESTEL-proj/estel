@@ -20,7 +20,11 @@ from estel import Data, Data1D, Data2D
 from estel.backend._protocol import Backend, DType
 from estel.data._base import DownsampleWeights
 from estel.data._masks import build_mask_maps
-from estel.wavelets._banks import bump_steerable_1d, bump_steerable_2d, smoothing_kernel
+from estel.wavelets._banks_cartesian import (
+    bump_steerable_1d,
+    bump_steerable_2d,
+    smoothing_kernel_cartesian,
+)
 
 TOLERANCES = {"float32": (1e-4, 1e-6), "float64": (1e-10, 1e-12)}
 COMPLEX: dict[str, DType] = {"float32": "complex64", "float64": "complex128"}
@@ -112,7 +116,7 @@ def test_downsample_is_strided_correlation_with_the_smoothing_kernel(
     backend: Backend, dtype: DType, ndim: int, pbc: bool, complex_input: bool
 ) -> None:
     data = _geometry(ndim, 16, pbc)
-    s = smoothing_kernel(ndim)
+    s = smoothing_kernel_cartesian(ndim)
     x = _field((2, 3) + (16,) * ndim, complex_=complex_input)
     in_dtype = COMPLEX[dtype] if complex_input else dtype
     out = data._downsample(
@@ -134,7 +138,7 @@ def test_masked_downsample_zeroes_invalid_inputs_and_reweights(
     rng = np.random.default_rng(3)
     mask = rng.random((n,) * ndim) < 0.15
     data = GEOMETRIES[ndim](np.zeros((n,) * ndim), mask=mask, pbc=pbc)
-    s = smoothing_kernel(ndim)
+    s = smoothing_kernel_cartesian(ndim)
     maps = build_mask_maps(mask, (0, 1), s, 5, data._nan_threshold, pbc)
     field = _field((2, 1) + (n,) * ndim)
     x = np.where(mask, np.nan, field)
@@ -158,10 +162,12 @@ def test_masked_downsample_zeroes_invalid_inputs_and_reweights(
 
 def test_downsample_rejects_bad_inputs(backend: Backend, dtype: DType) -> None:
     data = _geometry(2, 8, True)
-    s = backend.asarray(smoothing_kernel(2), dtype)
+    s = backend.asarray(smoothing_kernel_cartesian(2), dtype)
     x = backend.asarray(_field((1, 1, 8, 8)), dtype)
-    with pytest.raises(ValueError, match="smoothing_kernel"):
-        data._downsample(x, DownsampleWeights(backend.asarray(smoothing_kernel(1), dtype)), 0)
+    with pytest.raises(ValueError, match="smoothing_kernel_cartesian"):
+        data._downsample(
+            x, DownsampleWeights(backend.asarray(smoothing_kernel_cartesian(1), dtype)), 0
+        )
     with pytest.raises(ValueError, match="or neither"):
         data._downsample(
             x, DownsampleWeights(s, valid=backend.asarray(np.ones((8, 8), bool), "bool")), 0

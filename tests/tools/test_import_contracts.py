@@ -98,9 +98,9 @@ def test_clean_layered_package_keeps_every_contract(tmp_path: Path) -> None:
         pytest.param(
             {
                 "estel/wavelets/__init__.py": "",
-                "estel/wavelets/_banks.py": "",
+                "estel/wavelets/_banks_cartesian.py": "",
                 "estel/scattering/__init__.py": "",
-                "estel/scattering/_filters.py": "from estel.wavelets import _banks\n",
+                "estel/scattering/_filters.py": "from estel.wavelets import _banks_cartesian\n",
             },
             "Outside L1, the banks and mask builders go through WaveletOperator only",
             id="l2-imports-the-banks",

@@ -3,16 +3,16 @@ maths.md §4; task T5.5, issue #166).
 
 :class:`WaveletPlanHealpix` is a :class:`~estel.wavelets._operator.WaveletPlanSingleDomain`,
 beside the ``WaveletPlanCartesian`` of 1D and 2D data, and :class:`WaveletFiltersHealpix` is a
-``WaveletFilters``, beside ``WaveletFiltersCartesian``: ``WaveletOperator`` and the ``STPlan``
-reach them through the same hooks as the Cartesian ones (``_build_filters``, ``_conv_tables``,
-``_down_tables``, ``border``, ``bank``), with no branch on the geometry at the call sites;
-``build_wavelet_plan`` chooses the plan once, when it is built.
+``WaveletFilters``, beside ``WaveletFiltersCartesian``: ``WaveletOperatorSingleDomain`` and the
+``STPlan`` reach them through the same hooks as the Cartesian ones (``_build_filters``,
+``_conv_tables``, ``_down_tables``, ``border``, ``bank``), with no branch on the geometry at the
+call sites; ``build_wavelet_plan`` chooses the plan once, when it is built.
 
 **What is static, and where** (issue #166, decisions 2 and 7). The plan holds only what is small
 and static: the depth and the ``cell_ids`` of the data, the levels and their numbers of pixels,
 and the masks and reweighting maps of M-MASK-HPX (one family for the field and one per scale of
-the first layer, as M-DOWN-MASK). The tables of T5.1 (``healpix_stencils``,
-``healpix_decimation``) are built in NumPy float64 when the filters are built, one set per level,
+the first layer, as M-DOWN-MASK). The tables of T5.1 (``stencils_healpix``,
+``decimation_healpix``) are built in NumPy float64 when the filters are built, one set per level,
 cast at once to the operator's dtype (indices int32), and the float64 arrays are dropped: at
 ``nside`` 128 the stencils of one level take 900 MiB in float64 (#168). The kernel of M-WAV-HPX
 is folded into the stencils (:func:`_fold_kernel`; task T5.7): each row reads its distinct
@@ -53,16 +53,9 @@ from ..data._masks import (
     RealMap,
     build_mask_maps_with,
 )
-from . import _healpix_geometry
-from ._banks import _check_n_orientations
-from ._healpix_bank import HEALPIX_GAUGES, _check_kernel_size, healpix_kernel_weights
-from ._healpix_geometry import (
-    HealpixDecimation,
-    HealpixStencils,
-    _check_depth,
-    healpix_decimation,
-    healpix_stencils,
-)
+from . import _tables_healpix
+from ._banks_healpix import GAUGES_HEALPIX, _check_kernel_size, kernel_weights_healpix
+from ._checks import _check_n_orientations
 from ._operator import (
     History,
     WaveletFilters,
@@ -71,8 +64,15 @@ from ._operator import (
     _register_filters,
     downsample_maps_of,
 )
+from ._tables_healpix import (
+    DecimationHealpix,
+    StencilsHealpix,
+    _check_depth,
+    decimation_healpix,
+    stencils_healpix,
+)
 
-HEALPIX_WAVELETS = ("healpix",)
+WAVELETS_HEALPIX = ("healpix",)
 """The wavelets of HEALPix data in 1.0.0: the kernel of maths.md M-WAV-HPX, STL's
 ``"HealpixWavelet"`` (and its ``"Morlet"``, which gives the same kernel)."""
 
@@ -92,7 +92,7 @@ class WaveletPlanHealpix(WaveletPlanSingleDomain):
     def bank(self) -> NDArray[np.complex128]:
         """The kernel of M-WAV-HPX on the flattened stencil, ``(K², )``, complex128: one kernel
         for every gauge and every level, the orientations being the gauges of the stencils."""
-        return healpix_kernel_weights(kernel_size=self.kernel_size)
+        return kernel_weights_healpix(kernel_size=self.kernel_size)
 
     def border(self, history: History, level: int) -> int:
         """No border on HEALPix, on the full sky or a partial sky (M-MASK-HPX, OP-50)."""
@@ -115,10 +115,10 @@ class PlanTablesHealpix(NamedTuple):
     tables of a level are built once in an operator instead of twice. Read-only mappings; the
     plan does not hold them."""
 
-    stencils: Mapping[int, HealpixStencils]
-    """The stencils of each scale level, as :func:`healpix_stencils` gives them."""
-    decimation: Mapping[int, HealpixDecimation]
-    """The decimation from each level the masks downsample, as :func:`healpix_decimation`."""
+    stencils: Mapping[int, StencilsHealpix]
+    """The stencils of each scale level, as :func:`stencils_healpix` gives them."""
+    decimation: Mapping[int, DecimationHealpix]
+    """The decimation from each level the masks downsample, as :func:`decimation_healpix`."""
 
 
 @dataclass(frozen=True, eq=False)
@@ -158,7 +158,7 @@ _register_filters(WaveletFiltersHealpix)
 # ---------------------------------------------------------------------- the plan
 
 
-def default_healpix_scales(depth: int) -> int:
+def default_scales_healpix(depth: int) -> int:
     """J = max(1, ⌊log₂ nside⌋ - 1) = max(1, depth - 1) (maths.md M-DEF-HPX)."""
     return max(1, depth - 1)
 
@@ -193,15 +193,15 @@ def build_wavelet_plan_with_tables_healpix(
     ≥ 3, when the depth exceeds the int32 limit of the tables, and when ``wavelet`` is neither
     ``None`` nor ``"healpix"``.
     """
-    if wavelet not in (None, *HEALPIX_WAVELETS):
+    if wavelet not in (None, *WAVELETS_HEALPIX):
         raise ValueError(
             f"wavelet={wavelet!r}: DataHealpix accepts wavelet=None (the default, its wavelet) "
             'or "healpix", the kernel of maths.md M-WAV-HPX, its only wavelet in ESTEL 1.0.0; '
             '"bump_steerable" is for 1D and 2D data. Pass None or "healpix".'
         )
     depth = _check_depth(data.depth)  # the int32 limit of the tables
-    n_scales = _check_healpix_scales(J, depth)
-    n_gauges = _check_n_orientations(HEALPIX_GAUGES if L is None else L)
+    n_scales = _check_scales_healpix(J, depth)
+    n_gauges = _check_n_orientations(GAUGES_HEALPIX if L is None else L)
     size = _check_kernel_size(kernel_size)
     static_ids = data._cell_ids
     scale_levels = tuple(range(n_scales))
@@ -209,7 +209,7 @@ def build_wavelet_plan_with_tables_healpix(
     level_shapes = tuple((data._n_pixels(d),) for d in levels)
     masks, tables = None, None
     if data.mask is not None:
-        masks, tables = _healpix_masks(
+        masks, tables = _masks_healpix(
             data.mask, depth, static_ids, scale_levels, n_gauges, size, data.pbc
         )
     static_mask = None if data.mask is None else _StaticMask(data.mask)
@@ -236,26 +236,26 @@ def build_wavelet_plan_with_tables_healpix(
     return plan, tables
 
 
-def _check_healpix_scales(value: object, depth: int) -> int:
+def _check_scales_healpix(value: object, depth: int) -> int:
     """J as an int, by default max(1, depth - 1) (M-DEF-HPX), in 1 … depth + 1."""
     if value is None:
-        return default_healpix_scales(depth)
+        return default_scales_healpix(depth)
     if isinstance(value, bool) or not isinstance(value, Integral):
         raise TypeError(
             f"J={value!r}: the number of scales is an integer ≥ 1, such as J=2, or None for its "
-            f"default max(1, depth - 1) = {default_healpix_scales(depth)} (maths.md M-DEF-HPX)."
+            f"default max(1, depth - 1) = {default_scales_healpix(depth)} (maths.md M-DEF-HPX)."
         )
     n = int(value)
     if not 1 <= n <= depth + 1:
         raise ValueError(
             f"J={n}: a HEALPix map of depth {depth} (nside {1 << depth}) has the levels 0 … "
             f"{depth}, one per scale, the last of nside 1, so 1 ≤ J ≤ {depth + 1}. The default "
-            f"is max(1, depth - 1) = {default_healpix_scales(depth)} (maths.md M-DEF-HPX)."
+            f"is max(1, depth - 1) = {default_scales_healpix(depth)} (maths.md M-DEF-HPX)."
         )
     return n
 
 
-def _healpix_masks(
+def _masks_healpix(
     mask: BoolMap,
     depth: int,
     static_ids: _StaticCellIds | None,
@@ -271,12 +271,12 @@ def _healpix_masks(
         return None if static_ids is None else static_ids.at_level(level)
 
     @functools.cache
-    def built_stencils(level: int) -> HealpixStencils:
-        return healpix_stencils(ids(level), depth - level, L=n_gauges, kernel_size=size)
+    def built_stencils(level: int) -> StencilsHealpix:
+        return stencils_healpix(ids(level), depth - level, L=n_gauges, kernel_size=size)
 
     @functools.cache
-    def decimation(level: int) -> HealpixDecimation:
-        return healpix_decimation(ids(level), depth - level)
+    def decimation(level: int) -> DecimationHealpix:
+        return decimation_healpix(ids(level), depth - level)
 
     def stencils(level: int) -> tuple[NDArray[np.int32], NDArray[np.float64]]:
         found = built_stencils(level)
@@ -286,7 +286,7 @@ def _healpix_masks(
     def support(level: int, invalid: BoolMap) -> BoolMap:
         index, weight = stencils(level)
         bad = invalid.astype(np.float64)
-        batch = _healpix_geometry._STENCIL_BATCH
+        batch = _tables_healpix._STENCIL_BATCH
 
         def touched(rows: slice) -> BoolMap:
             # One gauge and one batch of pixels at a time bound the temporaries (task T5.7).
@@ -342,7 +342,7 @@ def build_wavelet_filters_healpix(
     identity = backend.asarray(np.eye(2), dtype, device)
 
     def conv(level: int) -> ConvTablesHealpix:
-        found = handed.stencils.get(level) or healpix_stencils(
+        found = handed.stencils.get(level) or stencils_healpix(
             plan.level_cell_ids(level),
             plan.depth - level,
             L=plan.L,
@@ -357,7 +357,7 @@ def build_wavelet_filters_healpix(
         )
 
     def down(level: int) -> DownTablesHealpix:
-        found = handed.decimation.get(level) or healpix_decimation(
+        found = handed.decimation.get(level) or decimation_healpix(
             plan.level_cell_ids(level), plan.depth - level
         )
         return DownTablesHealpix(
@@ -380,7 +380,7 @@ _FOLD_BATCH = 1 << 14
 
 
 def _fold_kernel(
-    tables: HealpixStencils, kernel: NDArray[np.complex128], dtype: str = "float64"
+    tables: StencilsHealpix, kernel: NDArray[np.complex128], dtype: str = "float64"
 ) -> tuple[NDArray[np.int32], NDArray[np.floating[Any]]]:
     """The stencils of a level with the kernel folded in (task T5.7, trial 4): for each row
     (gauge, pixel), the K² · 4 entries merged into the distinct pixels they read, each with

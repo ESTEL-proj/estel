@@ -25,7 +25,7 @@ from estel.backend import _registry
 from estel.functional import _scattering
 from estel.scattering._plan import TensorProdPlan
 from estel.statistics._layout import tensor_prod_gather, tensor_prod_layout
-from estel.wavelets._tensor_prod import TensorProdWaveletOperator
+from estel.wavelets._operator_tensor_prod import WaveletOperatorTensorProd
 from tests.parity._compare import assert_parity
 
 pytestmark = [
@@ -141,7 +141,7 @@ def test_a_wrong_reference_is_refused_before_the_loop(monkeypatch: pytest.Monkey
 def test_parts_of_another_geometry_are_refused(case: str) -> None:
     """The plan and the filters of two operators, one planar and one of a tensor product, are
     refused with a ``TypeError`` (``STPlan._check_data``), and so is planar data given to the
-    wavelet operator of a tensor product (``TensorProdWaveletOperator.from_parts``; #144)."""
+    wavelet operator of a tensor product (``WaveletOperatorTensorProd.from_parts``; #144)."""
     product = _space_time()
     planar = Data2D(_field((1, 1, 8, 8)), pbc=True)
     with warnings.catch_warnings():
@@ -151,8 +151,8 @@ def test_parts_of_another_geometry_are_refused(case: str) -> None:
     if case == "wavelets":
         plan = of_product.plan
         assert isinstance(plan, TensorProdPlan)
-        with pytest.raises(TypeError, match=r"TensorProdWaveletOperator takes a DataTensorProd"):
-            TensorProdWaveletOperator.from_parts(planar, plan.wavelets)
+        with pytest.raises(TypeError, match=r"WaveletOperatorTensorProd takes a DataTensorProd"):
+            WaveletOperatorTensorProd.from_parts(planar, plan.wavelets)
         return
     data, plan, filters = (
         (planar, of_planar.plan, of_product.filters)

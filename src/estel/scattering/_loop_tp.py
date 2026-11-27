@@ -17,7 +17,7 @@ block 1 to the level of j₁ and filtered along block 1; and so on. The result o
 0 … a is kept, and serves every scale that starts with (j₀, …, j_a): the cache of prefixes is
 the recursion of :func:`_first_layer`, depth first, in lexicographic order. Along a block taken
 at its low-pass scale, the map is brought to the level of the low-pass filter
-(``TensorProdWaveletOperator.lowpass``, M-LP) and nothing is filtered; at the scale with the
+(``WaveletOperatorTensorProd.lowpass``, M-LP) and nothing is filtered; at the scale with the
 low-pass filter in every block, the real field X is centred, X - ⟨X⟩ (OP-42).
 
 **The second layer** follows STL too (M-S-TP, "How STL reaches the second layer"): for each
@@ -31,7 +31,7 @@ S3 the product of A with the band map, after each map is set to zero outside its
 by block (``_tensor_prod``). The rows outside M-IDX-TP (j1 not ≤ j2) are computed and not read.
 
 **Orientations.** Each block convolution puts its orientation right after the batch axis
-(``TensorProdWaveletOperator.convolve``), so that the maps of one band orientation are one
+(``WaveletOperatorTensorProd.convolve``), so that the maps of one band orientation are one
 matrix without a copy; the orientations of the blocks then come in reverse block order. The
 means, small arrays, are put in the C order of the blocks before they are gathered.
 
@@ -51,7 +51,7 @@ from ..backend._protocol import Backend
 from ..data._base import Data
 from ..data._moments import modulus
 from ..statistics._layout import pack, tensor_prod_gather
-from ..wavelets._tensor_prod import TensorProdWaveletOperator
+from ..wavelets._operator_tensor_prod import WaveletOperatorTensorProd
 from ._filters import TensorProdFilters
 from ._loop import (
     ScatteringValues,
@@ -78,7 +78,7 @@ def tensor_prod_values(
     backend = _registry.backend_named(data.backend)
     xp = backend.xp
     loop = plan.loop
-    wavelets = TensorProdWaveletOperator.from_parts(data, plan.wavelets, filters.wavelets)
+    wavelets = WaveletOperatorTensorProd.from_parts(data, plan.wavelets, filters.wavelets)
     n_spatial = len(plan.spatial_shape)
     axes = tuple(range(-n_spatial, 0))
 
@@ -142,7 +142,7 @@ def _complex_of(backend: Backend, x: Any) -> Any:
 
 
 def _first_layer(
-    backend: Backend, wavelets: TensorProdWaveletOperator, plan: TensorProdPlan, x: Any
+    backend: Backend, wavelets: WaveletOperatorTensorProd, plan: TensorProdPlan, x: Any
 ) -> list[tuple[Scale, Any]]:
     """W_j x for every scale j of S1 and S2, in lexicographic order, with STL's cache of
     prefixes (M-W1-TP): the map filtered along the blocks 0 … a - 1 is downsampled along block
@@ -226,7 +226,7 @@ def _first_layer_means(
 
 def _second_layer_grams(
     backend: Backend,
-    wavelets: TensorProdWaveletOperator,
+    wavelets: WaveletOperatorTensorProd,
     plan: TensorProdPlan,
     moduli: dict[Scale, Any],
     band: dict[Scale, Any],
@@ -408,7 +408,7 @@ def _second_layer_means(
 
 
 def _bring(
-    wavelets: TensorProdWaveletOperator, x: Any, level: Scale, a: int, target: int
+    wavelets: WaveletOperatorTensorProd, x: Any, level: Scale, a: int, target: int
 ) -> tuple[Any, Scale]:
     """``x`` at ``level``, downsampled along block a until d_a = ``target``."""
     while level[a] < target:

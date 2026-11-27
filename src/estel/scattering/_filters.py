@@ -31,7 +31,7 @@ from ..backend import _registry
 from ..spectra._estimators import SpectrumFilters, build_spectrum_filters
 from ..statistics._layout import ChunkTables, loop_gather, tensor_prod_gather
 from ..wavelets._operator import MeanWeights, WaveletFilters
-from ..wavelets._tensor_prod import build_wavelet_filters_tensor_prod
+from ..wavelets._operator_tensor_prod import build_wavelet_filters_tensor_prod
 from ._tensor_prod import Scale
 
 if TYPE_CHECKING:

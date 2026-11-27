@@ -60,8 +60,9 @@ def test_clean_repository_passes(tmp_path: Path) -> None:
 
 
 def test_wavelets_and_data_may_use_the_geometry_hooks(tmp_path: Path) -> None:
-    """Part I, §2.3: ``WaveletOperator`` calls the hooks of filtering and downsampling, and the
-    data classes define them and dispatch to those of their blocks."""
+    """Part I, §2.3: the wavelet operators, whose root is ``WaveletOperator``, call the hooks of
+    filtering and downsampling, and the data classes define them and dispatch to those of their
+    blocks."""
     hooks = "def f(data, x, t, w):\n    return data._conv(x, t, 0), data._downsample(x, w, 0)\n"
     files = {"src/estel/wavelets/_operator.py": hooks, "src/estel/data/_tensor_prod.py": hooks}
     code, _, err = check(fake_repo(tmp_path, files))
@@ -200,7 +201,7 @@ def test_wavelets_and_data_may_use_the_geometry_hooks(tmp_path: Path) -> None:
         pytest.param(
             "src/estel/statistics/_statistics.py",
             "low = getattr(data, '_lowpass')(x, plan, block)\n",
-            "go through it (`estel.wavelets._operator`",
+            "go through one (`WaveletOperatorSingleDomain` in `estel.wavelets._operator`",
             id="hook-lowpass-getattr",
         ),
     ],

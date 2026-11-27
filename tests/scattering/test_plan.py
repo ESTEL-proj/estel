@@ -20,8 +20,8 @@ from numpy.typing import NDArray
 from estel import Data, Data1D, Data2D
 from estel.data._masks import build_mask_maps
 from estel.scattering._plan import PlanarPlan, build_plan
-from estel.wavelets._banks import smoothing_kernel
-from estel.wavelets._operator import MeanWeights, border_width
+from estel.wavelets._banks_cartesian import smoothing_kernel_cartesian
+from estel.wavelets._operator import MeanWeights, border_width_cartesian
 
 GEOMETRIES: dict[int, type[Data]] = {2: Data2D, 1: Data1D}
 
@@ -106,25 +106,25 @@ def test_lowpass_is_the_cascade_of_smoothing_kernels() -> None:
 @pytest.mark.maths("M-BORDER")
 def test_border_width_fully_flexible() -> None:
     """maths.md M-BORDER, written out for K = 5 (⌊K/2⌋ = 2), K = 3 and K = 7."""
-    assert border_width((), 0, 5, pbc=False) == 0
-    assert border_width((2,), 2, 5, pbc=True) == 0
-    assert border_width((1, 3), 3, 5, pbc=True) == 0
+    assert border_width_cartesian((), 0, 5, pbc=False) == 0
+    assert border_width_cartesian((2,), 2, 5, pbc=True) == 0
+    assert border_width_cartesian((1, 3), 3, 5, pbc=True) == 0
     # One convolution at j, read at level d: ⌈2^(j-d) · 2⌉.
-    assert border_width((0,), 0, 5, pbc=False) == 2
-    assert border_width((0,), 1, 5, pbc=False) == 1
-    assert border_width((0,), 2, 5, pbc=False) == 1  # ⌈0.5⌉
-    assert border_width((0,), 3, 5, pbc=False) == 1  # ⌈0.25⌉
-    assert border_width((3,), 3, 5, pbc=False) == 2
+    assert border_width_cartesian((0,), 0, 5, pbc=False) == 2
+    assert border_width_cartesian((0,), 1, 5, pbc=False) == 1
+    assert border_width_cartesian((0,), 2, 5, pbc=False) == 1  # ⌈0.5⌉
+    assert border_width_cartesian((0,), 3, 5, pbc=False) == 1  # ⌈0.25⌉
+    assert border_width_cartesian((3,), 3, 5, pbc=False) == 2
     # Two convolutions: β₁ = ⌈2^(j2-j3) · 2⌉, then ⌈2^(j3-d) · (β₁ + 2)⌉.
-    assert border_width((2, 2), 2, 5, pbc=False) == 4  # β₁ = 2
-    assert border_width((1, 2), 2, 5, pbc=False) == 3  # β₁ = 1
-    assert border_width((0, 3), 3, 5, pbc=False) == 3  # β₁ = ⌈0.25⌉ = 1
-    assert border_width((0, 1), 2, 5, pbc=False) == 2  # ⌈0.5 · (1 + 2)⌉
-    assert border_width((1,), 1, 3, pbc=False) == 1
-    assert border_width((1, 1), 1, 7, pbc=False) == 6
-    assert border_width((0, 2), 2, 7, pbc=False) == 4  # β₁ = ⌈0.25 · 3⌉ = 1
+    assert border_width_cartesian((2, 2), 2, 5, pbc=False) == 4  # β₁ = 2
+    assert border_width_cartesian((1, 2), 2, 5, pbc=False) == 3  # β₁ = 1
+    assert border_width_cartesian((0, 3), 3, 5, pbc=False) == 3  # β₁ = ⌈0.25⌉ = 1
+    assert border_width_cartesian((0, 1), 2, 5, pbc=False) == 2  # ⌈0.5 · (1 + 2)⌉
+    assert border_width_cartesian((1,), 1, 3, pbc=False) == 1
+    assert border_width_cartesian((1, 1), 1, 7, pbc=False) == 6
+    assert border_width_cartesian((0, 2), 2, 7, pbc=False) == 4  # β₁ = ⌈0.25 · 3⌉ = 1
     with pytest.raises(ValueError, match="at most twice"):
-        border_width((0, 1, 2), 2, 5, pbc=False)
+        border_width_cartesian((0, 1, 2), 2, 5, pbc=False)
 
 
 @pytest.mark.maths("M-BORDER")
@@ -134,10 +134,13 @@ def test_mean_borders_are_the_larger_of_the_operands(ndim: int) -> None:
     assert plan.moments.border == 0
     assert all(w.border == 2 for w in plan.first_layer.values())
     for (j2, j3), w in plan.s3.items():
-        assert w.border == max(border_width((j2, j3), j3, 5, False), 2)
+        assert w.border == max(border_width_cartesian((j2, j3), j3, 5, False), 2)
         assert w.border == (4 if j2 == j3 else 3)
     for (j1, j2, j3), w in plan.s4.items():
-        expected = max(border_width((j1, j3), j3, 5, False), border_width((j2, j3), j3, 5, False))
+        expected = max(
+            border_width_cartesian((j1, j3), j3, 5, False),
+            border_width_cartesian((j2, j3), j3, 5, False),
+        )
         assert w.border == expected
 
 
@@ -192,7 +195,12 @@ def _expected_invalid(
     """The invalid pixels of each mean, from maths.md M-MASK written out with the maps of
     ``build_mask_maps``: the union of the operands' masks."""
     maps = build_mask_maps(
-        mask, tuple(range(J)), smoothing_kernel(ndim), 5, GEOMETRIES[ndim]._nan_threshold, pbc
+        mask,
+        tuple(range(J)),
+        smoothing_kernel_cartesian(ndim),
+        5,
+        GEOMETRIES[ndim]._nan_threshold,
+        pbc,
     )
     expected: dict[Any, NDArray[np.bool_]] = {"moments": maps.full_res}
     for j3 in range(J):
@@ -332,7 +340,7 @@ def test_means_without_valid_pixel_are_listed_not_computed(ndim: int) -> None:
         )
 
     def border(histories: tuple[tuple[int, ...], ...], level: int) -> int:
-        return max(border_width(h, level, 5, False) for h in histories)
+        return max(border_width_cartesian(h, level, 5, False) for h in histories)
 
     empty_s3 = tuple(
         (j2, j3)

@@ -1,5 +1,5 @@
-"""The internal ``WaveletOperator`` (Part I, §2.3; Part II, §12.5; task T2.10): its functions
-against the geometry hooks and the maths entries they implement.
+"""The internal ``WaveletOperatorSingleDomain`` (Part I, §2.3; Part II, §12.5; task T2.10): its
+functions against the geometry hooks and the maths entries they implement.
 
 The hooks are tested against NumPy references in ``test_hooks.py``, the mask maps in
 ``test_masks.py`` and the weights of every mean of a plan in ``tests/scattering/test_plan.py``;
@@ -21,15 +21,20 @@ from estel.backend._protocol import Backend
 from estel.data._base import DownsampleWeights
 from estel.data._masks import build_mask_maps
 from estel.data._moments import modulus
-from estel.wavelets._banks import bump_steerable_1d, bump_steerable_2d, smoothing_kernel
+from estel.wavelets._banks_cartesian import (
+    bump_steerable_1d,
+    bump_steerable_2d,
+    smoothing_kernel_cartesian,
+)
 from estel.wavelets._operator import (
     COMPLEX,
     WaveletFilters,
     WaveletOperator,
+    WaveletOperatorSingleDomain,
     WaveletPlan,
     WaveletPlanCartesian,
     WaveletPlanSingleDomain,
-    build_wavelet_filters,
+    build_wavelet_filters_cartesian,
     build_wavelet_plan,
 )
 
@@ -67,7 +72,7 @@ def test_apply_is_the_hook_conv_with_the_bank_of_the_geometry(
     III, §19.12, point 2)."""
     data = _data(ndim, pbc)
     L = 2  # noqa: N806
-    operator = WaveletOperator(data, 2, L)
+    operator = WaveletOperatorSingleDomain(data, 2, L)
     x = data.array
     bank = bump_steerable_2d(L) if ndim == 2 else bump_steerable_1d(conjugate=True)
     kernels = backend.asarray(bank, COMPLEX[_dtype(backend, x)])
@@ -94,14 +99,19 @@ def test_downsample_is_the_hook_step_with_the_maps_of_its_level(
     values, the valid pixels and the reweighting of that step: those of the field, or those of
     first-layer data, with the ``history`` of the map."""
     data = _data(ndim, pbc=False, masked=masked)
-    operator = WaveletOperator(data, 3, 1)
+    operator = WaveletOperatorSingleDomain(data, 3, 1)
     x = data.array
     dtype = _dtype(backend, x)
-    s = backend.asarray(smoothing_kernel(ndim), dtype)
+    s = backend.asarray(smoothing_kernel_cartesian(ndim), dtype)
     maps = None
     if data.mask is not None:
         maps = build_mask_maps(
-            data.mask, (0, 1, 2), smoothing_kernel(ndim), 5, type(data)._nan_threshold, pbc=False
+            data.mask,
+            (0, 1, 2),
+            smoothing_kernel_cartesian(ndim),
+            5,
+            type(data)._nan_threshold,
+            pbc=False,
         )
 
     def weights(invalid: NDArray[np.bool_] | None, reweight: Any) -> DownsampleWeights:
@@ -139,7 +149,7 @@ def test_mean_weights_are_the_crop_times_the_union_of_the_masks() -> None:
     mask = np.zeros((32, 32), dtype=bool)
     mask[20:22, 20:22] = True
     large = Data2D(np.zeros((32, 32)), mask=mask, pbc=False)
-    operator = WaveletOperator.from_parts(large, build_wavelet_plan(large, 2, 4))
+    operator = WaveletOperatorSingleDomain.from_parts(large, build_wavelet_plan(large, 2, 4))
     plan = operator.plan
     assert plan.masks is not None
     assert (plan.border((0, 1), 1), plan.border((1,), 1)) == (3, 2)
@@ -155,7 +165,7 @@ def test_mean_weights_are_the_crop_times_the_union_of_the_masks() -> None:
     np.testing.assert_array_equal(field.weights, (~mask).astype(float))
 
     data = _data(2, pbc=False, masked=True)
-    small = WaveletOperator.from_parts(data, build_wavelet_plan(data, 3, 4))
+    small = WaveletOperatorSingleDomain.from_parts(data, build_wavelet_plan(data, 3, 4))
     with pytest.warns(UserWarning, match="OP-13") as caught:
         empty = small.mean_weights({"a": (((0, 2),), 2), "b": (((1, 2),), 2)})
     assert len(caught) == 1
@@ -177,17 +187,33 @@ def test_static_part_gives_the_levels_and_is_hashable() -> None:
     assert plan != build_wavelet_plan(_data(2, pbc=True), 3)
 
 
-@pytest.mark.parametrize("abstract", [WaveletPlan, WaveletPlanSingleDomain, WaveletFilters])
+@pytest.mark.parametrize(
+    "abstract", [WaveletPlan, WaveletPlanSingleDomain, WaveletFilters, WaveletOperator]
+)
 def test_an_abstract_class_of_the_wavelets_cannot_be_built(abstract: type) -> None:
-    """The roots of the wavelet plans and filters, and the plan of single-domain data, are
-    abstract (Part I, §2.3.1): building one raises, and says what to build instead."""
+    """The roots of the wavelet plans, filters and operators, and the plan of single-domain
+    data, are abstract (Part I, §2.3.1): building one raises, and says what to build instead."""
     with pytest.raises(TypeError, match=r"abstract class of the wavelet .* estel\.STOperator"):
         abstract()
 
 
+def test_the_single_domain_operator_is_a_wavelet_operator() -> None:
+    """It gives the members its root declares: its levels and their shapes, those of its plan;
+    the low-pass filter of single-domain data raises, and says it comes with LF6."""
+    data = _data(2, pbc=True, lead=(1, 1))
+    operator = WaveletOperatorSingleDomain.from_parts(data, build_wavelet_plan(data, 3))
+    assert isinstance(operator, WaveletOperator)
+    assert operator.levels == (0, 1, 2)
+    assert [operator.level_shape(d) for d in operator.levels] == [(16, 16), (8, 8), (4, 4)]
+    with pytest.raises(ValueError, match=r"the levels are 0 … 2"):
+        operator.level_shape(3)
+    with pytest.raises(NotImplementedError, match=r"estel\.STOperatorTensorProd.*LF6"):
+        operator.lowpass(data.array, 2)
+
+
 def test_wavelet_operator_rejects_bad_arguments(backend: Backend) -> None:
     data = _data(1, pbc=True, lead=(1, 1))
-    operator = WaveletOperator(data, 3)
+    operator = WaveletOperatorSingleDomain(data, 3)
     x = data.array
     with pytest.raises(ValueError, match="level 1 first"):
         operator.apply(x, 1)  # a map at level 0
@@ -201,23 +227,23 @@ def test_wavelet_operator_rejects_bad_arguments(backend: Backend) -> None:
         operator.downsample(x, 0, history=(0, 0))
     with pytest.raises(TypeError, match="tuple of the"):
         operator.downsample(x, 0, history=0)  # type: ignore[arg-type]
-    static = WaveletOperator.from_parts(data, operator.plan)
+    static = WaveletOperatorSingleDomain.from_parts(data, operator.plan)
     with pytest.raises(ValueError, match="static part only"):
         static.apply(x, 0)
     with pytest.raises(AttributeError, match="immutable"):
         operator.plan = static.plan  # type: ignore[misc]
     with pytest.raises(ValueError, match="bump_steerable"):
-        WaveletOperator(data, 3, wavelet="morlet")
+        WaveletOperatorSingleDomain(data, 3, wavelet="morlet")
     with pytest.raises(ValueError, match="L = 2"):
-        WaveletOperator(data, 3, 3)
+        WaveletOperatorSingleDomain(data, 3, 3)
     with pytest.raises(ValueError, match=r"2\^\(J-1\)"):
-        WaveletOperator(data, 6)
+        WaveletOperatorSingleDomain(data, 6)
     with pytest.raises(TypeError, match="Data object"):
         build_wavelet_plan(np.zeros(16))  # type: ignore[arg-type]
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         plan = operator.plan
         assert isinstance(plan, WaveletPlanCartesian)  # the plan of 1D and 2D data
-        filters = build_wavelet_filters(plan, data.backend, "float64", None)
+        filters = build_wavelet_filters_cartesian(plan, data.backend, "float64", None)
     assert tuple(filters.kernels.shape) == (1, 5)
     assert not filters.field_down

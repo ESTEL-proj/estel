@@ -26,7 +26,7 @@ from estel.backend._registry import current_backend
 from estel.data import _healpix
 from estel.functional import _scattering
 from estel.io import _schema
-from estel.wavelets import _healpix_operator
+from estel.wavelets import _operator_healpix
 
 pytestmark = pytest.mark.maths("M-DATA-HPX", "M-DEF-HPX", "M-MEAN")
 DISC = np.arange(40, 150)
@@ -243,7 +243,7 @@ def test_a_masked_operator_builds_the_tables_of_a_level_once(
     builds: list[tuple[str, int]] = []
 
     def counted(name: str) -> Any:
-        build = getattr(_healpix_operator, name)
+        build = getattr(_operator_healpix, name)
 
         def wrapper(cell_ids: Any, depth: int, **kwargs: Any) -> Any:
             builds.append((name, depth))
@@ -251,23 +251,23 @@ def test_a_masked_operator_builds_the_tables_of_a_level_once(
 
         return wrapper
 
-    for name in ("healpix_stencils", "healpix_decimation"):
-        monkeypatch.setattr(_healpix_operator, name, counted(name))
+    for name in ("stencils_healpix", "decimation_healpix"):
+        monkeypatch.setattr(_operator_healpix, name, counted(name))
     data = DataHealpix(_field((192,)), mask=_hole(192))
     operator = _operator(data, 2)
     assert sorted(builds) == [
-        ("healpix_decimation", 2),
-        ("healpix_stencils", 1),
-        ("healpix_stencils", 2),
+        ("decimation_healpix", 2),
+        ("stencils_healpix", 1),
+        ("stencils_healpix", 2),
     ]
     wavelets = cast(Any, operator.plan).wavelets
-    assert isinstance(wavelets, _healpix_operator.WaveletPlanHealpix)
+    assert isinstance(wavelets, _operator_healpix.WaveletPlanHealpix)
     held = [getattr(wavelets, f.name) for f in dataclasses.fields(wavelets)]
-    assert not any(isinstance(v, _healpix_operator.PlanTablesHealpix) for v in held)
+    assert not any(isinstance(v, _operator_healpix.PlanTablesHealpix) for v in held)
     builds.clear()
     STOperator.from_statistics(operator.apply(data))
     assert sorted(builds) == [
-        ("healpix_decimation", 2),
-        ("healpix_stencils", 1),
-        ("healpix_stencils", 2),
+        ("decimation_healpix", 2),
+        ("stencils_healpix", 1),
+        ("stencils_healpix", 2),
     ]

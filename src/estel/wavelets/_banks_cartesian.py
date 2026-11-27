@@ -11,7 +11,7 @@ N of Part II, §12). The operator casts them to its dtype and backend.
   `2D+1D` ``8f51143`` (``WaveletOperator1Dkernel_torch.bump_steerable_1d``,
   ``bump_steerable_bank`` and ``_build_wavelet_kernel_from_ifft_crop``), with its conjugate for
   L = 2.
-* :func:`smoothing_kernel`: the smoothing kernel of maths.md M-SMOOTH-2D and M-SMOOTH-1D
+* :func:`smoothing_kernel_cartesian`: the smoothing kernel of maths.md M-SMOOTH-2D and M-SMOOTH-1D
   (``_get_smooth_kernel`` of both classes).
 
 STL's kernels are reproduced as they are, problems included: the 2D width factor tuned for L = 4
@@ -36,22 +36,23 @@ from numbers import Integral
 import numpy as np
 from numpy.typing import NDArray
 
+from ._checks import _check_n_orientations, _check_zero_sum
+
 FOURIER_GRID = 256
 """N, the side of the Fourier grid the kernels are built on, independent of the data size
 (M-WAV-2D, M-WAV-1D)."""
 
-KERNEL_SIZE = 5
+KERNEL_SIZE_CARTESIAN = 5
 """K, STL's default kernel size: 5 x 5 pixels in 2D, 5 taps in 1D (M-DEF, M-DEF-1D)."""
+
+WAVELETS_CARTESIAN = ("bump_steerable",)
+"""The wavelets of 1.0.0 (maths.md M-WAV-2D, M-WAV-1D)."""
 
 WIDTH_FACTOR_2D = 2.5
 """c, the width factor of the 2D radial bump (M-WAV-2D, OP-9)."""
 
 _BUMP_EPS = 1e-12
 """STL clamps the denominator of the bump at this value (``clamp_min(eps)``)."""
-
-_ZERO_SUM_RTOL = 1e-12
-"""A band-pass kernel passes the zero-sum check when |sum| <= this times max|kernel|, in float64
-(Part III, §20.11, rule 3)."""
 
 # STL's literal 6 x 6 smoothing kernel, "cropped raised cosine, bandwidth .71, beta .35"
 # (M-SMOOTH-2D). As written in STL it sums to 1.00000004, not exactly 1; it is reproduced as it is.
@@ -68,19 +69,7 @@ _SMOOTHING_KERNEL_2D = np.array(
 )
 
 
-def _check_n_orientations(value: object) -> int:
-    """L as an int: an integer ≥ 1, as STL accepts (Part II, §12.5)."""
-    if isinstance(value, bool) or not isinstance(value, Integral):
-        raise TypeError(f"L={value!r}: the number of orientations is an integer ≥ 1, such as L=4.")
-    n = int(value)
-    if n < 1:
-        raise ValueError(
-            f"L={n}: the number of orientations is at least 1; the default is 4 in 2D and 1 in 1D."
-        )
-    return n
-
-
-def _check_size(size: object) -> int:
+def _check_size_cartesian(size: object) -> int:
     """K as an int: odd, so that the kernel has a centre, and at most the Fourier grid."""
     if isinstance(size, bool) or not isinstance(size, Integral):
         raise TypeError(f"size={size!r}: the kernel size is an odd integer, such as 5.")
@@ -88,7 +77,8 @@ def _check_size(size: object) -> int:
     if n < 1 or n % 2 == 0 or n > FOURIER_GRID:
         raise ValueError(
             f"size={n}: the kernel size must be odd, so that the kernel has a centre, and "
-            f"between 1 and {FOURIER_GRID} (the Fourier grid); the default is {KERNEL_SIZE}."
+            f"between 1 and {FOURIER_GRID} (the Fourier grid); the default is "
+            f"{KERNEL_SIZE_CARTESIAN}."
         )
     return n
 
@@ -111,33 +101,12 @@ def _centered_frequencies(n: int) -> NDArray[np.float64]:
     return np.fft.fftshift(np.fft.fftfreq(n) * n)
 
 
-def _check_zero_sum(kernels: NDArray[np.complexfloating], ndim: int, name: str) -> None:
-    """Raise unless every band-pass kernel sums to zero within rounding.
-
-    ``kernels`` holds one kernel per index of its leading axis, over its last ``ndim`` axes. Each
-    must satisfy |sum| <= 1e-12 max|kernel|, computed in float64 (Part III, §20.11, rule 3: the
-    centring rule of step 2 relies on this guarantee of the filter bank).
-    """
-    axes = tuple(range(-ndim, 0))
-    values = np.asarray(kernels, dtype=np.complex128)
-    sums = np.abs(values.sum(axis=axes)).reshape(-1)
-    peaks = np.abs(values).max(axis=axes).reshape(-1)
-    for index, (total, peak) in enumerate(zip(sums, peaks, strict=True)):
-        if not total <= _ZERO_SUM_RTOL * peak:
-            raise ValueError(
-                f"{name}: kernel {index} is not zero-sum: |sum| = {total:.3e} exceeds "
-                f"{_ZERO_SUM_RTOL:g} x max|kernel| = {_ZERO_SUM_RTOL * peak:.3e}. Every "
-                "band-pass kernel must sum to zero (Part III, §20.11, rule 3); subtract its mean "
-                "in float64 after the crop."
-            )
-
-
 def _crop_center(
     kernel: NDArray[np.complex128], size: int, ndim: int, name: str
 ) -> NDArray[np.complex128]:
     """Inverse FFT over the last ``ndim`` axes, centred, cropped to ``size`` around the centre,
     with its mean subtracted (steps 1 to 3 of the pixel-space part of M-WAV-2D), then checked
-    to sum to zero (:func:`_check_zero_sum`; ``name`` names the bank in its error)."""
+    to sum to zero (``_checks._check_zero_sum``; ``name`` names the bank in its error)."""
     axes = tuple(range(-ndim, 0))
     n, w = kernel.shape[-1], size // 2
     spatial = np.fft.fftshift(np.fft.ifftn(kernel, axes=axes), axes=axes)
@@ -171,7 +140,7 @@ def _fourier_bump_steerable_2d(n_orientations: int, n: int = FOURIER_GRID) -> ND
     return np.stack(filters)
 
 
-def bump_steerable_2d(L: int, size: int = KERNEL_SIZE) -> NDArray[np.complex128]:  # noqa: N803
+def bump_steerable_2d(L: int, size: int = KERNEL_SIZE_CARTESIAN) -> NDArray[np.complex128]:  # noqa: N803
     """The L oriented 2D bump-steerable kernels of maths.md M-WAV-2D, shape ``(L, size, size)``.
 
     Built in Fourier space on a 256 x 256 grid, brought to pixel space by an inverse FFT,
@@ -183,7 +152,7 @@ def bump_steerable_2d(L: int, size: int = KERNEL_SIZE) -> NDArray[np.complex128]
     ``size`` is odd. The result is complex128, a new array at each call.
     """
     n_orientations = _check_n_orientations(L)
-    size = _check_size(size)
+    size = _check_size_cartesian(size)
     return _crop_center(
         _fourier_bump_steerable_2d(n_orientations).astype(np.complex128),
         size,
@@ -202,7 +171,7 @@ def _fourier_bump_steerable_1d(xi0: float, n: int = FOURIER_GRID) -> NDArray[np.
 
 
 def bump_steerable_1d(
-    xi0: float | None = None, size: int = KERNEL_SIZE, conjugate: bool = False
+    xi0: float | None = None, size: int = KERNEL_SIZE_CARTESIAN, conjugate: bool = False
 ) -> NDArray[np.complex128]:
     """The 1D bump-steerable kernel of maths.md M-WAV-1D, shape ``(L, size)``.
 
@@ -215,7 +184,7 @@ def bump_steerable_1d(
 
     The result is complex128, a new array at each call.
     """
-    size = _check_size(size)
+    size = _check_size_cartesian(size)
     if xi0 is None:
         xi0 = FOURIER_GRID / 2.0
     if isinstance(xi0, bool) or not isinstance(xi0, int | float) or not 0.0 < xi0 < math.inf:
@@ -236,7 +205,23 @@ def bump_steerable_1d(
     return kernel
 
 
-def smoothing_kernel(ndim: int) -> NDArray[np.float64]:
+def wavelet_bank_cartesian(
+    ndim: int, n_orientations: int, size: int = KERNEL_SIZE_CARTESIAN
+) -> NDArray[np.complex128]:
+    """The wavelet bank of the geometry, ``(L, *kernel)`` (maths.md M-WAV-2D, M-WAV-1D)."""
+    if ndim == 2:
+        return bump_steerable_2d(n_orientations, size)
+    if ndim == 1:
+        if n_orientations not in (1, 2):
+            raise ValueError(
+                f"L={n_orientations}: 1D data have L = 1 (the default) or L = 2, the analytic "
+                "wavelet and its conjugate (maths.md M-WAV-1D)."
+            )
+        return bump_steerable_1d(size=size, conjugate=n_orientations == 2)
+    raise ValueError(f"STOperator handles 1D and 2D planar data; got {ndim} spatial axes.")
+
+
+def smoothing_kernel_cartesian(ndim: int) -> NDArray[np.float64]:
     """The smoothing kernel, the anti-aliasing filter applied before each planar downsampling.
 
     Float64, a new array at each call.

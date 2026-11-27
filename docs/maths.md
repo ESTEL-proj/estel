@@ -650,7 +650,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 
 | # | Point | Proposal | Status |
 | --- | --- | --- | --- |
-| OP-23 | The bump-steerable bank lives in STL's Fourier-space class; port it to `wavelets/banks.py` | ported to `wavelets/_banks.py` (T2.2) | closed |
+| OP-23 | The bump-steerable bank lives in STL's Fourier-space class; port it to `wavelets/banks.py` | ported to `wavelets/_banks_cartesian.py` (T2.2) | closed |
 | OP-24 | STL's kernel class also offers Morlet wavelets, decided: not transferred; a general optimisation of the wavelets comes later (LF22) | not transferred | closed |
 | OP-25 | `sigma_smooth` has no effect: drop it from the API | dropped from the API | differs |
 | OP-26 | A missing-data mask must be one 2D map, shared by all batch elements and channels; auto-detection fails on batched examples | reproduce, document; LF54 | reproduced |

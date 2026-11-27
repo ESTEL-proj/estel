@@ -58,9 +58,9 @@ the scales of the convolutions applied, which in ESTEL is plan data rather than 
 * S4 at ``(j1, j2, j3)``: ``(j1, j3)`` and ``(j2, j3)``, at the level of scale ``j3``.
 
 The plan lists these means, and the wavelet operator gives their weights
-(``WaveletOperator.mean_weights``). The border of a mean is the larger of its operands' borders
-(M-BORDER, "fully flexible"); the geometry turns it into weights, reducing a border too large
-for the grid as STL does, with one warning per plan (OP-13). The invalid pixels of a mean are
+(``WaveletOperatorSingleDomain.mean_weights``). The border of a mean is the larger of its operands'
+borders (M-BORDER, "fully flexible"); the geometry turns it into weights, reducing a border too
+large for the grid as STL does, with one warning per plan (OP-13). The invalid pixels of a mean are
 the union of its operands' masks (M-MASK, "Covariances"). STL takes the mask of the operand
 with more convolutions instead, assuming that it contains the other one; where it does not
 (masked 1D data), STL's S3 is NaN, and the union gives a value (OP-35). Without missing values
@@ -116,14 +116,13 @@ from ..statistics._normalization import (
     tensor_prod_blocks,
 )
 from ..wavelets._operator import (
-    KERNEL_SIZE,
     History,
     MeanWeights,
-    WaveletOperator,
+    WaveletOperatorSingleDomain,
     WaveletPlanSingleDomain,
     build_wavelet_plan_with_tables,
 )
-from ..wavelets._tensor_prod import WaveletPlanTensorProd, build_wavelet_plan_tensor_prod
+from ..wavelets._operator_tensor_prod import WaveletPlanTensorProd, build_wavelet_plan_tensor_prod
 from ._filters import (
     PlanarFilters,
     STFilters,
@@ -599,7 +598,7 @@ def build_plan(
     J: int | None = None,  # noqa: N803 (maths.md notation)
     L: int | None = None,  # noqa: N803
     *,
-    kernel_size: int = KERNEL_SIZE,
+    kernel_size: int | None = None,
     cross_matrix: Any = None,
     standardize: bool = False,
     compute_PS: bool | None = False,  # noqa: N803 (STL's name)
@@ -627,7 +626,7 @@ def build_plan_with_tables(
     J: int | None = None,  # noqa: N803 (maths.md notation)
     L: int | None = None,  # noqa: N803
     *,
-    kernel_size: int = KERNEL_SIZE,
+    kernel_size: int | None = None,
     cross_matrix: Any = None,
     standardize: bool = False,
     compute_PS: bool | None = False,  # noqa: N803 (STL's name)
@@ -638,7 +637,7 @@ def build_plan_with_tables(
     """The :class:`PlanarPlan` of a scattering transform with ``J`` scales and ``L``
     orientations on data with the geometry, spatial shape, ``pbc``, mask and number of channels
     of ``data``; by default J and L are those of the geometry (M-DEF, M-DEF-1D) and the kernel
-    size that of the wavelets.
+    size that of the wavelets of the geometry (``kernel_size=None``).
 
     ``cross_matrix`` is STL's ``compute_cross_matrix``, a boolean ``(Nc, Nc)`` array, or
     ``None`` for every pair c1 ≤ c2, the upper triangle (M-CHAN, M-DEF); ``standardize`` is the
@@ -694,7 +693,7 @@ def build_plan_with_tables(
             for j1, j2, j3 in s4_triples
         },
     }
-    candidates = WaveletOperator.from_parts(data, wavelets).mean_weights(
+    candidates = WaveletOperatorSingleDomain.from_parts(data, wavelets).mean_weights(
         {key: (histories, level) for key, (_, histories, level) in means.items()}
     )
     weights = {key: w for key, w in candidates.items() if w is not None}
@@ -969,7 +968,7 @@ def build_tensor_prod_statistics_plan(
     L: Any = None,  # noqa: N803
     *,
     lowpass: str | None = "ST",
-    kernel_size: int = KERNEL_SIZE,
+    kernel_size: int | None = None,
     cross_matrix: Any = None,
     standardize: bool = False,
     stacklevel: int = 1,
