@@ -1,12 +1,12 @@
 """Parity of the plan's means with STL: borders, crops, masks and denominators (task T2.3,
 issue #15; maths.md M-BORDER, M-MASK, M-MEAN).
 
-Compares ``estel.scattering._plan.build_plan_single_domain`` with the fixtures ``plan_2d`` (STL `master`) and
-``plan_1d`` (STL `2D+1D`), which record, for every mean of STL's loop, the border STL's border
-method returns, the number of pixels its ``maskmean`` divides by, and (for the configurations
-marked ``"weights"``) the pixels it averages, in the order of STL's loops (the cases'
-docstrings, ``tools/stl_parity/cases/plan_2d.py``). The comparison is exact: borders and counts
-are integers, weights 0 or 1.
+Compares ``estel.scattering._plan.build_plan_single_domain`` with the fixtures ``plan_2d`` (STL
+`master`) and ``plan_1d`` (STL `2D+1D`), which record, for every mean of STL's loop, the border
+STL's border method returns, the number of pixels its ``maskmean`` divides by, and (for the
+configurations marked ``"weights"``) the pixels it averages, in the order of STL's loops (the cases'
+docstrings, ``tools/stl_parity/cases/plan_2d.py``). The comparison is exact: borders and counts are
+integers, weights 0 or 1.
 
 Where STL divides by zero (a count of 0), the coefficient is NaN, in STL and in ESTEL (maths.md
 M-MEAN, OP-3): the test checks that the plan lists exactly those means as empty, leaves them

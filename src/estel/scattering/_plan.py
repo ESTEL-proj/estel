@@ -28,14 +28,14 @@ What it holds, for STL's loop structure (maths.md §1.6 to 1.7; STL ``ST_Operato
   the pixels that enter the mean, 0 elsewhere, and their sum; and the means that have no
   valid pixel, whose coefficients are NaN (OP-3).
 
-* **The windows of the second layer** (``second_layer``, one :class:`SecondLayerWindowsSingleDomain` per
-  scale j3 of the second convolution; maths_step2.md M-GRAM): the scales j2 whose second-layer
-  maps ψ_{j3} ⋆ U_{j2} are computed, and the window of each of these maps and of the band
-  map, the weights of a mean of that map alone. The loop sets each map to zero outside its own
-  window, takes one Gram product, and divides each mean by its denominator, which is the number
-  of pixels of the two windows' intersection: the weights of S3 and S4 above are the products
-  of two windows, and STL's windows are reproduced exactly. Weights are stored once per
-  distinct level, border and mask: the means that have the same three share one array.
+* **The windows of the second layer** (``second_layer``, one :class:`SecondLayerWindowsSingleDomain`
+  per scale j3 of the second convolution; maths_step2.md M-GRAM): the scales j2 whose second-layer
+  maps ψ_{j3} ⋆ U_{j2} are computed, and the window of each of these maps and of the band map, the
+  weights of a mean of that map alone. The loop sets each map to zero outside its own window, takes
+  one Gram product, and divides each mean by its denominator, which is the number of pixels of the
+  two windows' intersection: the weights of S3 and S4 above are the products of two windows, and
+  STL's windows are reproduced exactly. Weights are stored once per distinct level, border and mask:
+  the means that have the same three share one array.
 
 * **Windows have a kind** (``MeanWeights.kind``; maths_step2.md M-WIN; Part III, §19.12,
   point 1; task T2.13): ``full``, every pixel of the level (periodic data without missing
@@ -76,8 +76,8 @@ T2.19).
 **Public and opaque.** ``STPlan`` is public as a name only (Part II, §12.6): users get it
 from an operator's ``plan`` and pass it to ``estel.functional.scattering``, and it has no public
 field. It is the base class of the plan of each geometry: :class:`STPlanSingleDomain`, whose
-fields are those of the private base class ``_PlanFieldsSingleDomain``, and :class:`STPlanTensorProd` (task
-T3.2), both read by ESTEL only.
+fields are those of the private base class ``_PlanFieldsSingleDomain``, and
+:class:`STPlanTensorProd` (task T3.2), both read by ESTEL only.
 
 A mean with no pixel left is where STL divides by zero, and its coefficient is NaN (M-MEAN,
 OP-3). The plan knows these means statically: it leaves them out of ``first_layer``, ``s3``
@@ -521,7 +521,8 @@ class _PlanFieldsSingleDomain:
 
 class STPlanSingleDomain(_PlanFieldsSingleDomain, STPlan):
     """The :class:`STPlan` of single-domain data, 1D, 2D and HEALPix (``STOperator.plan``),
-    built by :func:`build_plan_single_domain`; its fields are those of ``_PlanFieldsSingleDomain``."""
+    built by :func:`build_plan_single_domain`; its fields are those of
+    ``_PlanFieldsSingleDomain``."""
 
     _operator_name: ClassVar[str] = "STOperator"
 
@@ -621,7 +622,8 @@ def build_plan_single_domain(
     Jmin: int = 0,  # noqa: N803 (STL's name)
     spectrum_method: str = "auto",
 ) -> STPlanSingleDomain:
-    """The plan of :func:`build_plan_with_tables_single_domain`, without the tables of its wavelets."""
+    """The plan of :func:`build_plan_with_tables_single_domain`, without the tables of its
+    wavelets."""
     return build_plan_with_tables_single_domain(
         data,
         J,
@@ -675,7 +677,8 @@ def build_plan_with_tables_single_domain(
     """
     if not isinstance(data, Data):
         raise TypeError(
-            f"build_plan_single_domain takes a Data object, such as estel.Data2D, got {type(data).__name__}."
+            "build_plan_single_domain takes a Data object, such as estel.Data2D, "
+            f"got {type(data).__name__}."
         )
     wavelets, tables = build_wavelet_plan_with_tables(data, J, L, kernel_size=kernel_size)
     matrix = _cross_matrix(cross_matrix, data.n_channels)
@@ -789,10 +792,11 @@ def _spectrum(
     jmin: object,
     method: object = "auto",
 ) -> SpectrumPlan | None:
-    """The :class:`SpectrumPlan` of :func:`build_plan_single_domain`, or ``None`` without ``compute_PS``, whose
-    options must then keep their defaults (decision on #148). ``compute_PS=None`` means the
-    default: the spectrum on 2D data, none on other data, where ESTEL 1.0.0 has none (Part II,
-    §12.6), and where ``compute_PS=True`` or a spectrum option raises :func:`spectrum_2d_only`."""
+    """The :class:`SpectrumPlan` of :func:`build_plan_single_domain`, or ``None`` without
+    ``compute_PS``, whose options must then keep their defaults (decision on #148).
+    ``compute_PS=None`` means the default: the spectrum on 2D data, none on other data, where ESTEL
+    1.0.0 has none (Part II, §12.6), and where ``compute_PS=True`` or a spectrum option raises
+    :func:`spectrum_2d_only`."""
     two_d = wavelets.geometry._geometry == "2d"
     if not resolve_compute_ps(compute_ps, wavelets.geometry):
         changed = [
@@ -992,8 +996,8 @@ def build_statistics_plan_tensor_prod(
     (M-DATA-TP, M-DEF-TP: a list, an entry ``None`` giving the default of the block). The values
     of ``data`` are not read. ``lowpass`` is ``"ST"`` (STL's default) or ``None`` (M-LP);
     ``cross_matrix`` and ``standardize`` are those of
-    :func:`build_plan_single_domain`. The static description of the loop, its index tables, crop widths and
-    mean denominators, is built here too (:attr:`STPlanTensorProd.loop`).
+    :func:`build_plan_single_domain`. The static description of the loop, its index tables, crop
+    widths and mean denominators, is built here too (:attr:`STPlanTensorProd.loop`).
 
     Warns once, as STL does, for each block whose sizes are not divisible by 2^J_a: it has no
     low-pass filter (M-LP, OP-34); and once for the plan when a border is too large for a block

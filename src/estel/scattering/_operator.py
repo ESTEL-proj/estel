@@ -2,14 +2,15 @@
 tasks T2.4, T2.5, T5.6).
 
 An operator is a frozen plan plus a pure function (Part I, §2.3): ``STOperator(data, ...)``
-builds the static plan (``build_plan_single_domain``) and the filters (``build_filters_single_domain``), cast once to the
-default dtype, and ``apply(data, ref=None, *, norm="self", ref_batch_mean=False)`` calls
+builds the static plan (``build_plan_single_domain``) and the filters
+(``build_filters_single_domain``), cast once to the default dtype, and
+``apply(data, ref=None, *, norm="self", ref_batch_mean=False)`` calls
 ``estel.functional.scattering``. Every option is set in one place only (review rule A6): the
 normalisation, ``norm`` and ``ref_batch_mean``, at each call of ``apply``, so that one operator
-serves every normalisation, as in STL (task T2.19); the rest at construction, the number of
-channels and ``cross_matrix`` too, read from the example data (issue #17). The operator records
-its backend, dtype and the static metadata of the data it was built for (geometry, spatial shape,
-``pbc``, mask, number of channels), and refuses other data.
+serves every normalisation, as in STL (task T2.19); the rest at construction, the number of channels
+and ``cross_matrix`` too, read from the example data (issue #17). The operator records its backend,
+dtype and the static metadata of the data it was built for (geometry, spatial shape, ``pbc``, mask,
+number of channels), and refuses other data.
 
 **The reference.** As in STL (maths.md M-NORM), each call of ``apply`` with ``norm="self"``
 stores the reference of the statistics it computes in the operator, replacing the one it held
@@ -184,7 +185,8 @@ class STOperator:
         """The state of an operator: its plan, its filters built once on ``backend`` in
         ``dtype`` by the plan (``STPlan._build_filters``), its engine checked in the registry
         (Part II, §9.4), and its reference. ``tables``: the tables the plan was built with
-        (``build_plan_with_tables_single_domain``), passed to the filters once and not kept (task T5.7)."""
+        (``build_plan_with_tables_single_domain``), passed to the filters once and not kept (task
+        T5.7)."""
         capabilities = _engines.resolve(engine)
         capabilities.check(geometry=plan.geometry._geometry, dtype=dtype)
         self._plan = plan

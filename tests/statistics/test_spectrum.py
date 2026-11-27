@@ -6,9 +6,9 @@ These tests, written before the spectrum operator (T4.1), take the raw statistic
 (``spec_apply(..., norm="none")``) on its fields, the raw spectrum of the target from
 ``<config>_raw_PS``, and that of the second field from ``<config>_load_PS`` times the product of
 the spectrum references (``<config>_ps_ref``). They place them in the layout of a plan with the
-spectrum (``build_plan_single_domain(..., compute_PS=True)``, the private path until T4.1), and read them back
-through ``STStatistics``: the positions, the normalisation, its references and the flat vectors
-are compared with the fixture, in float64, with the tolerances of Part II, §14.3.
+spectrum (``build_plan_single_domain(..., compute_PS=True)``, the private path until T4.1), and read
+them back through ``STStatistics``: the positions, the normalisation, its references and the flat
+vectors are compared with the fixture, in float64, with the tolerances of Part II, §14.3.
 """
 
 from __future__ import annotations

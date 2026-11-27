@@ -8,14 +8,14 @@ them: the valid pixels, the weights of the means of the field and of the first l
 windows of the second-layer maps, with their border crops, where the data have missing values
 (M-MEAN, M-BORDER, M-MASK; maths_step2.md M-GRAM, M-WIN), and the gather from the sums of the
 loop to the compact buffer (Part III, §19.9). They are backend arrays in the operator's dtype,
-built once from the plan (:func:`build_filters_single_domain`) and passed to the computation as an argument
-rather than baked in (Part I, §3.1, rules 4 and 7).
+built once from the plan (:func:`build_filters_single_domain`) and passed to the computation as an
+argument rather than baked in (Part I, §3.1, rules 4 and 7).
 
 ``STFilters`` is public as a name only (Part II, §12.6): users get it from an operator's
 ``filters`` and pass it to ``estel.functional.scattering``. It is the base class of the filters
 of each geometry: :class:`STFiltersSingleDomain`, whose fields are those of the private base class
-``_FilterFieldsSingleDomain``, and :class:`STFiltersTensorProd` (task T3.2). Each is a named tuple, so JAX
-takes it as a pytree whose leaves are the arrays.
+``_FilterFieldsSingleDomain``, and :class:`STFiltersTensorProd` (task T3.2). Each is a named tuple,
+so JAX takes it as a pytree whose leaves are the arrays.
 """
 
 from __future__ import annotations
@@ -95,7 +95,8 @@ class STFilters:
 
 class STFiltersSingleDomain(_FilterFieldsSingleDomain, STFilters):
     """The :class:`STFilters` of single-domain data, 1D, 2D and HEALPix (``STOperator.filters``),
-    built by :func:`build_filters_single_domain`; its fields are those of ``_FilterFieldsSingleDomain``."""
+    built by :func:`build_filters_single_domain`; its fields are those of
+    ``_FilterFieldsSingleDomain``."""
 
     __slots__ = ()
 

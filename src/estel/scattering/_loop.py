@@ -87,8 +87,8 @@ def field_moments(
 ) -> FieldMoments:
     """The field standardised when ``standardized`` (STL's ``apply(standardize=True)``, M-MOM,
     M-STD), with the mean and the standard deviation removed, and the sums of its ``mean`` and
-    ``var`` over the window ``weights`` (``window_single_domain``), waiting for their division (M-MOM). Shared
-    by the loops of planar data and of tensor products; every sum goes through
+    ``var`` over the window ``weights`` (``window_single_domain``), waiting for their division
+    (M-MOM). Shared by the loops of planar data and of tensor products; every sum goes through
     :func:`_global_sum`."""
     mean_pre_std = std_pre_std = None
     if standardized:
@@ -108,8 +108,9 @@ def first_layer_sums(
     """The sums of the S1 and S2 means of one scale (M-S1, M-S2, M-CHAN, OP-16), in the order of
     ``loop_sums``: S1 of the auto channels, every channel at once, then of the cross pairs, pair
     by pair; then S2 alike. ``w`` is the first-layer map W_j x and ``u`` its modulus,
-    ``(Nb, L, Nc, *spatial)``, ``weights`` the window of the means (``window_single_domain``). Shared by the
-    loops of planar data and of tensor products, whose orientations are flattened into L."""
+    ``(Nb, L, Nc, *spatial)``, ``weights`` the window of the means (``window_single_domain``).
+    Shared by the loops of planar data and of tensor products, whose orientations are flattened into
+    L."""
     auto_s1 = sum_valid(u, weights, axes)  # (Nb, L, Nc)
     auto_s2 = cov_sum_valid(u, u, weights, axes)
     sums = [_Sum("S1", auto_s1[:, :, c], denominator) for c in pairs.auto]
