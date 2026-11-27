@@ -20,7 +20,8 @@ import numpy as np
 import pytest
 
 from estel import Data2D, STOperator, _config
-from estel._spec import planar as spec
+from estel._spec import cartesian as spec
+from estel._spec import common
 from tests.parity._compare import assert_parity
 
 pytestmark = pytest.mark.maths("M-FLAT", "M-SYN-LOSS")
@@ -50,7 +51,7 @@ def test_complex_form_equals_the_oracle(
     options = {"keep_batch_dim": keep_batch_dim, "mean_along_batch": mean_along_batch}
     actual = np.asarray(stats._to_complex_vector(**options))
     assert actual.dtype == np.complex128
-    assert_parity(actual, spec.spec_flatten(expected, flatten_complex=False, **options))
+    assert_parity(actual, common.spec_flatten(expected, flatten_complex=False, **options))
 
 
 def test_weights_scale_their_families(statistics: tuple[Any, dict[str, Any]]) -> None:
@@ -58,8 +59,10 @@ def test_weights_scale_their_families(statistics: tuple[Any, dict[str, Any]]) ->
     flattening, the other families unchanged."""
     stats, expected = statistics
     weights = {"S3": 3.5, "S4": 3.5**2}
-    weighted = {k: v * weights.get(k, 1.0) for k, v in expected.items() if k in spec.FAMILIES}
+    weighted = {k: v * weights.get(k, 1.0) for k, v in expected.items() if k in common.FAMILIES}
     actual = np.asarray(stats._to_complex_vector(mean_along_batch=True, weights=weights))
-    assert_parity(actual, spec.spec_flatten(weighted, flatten_complex=False, mean_along_batch=True))
+    assert_parity(
+        actual, common.spec_flatten(weighted, flatten_complex=False, mean_along_batch=True)
+    )
     with pytest.raises(ValueError, match="PS"):
         stats._to_complex_vector(weights={"PS": 2.0})

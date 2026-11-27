@@ -2,7 +2,7 @@
 #151; maths.md §1.9, M-CHAN, M-NORM, M-FLAT; Part II, §12.7; Part III, §19.4 to §19.6).
 
 These tests, written before the spectrum operator (T4.1), take the raw statistics of the fixture
-``statistics_ps_2d`` (T4.3): the scattering statistics from the planar oracle
+``statistics_ps_2d`` (T4.3): the scattering statistics from the Cartesian oracle
 (``spec_apply(..., norm="none")``) on its fields, the raw spectrum of the target from
 ``<config>_raw_PS``, and that of the second field from ``<config>_load_PS`` times the product of
 the spectrum references (``<config>_ps_ref``). They place them in the layout of a plan with the
@@ -23,7 +23,7 @@ import pytest
 from numpy.typing import NDArray
 
 from estel import Data2D, STOperator, STStatistics, _config
-from estel._spec import planar as spec
+from estel._spec import cartesian as spec
 from estel.backend import _registry
 from estel.scattering._plan import PlanarPlan, build_plan
 from estel.statistics import _grid, _layout, _normalization, _statistics

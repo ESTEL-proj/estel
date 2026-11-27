@@ -1,4 +1,4 @@
-"""Spec parity of ``STOperator`` on HEALPix data: ESTEL against the oracle ``spec_apply_hpx``
+"""Spec parity of ``STOperator`` on HEALPix data: ESTEL against the oracle ``spec_apply_healpix``
 (task T5.6, issue #167; maths.md §4 "Scattering loop", M-DATA-HPX, M-MASK-HPX, M-DEF-HPX;
 section 1 from M-MEAN to M-FLAT; Part I, §4.2).
 
@@ -38,8 +38,8 @@ import pytest
 from numpy.typing import NDArray
 
 from estel import DataHealpix, STOperator, STStatistics, _config
+from estel._spec import common
 from estel._spec import healpix as spec
-from estel._spec import planar
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
@@ -92,12 +92,12 @@ def _reduced(normalized: dict[str, Any], chain: dict[str, Any]) -> dict[str, Any
     out = normalized
     iso = bool(chain.get("iso"))
     if iso:
-        out = planar.spec_iso(out)
+        out = common.spec_iso(out)
     if chain.get("angular_fourier"):
-        out = planar.spec_angular_fourier(out, chain.get("angular_harmonics"), after_iso=iso)
+        out = common.spec_angular_fourier(out, chain.get("angular_harmonics"), after_iso=iso)
     if chain.get("scale_cosine"):
-        out = planar.spec_scale_cosine(out, chain.get("scale_harmonics"), chain.get("dj"))
-    return {**out, "vector": planar.spec_flatten(out, flatten_complex=True)}
+        out = common.spec_scale_cosine(out, chain.get("scale_harmonics"), chain.get("dj"))
+    return {**out, "vector": common.spec_flatten(out, flatten_complex=True)}
 
 
 def _check(
@@ -131,7 +131,7 @@ def _check(
         loaded = operator.apply(second, norm="ref")
 
     def oracle(array: NDArray[np.float64], **more: Any) -> dict[str, Any]:
-        return spec.spec_apply_hpx(array, 1 << depth, cell_ids, mask, J, 4, **options, **more)
+        return spec.spec_apply_healpix(array, 1 << depth, cell_ids, mask, J, 4, **options, **more)
 
     expected = oracle(target, norm="none", flatten=True)
     scale = float(np.sqrt(np.nanmax(expected["var"])))
@@ -141,11 +141,11 @@ def _check(
         assert raw._standardization is not None
         for key, removed in zip(("mean_pre_std", "std_pre_std"), raw._standardization, strict=True):
             assert_parity(np.asarray(removed), expected[key])
-    reference = planar.spec_reference(expected, ref_batch_mean)
+    reference = common.spec_reference(expected, ref_batch_mean)
     assert stored._reference is not None
     assert_parity(np.asarray(stored._reference.var), reference["var"])
     assert_parity(np.asarray(stored._reference.s2_sqrt), reference["sigma"])
-    normalized = planar.spec_normalize(expected, reference)
+    normalized = common.spec_normalize(expected, reference)
     _compare(stored, normalized, scale)
     _compare(loaded, oracle(other, norm="ref", ref=reference), scale)
     for chain in chains:
@@ -158,8 +158,8 @@ def _check(
 def _fields(nc: int, npix: int) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Two seeded batches of two maps, with a non-zero mean and correlated channels."""
     rng = np.random.default_rng(167)
-    common = rng.normal(size=(2, 2, 1, npix))
-    fields = rng.normal(size=(2, 2, nc, npix)) + 0.5 * common + 0.3
+    shared = rng.normal(size=(2, 2, 1, npix))
+    fields = rng.normal(size=(2, 2, nc, npix)) + 0.5 * shared + 0.3
     return fields[0], fields[1]
 
 

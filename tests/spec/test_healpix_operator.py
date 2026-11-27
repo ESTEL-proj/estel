@@ -83,7 +83,7 @@ def test_convolution_equals_the_oracle(name: str, dtype: DType) -> None:
     # The 3 maps are channels: (1, L, 3, Npix) -> (3, L, Npix).
     actual = np.swapaxes(_numpy(operator.apply(operator._data.array, 0))[0], 0, 1)
     tables = spec.spec_conv_tables(nside, ids)
-    expected = spec.spec_conv_hpx(maps, tables, spec.spec_wavelet_hpx())
+    expected = spec.spec_conv_healpix(maps, tables, spec.spec_wavelet_healpix())
     assert_parity(actual, expected, dtype)
 
 
@@ -94,7 +94,7 @@ def test_decimation_equals_the_oracle(name: str, dtype: DType) -> None:
     """Slow: at ``nside`` 16 only, the oracle's naive decimation (decision 4 on #165)."""
     nside, ids, maps = _domain(name)
     operator = WaveletOperator(_data(nside, ids, maps), 2)
-    matrix, _ = spec.spec_decimation_hpx(nside, ids)
+    matrix, _ = spec.spec_decimation_healpix(nside, ids)
     actual = _numpy(operator.downsample(operator._data.array, 0))[0]
     assert_parity(actual, maps @ matrix.T, dtype)
 
@@ -103,7 +103,7 @@ def _check_masks(plan: Any, levels: Any, invalid: NDArray[np.bool_]) -> None:
     """The masks and reweighting maps of the plan equal the oracle's (M-MASK-HPX): every
     family, on the pixels of its level; the masks exactly, the maps to the float64 parity
     tolerance (they are static, in float64, whatever the run's dtype)."""
-    masks, expected = plan.masks, spec.spec_masks_hpx(levels, invalid)
+    masks, expected = plan.masks, spec.spec_masks_healpix(levels, invalid)
     assert masks is not None
     np.testing.assert_array_equal(masks.full_res, expected["field"][0])
     for d in range(1, len(levels)):
@@ -130,7 +130,7 @@ def test_masks_equal_the_oracle_at_nside_8(sky: str, dtype: DType) -> None:
     invalid = np.zeros(maps.shape[-1], dtype=bool)
     invalid[: maps.shape[-1] // 3 : 3] = True
     plan = build_wavelet_plan(_data(nside, ids, maps[0], invalid), 3)
-    _check_masks(plan, spec.spec_levels_hpx(nside, ids, 3), invalid)
+    _check_masks(plan, spec.spec_levels_healpix(nside, ids, 3), invalid)
 
 
 @pytest.mark.slow
@@ -147,7 +147,7 @@ def test_masks_equal_the_oracle_on_the_masked_configurations(name: str, dtype: D
     invalid = fixture[f"{name}_mask"].astype(bool)
     field = fixture[f"{name}_field"]
     plan = build_wavelet_plan(_data(16, cell_ids, field, invalid), 3)
-    _check_masks(plan, spec.spec_levels_hpx(16, cell_ids, 3), invalid)
+    _check_masks(plan, spec.spec_levels_healpix(16, cell_ids, 3), invalid)
 
 
 @pytest.mark.maths("M-DEF-HPX", "M-MASK-HPX")
@@ -155,7 +155,7 @@ def test_masks_equal_the_oracle_on_the_masked_configurations(name: str, dtype: D
 def test_defaults_and_no_border(nside: int) -> None:
     """J, L and K of M-DEF-HPX; no border (β = 0) on a full sky and on a partial sky, so the
     weights of every mean are its valid pixels (M-MASK-HPX, OP-50)."""
-    defaults = spec.spec_defaults_hpx(nside)
+    defaults = spec.spec_defaults_healpix(nside)
     data = DataHealpix(np.zeros(12 * nside * nside))
     plan = build_wavelet_plan(data)
     assert (plan.J, plan.L, plan.kernel_size) == (defaults["J"], defaults["L"], defaults["K"])

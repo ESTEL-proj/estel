@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from estel._spec import planar as spec
+from estel._spec import cartesian as spec
 from estel.wavelets import _banks
 from tests.parity._compare import assert_parity
 

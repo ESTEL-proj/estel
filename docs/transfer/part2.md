@@ -157,7 +157,9 @@ estel/                             # one repository for Python and Rust (Part IV
 │   ├── diagnostics/               # describe, estimate_memory, frequency_response,
 │   │                              # littlewood_paley
 │   ├── plot/  utils/
-│   └── _spec/                     # PROTECTED: the NumPy float64 oracle
+│   └── _spec/                     # PROTECTED: the NumPy float64 oracle: common.py (what every
+│                                  # geometry shares), cartesian.py, healpix.py, tensor_prod.py,
+│                                  # spectra.py (the 2D spectra)
 ├── rust/                          # (step 2, LF3, LF5) Cargo workspace, from STL-Dev-MPI
 │   ├── AGENTS.md                  # local rules: review rules A5, B2, C6, D8, E4
 │   ├── estel-core/  estel-gpu/  estel-mpi/
@@ -353,7 +355,7 @@ All utilities take public objects, return values or a matplotlib `Figure`, never
 
 | Function | Tag | Purpose |
 | --- | --- | --- |
-| `spec_wavelets_*`, `spec_scattering(x, J, L, pbc, mask)`, `spec_tensor_prod(...)`, `spec_spectra(...)`; for HEALPix (`healpix.py`), `spec_pixel_centres`, `spec_rings`, `spec_interp_weights`, `spec_stencil`, `spec_gauge_angles`, `spec_rotation`, `spec_stencil_points`, `spec_conv_tables`, `spec_conv_hpx`, `spec_wavelet_hpx`, `spec_support_hpx`, `spec_decimation_hpx`, `spec_reweighting_hpx`, `spec_downsample_hpx`, `spec_levels_hpx`, `spec_masks_hpx`, `spec_scattering_hpx`, `spec_data_hpx`, `spec_defaults_hpx`, `spec_apply_hpx` | R | Direct sums, explicit loops, float64, no optimisation. Each docstring lists the `M-` IDs it implements. For HEALPix spectra (step 2, LF24), a naive float64 SHT at small sizes, cross-checked against healpy |
+| What every geometry shares (`common.py`): `spec_valid_mean`, `spec_moments`, `spec_standardize`, `spec_reference`, `spec_normalize`, `spec_iso`, `spec_angular_fourier`, `spec_scale_cosine`, `spec_flatten`; for Cartesian data (`cartesian.py`), `spec_wavelets_*`, `spec_scattering(x, J, L, pbc, mask)`, `spec_apply`; for tensor products (`tensor_prod.py`), `spec_apply_tensor_prod(...)`; for the 2D spectra (`spectra.py`), `spec_spectra_2d(...)`; for HEALPix (`healpix.py`), `spec_pixel_centres`, `spec_rings`, `spec_interp_weights`, `spec_stencil`, `spec_gauge_angles`, `spec_rotation`, `spec_stencil_points`, `spec_conv_tables`, `spec_conv_healpix`, `spec_wavelet_healpix`, `spec_support_healpix`, `spec_decimation_healpix`, `spec_reweighting_healpix`, `spec_downsample_healpix`, `spec_levels_healpix`, `spec_masks_healpix`, `spec_scattering_healpix`, `spec_data_healpix`, `spec_defaults_healpix`, `spec_apply_healpix` | R | Direct sums, explicit loops, float64, no optimisation. Each docstring lists the `M-` IDs it implements. For HEALPix spectra (step 2, LF24), a naive float64 SHT at small sizes, cross-checked against healpy |
 
 ## 13. Mathematics extracted from STL, and open points
 

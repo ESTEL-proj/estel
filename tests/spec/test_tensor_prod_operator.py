@@ -1,8 +1,8 @@
 """``STOperatorTensorProd`` against the oracle of tensor products (task T3.2, issue #23; Part I,
 §4.2; maths.md section 3).
 
-The oracle ``spec_tensor_prod`` (T3.3) transcribes maths.md §3 apart from STL's loop: it brings
-the field to the level of a scale in every block first, then applies the block convolutions,
+The oracle ``spec_apply_tensor_prod`` (T3.3) transcribes maths.md §3 apart from STL's loop: it
+brings the field to the level of a scale in every block first, then applies the block convolutions,
 and sums each mean over its own window. ESTEL interleaves the downsamplings and the block
 convolutions as STL does and sums the second layer as Gram products: the difference is rounding,
 compared with the float64 tolerances of Part II, §14.3.
@@ -77,7 +77,7 @@ def test_open_block_two_channels_norm_self() -> None:
     field = _field((2, 2, 8, 8, 8), 0)
     operator, data = _run(field, blocks, pbc, J)
     stats = operator.apply(data, norm="self")
-    expected = spec.spec_tensor_prod(field, blocks, pbc, J, norm="self")
+    expected = spec.spec_apply_tensor_prod(field, blocks, pbc, J, norm="self")
     _compare(stats, expected)
     assert stats._reference is not None
     assert_parity(_numpy(stats._reference.var), expected["reference"]["var"])
@@ -93,7 +93,7 @@ def test_three_blocks_standardized_cross_matrix() -> None:
     field = _field((1, 2, 8, 8, 8, 4), 1)
     operator, data = _run(field, blocks, pbc, J, standardize=True, cross_matrix=matrix)
     stats = operator.apply(data, norm="none")
-    expected = spec.spec_tensor_prod(
+    expected = spec.spec_apply_tensor_prod(
         field, blocks, pbc, J, norm="none", standardize=True, cross_matrix=matrix
     )
     _compare(stats, expected)
@@ -111,8 +111,10 @@ def test_norm_ref_with_batch_mean() -> None:
     operator, data = _run(target, blocks, pbc, J)
     operator.apply(data, norm="self", ref_batch_mean=True)
     stats = operator.apply(data.with_array(_backend_array(other)), norm="ref")
-    stored = spec.spec_tensor_prod(target, blocks, pbc, J, norm="self", ref_batch_mean=True)
-    expected = spec.spec_tensor_prod(other, blocks, pbc, J, norm="ref", ref=stored["reference"])
+    stored = spec.spec_apply_tensor_prod(target, blocks, pbc, J, norm="self", ref_batch_mean=True)
+    expected = spec.spec_apply_tensor_prod(
+        other, blocks, pbc, J, norm="ref", ref=stored["reference"]
+    )
     _compare(stats, expected)
 
 
