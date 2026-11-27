@@ -33,7 +33,7 @@ Two independent choices: the **engine** (`engine=`: `"python"`, later `"rust"`) 
 
 - **L0** is written against the Array API (`array-api-compat`) plus the missing extensions. `backend/_protocol.py` is the contract; `tests/backend/` is the conformance suite every backend must pass.
 - **Static plan.** `STPlan` is built once in NumPy at operator construction: index sets, kernels, crop widths per level, masks and reweighting maps, spectrum bins, stencils. Immutable and hashable; large arrays are passed as arguments, never baked in.
-- **Backend selection.** A global default read when an operator is built; mixing backends raises `BackendMismatchError`; inputs are converted at the boundary, never silently between backends.
+- **Backend selection.** A global default read when an operator is built; mixing backends raises a `TypeError` that says how to fix it (`BackendMismatchError`, internal); inputs are converted at the boundary, never silently between backends.
 - **Engines.** One protocol (forward + VJP with an opaque residual). Only the Python engine exists in 1.0.0; the registry, protocol and `engine=` are reserved. The Rust code of step 2 is an engine, not a backend, because it replaces the whole computation and its hand-written gradient.
 
 ## Object model ([§2.3](../transfer/part1.md#23-object-model))

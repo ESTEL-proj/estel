@@ -1,10 +1,10 @@
 """The backend registry and the global configuration (task T1.5, issue #39).
 
-Public: ``set_backend``, ``get_backend``, ``set_default_dtype``, ``set_default_device`` and
-``BackendMismatchError`` (Part II, §12.2). ``"jax"`` is selectable as an experimental backend,
+Public: ``set_backend``, ``get_backend``, ``set_default_dtype`` and ``set_default_device``
+(Part II, §12.2). ``"jax"`` is selectable as an experimental backend,
 with a warning; ``set_default_dtype("float64")`` switches JAX's 64-bit mode on, and refuses
-once JAX ran in float32 (Part I, §3.1, rule 7); mixing backends raises ``BackendMismatchError``
-(Part I, §2.2.3).
+once JAX ran in float32 (Part I, §3.1, rule 7); mixing backends raises a ``TypeError`` that
+says how to fix it, the internal ``BackendMismatchError`` (Part I, §2.2.3).
 
 The tests in this process restore the registry after each test, and never switch JAX's 64-bit
 mode: what does is tested in fresh processes, in the ``serial`` pass.
@@ -33,7 +33,6 @@ PUBLIC = (
     "get_backend",
     "set_default_dtype",
     "set_default_device",
-    "BackendMismatchError",
 )
 
 
@@ -74,8 +73,10 @@ def test_public_names_are_exported(name: str) -> None:
     assert getattr(estel, name) is getattr(_registry if hasattr(_registry, name) else _config, name)
 
 
-def test_backend_mismatch_error_is_a_type_error() -> None:
-    assert issubclass(estel.BackendMismatchError, TypeError)
+def test_backend_mismatch_error_is_an_internal_type_error() -> None:
+    assert issubclass(BackendMismatchError, TypeError)
+    assert "BackendMismatchError" not in estel.__all__
+    assert not hasattr(estel, "BackendMismatchError")
 
 
 # ------------------------------------------------------------------ set_backend, get_backend
