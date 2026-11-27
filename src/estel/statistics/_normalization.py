@@ -213,7 +213,9 @@ class _NormReference:
         xp = backend.xp
         if self.blocks is None:
             raise ValueError(
-                "this reference is single-domain: it has no blocks of a tensor product."
+                "this reference comes from single-domain statistics, which have no blocks of a "
+                "tensor product: use the reference of statistics computed by "
+                "estel.STOperatorTensorProd on estel.DataTensorProd data."
             )
         full = self.blocks.L
         positions, shapes, starts = self.rows()

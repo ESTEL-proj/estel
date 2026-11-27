@@ -34,7 +34,7 @@ to the order of the sums. The convolutions and the downsamplings are those of th
 and weights, and does not depend on the geometry. Nothing is written in place (Part I, §3.1,
 rule 1): every step returns a new array, the divided sums of each level are collected in a
 list, in the order of ``statistics._layout.loop_sums_single_domain``, and one static gather,
-built in NumPy with the plan (``statistics._layout.gather_single_domain``), concatenates them,
+built in NumPy with the plan (``statistics._layout.loop_gather_single_domain``), concatenates them,
 chunk by chunk, into the compact buffer at the end (Part III, §19.3, §19.9): no full-grid
 tensor is written in the computation (review rule X5). The loops run over scales, levels and
 channel pairs, as STL's, never over pixels or orientations.
@@ -59,7 +59,11 @@ from ..backend._protocol import Backend
 from ..data._base import Data
 from ..data._moments import modulus
 from ..spectra._estimators import spectrum_floats
-from ..statistics._layout import gather_loop_single_domain, gather_single_domain, spectrum_pairs
+from ..statistics._layout import (
+    gather_loop_single_domain,
+    loop_gather_single_domain,
+    spectrum_pairs,
+)
 from ..wavelets._operator import WaveletOperatorSingleDomain
 from . import _loop
 from ._filters import STFiltersSingleDomain, window_single_domain
@@ -139,12 +143,12 @@ def values_single_domain(
     # One static gather from the sums, in the order of loop_sums_single_domain, to the compact
     # buffer (Part III, §19.3, §19.9), chunk by chunk: no full-grid tensor inside the computation
     # (review rule X5).
-    gather = gather_single_domain(plan)
+    gather = loop_gather_single_domain(plan)
     if len(divided) != gather.n_sums:
         raise RuntimeError(
-            f"the loop produced {len(divided)} sums where the plan expects {gather.n_sums}: "
-            "statistics._layout.loop_sums_single_domain no longer follows the loop; make them "
-            "agree."
+            f"the scattering loop of estel.STOperator produced {len(divided)} sums where its "
+            f"plan expects {gather.n_sums}, an internal inconsistency of ESTEL: report it as a "
+            "bug, with the shape of the data, J, L and cross_matrix."
         )
     buffer = gather_loop_single_domain(backend, divided, gather, filters.gather)
     if plan.spectrum is not None and filters.spectrum is not None:

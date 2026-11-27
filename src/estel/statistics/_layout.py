@@ -28,7 +28,7 @@ from layouts and the plan (Part III, §19.6, §19.9), applied with a few generic
 differentiable to any order on every backend. Each acts chunk by chunk, with tables that grow
 with the number of chunks and of orientations, never with the number of coefficients:
 
-* :func:`gather_single_domain`: from the sums of the scattering loop
+* :func:`loop_gather_single_domain`: from the sums of the scattering loop
   (:func:`loop_sums_single_domain`), each of which is a chunk, to the buffer of
   :func:`layout_single_domain` (the floats before the power spectrum, the last family when the
   plan has it);
@@ -455,7 +455,7 @@ def layout_single_domain(plan: STPlanSingleDomain) -> Layout:
     (``_grid.grids_single_domain``): every chunk is at the level of the scale of its last
     convolution (the level of j, or of j3). With the power spectrum (maths.md §1.9; task T4.4),
     its family ``"PS"`` is one segment at level 0, after S4, the last floats of the buffer: the
-    loop writes the floats before it (:func:`gather_single_domain`), the estimators of the
+    loop writes the floats before it (:func:`loop_gather_single_domain`), the estimators of the
     spectrum those of PS."""
     levels = tuple((int(d),) for d in plan.levels)
     level_of = {int(d): i for i, d in enumerate(plan.levels)}
@@ -575,8 +575,9 @@ def _carried_shape_single_domain(plan: STPlanSingleDomain, family: str) -> tuple
 
 
 @functools.lru_cache(maxsize=64)
-def gather_single_domain(plan: STPlanSingleDomain) -> LoopGatherSingleDomain:
-    """The :class:`LoopGatherSingleDomain` of ``plan``.
+def loop_gather_single_domain(plan: STPlanSingleDomain) -> LoopGatherSingleDomain:
+    """The :class:`LoopGatherSingleDomain` of ``plan``, which :func:`gather_loop_single_domain`
+    applies at the end of the loop.
 
     The loop divides its sums level by level, each as real floats: a complex sum as (re, im)
     pairs, its carried axes in C order. The buffer is their concatenation in the order of its
@@ -607,9 +608,9 @@ def gather_single_domain(plan: STPlanSingleDomain) -> LoopGatherSingleDomain:
             real = grid.real[kind]
             if where is None or (not where[2] and not real.all()):
                 raise ValueError(
-                    f"{grid.name}: the loop does not compute every coefficient of the layout; "
-                    "statistics._layout.loop_sums_single_domain and "
-                    "statistics._layout.layout_single_domain disagree."
+                    f"{grid.name}: the scattering loop of estel.STOperator does not compute every "
+                    "coefficient its statistics hold, an internal inconsistency of ESTEL: report "
+                    "it as a bug, with the shape of the data, J, L and cross_matrix."
                 )
             source, start, is_complex = where
             if is_complex and real.any():
@@ -647,10 +648,10 @@ def gather_single_domain(plan: STPlanSingleDomain) -> LoopGatherSingleDomain:
 
 @functools.lru_cache(maxsize=64)
 def gather_tensor_prod(plan: STPlanTensorProd) -> Pack:
-    """The counterpart of :func:`gather_single_domain` for a tensor product (task T3.2): how the
-    dense S4 chunks of the loop, ``(Nb, n, L³, 2)`` in the order of the buffer, are packed into
-    the floats of S4 (:func:`pack`). S1, S2 and S3 need no table: their chunks are concatenated
-    in the order of the buffer.
+    """The counterpart of :func:`loop_gather_single_domain` for a tensor product (task T3.2):
+    how the dense S4 chunks of the loop, ``(Nb, n, L³, 2)`` in the order of the buffer, are
+    packed into the floats of S4 (:func:`pack`). S1, S2 and S3 need no table: their chunks are
+    concatenated in the order of the buffer.
 
     Checks that the chunks the plan's loop computes (``STPlanTensorProd.loop``: the channel pairs
     of S1 and S2, the rows of S3 and S4 per segment) are those of :func:`layout_tensor_prod`, in
@@ -682,10 +683,10 @@ def gather_tensor_prod(plan: STPlanTensorProd) -> Pack:
         expected = [tuple(int(v) for v in r) for r in layout.grid(name).chunks.tolist()]
         if rows != expected:
             raise RuntimeError(
-                f"{name}: the chunks of the loop of this tensor product ({len(rows)}) are not "
-                f"those of its layout ({len(expected)}), in its order; "
-                "scattering._tensor_prod.build_loop_tensor_prod and layout_tensor_prod disagree "
-                f"({n_blocks} block(s)): make them agree."
+                f"{name}: the scattering loop of estel.STOperatorTensorProd computes {len(rows)} "
+                f"chunks, and its statistics hold {len(expected)}, or in another order "
+                f"({n_blocks} block(s)), an internal inconsistency of ESTEL: report it as a bug, "
+                "with the blocks, the shape of the data, J, L and cross_matrix."
             )
     return pack_spec(layout, "S4")
 
@@ -695,8 +696,8 @@ def gather_loop_single_domain(
 ) -> Any:
     """The buffer ``(Nb, n_floats)`` from the divided sums of the loop, each a real ``(Nb, m)``
     array in the order of ``loop_sums_single_domain``: their chunks concatenated in the order of
-    the buffer. ``takes`` holds :attr:`LoopGatherSingleDomain.takes` as integer arrays of the
-    backend."""
+    the buffer, by the gather that :func:`loop_gather_single_domain` builds. ``takes`` holds
+    :attr:`LoopGatherSingleDomain.takes` as integer arrays of the backend."""
     xp = backend.xp
     pieces: list[Any] = []
     for source, start, stop, take in gather.pieces.tolist():
@@ -721,8 +722,9 @@ def _shape_of(grid: FamilyGrid, chunks: NDArray[np.int64]) -> tuple[int, ...]:
     shapes = {grid.kind_shape(int(k)) for k in np.unique(grid.kinds[np.asarray(chunks)])}
     if len(shapes) > 1:
         raise ValueError(
-            f"{grid.name}: these chunks have several orientation shapes; group them by shape "
-            "(FamilyGrid.shape_groups)."
+            f"{grid.name}: one step on these statistics reads chunks of several orientation "
+            "shapes, an internal inconsistency of ESTEL: report it as a bug, with the method "
+            "called and the blocks, J and L of the data."
         )
     return shapes.pop() if shapes else grid.orientations
 
