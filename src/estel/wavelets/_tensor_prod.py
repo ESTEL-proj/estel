@@ -3,10 +3,10 @@ Part II, §12.5; maths.md M-NOT-TP, M-W1-TP, M-DEF-TP; task T3.1).
 
 Internal, like :class:`~estel.wavelets._operator.WaveletOperator`. A tensor product of B blocks
 (``DataTensorProd``) has one J and one L per block, and its levels are multi-indices
-d = (d₀, …, d_{B-1}): the field downsampled d_a times along block a (M-NOT-TP). Each block has
-the static part and the arrays of a planar wavelet operator, built for its geometry, its sizes
-and its ``pbc`` (:class:`WaveletPlanSingleDomain`, :class:`WaveletFiltersCartesian`); the operator of the tensor
-product holds them in block order and applies them along the axes of each block, through the
+d = (d₀, …, d_{B-1}): the field downsampled d_a times along block a (M-NOT-TP). Each block has the
+static part and the arrays of a planar wavelet operator, built for its geometry, its sizes and its
+``pbc`` (:class:`WaveletPlanSingleDomain`, :class:`WaveletFiltersCartesian`); the operator of the
+tensor product holds them in block order and applies them along the axes of each block, through the
 hooks of ``DataTensorProd``, which dispatch to the geometry of the block:
 
 * :meth:`TensorProdWaveletOperator.apply`, the block convolution ψ⁽ᵃ⁾ ⋆_a of M-W1-TP, at the

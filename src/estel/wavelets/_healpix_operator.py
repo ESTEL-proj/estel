@@ -1,11 +1,11 @@
 """The static part and the arrays of the wavelet operator of HEALPix data (Part II, §12.5;
 maths.md §4; task T5.5, issue #166).
 
-:class:`WaveletPlanHealpix` is a :class:`~estel.wavelets._operator.WaveletPlanSingleDomain`, and
-:class:`WaveletFiltersHealpix` plays the part of ``WaveletFiltersCartesian``: ``WaveletOperator`` and
-the ``STPlan`` reach them through the same hooks as the planar ones (``_build_filters``,
-``_conv_tables``, ``_down_tables``, ``border``, ``bank``), with no branch on the geometry at the
-call sites; ``build_wavelet_plan`` chooses the plan once, when it is built.
+:class:`WaveletPlanHealpix` is a :class:`~estel.wavelets._operator.WaveletPlanSingleDomain`,
+and :class:`WaveletFiltersHealpix` plays the part of ``WaveletFiltersCartesian``:
+``WaveletOperator`` and the ``STPlan`` reach them through the same hooks as the planar ones
+(``_build_filters``, ``_conv_tables``, ``_down_tables``, ``border``, ``bank``), with no branch on
+the geometry at the call sites; ``build_wavelet_plan`` chooses the plan once, when it is built.
 
 **What is static, and where** (issue #166, decisions 2 and 7). The plan holds only what is small
 and static: the depth and the ``cell_ids`` of the data, the levels and their numbers of pixels,
@@ -71,8 +71,9 @@ HEALPIX_WAVELETS = ("healpix",)
 
 @dataclass(frozen=True, eq=False)
 class WaveletPlanHealpix(WaveletPlanSingleDomain):
-    """The static part of the wavelet operator of HEALPix data: a :class:`WaveletPlanSingleDomain` whose
-    spatial shape is ``(Npix,)``, one pixel axis, plus the depth and the pixels of the data.
+    """The static part of the wavelet operator of HEALPix data: a
+    :class:`WaveletPlanSingleDomain` whose spatial shape is ``(Npix,)``, one pixel axis, plus the
+    depth and the pixels of the data.
     Built by :func:`build_wavelet_plan_healpix`."""
 
     depth: int = 0
@@ -114,16 +115,17 @@ class PlanTablesHealpix(NamedTuple):
 
 class WaveletFiltersHealpix(NamedTuple):
     """The arrays of the wavelet operator of HEALPix data, on the operator's backend and dtype:
-    the tables of every level, and the maps of each downsampling step, as ``WaveletFiltersCartesian``.
-    A named tuple of arrays, so a pytree."""
+    the tables of every level, and the maps of each downsampling step, as
+    ``WaveletFiltersCartesian``. A named tuple of arrays, so a pytree."""
 
     conv: tuple[ConvTablesHealpix, ...]
     """For each level of the plan, the tables of ``DataHealpix._conv``."""
     down: tuple[DownTablesHealpix, ...]
     """For each level but the last, the tables of the decimation to the next level."""
     field_down: dict[int, tuple[Any, Any]]
-    """As ``WaveletFiltersCartesian.field_down``: per level d but the last, the ``(valid, reweight)``
-    maps of the field from d to d + 1, or no entry without missing values."""
+    """As ``WaveletFiltersCartesian.field_down``: per level d but the last, the
+    ``(valid, reweight)`` maps of the field from d to d + 1, or no entry without missing
+    values."""
     modulus_down: dict[tuple[int, int], tuple[Any, Any]]
     """As ``WaveletFiltersCartesian.modulus_down``: per ``(d, j)``, the maps of first-layer data
     convolved at scale j from d to d + 1, or no entry without missing values."""

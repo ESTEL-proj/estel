@@ -12,8 +12,8 @@ weights only.
 Like ``STOperator``, the wavelet operator is a static part plus arrays, applied by pure
 functions:
 
-* :class:`WaveletPlanSingleDomain`, the static part, held by the ``STPlan``: built once, in NumPy float64,
-  never traced (tag N of Part II, §12); immutable and hashable. It holds the level at which
+* :class:`WaveletPlanSingleDomain`, the static part, held by the ``STPlan``: built once, in NumPy
+  float64, never traced (tag N of Part II, §12); immutable and hashable. It holds the level at which
   each scale is computed, the levels and their shapes, how the low-pass filter is realised, the
   masks and reweighting maps of the data (``estel.data._masks``), and the rules of borders and
   masks.
@@ -35,8 +35,8 @@ described here and applied with its first user, the tensor products (task T3.2).
 
 **Scales and levels** (maths.md M-NOT; Part III, §19.12, point 5): a scale ``j`` indexes a
 wavelet, a level ``d`` a resolution, the data downsampled ``d`` times. The plan holds the level
-at which each scale is computed, :attr:`WaveletPlanSingleDomain.scale_levels`, and everything else reads
-it there: in 1.0.0 scale ``j`` is computed at level d = j (STL's ``j_to_dg``), and
+at which each scale is computed, :attr:`WaveletPlanSingleDomain.scale_levels`, and everything
+else reads it there: in 1.0.0 scale ``j`` is computed at level d = j (STL's ``j_to_dg``), and
 :func:`build_wavelet_plan` is the one place that says so.
 """
 
@@ -385,13 +385,14 @@ def build_wavelet_plan_with_tables(
     *,
     kernel_size: int = KERNEL_SIZE,
 ) -> tuple[WaveletPlanSingleDomain, Any]:
-    """The :class:`WaveletPlanSingleDomain` of wavelets with ``J`` scales and ``L`` orientations on data
-    with the geometry, spatial shape, ``pbc`` and mask of ``data``; its values are not read.
+    """The :class:`WaveletPlanSingleDomain` of wavelets with ``J`` scales and ``L`` orientations
+    on data with the geometry, spatial shape, ``pbc`` and mask of ``data``; its values are not
+    read.
 
     By default J = ⌊log₂ min N⌋ - 2, and L = 4 in 2D, 1 in 1D (M-DEF, M-DEF-1D). Raises when J
     is not an integer ≥ 1 or the sizes are not divisible by 2^(J-1) (M-DATA-2D, OP-8), and when
-    L is not an integer ≥ 1, as STL accepts (Part II, §12.5); :meth:`WaveletPlanSingleDomain.bank` checks L
-    against the bank of the geometry.
+    L is not an integer ≥ 1, as STL accepts (Part II, §12.5); :meth:`WaveletPlanSingleDomain.bank`
+    checks L against the bank of the geometry.
 
     ``None`` (the default) means the wavelet of the geometry: ``"bump_steerable"`` for 1D
     and 2D data (M-WAV-2D, M-WAV-1D), ``"healpix"`` for ``DataHealpix`` (M-WAV-HPX). Each
@@ -403,8 +404,8 @@ def build_wavelet_plan_with_tables(
     and everything after it goes through the hooks of the plan and of its filters.
 
     Beside the plan, the NumPy tables built with it, a value that only its own
-    :meth:`WaveletPlanSingleDomain._build_filters` reads (``tables=``), so that the operator builds them once
-    (task T5.7): the tables of a masked HEALPix plan, ``None`` otherwise.
+    :meth:`WaveletPlanSingleDomain._build_filters` reads (``tables=``), so that the operator
+    builds them once (task T5.7): the tables of a masked HEALPix plan, ``None`` otherwise.
     """
     if not isinstance(data, Data):
         raise TypeError(
@@ -412,7 +413,8 @@ def build_wavelet_plan_with_tables(
             f"{type(data).__name__}."
         )
     if isinstance(data, DataHealpix):
-        # Imported here: the HEALPix plan subclasses WaveletPlanSingleDomain, defined in this module.
+        # Imported here: the HEALPix plan subclasses WaveletPlanSingleDomain, defined in this
+        # module.
         from ._healpix_operator import build_wavelet_plan_with_tables_healpix
 
         return build_wavelet_plan_with_tables_healpix(data, J, L, wavelet, kernel_size=kernel_size)
@@ -459,8 +461,8 @@ def _wavelet_plan(
     *,
     lowpass: bool = False,
 ) -> WaveletPlanSingleDomain:
-    """The :class:`WaveletPlanSingleDomain` of a planar ``geometry`` with the static metadata given, and J,
-    L and K already validated: of data (:func:`build_wavelet_plan`), or of one block of a
+    """The :class:`WaveletPlanSingleDomain` of a planar ``geometry`` with the static metadata given,
+    and J, L and K already validated: of data (:func:`build_wavelet_plan`), or of one block of a
     tensor product (``estel.wavelets._tensor_prod``).
 
     With ``lowpass``, the plan goes down to the level of the low-pass filter too, one level

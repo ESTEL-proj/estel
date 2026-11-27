@@ -19,11 +19,11 @@ What it holds, for STL's loop structure (maths.md §1.6 to 1.7; STL ``ST_Operato
   ``levels``; in 1.0.0 scale ``j`` is computed at level d = j (STL's ``j_to_dg``), so the
   levels are 0 … J-1. Every mean is taken at the level of the scale of the last convolution
   of its operands, read from ``scale_levels``.
-* **The static part of the wavelet operator** (``wavelets``, a ``WaveletPlanSingleDomain``; Part I, §2.3):
-  the shape of each level, how the low-pass filter is realised and at which level, the masks
-  and reweighting maps of the data and of each downsampling step (M-DOWN-MASK, M-MASK), and
-  the rules of borders and masks. Everything that depends on the wavelets and on the geometry
-  comes from it: this module holds no geometry formula.
+* **The static part of the wavelet operator** (``wavelets``, a ``WaveletPlanSingleDomain``; Part I,
+  §2.3): the shape of each level, how the low-pass filter is realised and at which level, the masks
+  and reweighting maps of the data and of each downsampling step (M-DOWN-MASK, M-MASK), and the
+  rules of borders and masks. Everything that depends on the wavelets and on the geometry comes from
+  it: this module holds no geometry formula.
 * **The weights and denominator of every mean** (``MeanWeights``; M-MEAN, M-BORDER): 1 on
   the pixels that enter the mean, 0 elsewhere, and their sum; and the means that have no
   valid pixel, whose coefficients are NaN (OP-3).
