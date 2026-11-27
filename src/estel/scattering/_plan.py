@@ -237,17 +237,17 @@ def build_spectrum_plan_2d(
     pbc: bool = True,
     mask: NDArray[np.bool_] | None = None,
 ) -> SpectrumEstimatorPlan2D:
-    """The :class:`SpectrumEstimatorPlan2D` of 2D data of ``spatial_shape`` (maths.md §1.9), ``geometry``
-    the Data subclass of the data, whose declared tag (``Data._geometry``) must be 2D: the J of the
-    spectrum is ``J``, the J given to the operator, or ⌊log₂ N_max⌋ - 1 with N_max = ⌊min(N₁, N₂)/2⌋
-    when it is ``None``; the estimator is ``method``, or with ``"auto"`` the choice of §1.9 from
-    ``pbc`` and the missing pixels of ``mask``. Raises a clear error on data that are not 2D (LF23,
-    LF24), on an odd size (OP-20), when J_min is not between 0 and J - 2 (OP-93), on a number of
-    bins that is not a positive integer (a ``TypeError`` when ``Jmin`` or ``n_bins`` is not an
-    integer, a ``ValueError`` when it is out of range), on an unknown ``method``, on ``fft`` or
-    ``pbc_mask`` with missing pixels, and on a bin of ``pbc_nan_mask`` without an observed pixel
-    inside its border. The errors that the data or the options cause say how to leave the
-    spectrum out (``compute_PS=False``, golden rule 8)."""
+    """The :class:`SpectrumEstimatorPlan2D` of 2D data of ``spatial_shape`` (maths.md §1.9),
+    ``geometry`` the Data subclass of the data, whose declared tag (``Data._geometry``) must be 2D:
+    the J of the spectrum is ``J``, the J given to the operator, or ⌊log₂ N_max⌋ - 1 with N_max =
+    ⌊min(N₁, N₂)/2⌋ when it is ``None``; the estimator is ``method``, or with ``"auto"`` the choice
+    of §1.9 from ``pbc`` and the missing pixels of ``mask``. Raises a clear error on data that are
+    not 2D (LF23, LF24), on an odd size (OP-20), when J_min is not between 0 and J - 2 (OP-93), on a
+    number of bins that is not a positive integer (a ``TypeError`` when ``Jmin`` or ``n_bins`` is
+    not an integer, a ``ValueError`` when it is out of range), on an unknown ``method``, on ``fft``
+    or ``pbc_mask`` with missing pixels, and on a bin of ``pbc_nan_mask`` without an observed pixel
+    inside its border. The errors that the data or the options cause say how to leave the spectrum
+    out (``compute_PS=False``, golden rule 8)."""
     if geometry._geometry != "2d":
         raise ValueError(spectrum_only_2d(geometry.__name__, "pass compute_PS=False."))
     if any(n % 2 for n in spatial_shape):

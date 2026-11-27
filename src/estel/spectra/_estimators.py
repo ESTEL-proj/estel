@@ -13,10 +13,10 @@ With x̂ = ``rfft2(x, norm="ortho")`` and the pairs (c₁, c₂), c₁ ≤ c₂,
   over the modes m = (k₁, k₂) of the half plane, which is Σ_k N_k W_b(k) P(k) / Z_b with the
   radial average P(k) of §1.9, the sum over the modes of each radial frequency taken once;
 * the band maps f_b = ``irfft2(x̂ √W_b)`` and the weighted sums of their products:
-  :func:`estimate_pbc_mask_2d` (the hard border mask M_b), :func:`estimate_nan_mask_2d` (the observed
-  pixels O, after the missing pixels of each map are filled with the mean of its valid pixels)
-  and :func:`estimate_pbc_nan_mask_2d` (M_b O, after the same filling); each weight carries its
-  prefactor N_pix / (Σ_n weight · Z_b).
+  :func:`estimate_pbc_mask_2d` (the hard border mask M_b), :func:`estimate_nan_mask_2d` (the
+  observed pixels O, after the missing pixels of each map are filled with the mean of its valid
+  pixels) and :func:`estimate_pbc_nan_mask_2d` (M_b O, after the same filling); each weight carries
+  its prefactor N_pix / (Σ_n weight · Z_b).
 
 Only the real part of the cross spectra is computed (OP-19). The missing pixels are static,
 those of the mask of the data, one map shared by every batch element and channel, read when
@@ -88,8 +88,8 @@ def static_tables_2d(
     hard_masks: NDArray[np.float64],
     valid: NDArray[np.bool_] | None,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64] | None]:
-    """The two float tables of :class:`SpectrumEstimatorFilters2D` for ``estimator``, in NumPy float64:
-    ``modes`` is W_b at each mode of the half plane (``SpectrumBins2D.mode_windows``),
+    """The two float tables of :class:`SpectrumEstimatorFilters2D` for ``estimator``, in NumPy
+    float64: ``modes`` is W_b at each mode of the half plane (``SpectrumBins2D.mode_windows``),
     ``mode_weights`` w(k₁, k₂), ``norm`` Z_b, ``hard_masks`` the M_b ``(n_b, N₁, N₂)``, ``valid``
     the valid pixels (``None`` without missing pixels). Raises when a bin has no observed pixel
     inside its border (``pbc_nan_mask``; maths.md §1.9), at construction, where STL raises at

@@ -1,15 +1,15 @@
 """The bins of the 2D power spectrum, built once in NumPy with the plan (maths.md §1.9,
 "Frequencies and bins" and the border of ``pbc_mask``; Part II, §12.8; task T4.1).
 
-:func:`log_gaussian_bins_2d` gives, for data of an even spatial shape (N₁, N₂) and the range J, J_min
-of the spectrum (J the J of the operator), everything static the estimators need: in mode units, the
-radial frequency round(|(k₁, k₂)|) of every Fourier mode (k₁, k₂) of the half plane of the real FFT
-and its weight w(k₁, k₂) (2, or 1 on the zero and Nyquist columns), the number N_k of modes of each
-radial frequency k = 0 … N_max, the log-Gaussian windows W_b(k), their normalisations
+:func:`log_gaussian_bins_2d` gives, for data of an even spatial shape (N₁, N₂) and the range J,
+J_min of the spectrum (J the J of the operator), everything static the estimators need: in mode
+units, the radial frequency round(|(k₁, k₂)|) of every Fourier mode (k₁, k₂) of the half plane of
+the real FFT and its weight w(k₁, k₂) (2, or 1 on the zero and Nyquist columns), the number N_k of
+modes of each radial frequency k = 0 … N_max, the log-Gaussian windows W_b(k), their normalisations
 Z_b = Σ_k N_k W_b(k), the centres c_b, and the border β_b of each bin in pixels (the Hankel
-transform of W_b, 60 % of its energy within rho ≤ N_max; OP-21, OP-96). Every array is float64
-and read-only, whatever the dtype of the data: the operator casts what it needs once, when it
-builds its filters.
+transform of W_b, 60 % of its energy within rho ≤ N_max; OP-21, OP-96). Every array is float64 and
+read-only, whatever the dtype of the data: the operator casts what it needs once, when it builds its
+filters.
 
 **The Bessel function J₀** (:func:`bessel_j0`). NumPy has none and SciPy is not a dependency
 of ESTEL (decision on #148): ESTEL computes it here, in float64, to an absolute error of at most
