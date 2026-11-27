@@ -60,6 +60,7 @@ from ..data._cartesian import Data1D
 from ..data._tensor_prod import DataTensorProd
 from ._banks_cartesian import KERNEL_SIZE_CARTESIAN, _check_size_cartesian
 from ._operator import (
+    Level,
     WaveletFilters,
     WaveletOperator,
     WaveletPlan,
@@ -69,11 +70,6 @@ from ._operator import (
     _is_index,
     _wavelet_plan_cartesian,
 )
-
-LevelTensorProd = tuple[int, ...]
-"""A multi-index level d = (d₀, …, d_{B-1}): the field downsampled d_a times along block a
-(maths.md M-NOT-TP); ``(d,)`` for a single geometry (the segments of ``statistics._layout``)."""
-
 
 # ---------------------------------------------------------------------- defaults
 
@@ -142,7 +138,7 @@ class WaveletPlanTensorProd(WaveletPlan):
             plan.spatial_shape, level, border, owner=f"DataTensorProd (block {block})"
         )
 
-    def level_shape(self, level: LevelTensorProd) -> tuple[int, ...]:
+    def level_shape(self, level: Level) -> tuple[int, ...]:
         """The spatial shape at the multi-index ``level``: each block at its own level."""
         self.check_level(level)
         return tuple(n for b, d in zip(self.blocks, level, strict=True) for n in b.level_shapes[d])
@@ -386,18 +382,18 @@ class WaveletOperatorTensorProd(WaveletOperator):
         return self._filters
 
     @property
-    def levels(self) -> tuple[LevelTensorProd, ...]:
+    def levels(self) -> tuple[Level, ...]:
         """The multi-index levels: every level of each block, with every level of the others,
         in lexicographic order (maths.md M-NOT-TP)."""
         return tuple(itertools.product(*(b.levels for b in self._plan.blocks)))
 
-    def level_shape(self, level: LevelTensorProd) -> tuple[int, ...]:
+    def level_shape(self, level: Level) -> tuple[int, ...]:
         """The spatial shape at the multi-index ``level``: each block at its own level."""
         return self._plan.level_shape(level)
 
     # ------------------------------------------------------------------ static rules
 
-    def crop_weights(self, level: LevelTensorProd, border: tuple[int, ...]) -> NDArray[np.float64]:
+    def crop_weights(self, level: Level, border: tuple[int, ...]) -> NDArray[np.float64]:
         """The border crop of maths.md M-BORDER-TP at the multi-index ``level``, as weights: a
         NumPy float64 array of the spatial shape at that level, the outer product of the crops
         of the blocks, block a cropped by ``border[a]`` pixels at both ends of each of its axes.
@@ -430,7 +426,7 @@ class WaveletOperatorTensorProd(WaveletOperator):
 
     # ------------------------------------------------------------------ pure functions
 
-    def apply(self, x: Any, j: int, *, block: int, level: LevelTensorProd) -> Any:
+    def apply(self, x: Any, j: int, *, block: int, level: Level) -> Any:
         """ψ⁽ᵃ⁾_{j} ⋆_a x, the block convolution of maths.md M-W1-TP along block a = ``block``
         at its scale ``j``: complex, L_a orientations.
 
@@ -454,7 +450,7 @@ class WaveletOperatorTensorProd(WaveletOperator):
         out = xp.permute_dims(out, (0, 2, 1, *range(3, 3 + n_spatial)))
         return xp.reshape(out, (*lead, self._plan.blocks[block].L, *spatial))
 
-    def convolve(self, x: Any, j: int, *, block: int, level: LevelTensorProd) -> Any:
+    def convolve(self, x: Any, j: int, *, block: int, level: Level) -> Any:
         """ψ⁽ᵃ⁾_{j} ⋆_a x as :meth:`apply`, with the orientation of this convolution right after
         the batch axis, as ``WaveletOperatorSingleDomain.apply`` places it: ``x`` is
         ``(Nb, *O, *spatial)`` at the multi-index ``level``, with any axes ``O``, and the result is
@@ -484,7 +480,7 @@ class WaveletOperatorTensorProd(WaveletOperator):
         out = self._data._conv(flat, filters[a]._conv_tables(level[a]), level[a], block=a)
         return xp.reshape(out, (lead[0], block_plan.L, *lead[1:], *spatial))
 
-    def lowpass(self, x: Any, level: LevelTensorProd, *, block: int) -> Any:
+    def lowpass(self, x: Any, level: Level, *, block: int) -> Any:
         """The last step of the low-pass filter φ⁽ᵃ⁾ of block a = ``block`` (maths.md M-LP), from
         the multi-index ``level``, whose entry for block a is the level before
         ``lowpass_level`` of that block, to the level with d_a = ``lowpass_level``.
@@ -521,7 +517,7 @@ class WaveletOperatorTensorProd(WaveletOperator):
         out = self._data._downsample(flat, weights, level[a], block=a)
         return xp.reshape(out, (*lead, *tuple(out.shape[2:])))
 
-    def downsample(self, x: Any, level: LevelTensorProd, *, block: int) -> Any:
+    def downsample(self, x: Any, level: Level, *, block: int) -> Any:
         """One downsampling step of ``x`` along block a = ``block``, from the multi-index
         ``level`` to the level with d_a + 1 (maths.md M-DOWN along the axes of block a,
         M-NOT-TP); the other blocks keep their level.
@@ -568,7 +564,7 @@ class WaveletOperatorTensorProd(WaveletOperator):
         return int(block)
 
     def _split(
-        self, x: Any, level: LevelTensorProd, function: str, minimum: int = 2
+        self, x: Any, level: Level, function: str, minimum: int = 2
     ) -> tuple[tuple[int, ...], tuple[int, ...]]:
         """The leading and the spatial shape of ``x``, a map ``(Nb, Nc, *O, *spatial)`` at the
         multi-index ``level`` (``(Nb, *O, *spatial)`` with ``minimum=1``); shapes are static, so

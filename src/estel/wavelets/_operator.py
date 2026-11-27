@@ -88,6 +88,11 @@ History = tuple[int, ...]
 field, ``(j,)`` for first-layer data, ``(j2, j3)`` for second-layer data (STL's
 ``conv_history``)."""
 
+Level = tuple[int, ...]
+"""A level of any geometry, as a tuple: ``(d,)`` for single-domain data, the multi-index
+d = (d₀, …, d_{B-1}) of a tensor product, the field downsampled d_a times along block a
+(maths.md M-NOT, M-NOT-TP; the segments of ``statistics._layout``)."""
+
 LowpassRealization = Literal["smoothing_cascade"]
 
 Box = tuple[tuple[int, int], ...]

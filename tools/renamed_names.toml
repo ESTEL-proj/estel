@@ -143,7 +143,7 @@ row = [
     { old = "estel.wavelets._operator:default_scales_of", new = "default_scales_of_cartesian", kind = "rename", task = "T7.6", done = true, note = "a name that serves Cartesian data only (rule 3; decision 2 on #197)" },
     { old = "estel.wavelets._operator:wavelet_bank", new = "estel.wavelets._banks_cartesian:wavelet_bank_cartesian", kind = "move", task = "T7.6", done = true, note = "the bank of 1D and 2D data, in their module of banks (decision 2 on #197)" },
     { old = "estel.wavelets._tensor_prod", new = "estel.wavelets._operator_tensor_prod", kind = "rename", task = "T7.6", done = true, note = "the wavelet operator of tensor products, its plan and its levels (decision 2 on #197)" },
-    { old = "estel.wavelets._tensor_prod:Level", new = "LevelTensorProd", kind = "rename", task = "T7.6", done = true, note = "rule 3: used in estel.statistics._layout" },
+    { old = "estel.wavelets._tensor_prod:Level", new = "estel.wavelets._operator:Level", kind = "move", task = "T7.6", done = true, note = "the levels of every geometry, bare, in the bare module (decision 2 of the maintainer after the review, #197)" },
     { old = "estel.wavelets._tensor_prod:TensorProdWaveletOperator", new = "WaveletOperatorTensorProd", kind = "rename", task = "T7.6", done = true },
     { old = "tests.differentiation.test_wavelet_operator:_healpix_layers", new = "_layers_healpix", kind = "rename", task = "T7.6", done = true },
     { old = "tests.differentiation.test_wavelet_operator:_tensor_prod_layers", new = "_layers_tensor_prod", kind = "rename", task = "T7.6", done = true },
