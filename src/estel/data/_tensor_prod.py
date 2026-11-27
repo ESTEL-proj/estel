@@ -27,18 +27,14 @@ from numpy.typing import NDArray
 
 from ..backend import _registry
 from ._base import Data, DownsampleWeights, _promote_spatial, _to_backend
-from ._cartesian import Data1D, Data2D
-
-BLOCK_GEOMETRIES: tuple[type[Data], ...] = (Data2D, Data1D)
-"""The geometries a block of a tensor product may have in 1.0.0 (maths.md M-DATA-TP);
-HEALPix blocks come later (LF9)."""
+from ._cartesian import DataCartesian
 
 
 class BlockSpecTensorProd(NamedTuple):
     """The static description of one block of a tensor product: hashable, compared by value,
     so that it is pytree metadata (Part I, §2.3)."""
 
-    geometry: type[Data2D] | type[Data1D]
+    geometry: type[DataCartesian]
     """The geometry of the block, ``Data2D`` or ``Data1D``."""
     axes: tuple[int, ...]
     """The axes of the block in the array ``(Nb, Nc, *spatial)``, contiguous and increasing."""
@@ -277,8 +273,9 @@ class DataTensorProd(Data):
 # ---------------------------------------------------------------------- validation
 
 
-def _check_blocks(blocks: object) -> tuple[type[Data2D] | type[Data1D], ...]:
-    """The geometries of the blocks: a non-empty list of ``Data2D`` and ``Data1D``."""
+def _check_blocks(blocks: object) -> tuple[type[DataCartesian], ...]:
+    """The geometries of the blocks: a non-empty list of ``Data2D`` and ``Data1D``, the classes
+    that declare the capability of a block, ``_block_tensor_prod``, in their own body."""
     example = "for example blocks=[estel.Data2D, estel.Data1D] for space and time"
     if isinstance(blocks, str) or not isinstance(blocks, Sequence):
         raise TypeError(
@@ -288,7 +285,14 @@ def _check_blocks(blocks: object) -> tuple[type[Data2D] | type[Data1D], ...]:
     if not blocks:
         raise ValueError(f"DataTensorProd(blocks=[]): pass at least one block, {example}.")
     for index, block in enumerate(blocks):
-        if not any(block is g for g in BLOCK_GEOMETRIES):
+        # The capability is read in the body of the class itself, never inherited: Data2D and
+        # Data1D, and neither DataCartesian nor a subclass of them (Part I, §2.3.1).
+        accepted = (
+            isinstance(block, type)
+            and issubclass(block, DataCartesian)
+            and block.__dict__.get("_block_tensor_prod", False) is True
+        )
+        if not accepted:
             raise TypeError(
                 f"DataTensorProd: block {index} is {block!r}; each block is the class "
                 "estel.Data2D or estel.Data1D, not an instance (maths.md M-DATA-TP). HEALPix "
@@ -318,7 +322,7 @@ def _check_pbc(pbc: object, n_blocks: int) -> tuple[bool, ...]:
     return tuple(bool(flag) for flag in pbc)
 
 
-def _accepted_shapes(geometries: tuple[type[Data2D] | type[Data1D], ...]) -> str:
+def _accepted_shapes(geometries: tuple[type[DataCartesian], ...]) -> str:
     """The shapes the constructor accepts, for error messages."""
     names: list[str] = []
     for index, geometry in enumerate(geometries):

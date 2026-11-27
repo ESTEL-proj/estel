@@ -2,8 +2,9 @@
 
 A ``Data`` object is one backend array plus static metadata: the periodicity ``pbc`` and the mask of
 missing values. It is immutable: operations return new objects (:meth:`Data.with_array`),
-never modify one. Subclasses (``Data1D``, ``Data2D`` in ``_cartesian.py``) set the number of spatial
-axes and the geometry constants, and override only the geometry hooks (tag G of §12.4);
+never modify one. Subclasses (``Data1D``, ``Data2D`` in ``_cartesian.py``, under
+``DataCartesian``) set the number of spatial axes and the geometry constants, and override only
+the geometry hooks (tag G of §12.4);
 ``DataHealpix`` (``_healpix.py``) has one pixel axis on the sphere; ``DataTensorProd``
 (``_tensor_prod.py``) composes the planar ones, one geometry per block.
 
@@ -114,10 +115,11 @@ class Data:
 
     @classmethod
     def _accepted_shapes(cls) -> str:
-        """The shapes the constructor accepts, for error messages."""
-        ndim = cast(int, cls.ndim)  # the class constant of a single geometry
-        spatial = ", ".join(f"N{i + 1}" for i in range(ndim)) if ndim > 1 else "N"
-        return f"({spatial}), (Nc, {spatial}) or (Nb, Nc, {spatial})"
+        """The shapes the constructor accepts, for error messages: each geometry gives its own."""
+        raise NotImplementedError(
+            f"{cls.__name__} does not implement _accepted_shapes: every single-domain "
+            "geometry overrides it (Part I, §2.3.1; Part II, §12.4)."
+        )
 
     # ------------------------------------------------------------------ construction
 
@@ -154,16 +156,21 @@ class Data:
 
     def _meta(self) -> tuple[Any, ...]:
         """The static metadata of the geometry beyond the mask and ``pbc``, hashable: what
-        :meth:`_from_parts` needs, with them, to rebuild an object of this class. A geometry
-        with more metadata overrides it and :meth:`_set_meta`; planar data have none."""
-        return ()
+        :meth:`_from_parts` needs, with them, to rebuild an object of this class (``()`` for
+        1D and 2D data, ``(depth, cell_ids)`` for ``DataHealpix``); set by :meth:`_set_meta`."""
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement _meta: every single-domain "
+            "geometry overrides it (Part I, §2.3.1; Part II, §12.4)."
+        )
 
     @classmethod
     def _meta_content(cls, meta: tuple[Any, ...]) -> tuple[dict[str, Any], dict[str, NDArray[Any]]]:
         """The metadata ``meta`` of :meth:`_meta` for a file (``estel.io``): JSON parameters,
-        and arrays by name, which :meth:`_example_from_content` reads back. 1D and 2D data have
-        none."""
-        return {}, {}
+        and arrays by name, which :meth:`_example_from_content` reads back."""
+        raise NotImplementedError(
+            f"{cls.__name__} does not implement _meta_content: every single-domain "
+            "geometry overrides it (Part I, §2.3.1; Part II, §12.4)."
+        )
 
     @classmethod
     def _example_from_content(
@@ -179,16 +186,17 @@ class Data:
         ``pbc``, the metadata of :meth:`_meta_content`, its JSON ``content``, and the plan's
         ``arrays`` by name, the mask (``"mask"``, when values are missing) and the arrays of
         :meth:`_meta_content`."""
-        mask = arrays["mask"].astype(bool) if "mask" in arrays else None
-        return cls(np.zeros((1, n_channels, *spatial_shape)), mask=mask, pbc=pbc)
+        raise NotImplementedError(
+            f"{cls.__name__} does not implement _example_from_content: every single-domain "
+            "geometry overrides it (Part I, §2.3.1; Part II, §12.4)."
+        )
 
     def _set_meta(self, meta: tuple[Any, ...]) -> None:
         """Set the metadata of :meth:`_meta` on a new object (from :meth:`_set`)."""
-        if meta:
-            raise TypeError(
-                f"{type(self).__name__} has no static metadata beyond its mask and pbc; got "
-                f"{meta!r}. Pass meta=() or the _meta() of an object of the same class."
-            )
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement _set_meta: every single-domain "
+            "geometry overrides it (Part I, §2.3.1; Part II, §12.4)."
+        )
 
     def _like(self, array: Any) -> Data:
         """A new object of this geometry with ``array`` and the static metadata of this one: no
@@ -198,7 +206,10 @@ class Data:
     def _rebuild_advice(self) -> str:
         """The constructor call that builds an object like this one from a NumPy ``array``,
         for the messages."""
-        return f"{type(self).__name__}(array, mask=data.mask, pbc=data.pbc)"
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement _rebuild_advice: every single-domain "
+            "geometry overrides it (Part I, §2.3.1; Part II, §12.4)."
+        )
 
     def __setattr__(self, name: str, value: Any) -> None:
         raise AttributeError(
@@ -339,10 +350,6 @@ class Data:
     # Only ``WaveletOperator`` (``estel.wavelets._operator``) calls the hooks of filtering and
     # downsampling, _conv, _downsample and _crop_weights (Part I, §2.3, §2.4).
 
-    def _spatial_axes(self) -> tuple[int, ...]:
-        """The axes the geometry acts on: the last ``ndim`` axes of the array."""
-        return tuple(range(2, 2 + self.ndim))
-
     def _conv(self, x: Any, tables: Any, level: int) -> Any:
         """Filter ``x`` with the wavelets at resolution ``level`` (maths.md M-W1), with the
         static ``tables`` of that level, given by ``WaveletOperator``.
@@ -445,13 +452,6 @@ class Data:
         raise NotImplementedError(
             f"{owner}: {cls.__name__} cannot be a block of a tensor product; the blocks of 1.0.0 "
             "are Data1D and Data2D (maths.md M-DATA-TP)."
-        )
-
-    def __repr__(self) -> str:
-        n_missing = 0 if self._mask is None else int(self._mask.sum())
-        return (
-            f"{type(self).__name__}(shape={self.shape}, pbc={self._pbc}, "
-            f"missing={n_missing}, backend={self._backend!r})"
         )
 
 
