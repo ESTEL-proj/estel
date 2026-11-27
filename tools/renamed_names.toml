@@ -241,7 +241,7 @@ row = [
     { old = "estel.spectra._estimators:static_tables", new = "static_tables_2d", kind = "rename", task = "T7.9", done = true, note = "decisions on #193" },
     { old = "estel.synthesis._api:_default_n_bins", new = "_default_n_bins_2d", kind = "rename", task = "T7.9", done = true, note = "decisions on #193" },
     { old = "tests.spectra.test_stoperator:_data", new = "_data_2d", kind = "rename", task = "T7.9", done = true, note = "decisions on #193: a test helper builds 2D data only" },
-    { old = "estel.scattering._plan:_spectrum", new = "_spectrum_single_domain", kind = "rename", task = "T7.9", done = true, note = "called by the single-domain builder only, for every single-domain geometry (rule 3; decision 2 on #200)" },
+    { old = "estel.scattering._plan:_spectrum", new = "_spectrum_single_domain", kind = "rename", task = "T7.9", done = true, note = "the single-domain builder only, for every single-domain geometry (rules 2, 3; decision 1 on #200; as T7.7, #214)" },
     { old = "estel.spectra._bins:ENERGY_FRACTION", new = "ENERGY_FRACTION_2D", kind = "rename", task = "T7.9", done = true, note = "the border of a 2D bin, as the oracle's twin (rule 3; decision 2 on #200)" },
     { old = "estel.spectra._bins:_borders", new = "_borders_2d", kind = "rename", task = "T7.9", done = true, note = "the border of a 2D bin, from the Hankel transform with J0 (rule 3; decision 2 on #200)" },
     { old = "estel.spectra._estimators:_ESTIMATE", new = "_ESTIMATE_2D", kind = "rename", task = "T7.9", done = true, note = "the table of the 2D estimators (rule 3; decision 2 on #200)" },

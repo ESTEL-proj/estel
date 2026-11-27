@@ -93,8 +93,8 @@ class SpectrumEstimatorPlan2D:
     Jmin: int
     """J_min, with 0 ≤ J_min ≤ J - 2 (OP-93)."""
     method: str
-    """The estimator, one of :data:`ESTIMATORS`, chosen at construction from
-    ``pbc`` and the missing pixels of the example, or given (maths.md §1.9)."""
+    """The estimator, one of :data:`ESTIMATORS`, chosen at construction from ``pbc`` and the
+    missing pixels of the example, or given (maths.md §1.9)."""
     spatial_shape: tuple[int, ...]
     """(N₁, N₂), even."""
     n_valid: int
@@ -200,8 +200,8 @@ def build_spectrum_plan_2d(
 
 class SpectrumEstimatorFilters2D(NamedTuple):
     """The static arrays of the spectrum on the backend, in the operator's dtype (maths.md
-    §1.9): built once by ``spectra._plan.build_spectrum_filters_2d``. A named tuple, so a pytree
-    whose leaves are the arrays."""
+    §1.9): built once by :func:`build_spectrum_filters_2d`. A named tuple, so a pytree whose
+    leaves are the arrays."""
 
     modes: Any
     """``fft``: ``(n_b, N₁ · (N₂/2 + 1))``, w(m) W_b(round(|m|)) / Z_b at each mode m = (k₁, k₂).
