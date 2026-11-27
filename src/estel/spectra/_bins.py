@@ -30,7 +30,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-ENERGY_FRACTION = 0.60
+ENERGY_FRACTION_2D = 0.60
 """The fraction of the energy of the kernel of a bin within its border (maths.md §1.9; OP-21:
 fixed, not an option)."""
 
@@ -238,11 +238,11 @@ def log_gaussian_bins_2d(
         centers=_read_only(np.exp(log_centers)),
         windows=_read_only(windows),
         norm=_read_only(norm),
-        borders=_read_only(_borders(windows, n_max)),
+        borders=_read_only(_borders_2d(windows, n_max)),
     )
 
 
-def _borders(windows: NDArray[np.float64], n_max: int) -> NDArray[np.int64]:
+def _borders_2d(windows: NDArray[np.float64], n_max: int) -> NDArray[np.int64]:
     """β_b (maths.md §1.9): g_b(rho) = π / (2 N_max²) Σ_k W_b(k) k J₀(π rho k / N_max) at the
     integer radii rho = 0 … N_max, Q_b the cumulative trapezoidal rule of 2π rho g_b(rho)², and
     β_b the smallest rho with Q_b(rho) ≥ 0.60 Q_b(N_max); 0 when Q_b(N_max) = 0. From W_b, not
@@ -254,6 +254,6 @@ def _borders(windows: NDArray[np.float64], n_max: int) -> NDArray[np.int64]:
     steps = 0.5 * (energy[:, 1:] + energy[:, :-1])
     cumulative = np.concatenate([np.zeros((windows.shape[0], 1)), np.cumsum(steps, axis=1)], axis=1)
     total = cumulative[:, -1:]
-    reached = cumulative >= ENERGY_FRACTION * total
+    reached = cumulative >= ENERGY_FRACTION_2D * total
     found = np.where(total[:, 0] > 0.0, np.argmax(reached, axis=1), 0)
     return found.astype(np.int64)

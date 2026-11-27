@@ -570,7 +570,7 @@ def build_plan_with_tables_single_domain(
     matrix = _cross_matrix(cross_matrix, data.n_channels)
     _check_standardize(standardize)
     pairs = channel_pairs(matrix)
-    spectrum = _spectrum(wavelets, J, compute_PS, n_bins, Jmin, spectrum_method)
+    spectrum = _spectrum_single_domain(wavelets, J, compute_PS, n_bins, Jmin, spectrum_method)
     levels = wavelets.levels
     scale_levels = wavelets.scale_levels
     scales = tuple(range(wavelets.J))
@@ -670,7 +670,7 @@ def resolve_compute_ps(compute_ps: object, geometry: type[Data]) -> bool:
     return two_d if compute_ps is None else bool(compute_ps)
 
 
-def _spectrum(
+def _spectrum_single_domain(
     wavelets: WaveletPlanSingleDomain,
     J: int | None,  # noqa: N803 (maths.md notation)
     compute_ps: object,

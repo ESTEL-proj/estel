@@ -312,7 +312,7 @@ def estimate_fft_2d(
     return xp.matmul(rows, xp.permute_dims(filters.modes, (1, 0)))
 
 
-def _bands(
+def _bands_2d(
     backend: Backend, x: Any, filters: SpectrumEstimatorFilters2D, shape: tuple[int, int]
 ) -> Any:
     """The band maps f_b of every map: ``(Nb, Nc, n_b, N₁, N₂)``."""
@@ -321,7 +321,7 @@ def _bands(
     return xp.fft.irfft2(spectrum[:, :, None] * filters.modes, s=shape, norm="ortho")
 
 
-def _filled(backend: Backend, x: Any, filters: SpectrumEstimatorFilters2D, n_valid: int) -> Any:
+def _filled_2d(backend: Backend, x: Any, filters: SpectrumEstimatorFilters2D, n_valid: int) -> Any:
     """Each map with its missing pixels set to the mean of its ``n_valid`` valid pixels (maths.md
     §1.9, ``nan_mask``), with ``where``: the values at the missing pixels are never read."""
     xp = backend.xp
@@ -333,7 +333,7 @@ def _filled(backend: Backend, x: Any, filters: SpectrumEstimatorFilters2D, n_val
     return xp.where(valid, kept, xp.broadcast_to(mean, x.shape))
 
 
-def _band_sums(
+def _band_sums_2d(
     backend: Backend,
     x: Any,
     filters: SpectrumEstimatorFilters2D,
@@ -341,7 +341,7 @@ def _band_sums(
 ) -> Any:
     xp = backend.xp
     shape = (int(x.shape[-2]), int(x.shape[-1]))
-    bands = _bands(backend, x, filters, shape)
+    bands = _bands_2d(backend, x, filters, shape)
     first, second = _pair_index(backend, pairs, filters.pixels)
     products = xp.take(bands, first, axis=1) * xp.take(bands, second, axis=1)
     return xp.sum(products * filters.pixels, axis=(-2, -1))  # (Nb, n_pairs, n_b)
@@ -355,7 +355,7 @@ def estimate_pbc_mask_2d(
     n_valid: int,
 ) -> Any:
     """``pbc_mask`` (non-periodic, no missing pixel): ``(Nb, n_pairs, n_b)``."""
-    return _band_sums(backend, x, filters, pairs)
+    return _band_sums_2d(backend, x, filters, pairs)
 
 
 def estimate_nan_mask_2d(
@@ -366,7 +366,7 @@ def estimate_nan_mask_2d(
     n_valid: int,
 ) -> Any:
     """``nan_mask`` (periodic, missing pixels): ``(Nb, n_pairs, n_b)``."""
-    return _band_sums(backend, _filled(backend, x, filters, n_valid), filters, pairs)
+    return _band_sums_2d(backend, _filled_2d(backend, x, filters, n_valid), filters, pairs)
 
 
 def estimate_pbc_nan_mask_2d(
@@ -377,10 +377,10 @@ def estimate_pbc_nan_mask_2d(
     n_valid: int,
 ) -> Any:
     """``pbc_nan_mask`` (non-periodic, missing pixels): ``(Nb, n_pairs, n_b)``."""
-    return _band_sums(backend, _filled(backend, x, filters, n_valid), filters, pairs)
+    return _band_sums_2d(backend, _filled_2d(backend, x, filters, n_valid), filters, pairs)
 
 
-_ESTIMATE = {
+_ESTIMATE_2D = {
     "fft": estimate_fft_2d,
     "pbc_mask": estimate_pbc_mask_2d,
     "nan_mask": estimate_nan_mask_2d,
@@ -400,5 +400,5 @@ def spectrum_floats_2d(
     followed by its n_b bins, one float each. ``x`` is the field ``(Nb, Nc, N₁, N₂)``, its missing
     pixels never read; ``spectrum`` is the plan of the spectrum (:class:`SpectrumEstimatorPlan2D`):
     its estimator and the denominator of the filling mean."""
-    found = _ESTIMATE[spectrum.method](backend, x, filters, pairs, spectrum.n_valid)
+    found = _ESTIMATE_2D[spectrum.method](backend, x, filters, pairs, spectrum.n_valid)
     return backend.xp.reshape(found, (int(found.shape[0]), -1))
