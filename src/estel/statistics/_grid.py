@@ -28,7 +28,7 @@ each orientation axis it transforms with ``h`` (``hl2``, ``hdl``, …); ``scale_
 the scales of S3 by ``(k, a)`` and those of S4 by ``(k, a, b)`` (M-RED-ISO, M-RED-ANG,
 M-RED-SCALE). The batch axis comes first in every array and is not named.
 
-In a tensor product (:func:`tensor_prod_grids`; task T3.6) each scale and orientation axis is
+In a tensor product (:func:`grids_tensor_prod`; task T3.6) each scale and orientation axis is
 one axis per block, ``j[0]``, ``j[1]`` … (maths.md M-S-TP); ``select`` takes the channels only,
 naming the blocks being LF44.
 """
@@ -57,7 +57,7 @@ REAL_PART_ONLY = ("S1", "S2", "PS")
 OP-37)."""
 
 
-def orientations_at(
+def orientations_at_tensor_prod(
     scale: tuple[int, ...],
     J: tuple[int, ...],  # noqa: N803 (maths.md notation)
     L: tuple[int, ...],  # noqa: N803
@@ -352,7 +352,7 @@ def _family(
     )
 
 
-def base_grids(plan: STPlanSingleDomain) -> tuple[FamilyGrid, ...]:
+def grids_single_domain(plan: STPlanSingleDomain) -> tuple[FamilyGrid, ...]:
     """The layout of the statistics without normalisation (maths.md M-MOM, M-S1 to M-S4,
     M-CHAN, OP-3): what the scattering loop computes, from the plan alone, by chunks. Real
     entries are mean, var, the auto S1 and S2, and the diagonal of S4 (c1 = c2, j1 = j2,
@@ -441,7 +441,7 @@ def spectrum_grid(n_bins: int, pairs: NDArray[np.bool_]) -> FamilyGrid:
     )
 
 
-def auto_scales(plan: STPlanSingleDomain) -> NDArray[np.bool_]:
+def auto_scales_single_domain(plan: STPlanSingleDomain) -> NDArray[np.bool_]:
     """``(Nc, J)``: where the auto S2 exists, so where the normalisation scale sigma_c(j, l) of
     M-NORM is defined: the channels with auto statistics, at the scales with valid pixels."""
     present = np.array(
@@ -458,14 +458,14 @@ def auto_scales(plan: STPlanSingleDomain) -> NDArray[np.bool_]:
 # ---------------------------------------------------------------------- tensor products
 
 
-def block_axes(prefix: str, n_blocks: int) -> tuple[str, ...]:
+def block_axes_tensor_prod(prefix: str, n_blocks: int) -> tuple[str, ...]:
     """The names of the axes of one multi-index of a tensor product, one per block:
     ``j[0]``, ``j[1]`` … for ``prefix`` ``"j"``. Internal: naming the blocks is LF44, and
     ``select`` does not take these axes."""
     return tuple(f"{prefix}[{a}]" for a in range(n_blocks))
 
 
-def _product_rows(
+def _product_rows_tensor_prod(
     pairs: Sequence[tuple[int, int]], per_block: Sequence[Sequence[tuple[int, ...]]]
 ) -> NDArray[np.int32]:
     """``(n, 2 + k · B)``: the channel pairs crossed with the Cartesian product of the index
@@ -482,7 +482,7 @@ def _product_rows(
     return np.array(rows, dtype=np.int32).reshape(len(rows), 2 + k * n_blocks)
 
 
-def _from_rows(
+def _from_rows_tensor_prod(
     name: str,
     axes: tuple[str, ...],
     chunk_shape: tuple[int, ...],
@@ -506,7 +506,7 @@ def _from_rows(
     )
 
 
-def tensor_prod_grids(plan: STPlanTensorProd) -> tuple[FamilyGrid, ...]:
+def grids_tensor_prod(plan: STPlanTensorProd) -> tuple[FamilyGrid, ...]:
     """The layout of the statistics of a tensor product without normalisation (maths.md
     M-S-TP, M-IDX-TP, M-LP, M-CHAN), from the plan alone, by chunks (Part III, §19.4; task
     T3.6): the chunks are the channel pairs crossed with the Cartesian product of the index
@@ -539,7 +539,7 @@ def tensor_prod_grids(plan: STPlanTensorProd) -> tuple[FamilyGrid, ...]:
         )
 
     # S1 and S2: two kinds (auto, cross) per orientation shape.
-    rows_12 = _product_rows(pairs_12, [[(j,) for j in js] for js in plan.first_layer])
+    rows_12 = _product_rows_tensor_prod(pairs_12, [[(j,) for j in js] for js in plan.first_layer])
     scale_12 = rows_12[:, 2:]
     chunk_shapes = np.array(
         [plan.orientations_at(tuple(int(j) for j in row)) for row in scale_12], dtype=np.int32
@@ -549,20 +549,25 @@ def tensor_prod_grids(plan: STPlanTensorProd) -> tuple[FamilyGrid, ...]:
     distinct, kinds_12 = np.unique(keys, axis=0, return_inverse=True)
     shapes_12 = distinct[:, 1:].astype(np.int32)
     real_12 = _corners(shapes_12, L) & (distinct[:, :1] == 0)
-    axes_12 = ("c1", "c2", *block_axes("j", n_blocks), *block_axes("l", n_blocks))
+    axes_12 = (
+        "c1",
+        "c2",
+        *block_axes_tensor_prod("j", n_blocks),
+        *block_axes_tensor_prod("l", n_blocks),
+    )
     shape_12 = (nc, nc, *plan.n_scales)
 
     # S3: one kind, every entry complex.
-    rows_3 = _product_rows(pairs.ordered, plan.s3)
+    rows_3 = _product_rows_tensor_prod(pairs.ordered, plan.s3)
     axes_3 = (
         "c1",
         "c2",
-        *(name for p in ("j2", "j3") for name in block_axes(p, n_blocks)),
-        *(name for p in ("l2", "l3") for name in block_axes(p, n_blocks)),
+        *(name for p in ("j2", "j3") for name in block_axes_tensor_prod(p, n_blocks)),
+        *(name for p in ("l2", "l3") for name in block_axes_tensor_prod(p, n_blocks)),
     )
 
     # S4: the diagonal kind (c1 = c2, j1 = j2), real where l1 = l2 in every block, and the rest.
-    rows_4 = _product_rows(pairs.ordered, plan.s4)
+    rows_4 = _product_rows_tensor_prod(pairs.ordered, plan.s4)
     j1, j2 = rows_4[:, 2 : 2 + n_blocks], rows_4[:, 2 + n_blocks : 2 + 2 * n_blocks]
     off_diagonal = ~((rows_4[:, 0] == rows_4[:, 1]) & (j1 == j2).all(axis=1))
     l1, l2 = np.meshgrid(np.arange(n_o), np.arange(n_o), indexing="ij")
@@ -570,14 +575,14 @@ def tensor_prod_grids(plan: STPlanTensorProd) -> tuple[FamilyGrid, ...]:
     axes_4 = (
         "c1",
         "c2",
-        *(name for p in ("j1", "j2", "j3") for name in block_axes(p, n_blocks)),
-        *(name for p in ("l1", "l2", "l3") for name in block_axes(p, n_blocks)),
+        *(name for p in ("j1", "j2", "j3") for name in block_axes_tensor_prod(p, n_blocks)),
+        *(name for p in ("l1", "l2", "l3") for name in block_axes_tensor_prod(p, n_blocks)),
     )
     return (
         moments("mean"),
         moments("var"),
         *(
-            _from_rows(
+            _from_rows_tensor_prod(
                 name,
                 axes_12,
                 shape_12,
@@ -589,7 +594,7 @@ def tensor_prod_grids(plan: STPlanTensorProd) -> tuple[FamilyGrid, ...]:
             )
             for name in ("S1", "S2")
         ),
-        _from_rows(
+        _from_rows_tensor_prod(
             "S3",
             axes_3,
             (nc, nc, *J, *J),
@@ -598,7 +603,7 @@ def tensor_prod_grids(plan: STPlanTensorProd) -> tuple[FamilyGrid, ...]:
             np.zeros(rows_3.shape[0], dtype=np.int64),
             np.zeros((1, n_o * n_o), dtype=bool),
         ),
-        _from_rows(
+        _from_rows_tensor_prod(
             "S4",
             axes_4,
             (nc, nc, *J, *J, *J),
@@ -610,7 +615,7 @@ def tensor_prod_grids(plan: STPlanTensorProd) -> tuple[FamilyGrid, ...]:
     )
 
 
-def tensor_prod_auto_scales(plan: STPlanTensorProd) -> NDArray[np.bool_]:
+def auto_scales_tensor_prod(plan: STPlanTensorProd) -> NDArray[np.bool_]:
     """``(Nc, J'_0, …, J'_{B-1})``: where the normalisation scale sigma_c(j, l) of M-NORM-TP is
     defined: the channels with auto statistics, at every scale of S1 and S2, the low-pass
     scales included. Its size is that of the channels and the scales, not of the full grid."""

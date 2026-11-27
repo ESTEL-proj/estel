@@ -5,7 +5,7 @@ issue #137; maths.md M-IDX-TP, M-LP, M-S-TP, M-NORM-TP, M-FLAT; Part II, §12.7;
 These tests, written before the operator of tensor products (T3.2), take the raw statistics from the
 parity fixtures of T3.4 (``scattering_tp``), or from the oracle ``spec_apply_tensor_prod(...,
 norm="none")`` on the fields of ``statistics_tp``, which stores only normalised values, place
-them in the layout of the plan (``tensor_prod_layout``), and read them back through
+them in the layout of the plan (``layout_tensor_prod``), and read them back through
 ``STStatistics``: the positions of every family, the normalisation, its references and the two
 flat vectors are compared with the fixtures, in float64, with the tolerances of Part II, §14.3.
 """
@@ -125,13 +125,13 @@ def test_positions_equal_the_fixture(name: str, lowpass: str | None) -> None:
         **{f: full_grid(arrays, f"{prefix}_{f}") for f in ("S1", "S2")},
         **{f: full_grid(arrays, f"{name}_st_{f}") for f in ("S3", "S4")},
     }
-    stats = statistics_of(_buffer(_layout.tensor_prod_layout(plan), grids), plan)
+    stats = statistics_of(_buffer(_layout.layout_tensor_prod(plan), grids), plan)
     for family in FAMILIES:
         assert_parity(_numpy(stats.full_grid(family)), grids[family])
 
 
 @cache
-def _statistics_tp() -> dict[str, Any]:
+def _statistics_tensor_prod() -> dict[str, Any]:
     """The three runs of ``statistics_tp`` (``norm="self"``, ``norm="ref"`` by its reference,
     ``norm="self"`` with ``ref_batch_mean``), from the raw statistics of the oracle on the
     fixture's fields."""
@@ -150,7 +150,7 @@ def _statistics_tp() -> dict[str, Any]:
             standardize=False,  # STL's default (OP-120)
         )
         plan = _plan(arrays[key], blocks, pbc, J)
-        buffer = _buffer(_layout.tensor_prod_layout(plan), raw)
+        buffer = _buffer(_layout.layout_tensor_prod(plan), raw)
         return statistics_of(buffer, plan, ref, norm=norm, ref_batch_mean=batch_mean)
 
     store = run("field", "self")
@@ -167,7 +167,7 @@ def test_normalisation_equals_the_fixture() -> None:
     (maths.md M-NORM-TP, M-FLAT). S1 and S2 are normalised at every scale, the low-pass scales
     included, S3 and S4 by the wavelet scales of the reference only."""
     arrays = _arrays("statistics_tp")
-    for run, stats in _statistics_tp().items():
+    for run, stats in _statistics_tensor_prod().items():
         var_ref = arrays[
             "store_batch_mean_var_ref" if run == "store_batch_mean" else "store_var_ref"
         ]
@@ -180,7 +180,7 @@ def test_normalisation_equals_the_fixture() -> None:
             assert stats._reference is not None
             assert_parity(_numpy(stats._reference.var), arrays[f"{run}_var_ref"])
             assert_parity(_numpy(stats._reference.s2_sqrt), full_grid(arrays, f"{run}_s2_ref"))
-    store = _statistics_tp()["store"]
+    store = _statistics_tensor_prod()["store"]
     assert_parity(_numpy(store.to_vector()), arrays["vector_real"])
     assert_parity(_numpy(store._to_complex_vector()), arrays["vector_complex"])
 
@@ -203,21 +203,21 @@ def test_three_block_layout_allocates_no_full_grid(monkeypatch: pytest.MonkeyPat
     ``norm="self"``, ``to_vector``, ``select``) makes no constant that large either."""
 
     def build(plan: STPlanTensorProd) -> tuple[_layout.Layout, Any]:
-        present = _grid.tensor_prod_auto_scales(plan)
-        layout = _layout.tensor_prod_layout(plan)
+        present = _grid.auto_scales_tensor_prod(plan)
+        layout = _layout.layout_tensor_prod(plan)
         tables = _normalization._norm_tables(
             layout,
             present.shape,
             present.tobytes(),
             int(np.prod(plan.L)),
-            _normalization.tensor_prod_blocks(plan),
+            _normalization.blocks_tensor_prod(plan),
         )
         return layout, tables
 
     # A tiny tensor product first, so that the one-time costs of NumPy are not counted.
     build(_plan(np.zeros((1, 1, 8, 8, 8)), ["2D", "1D"], [True, True], [1, 1]))
     plan = _three_blocks()
-    _layout.tensor_prod_layout.cache_clear()
+    _layout.layout_tensor_prod.cache_clear()
     _normalization._norm_tables.cache_clear()
     tracemalloc.start()
     try:
@@ -259,7 +259,7 @@ def test_three_block_layout_allocates_no_full_grid(monkeypatch: pytest.MonkeyPat
 def _two_channels() -> STStatistics:
     """Case C of maths.md §3 with two channels, normalised by itself: low-pass scales in both
     blocks (S1 and S2 with four orientation shapes), from the oracle."""
-    store: STStatistics = _statistics_tp()["store"]
+    store: STStatistics = _statistics_tensor_prod()["store"]
     return store
 
 
@@ -270,7 +270,7 @@ def test_full_grid_is_refused_above_the_threshold(monkeypatch: pytest.MonkeyPatc
     stats = _two_channels()
     s4 = _layout.full_grid_bytes(stats._layout, "S4", 2, 8)
     assert s4 == 2 * 2 * 2 * (2 * 1) ** 3 * (4 * 2) ** 3 * 16
-    monkeypatch.setattr(_statistics, "_FULL_GRID_LIMIT", s4 - 1)
+    monkeypatch.setattr(_statistics, "_FULL_GRID_LIMIT_TENSOR_PROD", s4 - 1)
     with pytest.raises(ValueError, match=r"GiB.*to_vector\(\).*select"):
         stats.full_grid("S4")
     assert _numpy(stats.full_grid("S3")).shape == (2, 2, 2, 2, 1, 2, 1, 4, 2, 4, 2)
@@ -301,8 +301,8 @@ def test_select_takes_family_and_channels() -> None:
     ("family", "index", "match"),
     [
         pytest.param("S3", {"j[0]": 0}, r"LF44\). Until then, use full_grid", id="block-axis"),
-        pytest.param("S3", {"l": 0}, r"in block order \(maths\.md M-S-TP\)", id="planar-l"),
-        pytest.param("S4", {"j3": 1}, r"or to_vector\.$", id="planar-j3"),
+        pytest.param("S3", {"l": 0}, r"in block order \(maths\.md M-S-TP\)", id="single-domain-l"),
+        pytest.param("S4", {"j3": 1}, r"or to_vector\.$", id="single-domain-j3"),
         pytest.param(
             "S1",
             {"c": 0},
@@ -356,7 +356,7 @@ def test_save_and_load_round_trip(tmp_path: Path) -> None:
     low-pass flags and reference come back unchanged; the plan is rebuilt with the signature of
     ``DataTensorProd``."""
     stats = _two_channels()
-    path = tmp_path / "tp.npz"
+    path = tmp_path / "tensor_prod.npz"
     stats.save(path)
     loaded = STStatistics.load(path)
     assert loaded._plan == stats._plan
@@ -374,7 +374,7 @@ def test_save_and_load_round_trip(tmp_path: Path) -> None:
     )
 
 
-def test_reference_of_another_tensor_product_is_accepted() -> None:
+def test_reference_of_other_tensor_prod_data_is_accepted() -> None:
     """A reference from another tensor product with the same blocks, J, L, low-pass flags and
     channels is accepted, whatever its sizes and periodicity (maths.md M-NORM-TP); a planar
     reference is refused on a tensor product, and the reference of a tensor product on planar
@@ -384,7 +384,7 @@ def test_reference_of_another_tensor_product_is_accepted() -> None:
     rng = np.random.default_rng(3)
     other = _plan(rng.standard_normal((2, 2, 32, 32, 16)), ["2D", "1D"], [False, True], [2, 1])
     buffer = _registry.current_backend().asarray(
-        rng.random((2, _layout.tensor_prod_layout(other).n_floats)) + 0.5, "float64", None
+        rng.random((2, _layout.layout_tensor_prod(other).n_floats)) + 0.5, "float64", None
     )
     stats = statistics_of(buffer, other, reference, norm="ref")
     assert stats._reference is not None
@@ -392,11 +392,13 @@ def test_reference_of_another_tensor_product_is_accepted() -> None:
         Data2D(rng.standard_normal((2, 2, 16, 16)), pbc=True), 2, compute_PS=False
     ).apply(Data2D(rng.standard_normal((2, 2, 16, 16)), pbc=True))
     assert planar._reference is not None
-    with pytest.raises(ValueError, match="planar"):
+    with pytest.raises(ValueError, match="single-domain statistics, and these are"):
         statistics_of(buffer, other, planar._reference, norm="ref")
     assert isinstance(planar._plan, STPlanSingleDomain)
     with pytest.raises(ValueError, match="tensor product"):
-        _normalization.check_reference(reference, planar._plan, 2, reference.var.dtype)
+        _normalization.check_reference_single_domain(
+            reference, planar._plan, 2, reference.var.dtype
+        )
 
 
 @pytest.mark.parametrize(
@@ -408,7 +410,7 @@ def test_reference_of_another_tensor_product_is_accepted() -> None:
         pytest.param("low-pass flags", ["2D", "1D"], (16, 16, 9), [2, 1], id="low-pass"),
     ],
 )
-def test_reference_of_another_tensor_product_is_refused(
+def test_reference_of_other_tensor_prod_data_is_refused(
     what: str,
     blocks: list[str],
     shape: tuple[int, ...],
@@ -419,7 +421,7 @@ def test_reference_of_another_tensor_product_is_refused(
     reference = _two_channels()._reference
     assert reference is not None
     plan = _plan(np.zeros((2, 2, *shape)), blocks, [True, True], J)
-    n_floats = _layout.tensor_prod_layout(plan).n_floats
+    n_floats = _layout.layout_tensor_prod(plan).n_floats
     data = _registry.current_backend().asarray(np.ones((2, n_floats)), "float64", None)
     with pytest.raises(ValueError, match=what):
         statistics_of(data, plan, reference, norm="ref")

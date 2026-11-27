@@ -105,15 +105,19 @@ from ..backend._protocol import Backend
 from ..data._base import Data
 from ..spectra._bins import SpectrumBins, log_gaussian_bins
 from ..spectra._estimators import choose_estimator, static_tables
-from ..statistics._grid import auto_scales, orientations_at, tensor_prod_auto_scales
-from ..statistics._layout import Layout, base_layout, tensor_prod_layout
+from ..statistics._grid import (
+    auto_scales_single_domain,
+    auto_scales_tensor_prod,
+    orientations_at_tensor_prod,
+)
+from ..statistics._layout import Layout, layout_single_domain, layout_tensor_prod
 from ..statistics._normalization import (
     _NormReference,
-    check_reference,
-    check_tensor_prod_reference,
+    blocks_tensor_prod,
+    check_reference_single_domain,
+    check_reference_tensor_prod,
     self_reference,
     spectrum_reference_of,
-    tensor_prod_blocks,
 )
 from ..wavelets._operator import (
     History,
@@ -565,10 +569,10 @@ class STPlanSingleDomain(_PlanFieldsSingleDomain, STPlan):
         return values_single_domain(data, self, cast(STFiltersSingleDomain, filters))
 
     def _layout(self) -> Layout:
-        return base_layout(self)
+        return layout_single_domain(self)
 
     def _check_reference(self, reference: _NormReference, n_batch: int, dtype: Any) -> None:
-        check_reference(reference, self, n_batch, dtype)
+        check_reference_single_domain(reference, self, n_batch, dtype)
 
     def _self_reference(
         self, backend: Backend, buffer: Any, layout: Layout, ref_batch_mean: bool
@@ -577,7 +581,7 @@ class STPlanSingleDomain(_PlanFieldsSingleDomain, STPlan):
             backend,
             buffer,
             layout,
-            auto_scales(self),
+            auto_scales_single_domain(self),
             self.L,
             ref_batch_mean,
             spectrum=None
@@ -912,8 +916,8 @@ class STPlanTensorProd(STPlan):
 
     def orientations_at(self, scale: tuple[int, ...]) -> tuple[int, ...]:
         """The orientation shape of the chunks of S1 and S2 at the multi-index ``scale``
-        (``statistics._grid.orientations_at``)."""
-        return orientations_at(scale, self.J, self.L)
+        (``statistics._grid.orientations_at_tensor_prod``)."""
+        return orientations_at_tensor_prod(scale, self.J, self.L)
 
     def _check_data(self, data: Data, filters: STFilters) -> None:
         if not isinstance(filters, STFiltersTensorProd):
@@ -945,10 +949,10 @@ class STPlanTensorProd(STPlan):
         return values_tensor_prod(data, self, cast(STFiltersTensorProd, filters))  # by _check_data
 
     def _layout(self) -> Layout:
-        return tensor_prod_layout(self)
+        return layout_tensor_prod(self)
 
     def _check_reference(self, reference: _NormReference, n_batch: int, dtype: Any) -> None:
-        check_tensor_prod_reference(reference, self, n_batch, dtype)
+        check_reference_tensor_prod(reference, self, n_batch, dtype)
 
     def _self_reference(
         self, backend: Backend, buffer: Any, layout: Layout, ref_batch_mean: bool
@@ -957,10 +961,10 @@ class STPlanTensorProd(STPlan):
             backend,
             buffer,
             layout,
-            tensor_prod_auto_scales(self),
+            auto_scales_tensor_prod(self),
             int(np.prod(self.L, dtype=np.int64)),
             ref_batch_mean,
-            tensor_prod_blocks(self),
+            blocks_tensor_prod(self),
         )
 
     def _content(self) -> tuple[dict[str, Any], dict[str, NDArray[Any]]]:

@@ -246,7 +246,7 @@ def synthesize_from_maps(
         The fields, de-standardised with the target's mean and standard deviation, the losses,
         the counts, the checkpoints written and the manifest of the run (M-SYN-OUT).
     """
-    _refuse_tensor_product(target, "synthesize_from_maps", "target")
+    _refuse_tensor_prod(target, "synthesize_from_maps", "target")
     data, ndim = _target_data(target)
     backend = _check_backend(data.backend)
     _check_periodic(data, "the target")
@@ -410,7 +410,7 @@ def synthesize_from_stats(
     array that broadcasts to ``(n_batch, Nc, *spatial)``. ``running_shape`` is taken on 2D data
     only (OP-101). The other parameters are those of :func:`synthesize_from_maps`.
     """
-    _refuse_tensor_product(stats, "synthesize_from_stats", "stats")
+    _refuse_tensor_prod(stats, "synthesize_from_stats", "stats")
     if not isinstance(stats, STStatistics):
         raise TypeError(
             f"synthesize_from_stats takes STStatistics, got {type(stats).__name__}; to start "
@@ -640,7 +640,7 @@ def _start(backend: Backend, init: Any, seed: int, running: Data, dtype: Any) ->
 # ---------------------------------------------------------------------- checks and helpers
 
 
-def _refuse_tensor_product(value: object, function: str, name: str) -> None:
+def _refuse_tensor_prod(value: object, function: str, name: str) -> None:
     """Syntheses on tensor products are not part of ESTEL 1.0.0: refused before any other
     check, with their own error. Read from the geometry the class declares, as L2 knows the
     mother class only (Part I, §2.4)."""
