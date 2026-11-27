@@ -155,7 +155,7 @@ estel/                             # one repository for Python and Rust (Part IV
 │   │                              # _tensor_prod.py, _loop_tensor_prod.py
 │   ├── statistics/                # _statistics.py, _grid.py, _reductions.py, _normalization.py,
 │   │                              # _layout.py (the compact layout, T2.15)
-│   ├── spectra/                   # operator.py, _estimators.py (2D), _bins.py
+│   ├── spectra/                   # _estimators.py (the plan, filters and estimators, 2D), _bins.py
 │   ├── synthesis/                 # api.py, _loss.py, _init.py, _checkpoints.py
 │   ├── functional/                # pure functions: scattering(), spectrum(), loss()
 │   ├── io/                        # _schema.py: the versioned schema, used by STStatistics.save
