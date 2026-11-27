@@ -24,7 +24,7 @@ The largest scales enter every family: S1 and S2 at the low-pass scale j = J, an
 ## Inputs
 
 - maths_step2 M-LP2, M-COV, M-WIN; Part III §20.1, §20.10 (last paragraph), §20.11 rules 1, 2 and 7, §19.12 points 4 to 6; maths M-LP, M-IDX-TP, M-BORDER-TP, M-SMOOTH-2D, M-SMOOTH-1D, M-DOWN, M-DOWN-MASK, M-DOWN-HPX; OP-2, OP-34, OP-42, OP-43; Part II §12.4 and §12.5 (`_lowpass`, `.lowpass`); Part IV §22, G1.
-- Modules: `src/estel/wavelets/_operator.py` (`WaveletPlanSingleDomain.lowpass_realization`, `lowpass_level`), `src/estel/data/_base.py`, `src/estel/data/_cartesian.py`, `src/estel/scattering/_plan.py`, `src/estel/scattering/_loop.py`, `src/estel/statistics/_grid.py`, `src/estel/_spec/cartesian.py`; the tensor-product and HEALPix modules.
+- Modules: `src/estel/wavelets/_operator.py` (`WaveletPlanSingleDomain.lowpass_realization`, `lowpass_level`), `src/estel/data/_base.py`, `src/estel/data/_cartesian.py`, `src/estel/scattering/_plan.py`, `src/estel/scattering/_loop_single_domain.py`, `src/estel/statistics/_grid.py`, `src/estel/_spec/cartesian.py`; the tensor-product and HEALPix modules.
 
 ## Tasks
 

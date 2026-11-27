@@ -23,7 +23,7 @@ Tensor-product data with missing values: `DataTensorProd` takes a mask, or an ar
 ## Inputs
 
 - Read: Part III §20.3; maths M-DATA-TP ("Missing data"), M-NOT-TP, M-W1-TP, M-BORDER-TP, M-MASK, M-DOWN-MASK, M-SMOOTH-1D (τ = 0.5), M-MEAN; OP-12, OP-26, OP-35, OP-41, OP-80; maths_step2 M-WIN; Part I §3.2.3 (rule 4); Part IV §22, the row Q12 of 18 November 2026; the cards LF10, LF52, LF54, LF62.
-- Modules: `src/estel/data/_tensor_prod.py` (the errors that name LF8; `_downsample`, without maps), `src/estel/data/_cartesian.py` (its error on tensor products), `src/estel/wavelets/_operator_tensor_prod.py`, the tensor-product plan and loop of `src/estel/scattering/` (`_tensor_prod.py`, `_loop_tp.py`), `src/estel/_spec/tensor_prod.py`, `tests/geometry/test_tensor_prod.py`, `tests/scattering/test_operator_tp.py`, `bench/_cases.py` (masks refused on tensor products).
+- Modules: `src/estel/data/_tensor_prod.py` (the errors that name LF8; `_downsample`, without maps), `src/estel/data/_cartesian.py` (its error on tensor products), `src/estel/wavelets/_operator_tensor_prod.py`, the tensor-product plan and loop of `src/estel/scattering/` (`_tensor_prod.py`, `_loop_tensor_prod.py`), `src/estel/_spec/tensor_prod.py`, `tests/geometry/test_tensor_prod.py`, `tests/scattering/test_operator_tp.py`, `bench/_cases.py` (masks refused on tensor products).
 
 ## Tasks
 
