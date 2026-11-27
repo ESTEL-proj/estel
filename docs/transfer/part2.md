@@ -59,7 +59,7 @@ Step 1 rebuilds what STL computes inside the architecture of Part I, and proves,
 | Synthesis | periodic fields only, 2D and full-sky HEALPix (the latter without the prefilter and without the spectrum, maths OP-77): from maps or stats, `mean_field`, `running_shape` (2D fields only: refused on HEALPix data, maths OP-101), `nbatch`, Gaussian start; the built-in L-BFGS of PyTorch; checkpoints (new, §12.9). One comparison with STL (T6.1); synthesis tests and parity come after 1.0.0 | non-periodic and masked syntheses (LF47); Rust L-BFGS (LF3); coarse-to-fine, per-iteration filtering, ensembles (LF12) |
 | Backends and engines | PyTorch; JAX experimental (every primitive, tested on every PR, not covered by the 1.0.0 guarantees); float32 default, float64 path; Python engine only | JAX stable, with its synthesis optimiser (LF1); Rust engine (LF3); MPI (LF4) |
 | Differentiation | first and second order through PyTorch autograd, tested in float64 | second order in the Rust engine (LF15) |
-| Utilities | STL's plotting and diagnostics, ported to the new objects | improvements, `gaussianise`, surrogates (LF11) |
+| Utilities | none: T6.2, STL's plotting and diagnostics ported to the new objects (§12.10), moved to step 2 on 27 November 2026 (Part IV, §22) | STL's plotting and the diagnostics of §12.10 (T6.2, moved), then their extension to every geometry; improvements, `gaussianise`, surrogates (LF11) |
 
 **HEALPix in step 1.** STL's HEALPix path calls three classes of healpix-analyse (`HealPixConv`, `HealPixDown`, `HEALPixSHT`). The package is young, has no stated API stability, and pulls heavy unrelated dependencies (`umap-learn` and `healpix-plot`, and through them numba, scikit-learn and cartopy). ESTEL therefore ports what it needs (Part I, §1.6): the convolution and the downsampling are computed with index and weight tables built in NumPy, ported from `TorchGeometry` and applied with `gather_weighted` and `segment_sum`, so they work on every backend. HEALPix spectra are not in 1.0.0 (LF24), so no SHT is ported in step 1. healpix-analyse remains a test-only dependency, pinned to `aac5e26`, to prove parity.
 
@@ -160,9 +160,9 @@ estel/                             # one repository for Python and Rust (Part IV
 │   ├── functional/                # pure functions: scattering(), loss()
 │   ├── io/                        # _schema.py: the versioned schema, used by STStatistics.save
 │   │                              # and load; STL-Dev-MPI JSON (step 2)
-│   ├── diagnostics/               # describe, estimate_memory, frequency_response,
-│   │                              # littlewood_paley
-│   ├── plot/  utils/
+│   ├── diagnostics/               # (step 2, LF11) describe, estimate_memory,
+│   │                              # frequency_response, littlewood_paley
+│   ├── plot/  utils/              # (step 2, LF11)
 │   └── _spec/                     # PROTECTED: the NumPy float64 oracle: common.py (what every
 │                                  # geometry shares), cartesian.py, healpix.py, tensor_prod.py,
 │                                  # spectra.py (the 2D spectra)
@@ -275,7 +275,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `kernel_weights_healpix(kernel_size)` | N | The complex kernel of maths M-WAV-HEALPIX on the K × K stencil, in float64: the same at every level and for every gauge, the orientations being the gauges of the stencils | `_wavelet_kernel` |
 | `stencils_healpix(cell_ids, depth, L, kernel_size)`, `decimation_healpix(cell_ids, depth)` | N | Index (int32) and weight (float64) tables of one level, ported from `TorchGeometry` (step 1): the interpolation of the stencil rotated to each pixel and gauge, for `gather_weighted`; the decimation to the next level, for `gather_weighted` then `segment_sum`. Their layout is documented in `wavelets/_tables_healpix.py` | `TorchGeometry`, `stl-core` |
 
-`frequency_response` and `littlewood_paley`, which only serve plots and checks, are in `estel.diagnostics` (§12.10).
+`frequency_response` and `littlewood_paley`, which only serve plots and checks, belong to `estel.diagnostics` (§12.10), which comes with LF11 in step 2: 1.0.0 has neither.
 
 ### 12.6 Scattering
 
@@ -338,7 +338,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 
 ### 12.10 Utilities
 
-`estel/plot/`, `estel/diagnostics/`, `estel/utils/`. In 1.0.0 these port STL's existing utilities to the new objects; their improvement comes later (LF11).
+`estel/plot/`, `estel/diagnostics/`, `estel/utils/`: not in 1.0.0. On 27 November 2026, Erwan Allys moved T6.2, which ported STL's existing utilities to the new objects and added these diagnostics, to step 2 (Part IV, §22): they come with LF11, which then extends them to every geometry. The table below is the plan LF11 starts from; `plot.nyquist_filter` stays a reserved public name (Part I, §2.4.1, rule 7).
 
 | Function | Tag | Purpose | Origin |
 | --- | --- | --- | --- |
@@ -348,7 +348,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `diagnostics.describe(obj) -> dict` | F | Plan summary: coefficient counts per family, memory estimate, levels, backend, engine | new |
 | `diagnostics.estimate_memory(shape, J, L, ...) -> dict` | F | Peak and output memory **before** building an operator | new |
 | `diagnostics.frequency_response(op, N)` | F | Fourier transform of the effective filters (kernels cascaded through the downsamplings) on an N grid, for plots and checks | `filters_fourier`, `_build_wavelet_kernel_from_ifft_crop` |
-| `diagnostics.littlewood_paley(op, N)` | F | Littlewood–Paley sum of the bank, built on `frequency_response`: a diagnostic, without a pass/fail criterion in 1.0.0; the basis of the CI test that comes with LF22. It reports the sum with and without the low-pass filter, in the convention of the maths tab (Λ) | new |
+| `diagnostics.littlewood_paley(op, N)` | F | Littlewood–Paley sum of the bank, built on `frequency_response`: a diagnostic, without a pass/fail criterion; the basis of the CI test that comes with LF22. It reports the sum with and without the low-pass filter, in the convention of the maths tab (Λ) | new |
 | `diagnostics.energy_partition(op, N)` | F | The per-level energy partition P of the smoothing kernel and the wavelets (maths tab, "Filters and scales"); shows where energy is lost or counted twice between scales | new |
 | `diagnostics.aliasing(op, N)` | F | The fraction of energy that each downsampling folds back (Part III, §20.10) | new |
 
@@ -420,7 +420,7 @@ During step 1, pull requests merge when CI passes; the three CODEOWNERS review s
 | P4 Spectra | the 2D estimators of v1.6.0, with automatic selection; the spectrum as the family `"PS"` of `STStatistics`; the periodic syntheses with the spectrum | parity with `master` on 2D spectra and on the scattering statistics with the spectrum; a periodic synthesis with the spectrum follows STL's loss |
 | P5 HEALPix | `DataHealpix`, with tables ported from `TorchGeometry` (no healpix-analyse at run time); the full-sky HEALPix syntheses, without the prefilter or the spectrum | parity with `HealpixUpdate` on HEALPix statistics; a full-sky HEALPix synthesis follows STL's loss |
 | P7 Hierarchy of geometries and names (after P5, T4.6 and T2.19; before P6) | the classes of every family follow the tree of geometries (Part I, §2.3.1) and every internal name follows Part I, §2.4.1, with no value changed | every value unchanged on every task (the proof of T7.2); the tool of names strict and green |
-| P6 Synthesis and utilities | synthesis API with checkpoints, done in P2 for periodic 2D data (T6.0, T6.1), each later geometry adding its syntheses in its phase; ported plotting and diagnostics, `frequency_response`, `littlewood_paley` | API tests green (synthesis tests and parity after 1.0.0) |
+| P6 Synthesis and utilities | synthesis API with checkpoints, done in P2 for periodic 2D data (T6.0, T6.1), each later geometry adding its syntheses in its phase; the ported plotting and diagnostics (T6.2) moved to step 2 on 27 November 2026 (LF11) | API tests green (synthesis tests and parity after 1.0.0) |
 | P8 Freeze | references from `_spec`, parity report, review by the three CODEOWNERS, the ESTEL reference document in `docs/reference.md`, tag 1.0.0, release on PyPI | 1.0.0 published; the merge policy of Part I, §7.3 switched on |
 
 ### 15.2 Work breakdown of step 1
@@ -489,7 +489,7 @@ Each task becomes a GitHub issue, to be picked by an agent. A task names its inp
 | T5.8 | P5 | The syntheses of full-sky HEALPix fields, from maps and from statistics, without the prefilter and without the spectrum (maths OP-77): the target, the start, the loss and the result of the HEALPix path of `HealpixUpdate` checked in T5.2; `compute_PS=None` leaves the spectrum out on HEALPix data, `True` raises a clear error (LF24) | maths §5; §12.9; T5.2, T5.3, T5.6, T6.1 | a full-sky synthesis started from the same field as STL with the same settings, in float64, follows STL's loss over its first iterations against the fixture of T5.3, within the tolerance of T6.1, in the full tier | #169 | 25 Nov 2026, #182 |
 | T6.0 | P6 | Write the synthesis section of the maths tab: Gaussian start, Nyquist pre-filter, loss | STL `Synthesis.py` | reviewed by a maintainer before T6.1 | #27 | 17 Nov 2026, #100 |
 | T6.1 | P6 | Synthesis API with checkpoints, reproducing STL's syntheses (maths §5.9; what comes after step 1 is LF58). Still to decide in the task, with Erwan: the default length of the L-BFGS history (STL: 50 pairs), on a simple case with few iterations | §12.9; maths §5 | API tests: a run writes checkpoints and resumes from them; for periodic 2D data, a synthesis started from the same field as STL, with the same settings, in float64, follows STL's loss over its first iterations only, within a tolerance set by the task, against a parity fixture, in the full tier, as fast as it can be (W2 extends it after step 1); a reference synthesis checked by eye by a maintainer | #28 | 21 Nov 2026, #125 |
-| T6.2 | P6 | Utilities and diagnostics | §12.10 | unit tests | #29 | — |
+| T6.2 | P6 | Utilities and diagnostics | §12.10 | unit tests | #29 | moved to step 2, LF11; 27 Nov 2026 |
 | T6.3 | P6 | The L0 primitives that have no user at the end of P6 removed; the signature of `gather_weighted` checked against the HEALPix tables of T5.1 | §12.3; T5.1 | the protocol, both backends and the conformance suite hold only primitives with a user; every test green | #116 | — |
 | T7.2 | P7 | The tool of names and its table: `tools/check_retired_names.py` widened to the rules of Part I, §2.4.1 that a tool can decide (its list of retired public names unchanged and strict); the table `tools/renamed_names.toml`, built from the tool's report on `main`, every name that breaks the rule a row with its task, live once its task is merged; the import contracts may lose no module. And the proof, in `tools/`, that a change leaves every value as on `main`: run on `origin/main` in a worktree and on the branch, on CPU with one thread, the outputs of a fixed set of cases bitwise equal (1D, 2D, HEALPix full sky and partial sky, masks, tensor products, the spectrum, the first iterations of a synthesis; both backends, float32 and float64, values and gradients), a canonical dump of every plan's key and content compared modulo the table, files saved by `main` loaded equal, and every function body compared by AST modulo the table, the bodies that differ listed for review | Part I, §2.3.1, §2.4.1; Part IV, §22, rows of 26 November 2026 | the tool's tests in `tests/tools/`; its report on `main` and the table in the description; the proof run on `main` against itself | #193 | 27 Nov 2026, #209 |
 | T7.3 | P7 | The oracle: `_spec/planar.py` split into a module of what every geometry shares and a Cartesian module; the names of `_spec/healpix.py` and `_spec/tensor_prod.py` follow the rule (`_hpx`, `_tp` retired); the tests that call the oracle follow | Part I, §2.3.1, §2.4.1; Part II, §12.11; T7.2 | the proof of T7.2, the oracle's outputs included | #194 | 27 Nov 2026, #210 |

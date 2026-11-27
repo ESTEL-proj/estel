@@ -302,7 +302,7 @@ The proposals are entries of the register (§16): their effect is in the section
 
 ### 19.12 What to put in place before 1.0.0, so that nothing is closed
 
-None of these changes a value. Each exists to make a later change local. Points 1, 2, 3, 6 and 9 are in place, and point 7 is decided (Part IV, §22, R-Y03). Point 5 is a task of step 1 (Part II, §15.2, T2.18), and `estimate_memory` (point 8) comes with the diagnostics (T6.2); point 4 comes with the low-pass filter and the centring (LF6, LF33).
+None of these changes a value. Each exists to make a later change local. Points 1, 2, 3, 6 and 9 are in place, and point 7 is decided (Part IV, §22, R-Y03). Point 5 is a task of step 1 (Part II, §15.2, T2.18), and `estimate_memory` (point 8) comes with the diagnostics, in step 2 (LF11, where T6.2 moved on 27 November 2026); point 4 comes with the low-pass filter and the centring (LF6, LF33).
 
 1. **Windows are objects with a kind** (full, slice, weights), given by the plan (issue #72, issue #72 (R-V02)). The centring of step 2 and the fast path for non-periodic data build on them.
 2. **The loop reads its index sets from the plan.** Already so for S3 and S4. The strict order, the cut-off and pruned plans are then options of the plan. The same holds for the positions where a convolution is evaluated: the strided second layer is then an option too.
