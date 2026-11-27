@@ -257,9 +257,11 @@ class WaveletPlanSingleDomain(WaveletPlan):
     :class:`WaveletPlanCartesian`, for 1D and 2D data, and
     ``_healpix_operator.WaveletPlanHealpix``.
 
-    Built by :func:`build_wavelet_plan`; NumPy only, immutable and hashable. Two wavelet plans
-    are equal, and hash equal, when they were built from the same parameters and the same
-    static metadata of the data (geometry, spatial shape, ``pbc``, mask).
+    Never built itself: the builders build its leaves, :func:`build_wavelet_plan` a
+    :class:`WaveletPlanCartesian` or a ``WaveletPlanHealpix``. NumPy only, immutable and
+    hashable. Two wavelet plans are equal, and hash equal, when they were built from the same
+    parameters and the same static metadata of the data (geometry, spatial shape, ``pbc``,
+    mask).
     """
 
     _abstract: ClassVar[bool] = True

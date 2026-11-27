@@ -132,11 +132,10 @@ class WaveletFiltersHealpix(WaveletFilters):
     down: tuple[DownTablesHealpix, ...]
     """For each level but the last, the tables of the decimation to the next level."""
     field_down: dict[int, tuple[Any, Any]]
-    """As ``WaveletFiltersCartesian.field_down``: per level d but the last, the
-    ``(valid, reweight)`` maps of the field from d to d + 1, or no entry without missing
-    values."""
+    """As ``WaveletFilters.field_down``: per level d but the last, the ``(valid, reweight)``
+    maps of the field from d to d + 1, or no entry without missing values."""
     modulus_down: dict[tuple[int, int], tuple[Any, Any]]
-    """As ``WaveletFiltersCartesian.modulus_down``: per ``(d, j)``, the maps of first-layer data
+    """As ``WaveletFilters.modulus_down``: per ``(d, j)``, the maps of first-layer data
     convolved at scale j from d to d + 1, or no entry without missing values."""
 
     def _conv_tables(self, level: int) -> ConvTablesHealpix:
