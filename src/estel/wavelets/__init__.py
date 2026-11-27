@@ -15,5 +15,6 @@ decimation, ported from STL's ``TorchGeometry`` (M-CONV-HPX, M-DOWN-HPX), and
 ``_pixels_healpix.py`` the pixel functions they use. ``_operator_healpix.py`` holds the static
 part and the arrays of the wavelet operator of HEALPix data, built on these tables (M-MASK-HPX,
 M-DEF-HPX), and ``_operator_tensor_prod.py`` the wavelet operator of a tensor product, composed
-from those of its blocks.
+from those of its blocks. ``_checks.py`` holds the checks that the banks and tables of every
+geometry share.
 """

@@ -147,7 +147,8 @@ estel/                             # one repository for Python and Rust (Part IV
 │   ├── wavelets/                  # _operator.py (what every geometry shares), _banks_cartesian.py,
 │   │                              # _banks_healpix.py, _tables_healpix.py (ported from
 │   │                              # TorchGeometry), _pixels_healpix.py, _operator_healpix.py,
-│   │                              # _operator_tensor_prod.py
+│   │                              # _operator_tensor_prod.py, _checks.py (the checks of every
+│   │                              # geometry)
 │   ├── scattering/                # _plan.py, operator.py, operator_tensor_prod.py
 │   ├── statistics/                # _statistics.py, _grid.py, _reductions.py, _normalization.py,
 │   │                              # _layout.py (the compact layout, T2.15)

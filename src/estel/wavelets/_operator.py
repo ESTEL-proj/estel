@@ -78,11 +78,11 @@ from ..data._tensor_prod import DataTensorProd
 from ._banks_cartesian import KERNEL_SIZE_CARTESIAN as KERNEL_SIZE_CARTESIAN
 from ._banks_cartesian import (
     WAVELETS_CARTESIAN,
-    _check_n_orientations,
     _check_size_cartesian,
     smoothing_kernel_cartesian,
     wavelet_bank_cartesian,
 )
+from ._checks import _check_n_orientations
 
 History = tuple[int, ...]
 """The scales (not levels) of the convolutions applied to an operand, in order: ``()`` for the

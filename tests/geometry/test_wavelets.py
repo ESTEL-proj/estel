@@ -18,11 +18,11 @@ import pytest
 from estel.wavelets._banks_cartesian import (
     FOURIER_GRID,
     KERNEL_SIZE_CARTESIAN,
-    _check_zero_sum,
     bump_steerable_1d,
     bump_steerable_2d,
     smoothing_kernel_cartesian,
 )
+from estel.wavelets._checks import _check_zero_sum
 
 pytestmark = pytest.mark.maths("M-WAV-2D", "M-WAV-1D", "M-SMOOTH-2D", "M-SMOOTH-1D")
 

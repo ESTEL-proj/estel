@@ -54,8 +54,8 @@ from ..data._masks import (
     build_mask_maps_with,
 )
 from . import _tables_healpix
-from ._banks_cartesian import _check_n_orientations
 from ._banks_healpix import GAUGES_HEALPIX, _check_kernel_size, kernel_weights_healpix
+from ._checks import _check_n_orientations
 from ._operator import (
     History,
     WaveletFilters,

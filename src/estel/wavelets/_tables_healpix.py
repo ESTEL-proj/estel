@@ -77,8 +77,8 @@ from numpy.typing import ArrayLike, NDArray
 
 from estel.data._healpix import check_cell_ids, check_depth
 from estel.data._masks import SUPPORT_THRESHOLD_HEALPIX
-from estel.wavelets._banks_cartesian import _check_n_orientations
 from estel.wavelets._banks_healpix import GAUGES_HEALPIX, KERNEL_SIZE_HEALPIX, _check_kernel_size
+from estel.wavelets._checks import _check_n_orientations
 from estel.wavelets._pixels_healpix import (
     interpolation_ring,
     nest2xyf,

@@ -18,7 +18,7 @@ from numbers import Integral
 import numpy as np
 from numpy.typing import NDArray
 
-from estel.wavelets._banks_cartesian import _check_zero_sum
+from estel.wavelets._checks import _check_zero_sum
 
 __all__ = ["GAUGES_HEALPIX", "KERNEL_SIZE_HEALPIX", "kernel_weights_healpix"]
 
