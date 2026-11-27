@@ -16,7 +16,7 @@ from decimal import Decimal, localcontext
 import numpy as np
 import pytest
 
-from estel.spectra._bins import bessel_j0, log_gaussian_bins
+from estel.spectra._bins import bessel_j0, log_gaussian_bins_2d
 
 pytestmark = pytest.mark.maths("M-PS-2D")
 TOLERANCE = 1e-12
@@ -62,8 +62,8 @@ def test_bessel_j0_equals_its_series() -> None:
 
 def test_bins_are_static_and_read_only() -> None:
     """The bins are built once per spatial shape and range, in float64, read-only: plan data."""
-    bins = log_gaussian_bins((32, 32), 3, 0, 6)
-    assert bins is log_gaussian_bins((32, 32), 3, 0, 6)
+    bins = log_gaussian_bins_2d((32, 32), 3, 0, 6)
+    assert bins is log_gaussian_bins_2d((32, 32), 3, 0, 6)
     for array in (bins.windows, bins.norm, bins.borders, bins.radial, bins.mode_weights):
         assert not array.flags.writeable
     assert bins.windows.dtype == np.float64

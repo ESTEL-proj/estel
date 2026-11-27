@@ -48,7 +48,7 @@ from ._plan import (
     STPlanTensorProd,
     build_plan_with_tables_single_domain,
     build_statistics_plan_tensor_prod,
-    spectrum_2d_only,
+    spectrum_only_2d,
 )
 
 _WIDE = ("float64", "complex128")
@@ -348,7 +348,7 @@ class STOperatorTensorProd(STOperator):
         if compute_PS:
             raise ValueError(
                 "compute_PS=True: "
-                + spectrum_2d_only(
+                + spectrum_only_2d(
                     type(data).__name__, "Pass compute_PS=False, or leave it to None."
                 )
             )

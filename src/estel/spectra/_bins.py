@@ -1,7 +1,7 @@
 """The bins of the 2D power spectrum, built once in NumPy with the plan (maths.md §1.9,
 "Frequencies and bins" and the border of ``pbc_mask``; Part II, §12.8; task T4.1).
 
-:func:`log_gaussian_bins` gives, for data of an even spatial shape (N₁, N₂) and the range J, J_min
+:func:`log_gaussian_bins_2d` gives, for data of an even spatial shape (N₁, N₂) and the range J, J_min
 of the spectrum (J the J of the operator), everything static the estimators need: in mode units, the
 radial frequency round(|(k₁, k₂)|) of every Fourier mode (k₁, k₂) of the half plane of the real FFT
 and its weight w(k₁, k₂) (2, or 1 on the zero and Nyquist columns), the number N_k of modes of each
@@ -120,9 +120,9 @@ def _asymptotic(x: NDArray[np.float64]) -> NDArray[np.float64]:
 
 
 @dataclass(frozen=True, eq=False)
-class SpectrumBins:
+class SpectrumBins2D:
     """The static tables of the spectrum of one spatial shape and range (maths.md §1.9), in mode
-    units, float64, read-only. Built by :func:`log_gaussian_bins`, cached."""
+    units, float64, read-only. Built by :func:`log_gaussian_bins_2d`, cached."""
 
     spatial_shape: tuple[int, int]
     """(N₁, N₂), even."""
@@ -185,16 +185,16 @@ def _read_only(array: NDArray[Any]) -> NDArray[Any]:
 
 
 @functools.lru_cache(maxsize=32)
-def log_gaussian_bins(
+def log_gaussian_bins_2d(
     spatial_shape: tuple[int, int],
     J: int,  # noqa: N803 (maths.md notation)
     Jmin: int,  # noqa: N803
     n_bins: int,
-) -> SpectrumBins:
-    """The :class:`SpectrumBins` of data of the even ``spatial_shape`` with the range ``J``
+) -> SpectrumBins2D:
+    """The :class:`SpectrumBins2D` of data of the even ``spatial_shape`` with the range ``J``
     (the J of the operator) and ``Jmin`` (J_min) and ``n_bins`` bins (maths.md §1.9; STL
     ``_build_log_gaussian_bin_masks``, ``estimate_pbc_border_crop``). The arguments were checked
-    by the plan (``scattering._plan.build_spectrum_plan``)."""
+    by the plan (``scattering._plan.build_spectrum_plan_2d``)."""
     n1, n2 = (int(n) for n in spatial_shape)
     n_max = min(n1, n2) // 2
     k_min = n_max / (math.sqrt(2.0) * 2.0 ** (J - 1))
@@ -224,7 +224,7 @@ def log_gaussian_bins(
     windows[:, 0] = 0.0
     norm = windows @ n_modes
 
-    return SpectrumBins(
+    return SpectrumBins2D(
         spatial_shape=(n1, n2),
         J=int(J),
         Jmin=int(Jmin),

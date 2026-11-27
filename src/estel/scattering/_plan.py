@@ -103,8 +103,8 @@ from numpy.typing import NDArray
 from .._config import FloatDType
 from ..backend._protocol import Backend
 from ..data._base import Data
-from ..spectra._bins import SpectrumBins, log_gaussian_bins
-from ..spectra._estimators import choose_estimator, static_tables
+from ..spectra._bins import SpectrumBins2D, log_gaussian_bins_2d
+from ..spectra._estimators import choose_estimator, static_tables_2d
 from ..statistics._grid import (
     auto_scales_single_domain,
     auto_scales_tensor_prod,
@@ -179,11 +179,11 @@ def channel_pairs(matrix: NDArray[np.bool_]) -> ChannelPairs:
 
 
 @dataclass(frozen=True)
-class SpectrumPlan:
+class SpectrumEstimatorPlan2D:
     """The static description of the 2D power spectrum (maths.md §1.9, "Range", "Number of
     bins", "Choice of estimator"; tasks T4.4, T4.1): how many bins, J, J_min, the estimator
     chosen at construction, and the spatial shape whose bins, windows and borders it reads
-    (:meth:`bins`, ``spectra._bins.log_gaussian_bins``, built once in NumPy). Hashable. In the
+    (:meth:`bins`, ``spectra._bins.log_gaussian_bins_2d``, built once in NumPy). Hashable. In the
     plan of ``STOperator`` its channel pairs are those of the plan
     (``STPlanSingleDomain.pairs``): the pairs c1 ≤ c2 of S1 and S2, one matrix for the
     scattering statistics and the spectrum (M-CHAN; decision on #148); σᴾˢ exists for the
@@ -209,13 +209,13 @@ class SpectrumPlan:
         """The parameters of the spectrum for ``estel.io``."""
         return {"n_bins": self.n_bins, "J": self.J, "Jmin": self.Jmin, "method": self.method}
 
-    def bins(self) -> SpectrumBins:
+    def bins(self) -> SpectrumBins2D:
         """The bins, windows, normalisations and borders of the spectrum (maths.md §1.9)."""
         n1, n2 = self.spatial_shape
-        return log_gaussian_bins((int(n1), int(n2)), self.J, self.Jmin, self.n_bins)
+        return log_gaussian_bins_2d((int(n1), int(n2)), self.J, self.Jmin, self.n_bins)
 
 
-def spectrum_2d_only(received: str, advice: str) -> str:
+def spectrum_only_2d(received: str, advice: str) -> str:
     """The one message that refuses the power spectrum of data that are not 2D, the same for
     every geometry (Part II, §12.6; the amendment to decision 2 on #167): ``received`` is the
     name of the class of the data, for display only, and ``advice`` what to do next (golden
@@ -227,7 +227,7 @@ def spectrum_2d_only(received: str, advice: str) -> str:
     )
 
 
-def build_spectrum_plan(
+def build_spectrum_plan_2d(
     spatial_shape: tuple[int, ...],
     geometry: type[Data],
     J: int | None,  # noqa: N803 (maths.md notation)
@@ -236,8 +236,8 @@ def build_spectrum_plan(
     method: Any = "auto",
     pbc: bool = True,
     mask: NDArray[np.bool_] | None = None,
-) -> SpectrumPlan:
-    """The :class:`SpectrumPlan` of 2D data of ``spatial_shape`` (maths.md §1.9), ``geometry``
+) -> SpectrumEstimatorPlan2D:
+    """The :class:`SpectrumEstimatorPlan2D` of 2D data of ``spatial_shape`` (maths.md §1.9), ``geometry``
     the Data subclass of the data, whose declared tag (``Data._geometry``) must be 2D: the J of the
     spectrum is ``J``, the J given to the operator, or ⌊log₂ N_max⌋ - 1 with N_max = ⌊min(N₁, N₂)/2⌋
     when it is ``None``; the estimator is ``method``, or with ``"auto"`` the choice of §1.9 from
@@ -249,7 +249,7 @@ def build_spectrum_plan(
     inside its border. The errors that the data or the options cause say how to leave the
     spectrum out (``compute_PS=False``, golden rule 8)."""
     if geometry._geometry != "2d":
-        raise ValueError(spectrum_2d_only(geometry.__name__, "pass compute_PS=False."))
+        raise ValueError(spectrum_only_2d(geometry.__name__, "pass compute_PS=False."))
     if any(n % 2 for n in spatial_shape):
         raise ValueError(
             f"the power spectrum requires even sizes, and the data are {tuple(spatial_shape)} "
@@ -278,7 +278,7 @@ def build_spectrum_plan(
     else:
         found = int(n_bins)
     estimator = choose_estimator(method, bool(pbc), mask is not None and bool(mask.any()))
-    plan = SpectrumPlan(
+    plan = SpectrumEstimatorPlan2D(
         n_bins=found,
         J=j_ps,
         Jmin=int(Jmin),
@@ -288,7 +288,7 @@ def build_spectrum_plan(
     )
     if estimator == "pbc_nan_mask":
         bins = plan.bins()
-        static_tables(  # raises on a bin without an observed pixel inside its border
+        static_tables_2d(  # raises on a bin without an observed pixel inside its border
             estimator,
             bins.mode_windows(),
             bins.mode_weights,
@@ -516,7 +516,7 @@ class _PlanFieldsSingleDomain:
     wavelet plan (``wavelets._key``, in ``_key``), which holds the same metadata; ``meta`` is
     what ``_check_data`` and the files read."""
     _key: tuple[Any, ...] = field(repr=False)
-    spectrum: SpectrumPlan | None = None
+    spectrum: SpectrumEstimatorPlan2D | None = None
     """The power spectrum of the statistics (maths.md §1.9), or ``None`` when they do not hold
     it (``compute_PS=False``, or data that are not 2D). The loop computes it with the estimators
     of ``spectra._estimators`` on the field after the standardisation, and
@@ -672,7 +672,7 @@ def build_plan_with_tables_single_domain(
     With ``compute_PS``, the statistics also hold the 2D power spectrum (``None``: on 2D data
     only, the default of ``STOperator``), with ``n_bins`` bins,
     J_min ``Jmin`` and the estimator ``spectrum_method`` (maths.md §1.9;
-    :func:`build_spectrum_plan`); without it, ``n_bins``, ``Jmin`` and ``spectrum_method`` keep
+    :func:`build_spectrum_plan_2d`); without it, ``n_bins``, ``Jmin`` and ``spectrum_method`` keep
     their defaults (decision on #148).
 
     Beside the plan, the NumPy tables its wavelets were built with
@@ -776,14 +776,14 @@ def resolve_compute_ps(compute_ps: object, geometry: type[Data]) -> bool:
     """Whether an operator on data of the class ``geometry`` computes the power spectrum, from
     its ``compute_PS``: ``None`` (the default) means the spectrum on 2D data and none on other
     data, where ESTEL 1.0.0 has none (Part II, §12.6); True on other data raises
-    :func:`spectrum_2d_only`. The one rule of ``STOperator`` and of the syntheses (M-SYN-OPS)."""
+    :func:`spectrum_only_2d`. The one rule of ``STOperator`` and of the syntheses (M-SYN-OPS)."""
     if compute_ps is not None and not isinstance(compute_ps, bool | np.bool_):
         raise TypeError(f"compute_PS={compute_ps!r}: pass True, False or None (the default).")
     two_d = geometry._geometry == "2d"
     if compute_ps and not two_d:
         raise ValueError(
             "compute_PS=True: "
-            + spectrum_2d_only(geometry.__name__, "Pass compute_PS=False, or leave it to None.")
+            + spectrum_only_2d(geometry.__name__, "Pass compute_PS=False, or leave it to None.")
         )
     return two_d if compute_ps is None else bool(compute_ps)
 
@@ -795,12 +795,12 @@ def _spectrum(
     n_bins: object,
     jmin: object,
     method: object = "auto",
-) -> SpectrumPlan | None:
-    """The :class:`SpectrumPlan` of :func:`build_plan_single_domain`, or ``None`` without
+) -> SpectrumEstimatorPlan2D | None:
+    """The :class:`SpectrumEstimatorPlan2D` of :func:`build_plan_single_domain`, or ``None`` without
     ``compute_PS``, whose options must then keep their defaults (decision on #148).
     ``compute_PS=None`` means the default: the spectrum on 2D data, none on other data, where ESTEL
     1.0.0 has none (Part II, §12.6), and where ``compute_PS=True`` or a spectrum option raises
-    :func:`spectrum_2d_only`."""
+    :func:`spectrum_only_2d`."""
     two_d = wavelets.geometry._geometry == "2d"
     if not resolve_compute_ps(compute_ps, wavelets.geometry):
         changed = [
@@ -815,7 +815,7 @@ def _spectrum(
         if changed and not two_d:
             raise ValueError(
                 f"{', '.join(changed)}: "
-                + spectrum_2d_only(
+                + spectrum_only_2d(
                     wavelets.geometry.__name__,
                     "These options act only on the power spectrum, with compute_PS=True; leave "
                     "them to their defaults.",
@@ -827,7 +827,7 @@ def _spectrum(
                 "compute_PS=True; leave them to their defaults otherwise (maths.md §1.9)."
             )
         return None
-    return build_spectrum_plan(
+    return build_spectrum_plan_2d(
         wavelets.spatial_shape,
         wavelets.geometry,
         J,

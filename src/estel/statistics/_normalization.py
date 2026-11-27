@@ -81,7 +81,7 @@ class SpectrumReference(NamedTuple):
 
 
 def spectrum_reference_of(spectrum: Any, pairs: Any) -> SpectrumReference:
-    """The :class:`SpectrumReference` of the spectrum of a plan (``scattering._plan.SpectrumPlan``)
+    """The :class:`SpectrumReference` of the spectrum of a plan (``scattering._plan.SpectrumEstimatorPlan2D``)
     whose channel pairs are ``pairs`` (``scattering._plan.ChannelPairs``): σᴾˢ exists for the
     channels with an auto spectrum, the True diagonal entries of ``cross_matrix``."""
     present = np.isin(np.arange(pairs.n_channels), np.asarray(pairs.auto, dtype=np.int64))
