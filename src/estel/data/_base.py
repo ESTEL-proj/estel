@@ -362,7 +362,7 @@ class Data:
         orientation are then contiguous, and those of the second layer form the matrix of the
         Gram form without a copy (Part III, §19.12, point 2; maths_step2.md M-GRAM). The hook
         builds the result in that layout directly. Each geometry implements it
-        (planar: ``pad`` + ``conv_axes``, M-CONV-2D).
+        (planar: ``pad`` + ``conv_axes``, M-CONV).
         """
         raise NotImplementedError(
             f"{type(self).__name__} does not implement the geometry hook _conv: every geometry "
@@ -413,8 +413,9 @@ class Data:
         )
 
     # The same three operations along given axes of an array, for a geometry that is a block of
-    # a tensor product (``DataTensorProd``, maths.md M-NOT-TP): the tensor product dispatches its
-    # hooks to them, along the axes of each block, without moving any axis (Part II, §12.4).
+    # a tensor product (``DataTensorProd``, maths.md M-NOT-TENSORPROD): the tensor product
+    # dispatches its hooks to them, along the axes of each block, without moving any axis (Part II,
+    # §12.4).
 
     @classmethod
     def _conv_along(
@@ -424,7 +425,7 @@ class Data:
         result right after the batch axis, ``(Nb, L, Nc, ...)``."""
         raise NotImplementedError(
             f"{owner}: {cls.__name__} cannot be a block of a tensor product; the blocks of 1.0.0 "
-            "are Data1D and Data2D (maths.md M-DATA-TP)."
+            "are Data1D and Data2D (maths.md M-DATA-TENSORPROD)."
         )
 
     @classmethod
@@ -441,7 +442,7 @@ class Data:
         """:meth:`_downsample` of this geometry along ``axes`` of ``x``."""
         raise NotImplementedError(
             f"{owner}: {cls.__name__} cannot be a block of a tensor product; the blocks of 1.0.0 "
-            "are Data1D and Data2D (maths.md M-DATA-TP)."
+            "are Data1D and Data2D (maths.md M-DATA-TENSORPROD)."
         )
 
     @classmethod
@@ -451,7 +452,7 @@ class Data:
         """:meth:`_crop_weights` of this geometry on a grid of full-resolution ``shape``."""
         raise NotImplementedError(
             f"{owner}: {cls.__name__} cannot be a block of a tensor product; the blocks of 1.0.0 "
-            "are Data1D and Data2D (maths.md M-DATA-TP)."
+            "are Data1D and Data2D (maths.md M-DATA-TENSORPROD)."
         )
 
 
@@ -483,7 +484,7 @@ class DownsampleWeights(NamedTuple):
     kernel: Any
     """The static kernel of the step, with the real dtype of the data: planar, the smoothing
     kernel of maths.md M-SMOOTH-2D, M-SMOOTH-1D; HEALPix, the decimation tables of the step
-    (``DownTablesHealpix``, M-DOWN-HPX)."""
+    (``DownTablesHealpix``, M-DOWN-HEALPIX)."""
     valid: Any = None
     """Without missing values, ``None``. Otherwise the valid input pixels, a boolean array of
     the spatial shape at the input level: invalid pixels are set to 0 before filtering, never
@@ -576,7 +577,7 @@ def _promote(array: Any, cls: type[Data]) -> Any:
 def _promote_spatial(array: Any, ndim: int, owner: str, accepted: str) -> Any:
     """Promote ``array``, with ``ndim`` spatial axes last, to ``(Nb, Nc, *spatial)``: one
     leading axis is the channels, none gives ``(1, 1, *spatial)`` (maths.md M-DATA-2D,
-    M-DATA-1D, M-DATA-TP, OP-29)."""
+    M-DATA-1D, M-DATA-TENSORPROD, OP-29)."""
     shape = tuple(int(n) for n in array.shape)
     if not ndim <= len(shape) <= ndim + 2:
         raise ValueError(f"{owner}: the array has shape {shape}; accepted shapes are {accepted}.")

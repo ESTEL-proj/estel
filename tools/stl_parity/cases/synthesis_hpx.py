@@ -20,7 +20,7 @@ user level builds, rebuilt here with the settings of ``_healpix.py``:
   (``running_mask`` and ``running_shape`` not given);
 * J: for each, the default J of its wavelet operator, minus 1 if its data are not periodic
   (``get_wavelet_op().J - (not pbc)``), and the smaller of the two: here 3 = max(1, log₂ 16 -
-  1), the full sky being periodic (M-DEF-HPX);
+  1), the full sky being periodic (M-DEF-HEALPIX);
 * ``compute_PS=False`` and ``has_fewer_convolutions=False`` for both (no ``n_bins`` without the
   spectrum), ``replace_nan_value=None`` for the running one; L, the wavelet type and the kernel
   size are STL's defaults (M-SYN-OPS), L = 4 checked;
@@ -180,7 +180,7 @@ def run() -> dict[str, NDArray[Any]]:
             raise ValueError(
                 f"STL's operators have L = {st_op_target.wavelet_op.L} and "
                 f"{st_op_running.wavelet_op.L}, not {p['L']}: set PARAMETERS['L'] to STL's "
-                "default L (M-DEF-HPX)."
+                "default L (M-DEF-HEALPIX)."
             )
 
         setattr(lbfgs, "_strong_wolfe", recording)  # noqa: B010 (a module of torch)

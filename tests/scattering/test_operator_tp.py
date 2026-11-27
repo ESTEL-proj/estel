@@ -1,6 +1,6 @@
 """``STOperatorTensorProd``: its construction, its errors, and what it shares with
-``STOperator`` (task T3.2, issue #23; Part II, §12.6; maths.md M-DATA-TP, M-DEF-TP, M-LP,
-M-IDX-TP, OP-8, OP-13, OP-34, OP-41, OP-82, OP-83).
+``STOperator`` (task T3.2, issue #23; Part II, §12.6; maths.md M-DATA-TENSORPROD, M-DEF-TENSORPROD,
+M-LP, M-IDX-TENSORPROD, OP-8, OP-13, OP-34, OP-41, OP-82, OP-83).
 
 The values are compared with STL in ``tests/parity/test_tensor_prod.py`` and with the oracle in
 ``tests/spec/test_tensor_prod_operator.py``; these tests check the operator itself: a tensor
@@ -29,7 +29,7 @@ from estel.wavelets._operator_tensor_prod import WaveletOperatorTensorProd
 from tests.parity._compare import assert_parity
 
 pytestmark = [
-    pytest.mark.maths("M-DATA-TP", "M-DEF-TP", "M-LP", "M-IDX-TP"),
+    pytest.mark.maths("M-DATA-TENSORPROD", "M-DEF-TENSORPROD", "M-LP", "M-IDX-TENSORPROD"),
     # OP-13 on these small open blocks; tested in the last test.
     pytest.mark.filterwarnings("ignore:.*too small for a border crop:UserWarning"),
 ]
@@ -64,9 +64,9 @@ def test_one_block_without_lowpass_is_the_plain_geometry(
     L: int,  # noqa: N803
 ) -> None:
     """A tensor product of one block with ``lowpass=None`` gives the statistics of the plain
-    geometry, family by family (maths.md OP-82, M-IDX-TP, "One block"), here open, with cross
-    channels, ``norm="self"`` and the standardisation; with ``lowpass="ST"``, S1 and S2 have one
-    scale more."""
+    geometry, family by family (maths.md OP-82, M-IDX-TENSORPROD, "One block"), here open, with
+    cross channels, ``norm="self"`` and the standardisation; with ``lowpass="ST"``, S1 and S2 have
+    one scale more."""
     field = _field(shape)
     plain = cls(field, pbc=False)
     product = DataTensorProd(field, [cls], pbc=[False])

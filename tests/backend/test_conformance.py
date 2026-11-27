@@ -594,7 +594,7 @@ class TestPad:
 
 class TestConvAxes:
     def test_is_a_correlation_m_conv_2d(self, backend: Backend, dtype: DType) -> None:
-        """M-CONV-2D: pad by ⌊K/2⌋, then correlate: (w ⋆ a)[n] = Σ_m w[m] ã[n + m - p]."""
+        """M-CONV: pad by ⌊K/2⌋, then correlate: (w ⋆ a)[n] = Σ_m w[m] ã[n + m - p]."""
         a = draw((6, 5), dtype, 11)
         w = draw((3, 3), dtype, 12)  # not symmetric: a flipped kernel would differ
         y = backend.conv_axes(

@@ -1,9 +1,9 @@
-"""HEALPix data: ``DataHealpix`` (Part II, §12.4; maths.md M-DATA-HPX; task T5.5, issue #166).
+"""HEALPix data: ``DataHealpix`` (Part II, §12.4; maths.md M-DATA-HEALPIX; task T5.5, issue #166).
 
 One pixel axis, NESTED ordering, on the full sky or on the partial sky of ``cell_ids``. The
 resolution is ``depth`` = log₂ ``nside`` (rule A4): inferred from the number of pixels on a full
 sky, required with ``cell_ids`` (maths.md OP-91); ``cell_ids`` strictly increasing (OP-90).
-``pbc`` is not an argument: it is True on a full sky and False with ``cell_ids`` (M-DATA-HPX).
+``pbc`` is not an argument: it is True on a full sky and False with ``cell_ids`` (M-DATA-HEALPIX).
 The mask of missing values is read or checked as for the planar classes (OP-26).
 
 The geometry hooks apply the static tables of each level that the wavelet operator gives them
@@ -11,12 +11,12 @@ The geometry hooks apply the static tables of each level that the wavelet operat
 ``estel.wavelets._tables_healpix`` (T5.1), whose layout they follow:
 
 * ``_conv``: the stencils with ``gather_weighted``, then the product with ``kernel``, as real
-  pairs (M-CONV-HPX; Part I, §3.1, rule 6); the wavelet operator folds the kernel of M-WAV-HPX
-  into the tables (task T5.7), so that ``gather_weighted`` gives the real pairs at once and the
-  product is the identity;
-* ``_downsample``: the decimation with ``gather_weighted`` then ``segment_sum`` (M-DOWN-HPX),
+  pairs (M-CONV-HEALPIX; Part I, §3.1, rule 6); the wavelet operator folds the kernel of
+  M-WAV-HEALPIX into the tables (task T5.7), so that ``gather_weighted`` gives the real pairs at
+  once and the product is the identity;
+* ``_downsample``: the decimation with ``gather_weighted`` then ``segment_sum`` (M-DOWN-HEALPIX),
   normalised as M-DOWN-MASK with a mask;
-* ``_crop_weights``: no border (M-MASK-HPX), every pixel of the level.
+* ``_crop_weights``: no border (M-MASK-HEALPIX), every pixel of the level.
 
 Each application is one function of a range of output pixels (:func:`_stencil_rows`,
 :func:`_decimation_rows`), called here once on all of them. The stencils are gathered by
@@ -63,7 +63,7 @@ class ConvTablesHealpix(NamedTuple):
 
     The convolution is ``gather_weighted`` with ``index`` and ``weight``, then the product with
     ``kernel``: the stencils ``(L, Npix, K², 4)`` (stencil point, neighbour) and the kernel of
-    M-WAV-HPX as real pairs ``(K², 2)``; or, as the wavelet operator builds them since task
+    M-WAV-HEALPIX as real pairs ``(K², 2)``; or, as the wavelet operator builds them since task
     T5.7, the kernel folded into the tables, ``(L, Npix, 2, M)`` (real and imaginary parts, the
     M distinct pixels a row reads), and the identity ``(2, 2)``.
     """
@@ -74,7 +74,7 @@ class ConvTablesHealpix(NamedTuple):
     weight: Any
     """Their weights, real, of the operator's dtype, the shape of ``index``."""
     kernel: Any
-    """The real product applied after the gather, ``(Q, 2)``: the kernel of M-WAV-HPX as real
+    """The real product applied after the gather, ``(Q, 2)``: the kernel of M-WAV-HEALPIX as real
     pairs, or the identity when it is folded into the tables."""
 
 
@@ -100,7 +100,7 @@ class _StaticCellIds:
     JAX hashes the static part of a pytree; a Python tuple of up to 196 608 integers would be
     slow to hash and compare, so the pixels are a read-only int64 array behind this wrapper. It
     also holds the number of pixels of every level, from 0 to ``depth``: the parents of the
-    pixels of the level above, as the decimation gives them (M-DOWN-HPX).
+    pixels of the level above, as the decimation gives them (M-DOWN-HEALPIX).
     """
 
     __slots__ = ("_digest", "cell_ids", "level_sizes")
@@ -134,7 +134,7 @@ class _StaticCellIds:
 
 
 class DataHealpix(Data):
-    """HEALPix data, shape ``(Nb, Nc, Npix)``, NESTED ordering (maths.md M-DATA-HPX).
+    """HEALPix data, shape ``(Nb, Nc, Npix)``, NESTED ordering (maths.md M-DATA-HEALPIX).
 
     ``DataHealpix(array, mask=None, *, depth=None, cell_ids=None, partition=None)``.
 
@@ -146,7 +146,7 @@ class DataHealpix(Data):
     mask:
         Optional boolean array ``(Npix,)``, True where a value is missing, shared by every batch
         element and channel. If it is not given, it is read from the NaN of ``array``, which must
-        then hold a single map (maths.md M-DATA-HPX, OP-26).
+        then hold a single map (maths.md M-DATA-HEALPIX, OP-26).
     depth:
         log₂ ``nside`` of the map. On a full sky it is read from Npix = 12 · 4^depth, and may be
         given to check it; with ``cell_ids`` it is required (OP-91).
@@ -220,7 +220,7 @@ class DataHealpix(Data):
         depth, cell_ids = meta
         object.__setattr__(self, "_depth", depth)
         object.__setattr__(self, "_cell_ids", cell_ids)
-        # pbc follows cell_ids, whatever was passed: True on the full sky only (M-DATA-HPX).
+        # pbc follows cell_ids, whatever was passed: True on the full sky only (M-DATA-HEALPIX).
         object.__setattr__(self, "_pbc", cell_ids is None)
 
     def _rebuild_advice(self) -> str:
@@ -243,7 +243,7 @@ class DataHealpix(Data):
         arrays: dict[str, NDArray[Any]],
     ) -> Data:
         """The example of the file built by the constructor, from its ``depth`` and its
-        ``cell_ids``, which it checks; ``pbc`` must follow them (M-DATA-HPX)."""
+        ``cell_ids``, which it checks; ``pbc`` must follow them (M-DATA-HEALPIX)."""
         example = cls(
             np.zeros((1, n_channels, *spatial_shape)),
             mask=arrays["mask"].astype(bool) if "mask" in arrays else None,
@@ -253,7 +253,7 @@ class DataHealpix(Data):
         if example.pbc != pbc:
             raise ValueError(
                 f"the file describes HEALPix data with pbc={pbc}, but its cell_ids give "
-                f"pbc={example.pbc} (True on the full sky only, M-DATA-HPX): the file is "
+                f"pbc={example.pbc} (True on the full sky only, M-DATA-HEALPIX): the file is "
                 "inconsistent; recompute the statistics and save them again."
             )
         return example
@@ -262,7 +262,7 @@ class DataHealpix(Data):
 
     @property
     def pbc(self) -> bool:
-        """True on a full sky, False on the partial sky of :attr:`cell_ids` (M-DATA-HPX)."""
+        """True on a full sky, False on the partial sky of :attr:`cell_ids` (M-DATA-HEALPIX)."""
         return cast(bool, self._pbc)
 
     @property
@@ -292,7 +292,7 @@ class DataHealpix(Data):
     # ------------------------------------------------------------------ geometry hooks
 
     def _conv(self, x: Any, tables: Any, level: int) -> Any:
-        """The convolution of maths.md M-CONV-HPX at ``level``, with the
+        """The convolution of maths.md M-CONV-HEALPIX at ``level``, with the
         :class:`ConvTablesHealpix` of that level: ``(Nb, Nc, Npix)`` real or complex to
         ``(Nb, L, Nc, Npix)`` complex. A complex map is convolved part by part, two real
         applications; a real one, one (Part I, §3.1, rule 6)."""
@@ -318,10 +318,10 @@ class DataHealpix(Data):
         return backend.real_pairs_to_complex(xp.permute_dims(pairs, (0, 2, 1, 3, 4)))
 
     def _downsample(self, x: Any, weights: DownsampleWeights, level: int) -> Any:
-        """One step of maths.md M-DOWN-HPX, from ``level`` to ``level + 1``, with the
+        """One step of maths.md M-DOWN-HEALPIX, from ``level`` to ``level + 1``, with the
         :class:`DownTablesHealpix` of the step in ``weights.kernel``; normalised as M-DOWN-MASK
         with missing values: invalid input pixels set to 0 (never read, OP-27), then the
-        reweighting 1 / (1 - f) of the output (M-MASK-HPX). A complex map is decimated part by
+        reweighting 1 / (1 - f) of the output (M-MASK-HEALPIX). A complex map is decimated part by
         part."""
         owner = "DataHealpix._downsample"
         self._check_array(x, level, "_downsample")
@@ -355,7 +355,7 @@ class DataHealpix(Data):
         return out if reweight is None else out * reweight
 
     def _crop_weights(self, level: int, border: int) -> NDArray[np.float64]:
-        """No border on HEALPix (maths.md M-MASK-HPX, OP-50): 1 on every pixel of ``level``,
+        """No border on HEALPix (maths.md M-MASK-HEALPIX, OP-50): 1 on every pixel of ``level``,
         whatever ``border``."""
         return np.ones(self._n_pixels(level), dtype=np.float64)
 
@@ -370,10 +370,11 @@ class DataHealpix(Data):
 
     def _lowpass(self, x: Any, plan: Any, block: int) -> Any:
         """Not in 1.0.0: the low-pass filter serves the blocks of tensor products only
-        (maths.md M-LP), and HEALPix is not a block (M-DATA-TP)."""
+        (maths.md M-LP), and HEALPix is not a block (M-DATA-TENSORPROD)."""
         raise NotImplementedError(
             "DataHealpix has no low-pass filter in ESTEL 1.0.0: it serves the blocks of tensor "
-            "products only (maths.md M-LP), and the blocks are Data1D and Data2D (M-DATA-TP)."
+            "products only (maths.md M-LP), and the blocks are Data1D and Data2D "
+            "(M-DATA-TENSORPROD)."
         )
 
     def _spectrum_grids(self) -> Any:
@@ -413,7 +414,7 @@ by 16384 pixels too."""
 
 def _stencil_rows(backend: Any, x: Any, tables: ConvTablesHealpix, pixels: slice) -> Any:
     """The convolution of the real map ``x``, ``(..., Npix)``, at the output pixels ``pixels``
-    of the level, as real pairs ``(..., L, n, 2)``, n the number of these pixels (M-CONV-HPX,
+    of the level, as real pairs ``(..., L, n, 2)``, n the number of these pixels (M-CONV-HEALPIX,
     step 4): ``gather_weighted``, then one real product with ``tables.kernel`` (the identity
     when the kernel is folded into the tables). The rows are gathered by batches of
     :data:`_STENCIL_BATCH_ROWS`, inside ``gather_weighted`` (task T5.7)."""
@@ -441,7 +442,7 @@ def _decimation_rows(
 ) -> Any:
     """The decimation of the real map ``x``, ``(..., Npix)``, at ``num_segments`` coarse
     pixels from ``first_segment`` on, whose entries of the CSR tables are ``entries``
-    (M-DOWN-HPX): ``gather_weighted`` then ``segment_sum``. One function of a range of output
+    (M-DOWN-HEALPIX): ``gather_weighted`` then ``segment_sum``. One function of a range of output
     pixels; not batched, since its gathered values are its output (task T5.7, issue #168)."""
     z = backend.gather_weighted(x, -1, tables.index[entries], tables.weight[entries])[..., 0]
     segments = tables.segment_ids[entries]
@@ -534,14 +535,14 @@ def _partial_sky(cell_ids: Any, depth: object, n_pix: int) -> tuple[int, NDArray
 
 def _full_sky_depth(n_pix: int, depth: object) -> int:
     """The depth of a full sky of ``n_pix`` pixels, 12 · 4^depth, checked against ``depth``
-    when it is given (maths.md M-DATA-HPX, OP-91)."""
+    when it is given (maths.md M-DATA-HEALPIX, OP-91)."""
     quarter = n_pix // 12
     found = (quarter.bit_length() - 1) // 2
     if n_pix % 12 or quarter != 4**found:
         raise ValueError(
             f"DataHealpix: {n_pix} pixels are not a full sky, 12 · 4^depth pixels (12, 48, 192, "
             "768, …). For a partial sky, pass cell_ids, the NESTED indices of the pixels, and "
-            "depth (maths.md M-DATA-HPX, OP-91)."
+            "depth (maths.md M-DATA-HEALPIX, OP-91)."
         )
     if depth is not None and check_depth(depth, owner="DataHealpix: ") != found:
         raise ValueError(

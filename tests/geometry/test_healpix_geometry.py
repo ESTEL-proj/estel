@@ -1,11 +1,11 @@
-"""Unit tests of the HEALPix geometry tables (task T5.1, issue #26; maths.md M-CONV-HPX,
-M-WAV-HPX, M-DOWN-HPX).
+"""Unit tests of the HEALPix geometry tables (task T5.1, issue #26; maths.md M-CONV-HEALPIX,
+M-WAV-HEALPIX, M-DOWN-HEALPIX).
 
 Each geometry function of ``estel.wavelets._tables_healpix`` against healpy (``pix2ang``,
 ``ring2nest``, ``get_interp_weights``), which is imported here only: it is GPL-2 and never
-imported by ESTEL (Part I, §1.5). The rotations against the formula of M-CONV-HPX, step 2; the
-kernel against M-WAV-HPX; the search of the decimation's candidates against a brute-force search;
-the layout of the tables and the validation of the arguments. Equality with STL's tables, as
+imported by ESTEL (Part I, §1.5). The rotations against the formula of M-CONV-HEALPIX, step 2; the
+kernel against M-WAV-HEALPIX; the search of the decimation's candidates against a brute-force
+search; the layout of the tables and the validation of the arguments. Equality with STL's tables, as
 operators (OP-92), is in ``tests/parity/test_healpix_tables.py``.
 """
 
@@ -62,7 +62,7 @@ def _disc(depth: int, colatitude: float, longitude: float, radius: float) -> np.
 # ------------------------------------------------------------------------- pixel centres, RING
 
 
-@pytest.mark.maths("M-DATA-HPX")
+@pytest.mark.maths("M-DATA-HEALPIX")
 @pytest.mark.parametrize("depth", [0, 1, 4, MAX_DEPTH])
 def test_pixel_centres_equal_healpy(depth: int) -> None:
     pix = _pixels(depth)
@@ -73,7 +73,7 @@ def test_pixel_centres_equal_healpy(depth: int) -> None:
     np.testing.assert_array_equal(xyf2nest(*nest2xyf(pix, depth), depth), pix)
 
 
-@pytest.mark.maths("M-DATA-HPX")
+@pytest.mark.maths("M-DATA-HEALPIX")
 @pytest.mark.parametrize("depth", [0, 1, 4, MAX_DEPTH])
 def test_ring2nest_equals_healpy(depth: int) -> None:
     pix = _pixels(depth)
@@ -83,7 +83,7 @@ def test_ring2nest_equals_healpy(depth: int) -> None:
 # -------------------------------------------------------------------------------- interpolation
 
 
-@pytest.mark.maths("M-CONV-HPX")
+@pytest.mark.maths("M-CONV-HEALPIX")
 @pytest.mark.parametrize("depth", [0, 1, 3])
 def test_interpolation_equals_healpy_as_operator(depth: int) -> None:
     """The 4 neighbours and weights, compared as a linear functional of the map (OP-92): a zero
@@ -113,10 +113,10 @@ def test_interpolation_equals_healpy_as_operator(depth: int) -> None:
 # ---------------------------------------------------------------------------- rotations, stencil
 
 
-@pytest.mark.maths("M-CONV-HPX")
+@pytest.mark.maths("M-CONV-HEALPIX")
 def test_rotations_equal_the_formula_of_the_gauge_cosmo() -> None:
-    """Step 2 of M-CONV-HPX: R carries the pole to the pixel, and the u and v axes of the stencil
-    onto cos alpha_g e_θ + sin alpha_g e_φ and -sin alpha_g e_θ + cos alpha_g e_φ, with
+    """Step 2 of M-CONV-HEALPIX: R carries the pole to the pixel, and the u and v axes of the
+    stencil onto cos alpha_g e_θ + sin alpha_g e_φ and -sin alpha_g e_θ + cos alpha_g e_φ, with
     alpha_g = -φ + π g / L in the north (the equator included) and φ - π g / L in the south."""
     n_gauges = 4
     theta, phi = hp.pix2ang(8, np.arange(768), nest=True)
@@ -141,7 +141,7 @@ def test_rotations_equal_the_formula_of_the_gauge_cosmo() -> None:
     )
 
 
-@pytest.mark.maths("M-CONV-HPX")
+@pytest.mark.maths("M-CONV-HEALPIX")
 def test_stencil_points_and_their_order() -> None:
     """Point (u, v), entry p = (v + 2) K + (u + 2), at colatitude √(u² + v²) alpha and azimuth
     atan2(v, u)."""
@@ -164,7 +164,7 @@ def test_stencil_points_and_their_order() -> None:
 # ------------------------------------------------------------------------------------- kernel
 
 
-@pytest.mark.maths("M-WAV-HPX")
+@pytest.mark.maths("M-WAV-HEALPIX")
 @pytest.mark.parametrize("size", [3, 5, 7])
 def test_kernel_equals_the_formula(size: int) -> None:
     kernel = kernel_weights_healpix(kernel_size=size)
@@ -194,7 +194,7 @@ def test_kernel_size_is_checked(size: object, error: type[Exception]) -> None:
 # --------------------------------------------------------------------------------- decimation
 
 
-@pytest.mark.maths("M-DOWN-HPX")
+@pytest.mark.maths("M-DOWN-HEALPIX")
 @pytest.mark.parametrize("depth", [1, 2, 4])
 @pytest.mark.parametrize("sky", ["full", "disc"])
 @pytest.mark.parametrize("chunk", [7, _tables_healpix._CONE_CHUNK])
@@ -218,10 +218,10 @@ def test_candidate_search_equals_brute_force(
     np.testing.assert_array_equal(gamma, all_gamma[rows, cols])
 
 
-@pytest.mark.maths("M-DOWN-HPX")
+@pytest.mark.maths("M-DOWN-HEALPIX")
 def test_decimation_of_the_full_sky() -> None:
     """26 to 32 fine pixels per coarse pixel, weights of sum 1, the 4 children carrying 0.28 to
-    0.30 of the weight (M-DOWN-HPX)."""
+    0.30 of the weight (M-DOWN-HEALPIX)."""
     tables = decimation_healpix(None, 4)
     assert tables.index.shape == tables.weight.shape == (tables.segment_ids.size, 1, 1)
     assert tables.index.dtype == tables.segment_ids.dtype == np.int32
@@ -242,7 +242,7 @@ def test_decimation_of_the_full_sky() -> None:
 # ----------------------------------------------------------------------- layout and validation
 
 
-@pytest.mark.maths("M-CONV-HPX")
+@pytest.mark.maths("M-CONV-HEALPIX")
 def test_stencil_layout_and_dtypes() -> None:
     depth, n_gauges, size = 2, 3, 5
     tables = stencils_healpix(None, depth, L=n_gauges, kernel_size=size)
@@ -261,7 +261,7 @@ def test_stencil_layout_and_dtypes() -> None:
     np.testing.assert_allclose(centre.sum(axis=-1), 1.0, atol=1e-12)
 
 
-@pytest.mark.maths("M-CONV-HPX")
+@pytest.mark.maths("M-CONV-HEALPIX")
 @pytest.mark.parametrize("sky", ["full", "disc"])
 def test_stencils_built_by_batches_equal_one_batch(
     sky: str, monkeypatch: pytest.MonkeyPatch
@@ -279,7 +279,7 @@ def test_stencils_built_by_batches_equal_one_batch(
     assert batched.weight.dtype == np.float64
 
 
-@pytest.mark.maths("M-MASK-HPX")
+@pytest.mark.maths("M-MASK-HEALPIX")
 def test_masks_built_by_batches_equal_one_batch(monkeypatch: pytest.MonkeyPatch) -> None:
     """The support test of the masks, by batches of pixels (task T5.7), gives the masks and
     the reweighting maps of one batch, bit for bit: 7 pixels a batch at ``nside`` 4."""
@@ -300,7 +300,7 @@ def test_masks_built_by_batches_equal_one_batch(monkeypatch: pytest.MonkeyPatch)
     assert any(m.any() for m in whole.layer2.values())
 
 
-@pytest.mark.maths("M-CONV-HPX")
+@pytest.mark.maths("M-CONV-HEALPIX")
 @pytest.mark.parametrize("sky", ["full", "disc"])
 def test_kernel_folded_into_the_stencils(sky: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """The kernel folded into the stencils (task T5.7): each row reads its distinct pixels
@@ -326,7 +326,7 @@ def test_kernel_folded_into_the_stencils(sky: str, monkeypatch: pytest.MonkeyPat
     np.testing.assert_array_equal(batched[1], weight)
 
 
-@pytest.mark.maths("M-CONV-HPX")
+@pytest.mark.maths("M-CONV-HEALPIX")
 def test_partial_sky_rule() -> None:
     """The rule decided on issue #26: a neighbour of weight below 1e-12 counts as
     absent, the remaining weights sum to 1 exactly, and a stencil point without a remaining

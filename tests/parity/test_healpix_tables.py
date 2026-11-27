@@ -1,5 +1,5 @@
 """Parity of the HEALPix geometry tables with STL, as operators (task T5.1, issue #26; maths.md
-M-CONV-HPX, M-WAV-HPX, M-DOWN-HPX, OP-92).
+M-CONV-HEALPIX, M-WAV-HEALPIX, M-DOWN-HEALPIX, OP-92).
 
 The fixture ``operators_hpx`` (T5.3) holds STL's convolution and decimation through STL's own
 entry points, on the sphere, without geometry cache and with the kernel in float64 (OP-45,
@@ -9,7 +9,7 @@ will apply them (``gather_weighted``, then ``segment_sum`` for the decimation; t
 the docstring of ``_tables_healpix``), written in NumPy, and compared with the tolerances of
 Part II, §14.3. The tables equal healpix-analyse's as operators, not entry by entry (OP-92).
 
-On the discs, STL's partial-sky rule (M-CONV-HPX, OP-50) is set by interpolation weights at the
+On the discs, STL's partial-sky rule (M-CONV-HEALPIX, OP-50) is set by interpolation weights at the
 level of rounding at a few stencil points of the edge; ESTEL applies the well-posed rule decided
 by the maintainer (a neighbour of weight below 1e-12 counts as absent; maths.md
 OP-110), which differs from STL there. The discs are compared with the fixtures
@@ -101,7 +101,7 @@ def _well_conditioned_rows(name: str) -> tuple[NDArray[np.bool_], NDArray[np.boo
     return rows, empty
 
 
-@pytest.mark.maths("M-WAV-HPX")
+@pytest.mark.maths("M-WAV-HEALPIX")
 def test_kernel_equals_stl() -> None:
     expected = _fixture()["kernel"]  # (1, 1, K²)
     assert_parity(
@@ -112,7 +112,7 @@ def test_kernel_equals_stl() -> None:
     )
 
 
-@pytest.mark.maths("M-CONV-HPX", "M-WAV-HPX")
+@pytest.mark.maths("M-CONV-HEALPIX", "M-WAV-HEALPIX")
 def test_dense_convolution_equals_stl() -> None:
     """``conv_4[g, k, n]``: the response at pixel k and gauge g to the unit map at pixel n."""
     stencils = stencils_healpix(None, 2)
@@ -125,7 +125,7 @@ def test_dense_convolution_equals_stl() -> None:
     assert_parity(dense.reshape(stencils.n_gauges, n_pix, n_pix), _fixture()["conv_4"])
 
 
-@pytest.mark.maths("M-DOWN-HPX")
+@pytest.mark.maths("M-DOWN-HEALPIX")
 def test_dense_decimation_equals_stl() -> None:
     tables = decimation_healpix(None, 2)
     dense = np.zeros((tables.num_segments, 192))
@@ -134,7 +134,7 @@ def test_dense_decimation_equals_stl() -> None:
     assert_parity(dense, _fixture()["down_4"])
 
 
-@pytest.mark.maths("M-DOWN-HPX")
+@pytest.mark.maths("M-DOWN-HEALPIX")
 @pytest.mark.parametrize("name", DOMAINS)
 def test_decimation_responses_equal_stl(name: str) -> None:
     _, decimation = _tables(name)
@@ -142,14 +142,14 @@ def test_decimation_responses_equal_stl(name: str) -> None:
     assert_parity(_decimate(decimation, _fixture()[f"{name}_maps"]), _fixture()[f"{name}_down"])
 
 
-@pytest.mark.maths("M-CONV-HPX")
+@pytest.mark.maths("M-CONV-HEALPIX")
 @pytest.mark.parametrize("name", ["full_8", "full_16"])
 def test_convolution_responses_equal_stl_on_the_full_sky(name: str) -> None:
     stencils, _ = _tables(name)
     assert_parity(_convolve(stencils, _fixture()[f"{name}_maps"]), _fixture()[f"{name}_conv"])
 
 
-@pytest.mark.maths("M-CONV-HPX")
+@pytest.mark.maths("M-CONV-HEALPIX")
 @pytest.mark.parametrize("name", ["disc_8", "disc_16"])
 def test_convolution_responses_equal_stl_on_a_disc(name: str) -> None:
     """The partial-sky rule (OP-50): renormalised weights at the truncated pixels, and the

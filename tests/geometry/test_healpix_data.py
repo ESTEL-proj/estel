@@ -1,5 +1,5 @@
 """``DataHealpix``: its constructor, its metadata as a pytree and its geometry hooks (task T5.5,
-issue #166; maths.md M-DATA-HPX, M-MASK-HPX; Part II, §12.4).
+issue #166; maths.md M-DATA-HEALPIX, M-MASK-HEALPIX; Part II, §12.4).
 
 The hooks are checked here for their shapes, dtypes, errors and the rules that need no
 reference; their values against the oracle are in ``tests/spec/test_healpix_operator.py`` and
@@ -20,7 +20,7 @@ from estel.data._healpix import _StaticCellIds
 from estel.synthesis._api import _running_data
 from estel.wavelets._operator import WaveletOperatorSingleDomain, build_wavelet_plan
 
-pytestmark = pytest.mark.maths("M-DATA-HPX")
+pytestmark = pytest.mark.maths("M-DATA-HEALPIX")
 
 DISC = np.array([0, 1, 2, 3, 5, 9, 12, 13, 14, 47, 100, 101])
 """A few NESTED pixels of depth 2 (``nside`` 4), strictly increasing."""
@@ -53,7 +53,7 @@ def test_a_partial_sky_has_its_cells_and_no_pbc() -> None:
     np.testing.assert_array_equal(data.cell_ids, DISC)
     assert data.cell_ids is not None
     assert not data.cell_ids.flags.writeable
-    # The levels hold the parents of the pixels above (M-DOWN-HPX).
+    # The levels hold the parents of the pixels above (M-DOWN-HEALPIX).
     assert [data._n_pixels(d) for d in range(3)] == [12, 6, 3]
 
 
@@ -141,7 +141,7 @@ def test_invalid_arguments_raise_and_say_what_to_do(
         DataHealpix(**kwargs)
 
 
-@pytest.mark.maths("M-DEF-HPX", "M-WAV-HPX")
+@pytest.mark.maths("M-DEF-HEALPIX", "M-WAV-HEALPIX")
 @pytest.mark.parametrize(
     ("depth", "kwargs", "error", "match"),
     [
@@ -215,7 +215,7 @@ def test_static_cell_ids_compare_and_hash_by_value() -> None:
 
 
 @pytest.mark.dtype
-@pytest.mark.maths("M-CONV-HPX", "M-DOWN-HPX")
+@pytest.mark.maths("M-CONV-HEALPIX", "M-DOWN-HEALPIX")
 def test_the_hooks_keep_the_dtype(
     monkeypatch: pytest.MonkeyPatch, backend: Backend, dtype: DType
 ) -> None:
@@ -238,7 +238,7 @@ def test_the_hooks_keep_the_dtype(
     assert down.dtype == getattr(backend.xp, dtype)
 
 
-@pytest.mark.maths("M-CONV-HPX", "M-DOWN-HPX")
+@pytest.mark.maths("M-CONV-HEALPIX", "M-DOWN-HEALPIX")
 def test_a_complex_map_is_convolved_and_decimated_part_by_part(backend: Backend) -> None:
     data = DataHealpix(_field(48, (1, 1)))
     operator = WaveletOperatorSingleDomain(data, 2)
@@ -257,7 +257,7 @@ def test_a_complex_map_is_convolved_and_decimated_part_by_part(backend: Backend)
         np.testing.assert_allclose(backend.to_numpy(function(z)), expected)
 
 
-@pytest.mark.maths("M-MASK-HPX", "M-SYN-NYQ")
+@pytest.mark.maths("M-MASK-HEALPIX", "M-SYN-NYQ")
 def test_no_border_no_pre_filter_and_the_hooks_healpix_does_not_have() -> None:
     data = DataHealpix(_field(DISC.size), depth=2, cell_ids=DISC)
     np.testing.assert_array_equal(data._crop_weights(1, 3), np.ones(6))

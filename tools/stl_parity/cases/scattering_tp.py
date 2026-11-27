@@ -1,6 +1,7 @@
 """Parity case: the vanilla scattering statistics of STL `2D+1D` on tensor products (Part II,
 §14.2, §14.4; task T3.4, issue #127, decisions of the maintainer, second version; maths.md
-M-DATA-TP, M-W1-TP, M-LP, M-IDX-TP, M-S-TP, M-BORDER-TP, OP-30, OP-42, OP-43, OP-81, OP-82).
+M-DATA-TENSORPROD, M-W1-TENSORPROD, M-LP, M-IDX-TENSORPROD, M-S-TENSORPROD, M-BORDER-TENSORPROD,
+OP-30, OP-42, OP-43, OP-81, OP-82).
 
 Runs STL's tensor-product scattering operator (``ST_Operator_TensorProd.apply``) without
 normalisation and without spectrum (``norm="vanilla"``, ``compute_PS=False``) on seeded fields.
@@ -26,8 +27,8 @@ maths.md §3 with two maps of two channels; cases B to G with one map of one cha
 one channel; each with ``"ST"`` and ``None``; ``standardize=True`` on case A, one map of one
 channel; a ``compute_cross_matrix`` where channel 1 has no auto statistics, on case A, one map
 of three channels (OP-30). ``J`` set to ``None`` leaves J out of the call, so that STL takes its
-default per block (cases C and D, M-DATA-TP); L is always STL's default per block (4 for a 2D
-block, 2 for a 1D block). Tensor products take no mask (OP-41).
+default per block (cases C and D, M-DATA-TENSORPROD); L is always STL's default per block (4 for a
+2D block, 2 for a 1D block). Tensor products take no mask (OP-41).
 
 Runs in the parity container, with the interpreter of the `2d1d` environment, through
 `make parity-fixtures` (tools/stl_parity/make_fixtures.py). It imports STL, never `estel`.

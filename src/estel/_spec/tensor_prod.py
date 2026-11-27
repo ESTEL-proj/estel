@@ -12,14 +12,14 @@ standardisation, the reference and the flattening are those of ``common.py``.
 - ``blocks`` lists the number of spatial axes of each block, in block order: 2 for a 2D block
   (section 1), 1 for a 1D block (section 2); ``(2, 1)`` is space and time. Arrays are
   ``(Nb, Nc, *N⁽⁰⁾, …, *N⁽ᴮ⁻¹⁾)``: the spatial axes of the blocks, in block order, last
-  (M-DATA-TP). Every function acts on the last ``sum(blocks)`` axes, whatever the leading axes
-  are.
-- A scale, an orientation and a level are tuples with one entry per block (M-NOT-TP). The
+  (M-DATA-TENSORPROD). Every function acts on the last ``sum(blocks)`` axes, whatever the leading
+  axes are.
+- A scale, an orientation and a level are tuples with one entry per block (M-NOT-TENSORPROD). The
   low-pass filter of block a is its scale J_a (M-LP).
 - The field is brought to the level of a scale in every block first, then the block
-  convolutions are applied in block order (M-W1-TP, M-S-TP); STL's interleaved order is not
-  followed (decisions of the maintainer on issue #126).
-- The statistics are STL's full grids (M-S-TP, "Shapes"): ``mean`` and ``var`` ``(Nb, Nc)``,
+  convolutions are applied in block order (M-W1-TENSORPROD, M-S-TENSORPROD); STL's interleaved order
+  is not followed (decisions of the maintainer on issue #126).
+- The statistics are STL's full grids (M-S-TENSORPROD, "Shapes"): ``mean`` and ``var`` ``(Nb, Nc)``,
   real; S1 and S2 ``(Nb, Nc, Nc, *J', *L)``, S3 ``(Nb, Nc, Nc, *J, *J, *L, *L)`` indexed
   ``[c1, c2, *j2, *j3, *l2, *l3]`` and S4 ``(Nb, Nc, Nc, *J, *J, *J, *L, *L, *L)`` indexed
   ``[c1, c2, *j1, *j2, *j3, *l1, *l2, *l3]``, one axis per block in each group, complex, NaN
@@ -48,7 +48,7 @@ Statistics = dict[str, Any]
 Scale = tuple[int, ...]
 
 ORIENTATIONS = {2: 4, 1: 2}
-"""The default L of a block, per number of spatial axes (M-DATA-TP, M-DEF-TP)."""
+"""The default L of a block, per number of spatial axes (M-DATA-TENSORPROD, M-DEF-TENSORPROD)."""
 LOWPASS = ("ST", None)
 """The values of ``lowpass`` for tensor products in ESTEL 1.0.0 (M-LP)."""
 
@@ -58,7 +58,7 @@ def _check_blocks(blocks: Sequence[int]) -> tuple[int, ...]:
     if not out or any(n not in (1, 2) for n in out):
         raise ValueError(
             f"blocks={blocks!r}: pass one entry per block, 2 for a 2D block and 1 for a 1D "
-            "block, for example (2, 1) (M-DATA-TP)."
+            "block, for example (2, 1) (M-DATA-TENSORPROD)."
         )
     return out
 
@@ -78,7 +78,7 @@ def _block_sizes(spatial: Sequence[int], blocks: Sequence[int]) -> list[tuple[in
 def spec_along_block_tensor_prod(
     y: Array, blocks: Sequence[int], a: int, function: Callable[[Array], Array]
 ) -> Array:
-    """``function`` applied along the axes of block ``a`` of ``y`` only. Implements M-NOT-TP
+    """``function`` applied along the axes of block ``a`` of ``y`` only. Implements M-NOT-TENSORPROD
     (the operations of one block act on its axes only).
 
     The axes of block a are moved to the end, ``function`` acts on the last ``blocks[a]`` axes
@@ -95,8 +95,8 @@ def spec_along_block_tensor_prod(
 def spec_level_tensor_prod(
     y: Array, blocks: Sequence[int], steps: Sequence[int], pbc: Sequence[bool]
 ) -> Array:
-    """``y`` downsampled ``steps[a]`` times along block a, for every block. Implements M-NOT-TP
-    (x⁽ᵈ⁾, by M-DOWN along the axes of each block; M-SMOOTH-2D, M-SMOOTH-1D).
+    """``y`` downsampled ``steps[a]`` times along block a, for every block. Implements
+    M-NOT-TENSORPROD (x⁽ᵈ⁾, by M-DOWN along the axes of each block; M-SMOOTH-2D, M-SMOOTH-1D).
 
     The downsamplings of different blocks act on different axes and commute; they are applied
     block after block, in block order.
@@ -115,7 +115,7 @@ def spec_defaults_tensor_prod(
     blocks: Sequence[int], spatial_shape: Sequence[int]
 ) -> dict[str, Any]:
     """The default parameters of a tensor product with ``blocks`` and ``spatial_shape``.
-    Implements M-DEF-TP.
+    Implements M-DEF-TENSORPROD.
 
     J_a = ⌊log₂ min N⁽ᵃ⁾⌋ - 2 and L_a = 4 for a 2D block, 2 for a 1D block; K = 5 in every
     block; ``lowpass="ST"``; the other parameters as in M-DEF.
@@ -142,12 +142,12 @@ def spec_data_tensor_prod(
     L: Any = None,  # noqa: N803
 ) -> tuple[Array, list[int], list[int], list[bool]]:
     """The array promoted to ``(Nb, Nc, *spatial)`` in float64, and the J, L and ``pbc`` of each
-    block. Implements M-DATA-TP.
+    block. Implements M-DATA-TENSORPROD.
 
     An array with the spatial axes only is one map, ``(1, 1, …)``; with one more axis, its
     first axis is the channels. The data are real and hold no NaN (OP-41, OP-80); ``pbc`` is one
     boolean per block (OP-4). J and L are lists with one entry per block, an entry ``None`` (or
-    no list) giving the default of the block (M-DEF-TP); they are copied, never completed in
+    no list) giving the default of the block (M-DEF-TENSORPROD); they are copied, never completed in
     place (OP-83). Each size of block a must be divisible by 2^(J_a - 1) (OP-8). A 1D block
     takes L = 1 or 2 (M-WAV-1D).
     """
@@ -155,17 +155,17 @@ def spec_data_tensor_prod(
     n_spatial = sum(blocks)
     x = np.asarray(array)
     if np.iscomplexobj(x):
-        raise ValueError("the data must be real (M-DATA-TP); pass a real array.")
+        raise ValueError("the data must be real (M-DATA-TENSORPROD); pass a real array.")
     if not n_spatial <= x.ndim <= n_spatial + 2:
         raise ValueError(
             f"the array has {x.ndim} axes; pass ({n_spatial} spatial axes), (Nc, ...) or "
-            "(Nb, Nc, ...) (M-DATA-TP)."
+            "(Nb, Nc, ...) (M-DATA-TENSORPROD)."
         )
     x = np.array(x, dtype=np.float64).reshape((1,) * (n_spatial + 2 - x.ndim) + x.shape)
     if np.isnan(x).any():
         raise ValueError(
-            "the data hold NaN: tensor products take no missing data (M-DATA-TP, OP-41, OP-80); "
-            "pass data without NaN."
+            "the data hold NaN: tensor products take no missing data (M-DATA-TENSORPROD, OP-41, "
+            "OP-80); pass data without NaN."
         )
     sizes = _block_sizes(x.shape[2:], blocks)
     defaults = spec_defaults_tensor_prod(blocks, x.shape[2:])
@@ -177,7 +177,7 @@ def spec_data_tensor_prod(
         if isinstance(given, str) or np.ndim(given) != 1 or len(given) != len(blocks):
             raise ValueError(
                 f"{name}={given!r}: pass a list with one entry per block ({len(blocks)}), an "
-                "entry None for the default of the block (M-DATA-TP, OP-83)."
+                "entry None for the default of the block (M-DATA-TENSORPROD, OP-83)."
             )
         parameters[name] = [
             default if value is None else int(value)
@@ -186,26 +186,29 @@ def spec_data_tensor_prod(
     n_scales, n_orient = parameters["J"], parameters["L"]
     if isinstance(pbc, bool | np.bool_) or len(pbc) != len(blocks):
         raise ValueError(
-            f"pbc={pbc!r}: pass one boolean per block ({len(blocks)}) (M-DATA-TP, OP-4)."
+            f"pbc={pbc!r}: pass one boolean per block ({len(blocks)}) (M-DATA-TENSORPROD, OP-4)."
         )
     periodic = list(pbc)
     if not all(isinstance(p, bool | np.bool_) for p in periodic):
-        raise ValueError(f"pbc={pbc!r}: pass True or False for each block (M-DATA-TP, OP-4).")
+        raise ValueError(
+            f"pbc={pbc!r}: pass True or False for each block (M-DATA-TENSORPROD, OP-4)."
+        )
     for a, (n_axes, block) in enumerate(zip(blocks, sizes, strict=True)):
         if n_scales[a] < 1:
             raise ValueError(
                 f"block {a} has J = {n_scales[a]}: pass J >= 1 for each block (block sizes "
-                f"{block}; M-DATA-TP, OP-83)."
+                f"{block}; M-DATA-TENSORPROD, OP-83)."
             )
         if any(n % 2 ** (n_scales[a] - 1) for n in block):
             raise ValueError(
                 f"the sizes {block} of block {a} are not divisible by 2^(J-1) = "
-                f"{2 ** (n_scales[a] - 1)} (M-DATA-TP, OP-8); use a smaller J or other sizes."
+                f"{2 ** (n_scales[a] - 1)} (M-DATA-TENSORPROD, OP-8); use a smaller J or other "
+                "sizes."
             )
         if n_orient[a] < 1 or (n_axes == 1 and n_orient[a] not in (1, 2)):
             raise ValueError(
                 f"block {a} has L = {n_orient[a]}: a 1D block takes L = 1 or 2, a 2D block "
-                "L >= 1 (M-DATA-TP, M-WAV-1D)."
+                "L >= 1 (M-DATA-TENSORPROD, M-WAV-1D)."
             )
     return x, n_scales, n_orient, [bool(p) for p in periodic]
 
@@ -239,13 +242,13 @@ def spec_lowpass_tensor_prod(
 
 
 def spec_precedes_tensor_prod(j: Scale, j_prime: Scale) -> bool:
-    """j ≤ j': j_a ≤ j'_a in every block. Implements M-IDX-TP (the partial order)."""
+    """j ≤ j': j_a ≤ j'_a in every block. Implements M-IDX-TENSORPROD (the partial order)."""
     return all(a <= b for a, b in zip(j, j_prime, strict=True))
 
 
 def spec_index_sets_tensor_prod(J: Sequence[int], lowpass: Sequence[bool]) -> dict[str, list[Any]]:  # noqa: N803
     """The index sets of the statistics, in lexicographic order (the last block fastest).
-    Implements M-IDX-TP.
+    Implements M-IDX-TENSORPROD.
 
     ``"all"``: J_all, the scales of S1 and S2, 0 ≤ j_a ≤ J'_a - 1 with J'_a = J_a + 1 when block a
     has a low-pass filter; ``"wavelet"``: J_w, 0 ≤ j_a ≤ J_a - 1; ``"S3"``: the pairs
@@ -277,7 +280,7 @@ def spec_wavelet_transform_tensor_prod(
     wavelet: Sequence[bool],
 ) -> Array:
     """The block convolutions of a tensor wavelet, on ``y`` already at its level, in block
-    order. Implements M-W1-TP (without its downsampling, as M-S-TP uses it).
+    order. Implements M-W1-TENSORPROD (without its downsampling, as M-S-TENSORPROD uses it).
 
     For each block a with ``wavelet[a]``, ``ψ⁽ᵃ⁾_l ⋆_a`` for l = 0 … L_a - 1, a new orientation
     axis of size L_a; for a block taken at its low-pass scale, nothing is computed and the
@@ -318,7 +321,7 @@ def spec_first_layer_tensor_prod(
     pbc: Sequence[bool],
 ) -> Array:
     """W_{j,l} x for every orientation l of scale ``j``, ``(Nb, Nc, *L', *spatial at level j)``.
-    Implements M-W1-TP and M-LP (realisation, the centred scale).
+    Implements M-W1-TENSORPROD and M-LP (realisation, the centred scale).
 
     The field is brought to level d = j in every block (j_a = J_a for the low-pass filter of
     block a, M-LP), then the block wavelets are applied in block order
@@ -342,7 +345,7 @@ def spec_border_tensor_prod(
     histories: Sequence[tuple[int, ...]], levels: Sequence[int], pbc: Sequence[bool]
 ) -> list[int]:
     """The border width of each block, from its own convolution history and level. Implements
-    M-BORDER-TP.
+    M-BORDER-TENSORPROD.
 
     M-BORDER (or its 1D form) block by block: 0 if the block is periodic, or without a
     convolution in it; a block taken at its low-pass scale has an empty history, since the low-
@@ -356,7 +359,7 @@ def spec_border_tensor_prod(
 
 def spec_crop_tensor_prod(y: Array, blocks: Sequence[int], borders: Sequence[int]) -> Array:
     """``y`` without the border of each block, along the axes of that block. Implements
-    M-BORDER-TP (the crop, and the reduction of a border too large, OP-13).
+    M-BORDER-TENSORPROD (the crop, and the reduction of a border too large, OP-13).
 
     A border with 2β_a ≥ the smallest size of block a is reduced to ⌊(min N⁽ᵃ⁾ - 1) / 2⌋, as in
     M-BORDER, block by block.
@@ -374,7 +377,7 @@ def spec_crop_tensor_prod(y: Array, blocks: Sequence[int], borders: Sequence[int
 
 def spec_mean_tensor_prod(y: Array, blocks: Sequence[int], borders: Sequence[int]) -> Array:
     """The mean of ``y`` over the spatial axes of every block, after the crop of each block.
-    Implements M-BORDER-TP and M-MEAN (without mask, LF8)."""
+    Implements M-BORDER-TENSORPROD and M-MEAN (without mask, LF8)."""
     kept = spec_crop_tensor_prod(y, blocks, borders)
     n_spatial = sum(blocks)
     out: Array = kept.mean(axis=tuple(range(kept.ndim - n_spatial, kept.ndim)))
@@ -404,7 +407,7 @@ def spec_scattering_tensor_prod(
     cross_matrix: Any = None,
 ) -> Statistics:
     """The scattering statistics S1 to S4 of ``x``, ``(Nb, Nc, *spatial)``, in STL's full
-    grids. Implements M-S-TP, with M-IDX-TP, M-LP, M-BORDER-TP and M-CHAN.
+    grids. Implements M-S-TENSORPROD, with M-IDX-TENSORPROD, M-LP, M-BORDER-TENSORPROD and M-CHAN.
 
     S1 and S2 (M-S1, M-S2) at every scale of J_all, on W_{j,l} of ``spec_first_layer_tensor_prod``:
     the centred field at the scale with the low-pass filter in every block, orientation 0 only along
@@ -508,7 +511,7 @@ def spec_normalize_tensor_prod(
     J: Sequence[int],  # noqa: N803
 ) -> Statistics:
     """The statistics divided by the reference, as M-NORM with multi-indices. Implements
-    M-NORM-TP.
+    M-NORM-TENSORPROD.
 
     The reference is that of M-NORM (``common.spec_reference``): ``sigma``, ``(Nr, Nc, *J',
     *L)``, the square root of the channel diagonal of S2, low-pass scales included. ``mean`` is
@@ -575,22 +578,24 @@ def spec_apply_tensor_prod(
     flatten: bool = False,
 ) -> Statistics:
     """The statistics of a tensor-product field: the whole of ``apply``, in its order (M-ORDER).
-    Implements M-DATA-TP, M-DEF-TP, M-S-TP, M-NORM-TP, and M-MOM, M-STD and M-FLAT over the
-    spatial axes of every block together.
+    Implements M-DATA-TENSORPROD, M-DEF-TENSORPROD, M-S-TENSORPROD, M-NORM-TENSORPROD, and M-MOM,
+    M-STD and M-FLAT over the spatial axes of every block together.
 
-    1. promotion to ``(Nb, Nc, …)``, J and L per block, and channel pairs (M-DATA-TP, M-DEF-TP,
+    1. promotion to ``(Nb, Nc, …)``, J and L per block, and channel pairs (M-DATA-TENSORPROD,
+    M-DEF-TENSORPROD,
        M-CHAN); the low-pass filters (M-LP);
     2. standardisation, if asked, over the spatial axes of every block (M-STD);
     3. ``mean`` and ``var`` over the same axes, without border (M-MOM);
-    4. the scattering statistics S1 to S4 (M-S-TP);
-    5. normalisation (M-NORM-TP): ``norm="self"`` by the statistics themselves, ``norm="ref"``
+    4. the scattering statistics S1 to S4 (M-S-TENSORPROD);
+    5. normalisation (M-NORM-TENSORPROD): ``norm="self"`` by the statistics themselves,
+    ``norm="ref"``
        by ``ref``, the ``"reference"`` of other statistics, ``norm="none"`` not at all;
     6. the flattening, if asked (M-FLAT), in its real form, under ``"vector"``.
 
     Returns the families, the ``"reference"`` used (``None`` with ``norm="none"``), the
     ``"J"``, ``"L"`` and ``"lowpass"`` flags of the blocks and, with ``standardize``,
     ``"mean_pre_std"`` and ``"std_pre_std"``. ``norm`` must be given (M-NORM); ``standardize`` is
-    True by default (M-DEF-TP, OP-120).
+    True by default (M-DEF-TENSORPROD, OP-120).
     """
     if norm not in ("self", "ref", "none"):
         raise ValueError(f'norm={norm!r}: pass "self", "ref" or "none" (M-NORM).')

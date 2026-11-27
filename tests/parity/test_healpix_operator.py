@@ -1,5 +1,5 @@
 """Parity of ``DataHealpix`` and its ``WaveletOperatorSingleDomain`` with STL (task T5.5, issue
-#166; maths.md M-CONV-HPX, M-DOWN-HPX, M-MASK-HPX, OP-110).
+#166; maths.md M-CONV-HEALPIX, M-DOWN-HEALPIX, M-MASK-HEALPIX, OP-110).
 
 Through the operator the scattering loop will use (``apply``, ``downsample``, the masks of the
 plan), against the fixtures of T5.3: the responses of ``operators_hpx`` to 3 random maps, and the
@@ -68,7 +68,7 @@ def _operator(name: str, J: int) -> WaveletOperatorSingleDomain:  # noqa: N803
     return WaveletOperatorSingleDomain(DataHealpix(maps, depth=depth, cell_ids=ids), J)
 
 
-@pytest.mark.maths("M-CONV-HPX", "M-WAV-HPX")
+@pytest.mark.maths("M-CONV-HEALPIX", "M-WAV-HEALPIX")
 @pytest.mark.parametrize("name", DOMAINS)
 def test_convolution_equals_stl(name: str, dtype: DType) -> None:
     operator = _operator(name, 1)
@@ -83,7 +83,7 @@ def test_convolution_equals_stl(name: str, dtype: DType) -> None:
     assert_parity(actual[:, rows], expected[:, rows], dtype, scale=scale)
 
 
-@pytest.mark.maths("M-DOWN-HPX")
+@pytest.mark.maths("M-DOWN-HEALPIX")
 @pytest.mark.parametrize("name", DOMAINS)
 def test_decimation_equals_stl(name: str, dtype: DType) -> None:
     operator = _operator(name, 2)
@@ -96,7 +96,7 @@ def test_decimation_equals_stl(name: str, dtype: DType) -> None:
         np.testing.assert_array_equal(coarse, _operators()[f"{name}_down_cell_ids"])
 
 
-@pytest.mark.maths("M-MASK-HPX", "M-MASK", "M-DOWN-MASK")
+@pytest.mark.maths("M-MASK-HEALPIX", "M-MASK", "M-DOWN-MASK")
 @pytest.mark.parametrize("dtype", ["float64"])  # the masks are float64 in every dtype
 @pytest.mark.parametrize("name", ["nan_16", "disc_nan_16"])
 def test_masks_equal_stl(name: str, dtype: DType) -> None:

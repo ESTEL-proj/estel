@@ -21,7 +21,7 @@ operators at ``nside`` 16, the masks and the statistics, as the oracle is naive 
 **The edge of a partial sky** (OP-110, decisions of the maintainer on #165). At a stencil point
 that falls on a pixel longitude or on a ring, one interpolation weight is zero in exact
 arithmetic and of rounding size in practice; on a partial sky STL's result there is set by its
-rounding, while the oracle drops every neighbour of weight below 10⁻¹² (M-CONV-HPX). So:
+rounding, while the oracle drops every neighbour of weight below 10⁻¹² (M-CONV-HEALPIX). So:
 
 - the convolutions of ``disc_8`` and ``disc_16`` are compared with STL on every (gauge, pixel)
   row that is not ill-conditioned: a row is ill-conditioned when one of its stencil points has
@@ -52,7 +52,12 @@ from estel._spec import healpix as spec
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
 pytestmark = pytest.mark.maths(
-    "M-DATA-HPX", "M-CONV-HPX", "M-WAV-HPX", "M-DOWN-HPX", "M-MASK-HPX", "M-DEF-HPX"
+    "M-DATA-HEALPIX",
+    "M-CONV-HEALPIX",
+    "M-WAV-HEALPIX",
+    "M-DOWN-HEALPIX",
+    "M-MASK-HEALPIX",
+    "M-DEF-HEALPIX",
 )
 # Tolerances (rule C10). The comparisons with STL's fixtures use the parity tolerances of Part II,
 # §14.3, through ``assert_parity``. ``tests/tolerances.toml`` holds the tolerances of statistics
@@ -67,7 +72,7 @@ order 1 summed over at most 100 terms (sums of weights, rotations, the kernel's 
 about 50 ulps of 1."""
 MIRROR_ATOL = 1e-13
 """Absolute tolerance of the mirror relation of the gauge ``"cosmo"`` on convolutions of a unit
-white noise (order 1, 100 interpolated terms per value); maths M-CONV-HPX measured 4e-14 on
+white noise (order 1, 100 interpolated terms per value); maths M-CONV-HEALPIX measured 4e-14 on
 STL's tables."""
 POLE_DISTANCE = 1e-6
 """The colatitude of the points that probe the limit of the gauge ``"cosmo"`` at the poles: the
@@ -133,7 +138,7 @@ def _samples(nside: int) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
 
 @pytest.mark.parametrize("nside", [1, 2, 4, 8, 16, 32])
 def test_pixel_centres_equal_healpy(nside: int) -> None:
-    """M-DATA-HPX: the NESTED pixel centres, against ``healpy.pix2ang(nest=True)``."""
+    """M-DATA-HEALPIX: the NESTED pixel centres, against ``healpy.pix2ang(nest=True)``."""
     theta, phi = spec.spec_pixel_centres(nside)
     expected_theta, expected_phi = healpy.pix2ang(nside, np.arange(12 * nside**2), nest=True)
     np.testing.assert_allclose(theta, expected_theta, rtol=0, atol=GEOMETRY_ATOL)
@@ -144,7 +149,7 @@ def test_pixel_centres_equal_healpy(nside: int) -> None:
 
 @pytest.mark.parametrize("nside", [1, 2, 4, 8, 16])
 def test_rings_are_the_ring_ordering(nside: int) -> None:
-    """M-CONV-HPX, step 3: the rings, their pixels by increasing longitude, are HEALPix's RING
+    """M-CONV-HEALPIX, step 3: the rings, their pixels by increasing longitude, are HEALPix's RING
     ordering, against ``healpy.ring2nest``."""
     theta, pixels = spec.spec_rings(nside)
     assert theta.shape == (4 * nside - 1,)
@@ -155,7 +160,7 @@ def test_rings_are_the_ring_ordering(nside: int) -> None:
 
 @pytest.mark.parametrize("nside", [1, 2, 4, 8, 16, 32])
 def test_interpolation_equals_healpy(nside: int) -> None:
-    """M-CONV-HPX, step 3: the bilinear interpolation, against
+    """M-CONV-HEALPIX, step 3: the bilinear interpolation, against
     ``healpy.get_interp_weights(nest=True)``, as linear functionals, on dense samples with the
     poles, the pixel centres and the ring colatitudes; the weights sum to 1."""
     theta, phi = _samples(nside)
@@ -171,7 +176,7 @@ def test_interpolation_equals_healpy(nside: int) -> None:
 
 
 def test_rotation_carries_the_stencil_axes() -> None:
-    """M-CONV-HPX, step 2: R carries the North Pole to the pixel, the u axis onto
+    """M-CONV-HEALPIX, step 2: R carries the North Pole to the pixel, the u axis onto
     cos alpha e_θ + sin alpha e_φ and the v axis onto -sin alpha e_θ + cos alpha e_φ; R is a
     rotation."""
     rng = np.random.default_rng(2)
@@ -194,7 +199,7 @@ def test_rotation_carries_the_stencil_axes() -> None:
 
 
 def test_stencil_and_gauge_cosmo() -> None:
-    """M-CONV-HPX, steps 1 and 2: the stencil's points, and the gauge ``"cosmo"``: regular at
+    """M-CONV-HEALPIX, steps 1 and 2: the stencil's points, and the gauge ``"cosmo"``: regular at
     the poles, where the u axis of gauge 0 tends to +x in the north and -x in the south."""
     colatitude, azimuth = spec.spec_stencil(4)
     alpha = math.sqrt(4 * math.pi / (12 * 16))
@@ -219,7 +224,7 @@ def test_stencil_and_gauge_cosmo() -> None:
 
 
 def test_mirror_through_the_equator_conjugates_the_convolution() -> None:
-    """M-CONV-HPX, "The gauge cosmo": for a map mirrored through the equator, the convolution at
+    """M-CONV-HEALPIX, "The gauge cosmo": for a map mirrored through the equator, the convolution at
     the mirrored pixel is the complex conjugate of that of the map, off the equatorial ring."""
     nside = 4
     theta, phi = spec.spec_pixel_centres(nside)
@@ -248,7 +253,7 @@ def _operators() -> dict[str, NDArray[Any]]:
 
 
 def test_kernel_equals_the_fixture() -> None:
-    """M-WAV-HPX: the kernel, its sum, the sum of its moduli and its two symmetries."""
+    """M-WAV-HEALPIX: the kernel, its sum, the sum of its moduli and its two symmetries."""
     kernel = spec.spec_wavelet_healpix()
     assert_parity(kernel, _operators()["kernel"].reshape(-1))
     assert abs(kernel.sum()) < ROUNDING_ATOL
@@ -259,7 +264,7 @@ def test_kernel_equals_the_fixture() -> None:
 
 
 def test_dense_operators_equal_the_fixture() -> None:
-    """M-CONV-HPX, M-DOWN-HPX: the convolution at ``nside`` 4 as a dense ``(L, Npix, Npix)``
+    """M-CONV-HEALPIX, M-DOWN-HEALPIX: the convolution at ``nside`` 4 as a dense ``(L, Npix, Npix)``
     operator, and the decimation from ``nside`` 4 to 2, full sky."""
     fixture = _operators()
     tables = spec.spec_conv_tables(4)
@@ -320,7 +325,7 @@ def _decimation(name: str) -> None:
     ],
 )
 def test_convolution_equals_the_fixture(name: str) -> None:
-    """M-CONV-HPX: the convolution of three maps, full sky and on a disc crossing the equator
+    """M-CONV-HEALPIX: the convolution of three maps, full sky and on a disc crossing the equator
     (partial-sky rule, OP-50), on every (gauge, pixel) row that is not ill-conditioned (OP-110);
     the full sky has none.
 
@@ -339,8 +344,8 @@ def test_convolution_equals_the_fixture(name: str) -> None:
     ],
 )
 def test_decimation_equals_the_fixture(name: str) -> None:
-    """M-DOWN-HPX: the decimation of three maps, full sky and on a disc (the coarse pixels are the
-    sorted parents, the weights renormalised over the available fine pixels).
+    """M-DOWN-HEALPIX: the decimation of three maps, full sky and on a disc (the coarse pixels are
+    the sorted parents, the weights renormalised over the available fine pixels).
 
     Slow: at ``nside`` 16, the oracle compares every pair of fine and coarse pixels.
     """
@@ -371,8 +376,8 @@ def _cell_ids(name: str) -> tuple[int, NDArray[np.int64] | None, NDArray[np.int6
 @pytest.mark.slow
 @pytest.mark.parametrize("name", ["nan_16", "disc_nan_16"])
 def test_masks_equal_the_fixture(name: str) -> None:
-    """M-MASK-HPX: the static masks and reweighting maps of the two masked configurations, on the
-    pixels of their level, and the pixels of each level.
+    """M-MASK-HEALPIX: the static masks and reweighting maps of the two masked configurations, on
+    the pixels of their level, and the pixels of each level.
 
     Slow: ``nside`` 16 (decision 4 on #165).
     """
@@ -502,7 +507,7 @@ def test_statistics_equal_the_fixture(name: str) -> None:
 
 
 def test_defaults() -> None:
-    """M-DEF-HPX: J = 1, 1, 2, 3, 4 for ``nside`` = 2, 4, 8, 16, 32, and the other defaults."""
+    """M-DEF-HEALPIX: J = 1, 1, 2, 3, 4 for ``nside`` = 2, 4, 8, 16, 32, and the other defaults."""
     assert [spec.spec_defaults_healpix(n)["J"] for n in (2, 4, 8, 16, 32)] == [1, 1, 2, 3, 4]
     defaults = spec.spec_defaults_healpix(16)
     assert (defaults["L"], defaults["K"], defaults["gauge"], defaults["border"]) == (
@@ -516,7 +521,7 @@ def test_defaults() -> None:
 
 
 def test_data_are_promoted_and_checked() -> None:
-    """M-DATA-HPX: the promotion to ``(Nb, Nc, Npix)``, ``nside`` read from a full sky and
+    """M-DATA-HEALPIX: the promotion to ``(Nb, Nc, Npix)``, ``nside`` read from a full sky and
     required with ``cell_ids`` (OP-91), ``cell_ids`` strictly increasing (OP-90), and the mask
     read from the NaN of a single map only."""
     rng = np.random.default_rng(4)
@@ -546,7 +551,7 @@ def test_data_are_promoted_and_checked() -> None:
 
 
 def test_support_of_a_partial_sky_mask() -> None:
-    """M-MASK-HPX: a pixel is invalid after a convolution if its stencil reads an invalid pixel
+    """M-MASK-HEALPIX: a pixel is invalid after a convolution if its stencil reads an invalid pixel
     with a weight above 10⁻¹² in some gauge; without a mask, nothing is."""
     tables = spec.spec_conv_tables(4)
     assert spec.spec_support_healpix(None, tables) is None

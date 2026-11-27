@@ -1,6 +1,6 @@
 """The statistics of tensor products on the compact buffer, without their loop (task T3.6,
-issue #137; maths.md M-IDX-TP, M-LP, M-S-TP, M-NORM-TP, M-FLAT; Part II, §12.7; Part III,
-§19.4 to §19.6).
+issue #137; maths.md M-IDX-TENSORPROD, M-LP, M-S-TENSORPROD, M-NORM-TENSORPROD, M-FLAT; Part II,
+§12.7; Part III, §19.4 to §19.6).
 
 These tests, written before the operator of tensor products (T3.2), take the raw statistics from the
 parity fixtures of T3.4 (``scattering_tp``), or from the oracle ``spec_apply_tensor_prod(...,
@@ -38,7 +38,9 @@ from estel.statistics._statistics import statistics_of
 from tests.parity._compare import assert_parity, full_grid, load_fixture, read_manifest
 from tests.statistics.test_layout import _static_elements
 
-pytestmark = pytest.mark.maths("M-IDX-TP", "M-LP", "M-S-TP", "M-NORM-TP", "M-CHAN", "M-FLAT")
+pytestmark = pytest.mark.maths(
+    "M-IDX-TENSORPROD", "M-LP", "M-S-TENSORPROD", "M-NORM-TENSORPROD", "M-CHAN", "M-FLAT"
+)
 GEOMETRIES = {"2D": Data2D, "1D": Data1D}
 AXES = {"2D": 2, "1D": 1}
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
@@ -164,8 +166,8 @@ def _statistics_tensor_prod() -> dict[str, Any]:
 def test_normalisation_equals_the_fixture() -> None:
     """``statistics_tp``: the normalised statistics of the three runs, their references
     (``var_ref``, ``S2_ref_sqrt_chan_diag``) and the real and complex flat vectors equal STL's
-    (maths.md M-NORM-TP, M-FLAT). S1 and S2 are normalised at every scale, the low-pass scales
-    included, S3 and S4 by the wavelet scales of the reference only."""
+    (maths.md M-NORM-TENSORPROD, M-FLAT). S1 and S2 are normalised at every scale, the low-pass
+    scales included, S3 and S4 by the wavelet scales of the reference only."""
     arrays = _arrays("statistics_tp")
     for run, stats in _statistics_tensor_prod().items():
         var_ref = arrays[
@@ -301,7 +303,9 @@ def test_select_takes_family_and_channels() -> None:
     ("family", "index", "match"),
     [
         pytest.param("S3", {"j[0]": 0}, r"LF44\). Until then, use full_grid", id="block-axis"),
-        pytest.param("S3", {"l": 0}, r"in block order \(maths\.md M-S-TP\)", id="single-domain-l"),
+        pytest.param(
+            "S3", {"l": 0}, r"in block order \(maths\.md M-S-TENSORPROD\)", id="single-domain-l"
+        ),
         pytest.param("S4", {"j3": 1}, r"or to_vector\.$", id="single-domain-j3"),
         pytest.param(
             "S1",
@@ -344,8 +348,8 @@ def _flat(grid: NDArray[Any], real_part: bool) -> NDArray[Any]:
 
 @pytest.mark.parametrize("reduction", ["iso", "angular_fourier", "scale_cosine"])
 def test_reduce_raises_before_computing(reduction: str) -> None:
-    """The reductions are not defined on tensor products (maths.md M-NORM-TP, OP-44): a clear
-    error, raised before any computation, even with arguments that planar statistics refuse
+    """The reductions are not defined on tensor products (maths.md M-NORM-TENSORPROD, OP-44): a
+    clear error, raised before any computation, even with arguments that planar statistics refuse
     (``scale_cosine`` without ``iso``)."""
     with pytest.raises(ValueError, match=r"OP-44.*LF26"):
         _two_channels().reduce(**{reduction: True})
@@ -376,7 +380,7 @@ def test_save_and_load_round_trip(tmp_path: Path) -> None:
 
 def test_reference_of_other_tensor_prod_data_is_accepted() -> None:
     """A reference from another tensor product with the same blocks, J, L, low-pass flags and
-    channels is accepted, whatever its sizes and periodicity (maths.md M-NORM-TP); a planar
+    channels is accepted, whatever its sizes and periodicity (maths.md M-NORM-TENSORPROD); a planar
     reference is refused on a tensor product, and the reference of a tensor product on planar
     statistics."""
     reference = _two_channels()._reference
@@ -417,7 +421,7 @@ def test_reference_of_other_tensor_prod_data_is_refused(
     J: list[int],  # noqa: N803 (maths.md notation)
 ) -> None:
     """A reference from a tensor product whose blocks, J or low-pass flags differ is refused
-    with an error naming what differs (maths.md M-NORM-TP; Part IV, R-Y03)."""
+    with an error naming what differs (maths.md M-NORM-TENSORPROD; Part IV, R-Y03)."""
     reference = _two_channels()._reference
     assert reference is not None
     plan = _plan(np.zeros((2, 2, *shape)), blocks, [True, True], J)

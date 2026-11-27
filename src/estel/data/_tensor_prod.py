@@ -1,5 +1,5 @@
-"""Tensor products of planar geometries: ``DataTensorProd`` (Part II, §12.4; maths.md M-NOT-TP,
-M-DATA-TP).
+"""Tensor products of planar geometries: ``DataTensorProd`` (Part II, §12.4; maths.md
+M-NOT-TENSORPROD, M-DATA-TENSORPROD).
 
 A tensor-product field is one array whose spatial axes are those of its blocks, in block order:
 ``(Nb, Nc, *N⁽⁰⁾, …, *N⁽ᴮ⁻¹⁾)``, for example ``[Data2D, Data1D]`` for space and time. The
@@ -43,7 +43,7 @@ class BlockSpecTensorProd(NamedTuple):
 
 
 class DataTensorProd(Data):
-    """A tensor product of planar geometries, one array (maths.md M-DATA-TP).
+    """A tensor product of planar geometries, one array (maths.md M-DATA-TENSORPROD).
 
     Parameters
     ----------
@@ -178,8 +178,8 @@ class DataTensorProd(Data):
     # ``level`` of that block, and dispatches to the geometry of the block, along its axes.
 
     def _conv(self, x: Any, tables: Any, level: int, *, block: int | None = None) -> Any:
-        """The block convolution ⋆_a of maths.md M-NOT-TP, a = ``block``: the filtering of the
-        geometry of block a (M-CONV-2D, or its 1D form), with the padding of that block, along
+        """The block convolution ⋆_a of maths.md M-NOT-TENSORPROD, a = ``block``: the filtering of
+        the geometry of block a (M-CONV, or its 1D form), with the padding of that block, along
         the axes of that block only; ``tables`` are the wavelet bank of block a, and ``level``
         its level, which the planar kernels do not depend on.
 
@@ -202,7 +202,7 @@ class DataTensorProd(Data):
         self, x: Any, weights: DownsampleWeights, level: int, *, block: int | None = None
     ) -> Any:
         """One downsampling step along block a = ``block``, from ``level`` to ``level + 1`` of
-        that block (maths.md M-DOWN along the axes of block a, M-NOT-TP): the other axes are
+        that block (maths.md M-DOWN along the axes of block a, M-NOT-TENSORPROD): the other axes are
         carried through. ``weights`` holds the smoothing kernel of block a; tensor products
         have no missing values, so no maps (LF8)."""
         spec = self._spec(block, "_downsample")
@@ -226,7 +226,7 @@ class DataTensorProd(Data):
         self, level: int, border: int, *, block: int | None = None
     ) -> NDArray[np.float64]:
         """The border crop of block a = ``block`` at its level ``level`` (maths.md
-        M-BORDER-TP): a NumPy float64 array of the shape of block a at that level, 0 on
+        M-BORDER-TENSORPROD): a NumPy float64 array of the shape of block a at that level, 0 on
         ``border`` pixels at both ends of each of its axes, reduced as in M-BORDER when too
         large for the block (OP-13). The crop of the field is the outer product of those of its
         blocks."""
@@ -243,7 +243,7 @@ class DataTensorProd(Data):
         if block is None:
             raise TypeError(
                 f"DataTensorProd.{hook} acts on one block at a time: pass block=a, with "
-                f"0 ≤ a < {n} (maths.md M-NOT-TP)."
+                f"0 ≤ a < {n} (maths.md M-NOT-TENSORPROD)."
             )
         if isinstance(block, bool) or not isinstance(block, int | np.integer):
             raise TypeError(f"DataTensorProd.{hook}(block={block!r}): pass an int, 0 ≤ a < {n}.")
@@ -280,7 +280,7 @@ def _check_blocks(blocks: object) -> tuple[type[DataCartesian], ...]:
     if isinstance(blocks, str) or not isinstance(blocks, Sequence):
         raise TypeError(
             f"DataTensorProd(blocks={blocks!r}): pass the geometries of the blocks as a list, "
-            f"{example} (maths.md M-DATA-TP)."
+            f"{example} (maths.md M-DATA-TENSORPROD)."
         )
     if not blocks:
         raise ValueError(f"DataTensorProd(blocks=[]): pass at least one block, {example}.")
@@ -296,8 +296,8 @@ def _check_blocks(blocks: object) -> tuple[type[DataCartesian], ...]:
         if not accepted:
             raise TypeError(
                 f"DataTensorProd: block {index} is {block!r}; each block is the class "
-                "estel.Data2D or estel.Data1D, not an instance (maths.md M-DATA-TP). HEALPix "
-                f"blocks come later (LF9). Pass the classes, {example}."
+                "estel.Data2D or estel.Data1D, not an instance (maths.md M-DATA-TENSORPROD). "
+                f"HEALPix blocks come later (LF9). Pass the classes, {example}."
             )
     return tuple(blocks)
 

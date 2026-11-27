@@ -1,9 +1,9 @@
 """``STOperator`` on HEALPix data (task T5.6, issue #167; Part II, §12.6, §12.7; maths.md §4
-"Scattering loop", M-DATA-HPX, M-DEF-HPX, OP-3).
+"Scattering loop", M-DATA-HEALPIX, M-DEF-HEALPIX, OP-3).
 
 Values are compared with STL in ``tests/parity/test_healpix_statistics.py`` and with the oracle
 in ``tests/spec/test_healpix_scattering.py``. These tests run on the run's backend and dtype, at
-``nside`` 2 to 8, and check what parity does not: the defaults of M-DEF-HPX, the power spectrum
+``nside`` 2 to 8, and check what parity does not: the defaults of M-DEF-HEALPIX, the power spectrum
 left out and refused with LF24 (decision 2 on #167), the data ``apply`` refuses (another partial
 sky of the same size: decision 4), the advice of the OP-3 messages, the statistics through a
 file and back to their operator (decision 5), and, for task T5.7, the stencils gathered by
@@ -28,7 +28,7 @@ from estel.functional import _scattering
 from estel.io import _schema
 from estel.wavelets import _operator_healpix
 
-pytestmark = pytest.mark.maths("M-DATA-HPX", "M-DEF-HPX", "M-MEAN")
+pytestmark = pytest.mark.maths("M-DATA-HEALPIX", "M-DEF-HEALPIX", "M-MEAN")
 DISC = np.arange(40, 150)
 """A partial sky of ``nside`` 4 (depth 2) across the north cap and the equatorial faces."""
 
@@ -58,14 +58,15 @@ def _operator(data: DataHealpix, J: int | None, **kwargs: Any) -> STOperator:  #
 
 @pytest.mark.parametrize(("depth", "n_scales"), [(1, 1), (2, 1), (3, 2)])
 def test_defaults_follow_m_def_healpix(depth: int, n_scales: int) -> None:
-    """J = max(1, depth - 1) and L = 4 gauges (M-DEF-HPX), on the full sky."""
+    """J = max(1, depth - 1) and L = 4 gauges (M-DEF-HEALPIX), on the full sky."""
     operator = _operator(DataHealpix(_field((12 * 4**depth,))), None)
     assert n_scales == operator.J
     assert operator.L == 4
 
 
 def test_defaults_on_a_partial_sky() -> None:
-    """The defaults of M-DEF-HPX follow the depth, not the number of pixels, on a partial sky."""
+    """The defaults of M-DEF-HEALPIX follow the depth, not the number of pixels, on a partial
+    sky."""
     operator = _operator(DataHealpix(_field((DISC.size,)), depth=2, cell_ids=DISC), None)
     assert (operator.J, operator.L) == (1, 4)
     assert "pbc=False" in repr(operator)

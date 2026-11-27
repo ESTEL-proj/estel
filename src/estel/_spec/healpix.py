@@ -22,10 +22,10 @@ pixels. healpy is a test-only cross-check (Part I, §1.5), never imported here.
   ``cell_ids``, the NESTED indices of its pixels in ascending order (the full sky when every
   pixel is there).
 - A mask is a boolean array of shape ``(Npix,)``, True where a pixel is invalid, or ``None``.
-  The data hold NaN at their missing pixels (M-DATA-HPX); the scattering sets them to 0 before
+  The data hold NaN at their missing pixels (M-DATA-HEALPIX); the scattering sets them to 0 before
   the first convolution, and every invalid pixel of a later level holds 0 too: the masks are
   weights, and an interpolation weight of rounding size, below the support threshold of
-  M-MASK-HPX, reads a 0 rather than a NaN (OP-102).
+  M-MASK-HEALPIX, reads a 0 rather than a NaN (OP-102).
 - Angles are colatitude θ ∈ [0, π] and longitude φ ∈ [0, 2π), on the unit sphere: the oracle
   computes on the sphere only (OP-45).
 - The statistics are STL's full grids, as in ``common.py``.
@@ -51,20 +51,20 @@ Mask = NDArray[np.bool_] | None
 Statistics = dict[str, Any]
 
 KERNEL_SIZE = 5
-"""K, the size of the stencil (M-CONV-HPX, M-DEF-HPX)."""
+"""K, the size of the stencil (M-CONV-HEALPIX, M-DEF-HEALPIX)."""
 N_GAUGES = 4
-"""L, the default number of gauges (M-DEF-HPX)."""
+"""L, the default number of gauges (M-DEF-HEALPIX)."""
 NAN_THRESHOLD = 0.33
-"""τ, above which a decimated pixel is invalid (M-DOWN-HPX, M-DEF-HPX)."""
+"""τ, above which a decimated pixel is invalid (M-DOWN-HEALPIX, M-DEF-HEALPIX)."""
 SUPPORT_THRESHOLD = 1e-12
-"""Above it, a pixel's support touches an invalid pixel (M-MASK-HPX); below it, an
-interpolation weight counts as absent on a partial sky (M-CONV-HPX, OP-110)."""
+"""Above it, a pixel's support touches an invalid pixel (M-MASK-HEALPIX); below it, an
+interpolation weight counts as absent on a partial sky (M-CONV-HEALPIX, OP-110)."""
 REWEIGHT_FLOOR = 1e-8
-"""The floor of 1 - f in the reweighting maps (M-MASK-HPX)."""
+"""The floor of 1 - f in the reweighting maps (M-MASK-HEALPIX)."""
 DECIMATION_RADIUS = 3.0
-"""rho, the radius of the decimation, in fine pixel sizes (M-DOWN-HPX)."""
+"""rho, the radius of the decimation, in fine pixel sizes (M-DOWN-HEALPIX)."""
 DECIMATION_WIDTH = 0.5
-"""sigma / rho, the width of the Gaussian of the decimation (M-DOWN-HPX)."""
+"""sigma / rho, the width of the Gaussian of the decimation (M-DOWN-HEALPIX)."""
 GAUGES = ("cosmo",)
 """The gauges of the oracle: ``"cosmo"``, the default and the only one ESTEL transfers."""
 
@@ -78,7 +78,7 @@ FACE_LONGITUDE = np.array([1, 3, 5, 7, 0, 2, 4, 6, 1, 3, 5, 7])
 def _check_nside(nside: int) -> int:
     n = int(nside)
     if n < 1 or n & (n - 1):
-        raise ValueError(f"nside={nside!r}: pass a power of 2 (M-DATA-HPX).")
+        raise ValueError(f"nside={nside!r}: pass a power of 2 (M-DATA-HEALPIX).")
     return n
 
 
@@ -123,8 +123,8 @@ def _nested_geometry(nside: int) -> tuple[Array, Array, Array]:
 
 def spec_pixel_centres(nside: int, cell_ids: Any = None) -> tuple[Array, Array]:
     """The colatitude θ and longitude φ of the centres of the NESTED pixels ``cell_ids`` (every
-    pixel by default) of ``nside``. Implements M-DATA-HPX (the NESTED ordering) and the pixel
-    centres of M-CONV-HPX, on the sphere (OP-45).
+    pixel by default) of ``nside``. Implements M-DATA-HEALPIX (the NESTED ordering) and the pixel
+    centres of M-CONV-HEALPIX, on the sphere (OP-45).
 
     The published HEALPix geometry (Górski et al. 2005): pixel p lies on the base face
     f = ⌊p / nside²⌋, at the coordinates (x, y) whose bits interleave to p mod nside² (x on the
@@ -170,7 +170,7 @@ def _ring_table(nside: int) -> tuple[Array, Array, Array, Array]:
 def spec_rings(nside: int) -> tuple[Array, Array]:
     """The rings of ``nside``, from north to south: their colatitudes ``(4 nside - 1,)`` and, for
     each, its NESTED pixels in increasing longitude, ``(4 nside - 1, 4 nside)`` padded with -1.
-    Implements the ring geometry of M-CONV-HPX, step 3.
+    Implements the ring geometry of M-CONV-HEALPIX, step 3.
 
     The order of the pixels along the rings, ring after ring, is HEALPix's RING ordering.
     """
@@ -184,7 +184,7 @@ def spec_rings(nside: int) -> tuple[Array, Array]:
 def spec_interp_weights(nside: int, theta: Any, phi: Any) -> tuple[Array, Array]:
     """The bilinear interpolation of the 4 nearest pixels at the points ``(θ, φ)``: their NESTED
     indices and their weights, ``(4, *shape)`` each, the weights summing to 1. Implements
-    M-CONV-HPX, step 3.
+    M-CONV-HEALPIX, step 3.
 
     The rings are those of ``spec_rings``, ring r at colatitude θ_r holding N_r pixels at the
     longitudes φ_r + 2πk/N_r. On a ring, the point reads the two pixels whose longitudes enclose
@@ -247,7 +247,7 @@ def spec_interp_weights(nside: int, theta: Any, phi: Any) -> tuple[Array, Array]
 def spec_stencil(nside: int, K: int = KERNEL_SIZE) -> tuple[Array, Array]:  # noqa: N803
     """The K x K stencil around the North Pole: the colatitude and the azimuth of its points,
     ``(K²,)`` each, in the flattened order p = (v + K//2) K + (u + K//2). Implements
-    M-CONV-HPX, step 1.
+    M-CONV-HEALPIX, step 1.
 
     The point of offsets (u, v) ∈ {-K//2, …, K//2}² is at colatitude √(u² + v²) alpha and azimuth
     atan2(v, u), with alpha = √(4π / (12 nside²)) the mean pixel size at ``nside``.
@@ -262,13 +262,15 @@ def spec_stencil(nside: int, K: int = KERNEL_SIZE) -> tuple[Array, Array]:  # no
 
 def spec_gauge_angles(theta: Any, phi: Any, L: int, gauge: str = "cosmo") -> Array:  # noqa: N803
     """The angle alpha_g of each gauge g = 0 … L-1 at the pixels ``(θ, φ)``, ``(L, *shape)``.
-    Implements the gauges of M-CONV-HPX, step 2 (OP-47).
+    Implements the gauges of M-CONV-HEALPIX, step 2 (OP-47).
 
     alpha_g = alpha_base + s π g / L. Gauge ``"cosmo"``: alpha_base = -φ and s = +1 in the northern
     hemisphere, θ ≤ π/2 (the equator included); alpha_base = +φ and s = -1 in the southern one.
     """
     if gauge not in GAUGES:
-        raise ValueError(f"gauge={gauge!r}: the oracle has the gauge 'cosmo' only (M-CONV-HPX).")
+        raise ValueError(
+            f"gauge={gauge!r}: the oracle has the gauge 'cosmo' only (M-CONV-HEALPIX)."
+        )
     theta = np.asarray(theta, dtype=np.float64)
     phi = np.asarray(phi, dtype=np.float64)
     northern = theta <= math.pi / 2
@@ -279,7 +281,7 @@ def spec_gauge_angles(theta: Any, phi: Any, L: int, gauge: str = "cosmo") -> Arr
 
 def spec_rotation(theta: Any, phi: Any, alpha: Any) -> Array:
     """The rotation R = R_gauge(alpha) · R_z(φ) · R_y(θ) that carries the stencil to the pixel
-    ``(θ, φ)`` in the gauge of angle alpha, ``(*shape, 3, 3)``. Implements M-CONV-HPX, step 2.
+    ``(θ, φ)`` in the gauge of angle alpha, ``(*shape, 3, 3)``. Implements M-CONV-HEALPIX, step 2.
 
     R_y(θ) and R_z(φ) are the rotations about the y and z axes; R_z R_y carries the North Pole
     to the pixel's direction n, the x axis (u) onto e_θ and the y axis (v) onto e_φ.
@@ -331,14 +333,16 @@ def _as_cell_ids(nside: int, cell_ids: Any) -> Array:
         return np.arange(12 * nside * nside, dtype=np.int64)
     ids = np.asarray(cell_ids)
     if ids.ndim != 1 or ids.size == 0:
-        raise ValueError("cell_ids must be a non-empty 1D array of NESTED indices (M-DATA-HPX).")
+        raise ValueError(
+            "cell_ids must be a non-empty 1D array of NESTED indices (M-DATA-HEALPIX)."
+        )
     if np.issubdtype(ids.dtype, np.floating) and not np.array_equal(ids, np.round(ids)):
-        raise ValueError("cell_ids must be integers (M-DATA-HPX).")
+        raise ValueError("cell_ids must be integers (M-DATA-HEALPIX).")
     out = ids.astype(np.int64)
     if np.any(np.diff(out) <= 0):
         raise ValueError(
-            "cell_ids must be strictly increasing (M-DATA-HPX, OP-90): sort the pixels, and the "
-            "data with them."
+            "cell_ids must be strictly increasing (M-DATA-HEALPIX, OP-90): sort the pixels, and "
+            "the data with them."
         )
     if out[0] < 0 or out[-1] >= 12 * nside * nside:
         raise ValueError(f"cell_ids must lie in [0, 12 nside²) = [0, {12 * nside * nside}).")
@@ -353,7 +357,7 @@ def spec_stencil_points(
 ) -> tuple[Array, Array]:
     """The colatitude and the longitude of the stencil points carried to each pixel of
     ``cell_ids`` (the full sky by default) in each gauge, ``(L, Npix, K²)`` each. Implements
-    M-CONV-HPX, steps 1 and 2.
+    M-CONV-HEALPIX, steps 1 and 2.
 
     The stencil (``spec_stencil``) is carried to each pixel by ``spec_rotation``, with the angles
     of ``spec_gauge_angles``.
@@ -386,7 +390,7 @@ def spec_conv_tables(
     """The interpolation tables of the convolution on the pixels ``cell_ids`` (the full sky by
     default) of ``nside``: for each gauge g, pixel k, stencil point p and neighbour i, the
     position in ``cell_ids`` of the pixel read and its weight, ``(L, Npix, K², 4)`` each.
-    Implements M-CONV-HPX, steps 1 to 3, with its partial-sky rule (OP-50, OP-110).
+    Implements M-CONV-HEALPIX, steps 1 to 3, with its partial-sky rule (OP-50, OP-110).
 
     Each stencil point of ``spec_stencil_points`` is interpolated by ``spec_interp_weights``.
     **Partial sky:** a neighbour that is not in ``cell_ids``, or whose weight is below 10⁻¹², is
@@ -408,14 +412,14 @@ def spec_conv_tables(
         kept = np.where(empty, 0.0, kept / kept.sum(axis=-1, keepdims=True))
     centre = (K * K) // 2  # the point (0, 0)
     if np.any(empty[..., centre, :]):
-        raise ValueError("a stencil centre reads no pixel of cell_ids (M-CONV-HPX).")
+        raise ValueError("a stencil centre reads no pixel of cell_ids (M-CONV-HEALPIX).")
     index = np.where(empty, position[..., centre : centre + 1, :], position)
     weight = np.where(empty, kept[..., centre : centre + 1, :], kept)
     return index, weight
 
 
 def spec_wavelet_healpix(K: int = KERNEL_SIZE) -> Array:  # noqa: N803
-    """The HEALPix wavelet on the flattened stencil, ``(K²,)``, complex. Implements M-WAV-HPX.
+    """The HEALPix wavelet on the flattened stencil, ``(K²,)``, complex. Implements M-WAV-HEALPIX.
 
     ψ[u, v] = exp(-(u² + v²)/2) exp(iπu/2) on the offsets of the stencil, u along its second
     axis; then the mean is subtracted, and the kernel is divided by Σ|ψ|, taken after the
@@ -431,7 +435,7 @@ def spec_wavelet_healpix(K: int = KERNEL_SIZE) -> Array:  # noqa: N803
 
 def spec_conv_healpix(x: Array, tables: tuple[Array, Array], kernel: Array) -> Array:
     """The convolution of ``x``, ``(..., Npix)``, real: ``(..., L, Npix)``, complex. Implements
-    M-CONV-HPX, step 4.
+    M-CONV-HEALPIX, step 4.
 
     y[g, k] = Σ_p W[p] Σ_i w[g, k, p, i] x[n[g, k, p, i]], with (n, w) the tables of
     ``spec_conv_tables`` and W the kernel; no bias. The stencil turns with the gauge, the kernel
@@ -445,7 +449,7 @@ def spec_conv_healpix(x: Array, tables: tuple[Array, Array], kernel: Array) -> A
 
 def spec_support_healpix(invalid: Mask, tables: tuple[Array, Array]) -> Mask:
     """The invalid pixels of data convolved on this geometry, from those of its input.
-    Implements M-MASK-HPX (the support of a layer).
+    Implements M-MASK-HEALPIX (the support of a layer).
 
     A pixel is invalid if the convolution of the invalid 0/1 map with a kernel of ones over the
     stencil is above 10⁻¹² for at least one gauge.
@@ -464,7 +468,7 @@ def spec_support_healpix(invalid: Mask, tables: tuple[Array, Array]) -> Mask:
 def spec_decimation_healpix(nside: int, cell_ids: Any = None) -> tuple[Array, Array]:
     """One step of the decimation, from the pixels ``cell_ids`` of ``nside`` (the full sky by
     default) to their parents at ``nside / 2``: the matrix ``(Ncoarse, Nfine)`` and the coarse
-    ``cell_ids``. Implements M-DOWN-HPX.
+    ``cell_ids``. Implements M-DOWN-HEALPIX.
 
     The coarse pixels are the NESTED parents ⌊n / 4⌋ of the fine ones, in ascending order. Row
     n₀ holds e^(-gamma²/2sigma²) for every fine pixel of ``cell_ids`` whose centre is within rho
@@ -475,7 +479,7 @@ def spec_decimation_healpix(nside: int, cell_ids: Any = None) -> tuple[Array, Ar
     """
     nside = _check_nside(nside)
     if nside < 2:
-        raise ValueError("nside 1 has no coarser level (M-DOWN-HPX).")
+        raise ValueError("nside 1 has no coarser level (M-DOWN-HEALPIX).")
     ids = _as_cell_ids(nside, cell_ids)
     coarse = np.unique(ids // 4)
     rho = DECIMATION_RADIUS * math.sqrt(4.0 * math.pi / (12.0 * nside * nside))
@@ -498,15 +502,15 @@ def spec_decimation_healpix(nside: int, cell_ids: Any = None) -> tuple[Array, Ar
 
 def spec_reweighting_healpix(fraction: Array, invalid: NDArray[np.bool_]) -> Array:
     """The reweighting map of a decimated level: 1 / (1 - f), with 1 - f not below 10⁻⁸, and 0
-    on the invalid pixels. Implements M-MASK-HPX (the reweighting maps)."""
+    on the invalid pixels. Implements M-MASK-HEALPIX (the reweighting maps)."""
     out: Array = np.where(invalid, 0.0, 1.0 / np.maximum(1.0 - fraction, REWEIGHT_FLOOR))
     return out
 
 
 def spec_downsample_healpix(x: Array, matrix: Array, invalid: Mask = None) -> tuple[Array, Mask]:
     """One decimation step of ``x``, ``(..., Nfine)``, with the matrix of
-    ``spec_decimation_healpix``: the result and its invalid pixels. Implements M-DOWN-HPX, and
-    M-DOWN-MASK with this step (M-MASK-HPX).
+    ``spec_decimation_healpix``: the result and its invalid pixels. Implements M-DOWN-HEALPIX, and
+    M-DOWN-MASK with this step (M-MASK-HEALPIX).
 
     Without a mask, ``x @ matrixᵀ``; a complex array is decimated part by part, which this
     linear map does. With one, the invalid pixels are set to 0, the step is applied, and the
@@ -526,7 +530,7 @@ def spec_downsample_healpix(x: Array, matrix: Array, invalid: Mask = None) -> tu
 
 
 def spec_defaults_healpix(nside: int) -> dict[str, Any]:
-    """The default parameters for HEALPix data of ``nside``. Implements M-DEF-HPX.
+    """The default parameters for HEALPix data of ``nside``. Implements M-DEF-HEALPIX.
 
     The sphere (OP-45) and the tables in float64 (OP-46) are ESTEL's decisions, not STL's
     defaults; the angular spectrum is unavailable (LF24).
@@ -557,7 +561,7 @@ def spec_data_healpix(
     mask: Any = None,
 ) -> tuple[Array, Mask, int, Array]:
     """The array promoted to ``(Nb, Nc, Npix)`` in float64, with NaN at its missing pixels, its
-    mask, its ``nside`` and its ``cell_ids``. Implements M-DATA-HPX.
+    mask, its ``nside`` and its ``cell_ids``. Implements M-DATA-HEALPIX.
 
     A 1D array is one map, ``(1, 1, Npix)``; a 2D array ``(Nc, Npix)``. On a full sky
     (``cell_ids`` not given), ``nside`` is read from Npix = 12 nside²; with ``cell_ids``, the
@@ -567,7 +571,7 @@ def spec_data_healpix(
     """
     x = np.asarray(array)
     if np.iscomplexobj(x):
-        raise ValueError("the data must be real (M-DATA-HPX); pass a real array.")
+        raise ValueError("the data must be real (M-DATA-HEALPIX); pass a real array.")
     if not 1 <= x.ndim <= 3:
         raise ValueError(
             f"the array has {x.ndim} axes; pass (Npix,), (Nc, Npix) or (Nb, Nc, Npix)."
@@ -579,13 +583,13 @@ def spec_data_healpix(
         if 12 * n * n != npix or n & (n - 1):
             raise ValueError(
                 f"{npix} pixels are not a full sky 12 nside² with nside a power of 2 "
-                "(M-DATA-HPX); pass nside and cell_ids for a partial sky."
+                "(M-DATA-HEALPIX); pass nside and cell_ids for a partial sky."
             )
         if nside is not None and nside != n:
             raise ValueError(f"nside={nside} but {npix} pixels are a full sky of nside {n}.")
         nside = n
     elif nside is None:
-        raise ValueError("cell_ids needs nside (M-DATA-HPX, OP-91); pass nside.")
+        raise ValueError("cell_ids needs nside (M-DATA-HEALPIX, OP-91); pass nside.")
     nside = _check_nside(nside)
     ids = _as_cell_ids(nside, cell_ids)
     if ids.size != npix:
@@ -596,8 +600,8 @@ def spec_data_healpix(
             return x, None, nside, ids
         if x.shape[0] * x.shape[1] != 1:
             raise ValueError(
-                "the mask is read from the NaN of a single map only (M-DATA-HPX); pass the mask "
-                "explicitly."
+                "the mask is read from the NaN of a single map only (M-DATA-HEALPIX); pass the "
+                "mask explicitly."
             )
         invalid = nan.reshape(npix)
     else:
@@ -605,7 +609,7 @@ def spec_data_healpix(
         if invalid.shape != (npix,):
             raise ValueError(
                 f"the mask has shape {invalid.shape}; pass one map ({npix},), shared by every "
-                "batch element and channel (M-DATA-HPX)."
+                "batch element and channel (M-DATA-HEALPIX)."
             )
     return np.where(invalid, np.nan, x), invalid, nside, ids
 
@@ -643,8 +647,9 @@ def spec_levels_healpix(
 ) -> tuple[dict[str, Any], ...]:
     """The geometry of the levels d = 0 … J-1: for each, its ``nside`` (``nside / 2^d``), its
     ``cell_ids``, its convolution tables (``"conv"``) and, but for the last, its decimation
-    matrix to the next level (``"down"``). Implements the levels of M-DATA-HPX and M-DOWN-HPX
-    ("several levels are reached by repeating the step"). Read-only, built once per geometry.
+    matrix to the next level (``"down"``). Implements the levels of M-DATA-HEALPIX and
+    M-DOWN-HEALPIX ("several levels are reached by repeating the step"). Read-only, built once per
+    geometry.
     """
     nside = _check_nside(nside)
     if J < 1 or nside < 2 ** (J - 1):
@@ -655,7 +660,7 @@ def spec_levels_healpix(
 
 def spec_masks_healpix(levels: tuple[dict[str, Any], ...], invalid: Mask) -> dict[str, Any]:
     """The static masks and reweighting maps of the scattering, on the pixels of their level.
-    Implements M-MASK-HPX, with M-MASK.
+    Implements M-MASK-HEALPIX, with M-MASK.
 
     - ``"field"[d]``: layer 0 at level d, decimated with τ; ``"reweight_field"[d]``, d ≥ 1;
     - ``"layer1"[j]``: the support of layer 0 at level j;
@@ -713,9 +718,9 @@ def spec_scattering_healpix(
 ) -> Statistics:
     """The scattering statistics S1 to S4 of ``x``, ``(Nb, Nc, Npix)`` on the pixels
     ``cell_ids`` of ``nside``, with its ``invalid`` pixels, in STL's full grids. Implements
-    M-MASK-HPX (masks, covariances, no border), with the loop of section 1 (§4, "Scattering
-    loop"): M-W1, M-S1 to M-S4 and M-CHAN, on the convolution of M-CONV-HPX with the wavelet of
-    M-WAV-HPX and the decimation of M-DOWN-HPX.
+    M-MASK-HEALPIX (masks, covariances, no border), with the loop of section 1 (§4, "Scattering
+    loop"): M-W1, M-S1 to M-S4 and M-CHAN, on the convolution of M-CONV-HEALPIX with the wavelet of
+    M-WAV-HEALPIX and the decimation of M-DOWN-HEALPIX.
 
     As in ``cartesian.spec_scattering``, with one pixel axis and no border: every mean is taken at
     the level of its arguments, over the pixels left by the union of their two masks. The
@@ -728,7 +733,7 @@ def spec_scattering_healpix(
     masks = spec_masks_healpix(levels, invalid)
     kernel = spec_wavelet_healpix(K)
 
-    # Layer 0: the field at each level (M-DOWN-HPX, M-DOWN-MASK).
+    # Layer 0: the field at each level (M-DOWN-HEALPIX, M-DOWN-MASK).
     field = [x if invalid is None else np.where(invalid, 0.0, x)]
     for d in range(1, J):
         field.append(
@@ -822,9 +827,9 @@ def spec_apply_healpix(
     flatten: bool = False,
 ) -> Statistics:
     """The statistics of HEALPix data: the whole of ``apply``, in the order of section 1.
-    Implements M-DATA-HPX and M-DEF-HPX, with M-ORDER.
+    Implements M-DATA-HEALPIX and M-DEF-HEALPIX, with M-ORDER.
 
-    1. promotion to ``(Nb, Nc, Npix)``, ``nside`` and ``cell_ids`` (M-DATA-HPX);
+    1. promotion to ``(Nb, Nc, Npix)``, ``nside`` and ``cell_ids`` (M-DATA-HEALPIX);
     2. standardisation, if asked (M-STD);
     3. ``mean`` and ``var``, the plain means over the valid pixels (M-MOM);
     4. the scattering statistics S1 to S4 (``spec_scattering_healpix``);
@@ -833,8 +838,8 @@ def spec_apply_healpix(
     6. the reductions asked for, in the order ``iso``, ``angular_fourier``, ``scale_cosine``;
     7. the flattening, if asked (M-FLAT), in its real form, under ``"vector"``.
 
-    J and L default to M-DEF-HPX; ``standardize`` is True by default (M-DEF-HPX, OP-120). There
-    is no spectrum (LF24).
+    J and L default to M-DEF-HEALPIX; ``standardize`` is True by default (M-DEF-HEALPIX, OP-120).
+    There is no spectrum (LF24).
     """
     x, invalid, nside, ids = spec_data_healpix(array, nside, cell_ids, mask)  # 1
     defaults = spec_defaults_healpix(nside)

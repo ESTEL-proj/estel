@@ -206,7 +206,7 @@ class STStatistics:
         on demand from the compact storage (Part III, §19.5).
 
         On the statistics of a tensor product, each scale and orientation axis is one axis per
-        block (maths.md M-S-TP), and a view over 2 GiB, batch included, is refused: read the
+        block (maths.md M-S-TENSORPROD), and a view over 2 GiB, batch included, is refused: read the
         statistics with ``to_vector``, or ``select`` a family and channels first.
         """
         grid = self._grid(family)
@@ -283,7 +283,7 @@ class STStatistics:
                     "channel=(a, b), and c for mean and var); naming the scale and orientation "
                     "axes of the blocks comes later (LF44). Until then, use full_grid on a small "
                     "case: one scale axis and one orientation axis per block, in block order "
-                    "(maths.md M-S-TP), or to_vector."
+                    "(maths.md M-S-TENSORPROD), or to_vector."
                 )
 
         def named(grid: FamilyGrid) -> tuple[str, ...]:
@@ -422,9 +422,9 @@ class STStatistics:
             raise ValueError(
                 "reduce(): the reductions iso, angular_fourier and scale_cosine are written for "
                 "one scale and one orientation axis per layer, and are not defined on the "
-                "statistics of a tensor product in ESTEL 1.0.0 (maths.md M-NORM-TP, OP-44); "
-                "their definition on products is LF26. Use the statistics as they are, with "
-                "to_vector or select."
+                "statistics of a tensor product in ESTEL 1.0.0 (maths.md M-NORM-TENSORPROD, "
+                "OP-44); their definition on products is LF26. Use the statistics as they are, "
+                "with to_vector or select."
             )
         state = self._reductions
         if state != _NO_REDUCTION:
@@ -1118,8 +1118,8 @@ def statistics_of(
     ref_batch_mean: bool = False,
 ) -> STStatistics:
     """The statistics of a raw buffer, ``(Nb, n_floats)`` in the layout of the loop of ``plan``,
-    normalised by ``norm`` and ``ref_batch_mean`` (maths.md M-NORM, M-NORM-TP), from a buffer
-    made outside the loop: its arguments checked, the ``norm="ref"`` reference among them
+    normalised by ``norm`` and ``ref_batch_mean`` (maths.md M-NORM, M-NORM-TENSORPROD), from a
+    buffer made outside the loop: its arguments checked, the ``norm="ref"`` reference among them
     (``STPlan._check_reference``), then :func:`finish`. ``estel.functional.scattering`` checks
     the reference before its loop and calls :func:`finish` itself."""
     backend_name = _registry.backend_of(buffer)
@@ -1154,7 +1154,7 @@ def finish(
 ) -> STStatistics:
     """The one path after the loop, for planar data and for tensor products (issue #23,
     "Decisions of the maintainer for T3.2", point 4): the statistics of the raw buffer of the
-    loop of ``plan``, normalised by ``norm`` (M-NORM, M-NORM-TP), which they record with
+    loop of ``plan``, normalised by ``norm`` (M-NORM, M-NORM-TENSORPROD), which they record with
     ``ref_batch_mean``. With ``norm="self"`` the reference is computed from the buffer, averaged
     over the batch with ``ref_batch_mean``, and gradients flow through it; with ``norm="ref"``,
     ``reference``, already checked against the plan (``STPlan._check_reference``), is made a

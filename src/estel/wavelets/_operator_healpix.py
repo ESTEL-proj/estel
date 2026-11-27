@@ -10,11 +10,11 @@ call sites; ``build_wavelet_plan`` chooses the plan once, when it is built.
 
 **What is static, and where** (issue #166, decisions 2 and 7). The plan holds only what is small
 and static: the depth and the ``cell_ids`` of the data, the levels and their numbers of pixels,
-and the masks and reweighting maps of M-MASK-HPX (one family for the field and one per scale of
+and the masks and reweighting maps of M-MASK-HEALPIX (one family for the field and one per scale of
 the first layer, as M-DOWN-MASK). The tables of T5.1 (``stencils_healpix``,
 ``decimation_healpix``) are built in NumPy float64 when the filters are built, one set per level,
 cast at once to the operator's dtype (indices int32), and the float64 arrays are dropped: at
-``nside`` 128 the stencils of one level take 900 MiB in float64 (#168). The kernel of M-WAV-HPX
+``nside`` 128 the stencils of one level take 900 MiB in float64 (#168). The kernel of M-WAV-HEALPIX
 is folded into the stencils (:func:`_fold_kernel`; task T5.7): each row reads its distinct
 pixels once, as real pairs. With missing values the
 plan builds them first, for the support test and the decimated fractions of the masks, and
@@ -23,8 +23,8 @@ constructor of the operator passes them to the builder of its filters, which rea
 of building them again, so the tables of a level are built once in an operator. The plan holds
 none of them, and nothing is shared between operators.
 
-**The rules of HEALPix** (maths.md M-MASK-HPX, M-DEF-HPX): no border (β = 0 on the full sky and
-on a partial sky, OP-50); the support of a pixel is what its interpolation reads, above 10⁻¹²
+**The rules of HEALPix** (maths.md M-MASK-HEALPIX, M-DEF-HEALPIX): no border (β = 0 on the full sky
+and on a partial sky, OP-50); the support of a pixel is what its interpolation reads, above 10⁻¹²
 for at least one gauge (OP-110); the reweighting 1 / (1 - f) with 1 - f not below 10⁻⁸;
 τ = 0.33; J = max(1, depth - 1) by default, at most depth + 1 (the last level of ``nside`` 1),
 L = 4 gauges, K = 5.
@@ -73,7 +73,7 @@ from ._tables_healpix import (
 )
 
 WAVELETS_HEALPIX = ("healpix",)
-"""The wavelets of HEALPix data in 1.0.0: the kernel of maths.md M-WAV-HPX, STL's
+"""The wavelets of HEALPix data in 1.0.0: the kernel of maths.md M-WAV-HEALPIX, STL's
 ``"HealpixWavelet"`` (and its ``"Morlet"``, which gives the same kernel)."""
 
 
@@ -90,12 +90,12 @@ class WaveletPlanHealpix(WaveletPlanSingleDomain):
     """The NESTED pixels of a partial sky, or ``None`` on the full sky."""
 
     def bank(self) -> NDArray[np.complex128]:
-        """The kernel of M-WAV-HPX on the flattened stencil, ``(K², )``, complex128: one kernel
+        """The kernel of M-WAV-HEALPIX on the flattened stencil, ``(K², )``, complex128: one kernel
         for every gauge and every level, the orientations being the gauges of the stencils."""
         return kernel_weights_healpix(kernel_size=self.kernel_size)
 
     def border(self, history: History, level: int) -> int:
-        """No border on HEALPix, on the full sky or a partial sky (M-MASK-HPX, OP-50)."""
+        """No border on HEALPix, on the full sky or a partial sky (M-MASK-HEALPIX, OP-50)."""
         return 0
 
     def level_cell_ids(self, level: int) -> NDArray[np.int64] | None:
@@ -159,7 +159,7 @@ _register_filters(WaveletFiltersHealpix)
 
 
 def default_scales_healpix(depth: int) -> int:
-    """J = max(1, ⌊log₂ nside⌋ - 1) = max(1, depth - 1) (maths.md M-DEF-HPX)."""
+    """J = max(1, ⌊log₂ nside⌋ - 1) = max(1, depth - 1) (maths.md M-DEF-HEALPIX)."""
     return max(1, depth - 1)
 
 
@@ -184,7 +184,7 @@ def build_wavelet_plan_with_tables_healpix(
     kernel_size: int,
 ) -> tuple[WaveletPlanHealpix, PlanTablesHealpix | None]:
     """The :class:`WaveletPlanHealpix` of ``data`` with ``J`` scales and ``L`` gauges: J by
-    default max(1, depth - 1), L = 4, K = 5 (maths.md M-DEF-HPX); its values are not read. With
+    default max(1, depth - 1), L = 4, K = 5 (maths.md M-DEF-HEALPIX); its values are not read. With
     missing values, also the tables its masks were built from (:class:`PlanTablesHealpix`),
     for the filters of the same operator; ``None`` without.
 
@@ -196,7 +196,7 @@ def build_wavelet_plan_with_tables_healpix(
     if wavelet not in (None, *WAVELETS_HEALPIX):
         raise ValueError(
             f"wavelet={wavelet!r}: DataHealpix accepts wavelet=None (the default, its wavelet) "
-            'or "healpix", the kernel of maths.md M-WAV-HPX, its only wavelet in ESTEL 1.0.0; '
+            'or "healpix", the kernel of maths.md M-WAV-HEALPIX, its only wavelet in ESTEL 1.0.0; '
             '"bump_steerable" is for 1D and 2D data. Pass None or "healpix".'
         )
     depth = _check_depth(data.depth)  # the int32 limit of the tables
@@ -237,20 +237,20 @@ def build_wavelet_plan_with_tables_healpix(
 
 
 def _check_scales_healpix(value: object, depth: int) -> int:
-    """J as an int, by default max(1, depth - 1) (M-DEF-HPX), in 1 … depth + 1."""
+    """J as an int, by default max(1, depth - 1) (M-DEF-HEALPIX), in 1 … depth + 1."""
     if value is None:
         return default_scales_healpix(depth)
     if isinstance(value, bool) or not isinstance(value, Integral):
         raise TypeError(
             f"J={value!r}: the number of scales is an integer ≥ 1, such as J=2, or None for its "
-            f"default max(1, depth - 1) = {default_scales_healpix(depth)} (maths.md M-DEF-HPX)."
+            f"default max(1, depth - 1) = {default_scales_healpix(depth)} (maths.md M-DEF-HEALPIX)."
         )
     n = int(value)
     if not 1 <= n <= depth + 1:
         raise ValueError(
             f"J={n}: a HEALPix map of depth {depth} (nside {1 << depth}) has the levels 0 … "
             f"{depth}, one per scale, the last of nside 1, so 1 ≤ J ≤ {depth + 1}. The default "
-            f"is max(1, depth - 1) = {default_scales_healpix(depth)} (maths.md M-DEF-HPX)."
+            f"is max(1, depth - 1) = {default_scales_healpix(depth)} (maths.md M-DEF-HEALPIX)."
         )
     return n
 
@@ -264,7 +264,7 @@ def _masks_healpix(
     size: int,
     pbc: bool,
 ) -> tuple[MaskMaps, PlanTablesHealpix]:
-    """The masks and reweighting maps of M-MASK-HPX, from the tables of each level, each built
+    """The masks and reweighting maps of M-MASK-HEALPIX, from the tables of each level, each built
     once, and those tables, for the filters of the operator (module docstring)."""
 
     def ids(level: int) -> NDArray[np.int64] | None:
@@ -388,7 +388,7 @@ def _fold_kernel(
     and ``weight`` of shape ``(L · Npix, 2, M)``, M the largest number of distinct pixels of a
     row, the rows padded with weight 0: the real part on the first entry of the second axis,
     the imaginary part on the second, the same pixels on both. ``gather_weighted`` then gives
-    the convolution as real pairs at once; the values change by rounding only (M-CONV-HPX).
+    the convolution as real pairs at once; the values change by rounding only (M-CONV-HEALPIX).
     The sums are made in float64, by batches of :data:`_FOLD_BATCH` rows, each stored in
     ``dtype``, the operator's, then joined: the weights are cast once."""
     rows, q, m = tables.index.shape

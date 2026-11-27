@@ -47,7 +47,7 @@ pytestmark = pytest.mark.maths(
     "M-NOT",
     "M-DATA-2D",
     "M-DATA-1D",
-    "M-CONV-2D",
+    "M-CONV",
     "M-DOWN",
     "M-DOWN-MASK",
     "M-MASK",

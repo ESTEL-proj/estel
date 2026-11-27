@@ -230,7 +230,7 @@ def synthesize_from_maps(
     st_kwargs:
         Options of the scattering operators: ``J`` only, as in STL, by default the smaller of
         the default J of the target and of the synthesised fields (max(1, depth - 1) on HEALPix
-        data, M-DEF-HPX); L and the channel pairs are the defaults (M-SYN-OPS). Any other key
+        data, M-DEF-HEALPIX); L and the channel pairs are the defaults (M-SYN-OPS). Any other key
         raises an error.
     checkpoint_every, checkpoint_dir:
         Write a checkpoint to ``checkpoint_dir`` every ``checkpoint_every`` iterations, and at
@@ -331,7 +331,7 @@ def _maps_setup(
     ``get_CS_op().n_bins``); J_min 0, and the estimator ``fft`` of periodic fields. J is
     resolved before the operators are built, and both, with their spectrum, receive it: with the
     target's shape, the default of the geometry, as its wavelet plan computes it (M-DEF,
-    M-DEF-HPX)."""
+    M-DEF-HEALPIX)."""
     filtered = data._nyquist_filter(data.array)
     standardized = standardize_target(backend, filtered, mean_field)
     target_data = data.with_array(standardized.x)
@@ -341,7 +341,7 @@ def _maps_setup(
         # Another running shape, on 2D data only (OP-101): the smaller of the two defaults.
         J = min(default_scales_cartesian(target_data), default_scales_cartesian(running))  # noqa: N806
     elif J is None:
-        # The default J of the geometry (M-DEF, M-DEF-HPX), as STOperator computes it.
+        # The default J of the geometry (M-DEF, M-DEF-HEALPIX), as STOperator computes it.
         J = build_wavelet_plan(target_data).J  # noqa: N806
     spectrum: dict[str, Any] = (
         {

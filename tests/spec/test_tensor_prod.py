@@ -7,7 +7,7 @@ fields, with the parameters the manifest records, and every stored array is comp
 ``assert_parity``: same full-grid shape, NaN at the same positions, values within the float64
 tolerances of Part II, §14.3 (for ``mean``, atol = 0.1 x rtol x sqrt(max(var))). The oracle
 brings the field to the level of a scale in every block first, STL interleaves the
-downsamplings and the block convolutions (M-W1-TP): the difference is rounding.
+downsamplings and the block convolutions (M-W1-TENSORPROD): the difference is rounding.
 
 Every test runs in the fast tier, except case D of ``scattering_tp`` (three blocks), which runs
 in the full tier.
@@ -31,22 +31,22 @@ from estel._spec import tensor_prod as spec
 from tests.parity._compare import assert_parity, full_grid, load_fixture, read_manifest
 
 pytestmark = pytest.mark.maths(
-    "M-NOT-TP",
-    "M-DATA-TP",
-    "M-W1-TP",
+    "M-NOT-TENSORPROD",
+    "M-DATA-TENSORPROD",
+    "M-W1-TENSORPROD",
     "M-LP",
-    "M-IDX-TP",
-    "M-S-TP",
-    "M-BORDER-TP",
-    "M-NORM-TP",
-    "M-DEF-TP",
+    "M-IDX-TENSORPROD",
+    "M-S-TENSORPROD",
+    "M-BORDER-TENSORPROD",
+    "M-NORM-TENSORPROD",
+    "M-DEF-TENSORPROD",
     "M-MOM",
     "M-STD",
     "M-CHAN",
     "M-FLAT",
 )
 GRIDS = ("S1", "S2", "S3", "S4")
-# M-DATA-TP: the number of spatial axes of a block.
+# M-DATA-TENSORPROD: the number of spatial axes of a block.
 AXES = {"2D": 2, "1D": 1}
 MODES = {"ST": "st", None: "none"}
 SLOW = ("D",)
@@ -187,7 +187,7 @@ def test_invalid_data_raise(array: NDArray[Any], J: Any, L: Any, match: str) -> 
 
 def test_caller_lists_and_defaults() -> None:
     """The caller's lists J and L are left unchanged (OP-83), and their ``None`` entries take the
-    default of the block (M-DEF-TP)."""
+    default of the block (M-DEF-TENSORPROD)."""
     field = np.random.default_rng(13).standard_normal((8, 8, 8))
     scales, orientations = [None, 1], [None, None]
     x, n_scales, n_orient, _ = spec.spec_data_tensor_prod(

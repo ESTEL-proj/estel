@@ -1,5 +1,6 @@
 """The static description of the scattering loop of a tensor product (Part II, §12.6; maths.md
-M-W1-TP, M-LP, M-IDX-TP, M-S-TP, M-BORDER-TP; maths_step2.md M-GRAM; task T3.2).
+M-W1-TENSORPROD, M-LP, M-IDX-TENSORPROD, M-S-TENSORPROD, M-BORDER-TENSORPROD; maths_step2.md M-GRAM;
+task T3.2).
 
 Built once, in NumPy, with the plan (:func:`build_loop_tensor_prod`, called by
 ``_plan.build_statistics_plan_tensor_prod``) and held by it (``STPlanTensorProd.loop``): the index
@@ -9,14 +10,14 @@ what the loop of ``_loop_tensor_prod.py`` reads besides the plan of each block:
 * **the first layer**, one :class:`FirstLayerScale` per scale j of S1 and S2, in lexicographic
   order (the last block fastest), the order in which the loop reaches them: the orientation
   shape of the scale (1 along a block taken at its low-pass scale, M-LP), its window as a
-  rectangle (the border of each block, M-BORDER-TP, 0 along a block at its low-pass scale,
+  rectangle (the border of each block, M-BORDER-TENSORPROD, 0 along a block at its low-pass scale,
   OP-81), its denominator, and whether it is the centred scale with the low-pass filter in
   every block (OP-42);
 * **the second layer**, one :class:`SecondLayerScale` per wavelet scale j3: the arms j2 ≤ j3
   in the order the loop stacks them, the crop of each block for each arm and for the band map,
   and, for the Gram products of the level, which of their rows are the chunks of the segments
   of S3 and S4 at j3 in the compact layout of T3.6 (``layout_tensor_prod``), with their
-  denominators, each the product of per-block counts of pixels (M-BORDER-TP);
+  denominators, each the product of per-block counts of pixels (M-BORDER-TENSORPROD);
 * **the gather**: the order of the channel pairs of the S1 and S2 segments; how the S4 chunks
   are packed comes from the layout, with the filters (``_filters.build_filters_tensor_prod``).
 
@@ -26,8 +27,8 @@ number of coefficients, and nothing has the size of the full grid (decision 3 of
 pixel arrays, one per block, arm and level, of the shape of that block.
 
 **Why the windows are per block.** The window of a map of a tensor product is the outer
-product of the windows of its blocks (M-BORDER-TP), and that of a pair of maps is the product,
-block by block, of the larger border of the two. With every map set to zero outside its own
+product of the windows of its blocks (M-BORDER-TENSORPROD), and that of a pair of maps is the
+product, block by block, of the larger border of the two. With every map set to zero outside its own
 window, block after block, the Gram product A A^H sums each pair over the intersection of the
 two windows, and the number of its pixels is the product of the per-block counts: STL's
 window of each pair, exactly (maths_step2.md M-GRAM, "Windows").
@@ -48,11 +49,11 @@ from ..wavelets._operator import Box, _read_only, window_box
 from ..wavelets._operator_tensor_prod import WaveletPlanTensorProd
 
 ScaleTensorProd = tuple[int, ...]
-"""A multi-index scale j = (j₀, …, j_{B-1}) (maths.md M-NOT-TP)."""
+"""A multi-index scale j = (j₀, …, j_{B-1}) (maths.md M-NOT-TENSORPROD)."""
 
 
 class FirstLayerScale(NamedTuple):
-    """One scale j of S1 and S2 (maths.md M-W1-TP, M-LP, M-BORDER-TP)."""
+    """One scale j of S1 and S2 (maths.md M-W1-TENSORPROD, M-LP, M-BORDER-TENSORPROD)."""
 
     scale: ScaleTensorProd
     """j; j_a = J_a along a block taken at its low-pass scale."""
@@ -75,7 +76,7 @@ class FirstLayerScale(NamedTuple):
 
 @dataclass(frozen=True, eq=False)
 class SecondLayerScale:
-    """The second layer of one wavelet scale j3, at its level (maths.md M-S-TP; M-GRAM)."""
+    """The second layer of one wavelet scale j3, at its level (maths.md M-S-TENSORPROD; M-GRAM)."""
 
     j3: ScaleTensorProd
     level: ScaleTensorProd

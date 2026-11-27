@@ -1,4 +1,4 @@
-"""The planar geometry hooks ``_conv`` and ``_downsample`` (Part II, §12.4; maths.md M-CONV-2D,
+"""The planar geometry hooks ``_conv`` and ``_downsample`` (Part II, §12.4; maths.md M-CONV,
 M-W1, M-DOWN, M-DOWN-MASK; task T2.2).
 
 Run on the backend and dtype of the test run, against a NumPy float64 reference written here:
@@ -67,7 +67,7 @@ def _correlate(
 
 
 @pytest.mark.dtype
-@pytest.mark.maths("M-CONV-2D", "M-W1")
+@pytest.mark.maths("M-CONV", "M-W1")
 @pytest.mark.parametrize("complex_input", [False, True])
 @pytest.mark.parametrize("pbc", [True, False])
 @pytest.mark.parametrize("ndim", [2, 1])
@@ -85,7 +85,7 @@ def test_conv_is_padded_correlation(
     assert np.asarray(backend.to_numpy(out)).dtype == np.dtype(COMPLEX[dtype])
 
 
-@pytest.mark.maths("M-CONV-2D")
+@pytest.mark.maths("M-CONV")
 def test_conv_does_not_depend_on_level(backend: Backend, dtype: DType) -> None:
     data = _geometry(2, 8, True)
     x = backend.asarray(_field((1, 1, 8, 8)), dtype)

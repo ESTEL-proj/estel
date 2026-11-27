@@ -57,7 +57,7 @@ PENDING = """### 1.9 Power spectrum — M-PS-2D
 PENDING_ID = {"M-PS-2D": "T4.1"}
 PENDING_SECTION = {"4": "T5.4"}
 PENDING_SECTIONS = """## 4. HEALPix
-### 4.0 Data — M-DATA-HPX
+### 4.0 Data — M-DATA-HEALPIX
 """
 NO_ORACLE = """## 5. Syntheses
 ### 5.1 Target — M-SYN-TARGET
@@ -170,7 +170,7 @@ def test_unlisted_id_of_a_covered_section_is_not_accepted(
     write(tmp_path, {**COMPLETE, "docs/maths.md": maths})
     errors = check_with_listed_section(tmp_path, monkeypatch)
     assert any("M-X has no oracle function" in error for error in errors)
-    assert not any("M-DATA-HPX" in error for error in errors)
+    assert not any("M-DATA-HEALPIX" in error for error in errors)
 
 
 def test_unlisted_section_is_not_accepted(tmp_path: Path) -> None:
@@ -178,7 +178,7 @@ def test_unlisted_section_is_not_accepted(tmp_path: Path) -> None:
     write(tmp_path, {**COMPLETE, "docs/maths.md": COMPLETE["docs/maths.md"] + PENDING_SECTIONS})
     code, err = check(tmp_path)
     assert code == 1
-    assert "M-DATA-HPX has no oracle function" in err
+    assert "M-DATA-HEALPIX has no oracle function" in err
 
 
 def test_id_without_oracle_by_decision_still_needs_a_test(tmp_path: Path) -> None:
@@ -213,8 +213,10 @@ def test_section_without_oracle_and_without_id_fails(tmp_path: Path) -> None:
         pytest.param(
             {
                 "docs/maths.md": COMPLETE["docs/maths.md"] + PENDING_SECTIONS,
-                "src/estel/_spec/hpx.py": 'def spec_hpx(x):\n    """Implements M-DATA-HPX."""\n',
-                "tests/spec/test_hpx.py": MARKED.format("M-DATA-HPX"),
+                "src/estel/_spec/hpx.py": (
+                    'def spec_hpx(x):\n    """Implements M-DATA-HEALPIX."""\n'
+                ),
+                "tests/spec/test_hpx.py": MARKED.format("M-DATA-HEALPIX"),
             },
             "lists section 4 (T5.4), but every ID of that section has an oracle function",
             id="section-implemented",

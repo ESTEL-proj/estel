@@ -21,28 +21,28 @@
 ## Contents of this tab
 
 - [1. Planar 2D](#1-planar-2d)
-  - [1.0 Notation — M-NOT](#10-notation--m-not) · [1.1 Data — M-DATA-2D](#11-data--m-data-2d) · [1.2 Wavelets](#12-wavelets) — [M-CONV-2D](#m-conv-2d--convolution-is-a-correlation), [M-WAV-2D](#m-wav-2d--bump-steerable-wavelets) · [1.3 Downsampling](#13-downsampling) — [M-SMOOTH-2D](#m-smooth-2d--smoothing-kernel), [M-DOWN](#m-down--downsampling-without-mask), [M-DOWN-MASK](#m-down-mask--downsampling-with-missing-data) · [1.4 Masks of the scattering layers — M-MASK](#14-masks-of-the-scattering-layers--m-mask) · [1.5 Borders — M-BORDER](#15-borders--m-border) · [1.6 Moments and first layer](#16-moments-and-first-layer) — [M-MEAN](#m-mean--masked-mean), [M-MOM](#m-mom--mean-and-var), [M-STD](#m-std--standardisation), [M-W1](#m-w1--first-layer) · [1.7 Scattering statistics — vanilla ScatCov](#17-scattering-statistics--vanilla-scatcov) — [M-S1](#m-s1), [M-S2](#m-s2), [M-S3](#m-s3), [M-S4](#m-s4), [M-CHAN](#m-chan--storage-of-channel-pairs) · [1.8 Normalisation and reductions](#18-normalisation-and-reductions) — [M-ORDER](#m-order--order-of-the-operations-of-apply), [M-NORM](#m-norm), [M-RED-ISO](#m-red-iso--isotropy), [M-RED-ANG](#m-red-ang--angular-fourier-transform), [M-RED-SCALE](#m-red-scale--scale-cosine-transform), [M-FLAT](#m-flat--flattening) · [1.9 Power spectrum — M-PS-2D (from master, v1.6.0)](#19-power-spectrum--m-ps-2d-from-master-v160) · [1.10 Defaults — M-DEF](#110-defaults--m-def) · [1.11 Open points found in the 2D code](#111-open-points-found-in-the-2d-code)
+  - [1.0 Notation — M-NOT](#10-notation--m-not) · [1.1 Data — M-DATA-2D](#11-data--m-data-2d) · [1.2 Wavelets](#12-wavelets) — [M-CONV](#m-conv--convolution-is-a-correlation), [M-WAV-2D](#m-wav-2d--bump-steerable-wavelets) · [1.3 Downsampling](#13-downsampling) — [M-SMOOTH-2D](#m-smooth-2d--smoothing-kernel), [M-DOWN](#m-down--downsampling-without-mask), [M-DOWN-MASK](#m-down-mask--downsampling-with-missing-data) · [1.4 Masks of the scattering layers — M-MASK](#14-masks-of-the-scattering-layers--m-mask) · [1.5 Borders — M-BORDER](#15-borders--m-border) · [1.6 Moments and first layer](#16-moments-and-first-layer) — [M-MEAN](#m-mean--masked-mean), [M-MOM](#m-mom--mean-and-var), [M-STD](#m-std--standardisation), [M-W1](#m-w1--first-layer) · [1.7 Scattering statistics — vanilla ScatCov](#17-scattering-statistics--vanilla-scatcov) — [M-S1](#m-s1), [M-S2](#m-s2), [M-S3](#m-s3), [M-S4](#m-s4), [M-CHAN](#m-chan--storage-of-channel-pairs) · [1.8 Normalisation and reductions](#18-normalisation-and-reductions) — [M-ORDER](#m-order--order-of-the-operations-of-apply), [M-NORM](#m-norm), [M-RED-ISO](#m-red-iso--isotropy), [M-RED-ANG](#m-red-ang--angular-fourier-transform), [M-RED-SCALE](#m-red-scale--scale-cosine-transform), [M-FLAT](#m-flat--flattening) · [1.9 Power spectrum — M-PS-2D (from master, v1.6.0)](#19-power-spectrum--m-ps-2d-from-master-v160) · [1.10 Defaults — M-DEF](#110-defaults--m-def) · [1.11 Open points found in the 2D code](#111-open-points-found-in-the-2d-code)
 - [2. 1D](#2-1d)
   - [2.0 Data — M-DATA-1D](#20-data--m-data-1d) · [2.1 Wavelets — M-WAV-1D](#21-wavelets--m-wav-1d) · [2.2 Downsampling](#22-downsampling) — [M-SMOOTH-1D](#m-smooth-1d--smoothing-kernel) · [2.3 Masks, borders, moments and first layer](#23-masks-borders-moments-and-first-layer) · [2.4 Scattering statistics, normalisation and reductions](#24-scattering-statistics-normalisation-and-reductions) · [2.5 Defaults — M-DEF-1D](#25-defaults--m-def-1d) · [2.6 Open points found in the 1D code](#26-open-points-found-in-the-1d-code)
 - [3. Tensor products](#3-tensor-products)
-  - [3.0 Notation — M-NOT-TP](#30-notation--m-not-tp)
-  - [3.1 Data — M-DATA-TP](#31-data--m-data-tp)
-  - [3.2 First layer — M-W1-TP](#32-first-layer--m-w1-tp)
+  - [3.0 Notation — M-NOT-TENSORPROD](#30-notation--m-not-tensorprod)
+  - [3.1 Data — M-DATA-TENSORPROD](#31-data--m-data-tensorprod)
+  - [3.2 First layer — M-W1-TENSORPROD](#32-first-layer--m-w1-tensorprod)
   - [3.3 Low-pass filter — M-LP](#33-low-pass-filter--m-lp)
-  - [3.4 Index sets — M-IDX-TP](#34-index-sets--m-idx-tp)
-  - [3.5 Statistics — M-S-TP](#35-statistics--m-s-tp)
-  - [3.6 Borders — M-BORDER-TP](#36-borders--m-border-tp)
-  - [3.7 Normalisation and reductions — M-NORM-TP](#37-normalisation-and-reductions--m-norm-tp)
-  - [3.8 Defaults — M-DEF-TP](#38-defaults--m-def-tp)
+  - [3.4 Index sets — M-IDX-TENSORPROD](#34-index-sets--m-idx-tensorprod)
+  - [3.5 Statistics — M-S-TENSORPROD](#35-statistics--m-s-tensorprod)
+  - [3.6 Borders — M-BORDER-TENSORPROD](#36-borders--m-border-tensorprod)
+  - [3.7 Normalisation and reductions — M-NORM-TENSORPROD](#37-normalisation-and-reductions--m-norm-tensorprod)
+  - [3.8 Defaults — M-DEF-TENSORPROD](#38-defaults--m-def-tensorprod)
   - [3.9 Counts](#39-counts)
   - [3.10 Open points found in the tensor-product code](#310-open-points-found-in-the-tensor-product-code)
 - [4. HEALPix](#4-healpix)
-  - [4.0 Data — M-DATA-HPX](#40-data--m-data-hpx)
-  - [4.1 Convolution — M-CONV-HPX](#41-convolution--m-conv-hpx)
-  - [4.2 Wavelet — M-WAV-HPX](#42-wavelet--m-wav-hpx)
-  - [4.3 Downsampling — M-DOWN-HPX](#43-downsampling--m-down-hpx)
-  - [4.4 Masks and borders — M-MASK-HPX](#44-masks-and-borders--m-mask-hpx)
-  - [4.5 Defaults — M-DEF-HPX](#45-defaults--m-def-hpx)
+  - [4.0 Data — M-DATA-HEALPIX](#40-data--m-data-healpix)
+  - [4.1 Convolution — M-CONV-HEALPIX](#41-convolution--m-conv-healpix)
+  - [4.2 Wavelet — M-WAV-HEALPIX](#42-wavelet--m-wav-healpix)
+  - [4.3 Downsampling — M-DOWN-HEALPIX](#43-downsampling--m-down-healpix)
+  - [4.4 Masks and borders — M-MASK-HEALPIX](#44-masks-and-borders--m-mask-healpix)
+  - [4.5 Defaults — M-DEF-HEALPIX](#45-defaults--m-def-healpix)
   - [4.6 Open points found in the HEALPix code](#46-open-points-found-in-the-healpix-code)
 - [5. Syntheses](#5-syntheses)
   - [5.1 Target — M-SYN-TARGET](#51-target--m-syn-target)
@@ -119,7 +119,7 @@
 
 ### 1.2 Wavelets
 
-#### M-CONV-2D — "Convolution" is a correlation
+#### M-CONV — "Convolution" is a correlation
 
 STL's spatial filtering uses `torch.nn.functional.conv2d`, which computes a **cross-correlation**, without flipping the kernel. With p = ⌊K/2⌋ and ã the array a padded by p pixels on each side:
 
@@ -197,7 +197,7 @@ The smoothing kernel is the anti-aliasing filter applied before each downsamplin
 
 #### M-DOWN — Downsampling without mask
 
-One step, from level d to d+1, where x̃⁽ᵈ⁾ is x⁽ᵈ⁾ padded by **2 pixels before and 3 after** on each axis (circular or replicate, as in M-CONV-2D), keeping one pixel in two on each axis (stride 2), with s the smoothing kernel (M-SMOOTH-2D):
+One step, from level d to d+1, where x̃⁽ᵈ⁾ is x⁽ᵈ⁾ padded by **2 pixels before and 3 after** on each axis (circular or replicate, as in M-CONV), keeping one pixel in two on each axis (stride 2), with s the smoothing kernel (M-SMOOTH-2D):
 
 ```latex
 x^{(d+1)}[n] = \sum_{m_1, m_2 = 0}^{5} s[m]\ \tilde x^{(d)}[2n + m]
@@ -677,7 +677,7 @@ Grouped in three categories: (A) points that affect values or correctness, (B) c
 
 ### 2.1 Wavelets — M-WAV-1D
 
-**Filtering** is the correlation of M-CONV-2D along the single axis (`conv1d`), with circular or replicate padding of ⌊K/2⌋ pixels on each side; a complex kernel on real data is two real correlations.
+**Filtering** is the correlation of M-CONV along the single axis (`conv1d`), with circular or replicate padding of ⌊K/2⌋ pixels on each side; a complex kernel on real data is two real correlations.
 
 **In Fourier space**, on a grid of N = 256 points (a constant, independent of the data size), with integer frequencies ω ∈ {−N/2, …, N/2 − 1} and centre ξ₀ = N/2:
 
@@ -770,15 +770,15 @@ The rule of §1.11 applies. OP-2, OP-8, OP-10, OP-12, OP-24, OP-25 and OP-26 als
 
 In the seven cases, S1, S2, S3 and S4 have their NaN at the same entries as the reference, and differ from it by at most 1.2e-15 of the largest coefficient of the family. "Checked" below names what a check adds to this comparison.
 
-### 3.0 Notation — M-NOT-TP
+### 3.0 Notation — M-NOT-TENSORPROD
 
 - **Blocks.** A tensor-product field has B blocks, a = 0 … B−1. Block a is a planar geometry of section 1 (2D) or 2 (1D), with its own sizes N⁽ᵃ⁾, periodicity `pbc[a]`, number of scales J\_a and number of orientations L\_a. L = L₀ ⋯ L\_{B−1} is the number of product orientations.
 - **Multi-indices.** A scale is j = (j₀, …, j\_{B−1}), an orientation ℓ = (ℓ₀, …, ℓ\_{B−1}), a level d = (d₀, …, d\_{B−1}). x⁽ᵈ⁾ is the field downsampled d\_a times along block a, by M-DOWN along the axes of that block (M-SMOOTH-2D or M-SMOOTH-1D); the downsamplings of different blocks act on different axes and commute.
 - **Level of a scale.** The level of scale j is d = j: j\_a downsamplings along block a for a wavelet, and J\_a for the low-pass filter of block a (M-LP).
-- **Partial order.** j ≤ j′ means j\_a ≤ j′\_a for every block a. It is a partial order: two scales may be incomparable (M-IDX-TP).
-- **Block convolution.** ⋆\_a is the filtering of M-CONV-2D or of §2.1 along the axes of block a only, with the padding of that block (circular if `pbc[a]`, replicate otherwise).
+- **Partial order.** j ≤ j′ means j\_a ≤ j′\_a for every block a. It is a partial order: two scales may be incomparable (M-IDX-TENSORPROD).
+- **Block convolution.** ⋆\_a is the filtering of M-CONV or of §2.1 along the axes of block a only, with the padding of that block (circular if `pbc[a]`, replicate otherwise).
 
-### 3.1 Data — M-DATA-TP
+### 3.1 Data — M-DATA-TENSORPROD
 
 - **Shape.** Arrays are `(Nb, Nc, *N⁽⁰⁾, …, *N⁽ᴮ⁻¹⁾)`: the spatial axes of the blocks, in block order, with no axis between them. An array with the spatial axes only is promoted to `(1, 1, …)`, one with a single leading axis to `(1, Nc, …)`. Data must be real.
 - **Structure.** The list of block geometries is part of the data: for example `[2D, 1D]` for space and time, `[2D, 1D, 1D]` for space, depth and time. STL accepts any list of 2D and 1D blocks, in any order: `[1D, 2D]`, `[1D, 1D]`, `[2D, 2D]` and a single block also run. **⚠ OP-82**
@@ -791,7 +791,7 @@ In the seven cases, S1, S2, S3 and S4 have their NaN at the same entries as the 
 - **Checked:** the default J of a 1D block is 1, 1, 2, 2, 3, 4 for N = 8, 12, 16, 31, 32, 64, and that of a 32 × 8 block is 1; the defaults of a 32 × 32 × 8 field are J = (3, 1) and L = (4, 2), and L = 1 for 1D data alone; arrays of shape (16, 16, 16) and (3, 16, 16, 16) give statistics with (Nb, Nc) = (1, 1) and (1, 3); a size 12 with J = 3 runs and a size 10 fails in the downsampling (`ValueError`); the three cases of missing data behave as written (0 finite value out of 33,938 in the third).
 - **Source:** `STL_TensorProd_Kernel_Torch`, `get_wavelet_op`; `Wavelet_Operator_TensorProd_Kernel_Torch.__init__`; `ST_Operator.apply`.
 
-### 3.2 First layer — M-W1-TP
+### 3.2 First layer — M-W1-TENSORPROD
 
 The wavelet of scale j and orientation ℓ is the product of the block wavelets. It is applied block after block, in block order, on the field brought to level d = j:
 
@@ -813,7 +813,7 @@ W_{j,\ell}\, x_c = \psi^{(B-1)}_{\ell_{B-1}} \star_{B-1} \Big( \cdots \big( \psi
 With `lowpass="ST"` (STL's default), each block may contribute a low-pass filter φ⁽ᵃ⁾\_J besides its wavelets.
 
 - **Index.** The low-pass filter of block a is the scale j\_a = J\_a, after its wavelets j\_a = 0 … J\_a − 1. It has one orientation, stored at index 0; the other orientation entries are NaN.
-- **Realisation.** The cascade of the smoothing kernels: the field at level d\_a = J\_a along block a, with no further computation. In a scale that mixes it with wavelets of earlier blocks, it is the complex result of these blocks that is downsampled to level d\_a = J\_a (M-W1-TP).
+- **Realisation.** The cascade of the smoothing kernels: the field at level d\_a = J\_a along block a, with no further computation. In a scale that mixes it with wavelets of earlier blocks, it is the complex result of these blocks that is downsampled to level d\_a = J\_a (M-W1-TENSORPROD).
 - **Existence.** Block a has a low-pass filter only if each of its sizes is divisible by 2^(J\_a), one more downsampling than its wavelets need. Otherwise STL warns (`UserWarning`) and gives the block no low-pass filter; there is then no scale with the low-pass filter in every block. **⚠ OP-34**
 - **Mixed scales.** A scale with the low-pass filter in some blocks and a wavelet in at least one other is a zero-mean filter on a periodic domain, because of its wavelet factor. S1 and S2 are computed as for the wavelets, without centring.
 - **The scale with the low-pass filter in every block** is the only filter without zero mean. With X the field at level d = (J₀, …, J\_{B−1}):
@@ -822,14 +822,14 @@ With `lowpass="ST"` (STL's default), each block may contribute a low-pass filter
 S_1 = \big\langle \lvert X - \langle X \rangle \rvert \big\rangle, \qquad S_2 = \big\langle \lvert X - \langle X \rangle \rvert^2 \big\rangle
 ```
 
-  S2 is then the variance of the coarse-grained field. This is the only centred covariance of STL. ⟨·⟩ runs over every pixel of X, periodic or not (M-BORDER-TP). **⚠ OP-42**
+  S2 is then the variance of the coarse-grained field. This is the only centred covariance of STL. ⟨·⟩ runs over every pixel of X, periodic or not (M-BORDER-TENSORPROD). **⚠ OP-42**
 - **Cross-channel terms.** As M-S1 and M-S2, on the filtered field of the scale; for the scale with the low-pass filter in every block, on X − ⟨X⟩.
 - **No low-pass term in S3 and S4.** They are expected to nearly vanish when their last filter contains a low-pass filter, and are not computed. Since j₁ ≤ j₂ ≤ j₃ componentwise and the low-pass filter is the coarsest scale of its block, this removes every S3 and S4 that involves a low-pass filter. The wavelet scales are computed as without low-pass filters. **⚠ OP-43**
 - **Other values of `lowpass`.** `"PS"` adds a low-pass bin to the power spectrum, `("ST", "PS")` both, `None` neither; `True` and `False` are read as `"ST"` and `None`, and any other value raises a `ValueError`. ESTEL 1.0.0 has no tensor-product spectrum: `lowpass` takes `"ST"` or `None`.
 - **Checked:** in the cases with a low-pass filter in every block, S2 of the last scale equals the variance of X over all its pixels, computed apart, to 8.4e-16; S1 at a low-pass scale holds one value at orientation 0 of that block and NaN at the others. The mean of a mixed scale, relative to the mean of its modulus, is below 8.1e-17 when every block is periodic (A, F) and reaches 2 to 7 % when one is not (B, C, D, E, G). Case F: a size 12 with J = 3 gives the warning, the flags (yes, no), S1 of shape `(…, 3, 3, 4, 2)` and no centred scale. With `lowpass=None`, S1 and S2 are bit for bit the wavelet scales of the `"ST"` run, and S3 and S4 are bit for bit the same. `True`, `False`, `"PS"` and `("ST", "PS")` give the flags and the shapes of `"ST"`, `None`, `None` and `"ST"`.
 - **Source:** `ST_Operator_TensorProd.__init__`, `_scales_S1_S2`, `_compute_ST_loop`; `Wavelet_Operator_TensorProd_Kernel_Torch.lowpass`, `lowpass_dg`.
 
-### 3.4 Index sets — M-IDX-TP
+### 3.4 Index sets — M-IDX-TENSORPROD
 
 - **Wavelet scales:** 𝒥\_w = {j : 0 ≤ j\_a ≤ J\_a − 1 for every a}, J₀ ⋯ J\_{B−1} scales.
 - **All scales:** 𝒥 = {j : 0 ≤ j\_a ≤ J′\_a − 1}, with J′\_a = J\_a + 1 if block a has a low-pass filter, J\_a otherwise.
@@ -845,14 +845,14 @@ S_1 = \big\langle \lvert X - \langle X \rangle \rvert \big\rangle, \qquad S_2 = 
 - **Sizes.** S3 has ∏ₐ J\_a (J\_a + 1) / 2 pairs of scales, out of (∏ₐ J\_a)²; S4 has ∏ₐ J\_a (J\_a + 1)(J\_a + 2) / 6 triples, out of (∏ₐ J\_a)³. For J = (2, 2): 4 wavelet scales, 9 pairs out of 16, 16 triples out of 64. The pairs with j₃ = (1, 1) are the four j₂; with j₃ = (0, 1), j₂ ∈ {(0, 0), (0, 1)}; with j₃ = (1, 0), j₂ ∈ {(0, 0), (1, 0)}; with j₃ = (0, 0), j₂ = (0, 0).
 - **Low-pass scales.** The low-pass scale of a block is above each of its wavelet scales, but it enters no pair and no triple: S3 and S4 take j₃ in 𝒥\_w, hence j₁ and j₂ too (M-LP).
 - **Enumeration.** The loops enumerate each set in lexicographic order, the last block varying fastest. Lexicographic order extends the partial order: j ≤ j′ implies that j comes first, so every j₂ ≤ j₃ has been met when j₃ is reached. The order has no effect on the values.
-- **Storage.** The full-grid tensors have one scale axis per block and per filter (M-S-TP); the entries outside the sets are NaN.
+- **Storage.** The full-grid tensors have one scale axis per block and per filter (M-S-TENSORPROD); the entries outside the sets are NaN.
 - **One block.** For B = 1 and `lowpass=None` this is the index set of sections 1 and 2. With `lowpass="ST"`, S1 and S2 of a single block have one more scale than in sections 1 and 2 (OP-82).
 - **Checked:** the finite entries of S1 to S4 are those of the sets, entry by entry, in the seven cases. Their numbers per channel pair equal the formulas of §3.9 for (16, 16, 16) with J = (2, 2): 45, 45, 576, 8,192; (32, 32, 16) with J = (3, 2): 65, 65, 1,152, 20,480; (16, 16, 12) with J = (2, 3) and no low-pass filter in block 1: 54, 54, 1,152, 20,480; (16, 16, 8, 16) with J = (2, 1, 2): 135, 135, 2,304, 65,536. A tensor product of one 2D block with `lowpass=None` gives bit for bit the statistics of the 2D operator (16 × 16, periodic).
 - **Source:** `_compute_ST_loop` (`J_range`, `j3_range`, `j2_range`, `is_lowpass`).
 
 *Whether the componentwise order is the right one is LF27. The names of the indices follow the rule decided in the review of 16 November 2026 (Part IV, R-A01): j₃ is the wavelet applied last.*
 
-### 3.5 Statistics — M-S-TP
+### 3.5 Statistics — M-S-TENSORPROD
 
 M-S1 to M-S4 with multi-indices. D\_{j₂→j₃} downsamples block by block (M-DOWN along each block), and the second wavelet transform is the full tensor wavelet of scale j₃:
 
@@ -864,11 +864,11 @@ S_3[c_1,c_2,j_2,j_3,\ell_2,\ell_3] = \Big\langle \big( W_{j_3,\ell_3}\, D_{j_2\t
 S_4[c_1,c_2,j_1,j_2,j_3,\ell_1,\ell_2,\ell_3] = \Big\langle \big( W_{j_3,\ell_3}\, D_{j_1\to j_3} U_{j_1,\ell_1} x_{c_1} \big)\ \overline{\big( W_{j_3,\ell_3}\, D_{j_2\to j_3} U_{j_2,\ell_2} x_{c_2} \big)} \Big\rangle
 ```
 
-Here W\_{j₃,ℓ₃} applied to a field already at level d = j₃ means the block convolutions of M-W1-TP without further downsampling.
+Here W\_{j₃,ℓ₃} applied to a field already at level d = j₃ means the block convolutions of M-W1-TENSORPROD without further downsampling.
 
 - **`mean` and `var`.** M-MOM over the spatial axes of all the blocks together, without border; the standardisation M-STD likewise.
 - **S1 and S2.** M-S1 and M-S2 on U\_{j,ℓ}, for every scale of 𝒥; the low-pass scales follow M-LP.
-- **How STL reaches the second layer.** As for the first layer (M-W1-TP), STL interleaves the downsamplings and the block convolutions: the modulus U\_{j₂} is brought along block 0 to the level of scale j₃ in that block and filtered along block 0, the complex result is downsampled along block 1 and filtered along block 1, and so on, and the result of the blocks 0 … a serves every j₃ that starts with the same indices. The values are those of the formulas up to rounding.
+- **How STL reaches the second layer.** As for the first layer (M-W1-TENSORPROD), STL interleaves the downsamplings and the block convolutions: the modulus U\_{j₂} is brought along block 0 to the level of scale j₃ in that block and filtered along block 0, the complex result is downsampled along block 1 and filtered along block 1, and so on, and the result of the blocks 0 … a serves every j₃ that starts with the same indices. The values are those of the formulas up to rounding.
 - **Shapes** of the full-grid tensors, with one scale axis and one orientation axis per block:
 
 | Family | Shape |
@@ -883,7 +883,7 @@ Here W\_{j₃,ℓ₃} applied to a field already at level d = j₃ means the blo
 - **Checked:** the comparison of the seven cases covers S1 to S4, auto and cross-channel, entry by entry, hence the place of every scale and orientation axis and the S4 of the frozen commit. For a 32 × 32 × 8 field with the defaults, the shapes are S1 and S2 `(1, 1, 1, 4, 2, 4, 2)`, S3 `(1, 1, 1, 3, 1, 3, 1, 4, 2, 4, 2)` and S4 `(1, 1, 1, 3, 1, 3, 1, 3, 1, 4, 2, 4, 2, 4, 2)`. With `standardize=True`, `mean` is 2e-17 and `var` − 1 is 2e-16.
 - **Source:** `_compute_ST_loop` (`data_l1m`, `data_l1m_multi_res`, `data_l1m_l2`); `ST_Operator.apply`.
 
-### 3.6 Borders — M-BORDER-TP
+### 3.6 Borders — M-BORDER-TENSORPROD
 
 - Each block has its own border width, computed by M-BORDER (or its 1D form) from the convolution history and the level of that block alone: 0 if the block is periodic.
 - **In a non-periodic block,** with ⌊K/2⌋ = 2: β\_a = 2 for a first-layer field at a wavelet scale; β\_a = ⌈2^(j₂,ₐ − j₃,ₐ) · 2⌉ + 2 for a second-layer field, that is 4, 3, 3, … for j₃,ₐ − j₂,ₐ = 0, 1, 2, …
@@ -894,7 +894,7 @@ Here W\_{j₃,ℓ₃} applied to a field already at level d = j₃ means the blo
 - **Checked:** the reference of the cases B, C, D, E and G computes its borders from the rules above, the reduction included (it occurs in each of them: a border of 4 on 8 pixels becomes 3), and agrees with STL to 1.2e-15.
 - **Source:** `_get_crop_border_size_from_children`, `_crop`, `cov`; `mean`, `square_mean` (inherited from the 2D operator).
 
-### 3.7 Normalisation and reductions — M-NORM-TP
+### 3.7 Normalisation and reductions — M-NORM-TENSORPROD
 
 - **Reference.** As in M-NORM: the square root of the channel diagonal of S2, with the shape of S2 without one channel axis, `(Nb, Nc, J′₀ …, L₀ …)`; it holds the low-pass scales, and NaN where S2 does.
 - **Normalisation:** M-NORM with multi-indices. S1 and S2 are normalised at every scale of 𝒥; the normalised auto S2 of the scale with the low-pass filter in every block is 1 with `norm="self"`. S3 and S4 are normalised with the wavelet scales of the S2 reference only: the low-pass scales of S2 have no counterpart in S3 and S4. S3 is divided by the reference of (c₁, j₂, ℓ₂) times that of (c₂, j₃, ℓ₃); S4 by that of (c₁, j₁, ℓ₁) times that of (c₂, j₂, ℓ₂).
@@ -904,7 +904,7 @@ Here W\_{j₃,ℓ₃} applied to a field already at level d = j₃ means the blo
 - **Checked** (16 × 16 × 16, J = (2, 2), block 0 not periodic, two maps of two channels): the reference has shape `(2, 2, 3, 3, 4, 2)`, and `(1, 2, 3, 3, 4, 2)` with the batch mean; the normalised S1 to S4 equal those computed without normalisation, divided as written, bit for bit; the normalised S2 of the centred scale is 1 − 2e-16. The five outcomes of the reductions are those written; `to_flatten` returns 8,860 complex coefficients for one map of one channel (33,938 with the NaN).
 - **Source:** `ST_Statistics._normalize_scatcov`, `to_norm`, `to_iso`, `to_angular_ft`, `to_scale_ft`, `to_flatten`, `select`.
 
-### 3.8 Defaults — M-DEF-TP
+### 3.8 Defaults — M-DEF-TENSORPROD
 
 | Parameter | Default |
 | --- | --- |
@@ -932,7 +932,7 @@ Here W\_{j₃,ℓ₃} applied to a field already at level d = j₃ means the blo
 | S3 | L² ∏ₐ J\_a (J\_a + 1) / 2 | L² ∏ₐ J\_a² |
 | S4 | L³ ∏ₐ J\_a (J\_a + 1)(J\_a + 2) / 6 | L³ ∏ₐ J\_a³ |
 
-Checked against the finite entries of STL's tensors (M-IDX-TP). For 16 × 16 × 16 with J = (2, 2): 8,192 coefficients of S4 in a tensor of 32,768.
+Checked against the finite entries of STL's tensors (M-IDX-TENSORPROD). For 16 × 16 × 16 with J = (2, 2): 8,192 coefficients of S4 in a tensor of 32,768.
 
 **Non-redundant coefficients.** For reference, the number of non-redundant coefficients of the STOC deliverable (Table 1): 2D, 1,474; 2D+1D space and time, 587,324; 2D+1D+1D, 18,513,572. S4 holds nearly all of them. The full-grid tensors allocate 3.9, 13 and 26 times more (Part III, §19.1). These numbers are quoted, not derived here.
 
@@ -956,7 +956,7 @@ The rule of §1.11 applies. OP-4, OP-8, OP-13 and OP-34 also concern tensor prod
 
 ## 4. HEALPix
 
-**Status:** 17 November 2026 (task T5.0); the scattering loop on 24 November 2026 (task T5.2); the interpolation of M-CONV-HPX, step 3, written as a definition and checked against healpy on 24 November 2026 (task T5.4, the oracle). Every entry is checked against the code of STL `HealpixUpdate` and of healpix-analyse, and numerically, in the parity container, where an entry says "Checked": the data conventions, the wavelet, the convolution on the full sky and on a partial sky, the gauges, the downsampling, the masks and the defaults. The numerical checks run in float64, at `nside` 8 and 16 (64 for the gauges), with `ellipsoid="sphere"` and the cache of healpix-analyse disabled unless said; their references are written in NumPy from the definitions below, with healpy for the pixel centres and the bilinear interpolation. The scattering loop of `HealpixUpdate` is checked against that of `master` and against section 1 (T5.2, "Scattering loop" below). Not checked: the angular spectrum (LF24). The model of STL-Dev-MPI's `CLAUDE.md` §3 (commit `d397650`) was read, not run, and agrees with this section: the bilinear interpolation of the 4 nearest pixels, the gauge `"cosmo"`, the decimation by a Gaussian of radius 3 fine pixels with σ = radius / 2 and weights of sum 1, dg(j) = j by default, and the form of S1 to S4; its patch-local engine with hand-written reverse passes is not transferred in step 1 (Part II, §10; T5.1).
+**Status:** 17 November 2026 (task T5.0); the scattering loop on 24 November 2026 (task T5.2); the interpolation of M-CONV-HEALPIX, step 3, written as a definition and checked against healpy on 24 November 2026 (task T5.4, the oracle). Every entry is checked against the code of STL `HealpixUpdate` and of healpix-analyse, and numerically, in the parity container, where an entry says "Checked": the data conventions, the wavelet, the convolution on the full sky and on a partial sky, the gauges, the downsampling, the masks and the defaults. The numerical checks run in float64, at `nside` 8 and 16 (64 for the gauges), with `ellipsoid="sphere"` and the cache of healpix-analyse disabled unless said; their references are written in NumPy from the definitions below, with healpy for the pixel centres and the bilinear interpolation. The scattering loop of `HealpixUpdate` is checked against that of `master` and against section 1 (T5.2, "Scattering loop" below). Not checked: the angular spectrum (LF24). The model of STL-Dev-MPI's `CLAUDE.md` §3 (commit `d397650`) was read, not run, and agrees with this section: the bilinear interpolation of the 4 nearest pixels, the gauge `"cosmo"`, the decimation by a Gaussian of radius 3 fine pixels with σ = radius / 2 and weights of sum 1, dg(j) = j by default, and the form of S1 to S4; its patch-local engine with hand-written reverse passes is not transferred in step 1 (Part II, §10; T5.1).
 
 **Source:** STL-Dev `HealpixUpdate` at `90eb1a9` (`STL_Healpix_Kernel_Torch.py`), and healpix-analyse at `aac5e26` (`convol.py`, `down.py`, `healpix_interp.py`), which holds the definitions of the convolution and of the downsampling. `TorchGeometry.py` of the same branch reproduces that geometry in vectorised code, for a sphere and the gauges `"phi"` and `"cosmo"` only; it is the code ESTEL ports (Part II, §9.3). The scattering loop, the statistics, the normalisation, the reductions and the flattening are those of section 1, read from `ST_Operator.py` and `ST_Statistics.py` of the same branch (T5.2).
 
@@ -998,7 +998,7 @@ S1 to S4, `var` and the vectors have their NaN at the same entries as the refere
 
 **Source of the loop:** `ST_Operator.__init__`, `apply`; `ST_Statistics.__init__`; `torch_backend.maskmean`; `Base_DataClass._infer_N0`.
 
-### 4.0 Data — M-DATA-HPX
+### 4.0 Data — M-DATA-HEALPIX
 
 - **Shape.** Arrays are `(Nb, Nc, Npix)`: one pixel axis. A 1D array is promoted to `(1, 1, Npix)` and a 2D array to `(1, Nc, Npix)`, as in M-DATA-2D.
 - **Ordering.** NESTED, required by the downsampling.
@@ -1011,7 +1011,7 @@ S1 to S4, `var` and the vectors have their NaN at the same entries as the refere
 - **Checked:** J = 1, 1, 2, 3, 4 for `nside` = 2, 4, 8, 16, 32; `pbc` True for a full sky and False for a disc; a map of 47 pixels without `nside` raises, and a disc of 48 = 12 × 2² pixels without `nside` becomes a full sky of `nside` 2; the mask is inferred from the NaN of one 1D map (17 pixels), and a `(2, Npix)` example with NaN raises; for one map of `nside` 8 the statistics have the shapes of section 1 with J = 2, L = 4 (`mean` `(1, 1)`, S1 `(1, 1, 1, 2, 4)`, S4 `(1, 1, 1, 2, 2, 2, 4, 4, 4)`).
 - **Source:** `STL_Healpix_Kernel_Torch` (`__post_init__`, `_infer_N0`, `get_wavelet_op`), `ST_Operator.apply`.
 
-### 4.1 Convolution — M-CONV-HPX
+### 4.1 Convolution — M-CONV-HEALPIX
 
 The convolution brings the data to a fixed stencil, rotated at each pixel.
 
@@ -1029,20 +1029,20 @@ The convolution brings the data to a fixed stencil, rotated at each pixel.
    - **Near a pole**, θ < θ\_1: the North Pole takes the mean of the 4 pixels of ring 1, and the point is interpolated between the pole and ring 1, with w = θ/θ\_1: the two pixels of ring 1 that enclose φ get w (1 − (t − ⌊t⌋)) + (1 − w)/4 and w (t − ⌊t⌋) + (1 − w)/4, the two others (1 − w)/4 each. On or south of the last ring, θ ≥ θ\_{4 nside − 1}, the same with the South Pole and w = (π − θ)/(π − θ\_{4 nside − 1}).
    - The edges of the base faces need no rule of their own: the rings run round the whole sphere.
    - **Checked** (task T5.4): the oracle's weights equal those of healpy 1.20.1, `get_interp_weights(nest=True)`, as linear functionals (the weight of each pixel, summed over the 4 slots), to 1.8e-14 at `nside` 16, 5.7e-14 at `nside` 32 and 2.3e-13 at `nside` 64, on the samples of the tests at `nside` 1 to 32: 200 uniform points, 50 points north of 1.5 θ\_1 and their mirrors in the south, the poles, the pixel centres, every ring colatitude, and the boundaries of the base faces (the meridians φ = kπ/4 and cos θ = ±2/3). A larger set (2000 uniform points, 300 within 0.3 rad of each pole) gave the same agreement once. Where a point falls on a pixel longitude or on a ring, a zero weight may sit on another pixel (OP-92).
-4. **Sum.** y\[g, k\] = Σ\_p W\[p\] · x\_interp\[g, k, p\], over the K² stencil points p, with W the kernel of M-WAV-HPX. There is no bias.
+4. **Sum.** y\[g, k\] = Σ\_p W\[p\] · x\_interp\[g, k, p\], over the K² stencil points p, with W the kernel of M-WAV-HEALPIX. There is no bias.
 
 - **Shapes.** `(Nb, Nc, Npix)` gives `(Nb, Nc, L, Npix)`, complex; every map is convolved on its own. A complex input is not supported (STL raises); the second layer convolves a modulus, which is real.
 - **Orientations are gauges.** The stencil turns, the kernel does not: L is the number of gauges, covering \[0, π).
 - **The gauge `"cosmo"`.** Its u axis of gauge 0 is cos φ · e\_θ − sin φ · e\_φ in the north and cos φ · e\_θ + sin φ · e\_φ in the south. It is regular at both poles: around the North Pole the u axis tends to the Cartesian direction +x, around the South Pole to −x. It is discontinuous across the equator: at longitude φ, the u axes of gauge g on the two sides make the angle 2φ − 2πg/L, so the orientations agree, as directions modulo π, at four longitudes only. The southern frame is the mirror image of the northern one through the equatorial plane, with u reversed: for a map mirrored through the equator, the convolution at the mirrored pixel is the complex conjugate of the convolution of the map (ψ\[−u, v\] is the conjugate of ψ\[u, v\]), so its modulus is the same. The pixels of the equatorial ring follow the northern rule and do not have this symmetry. The gauge `"phi"` is singular at the two poles. **⚠ OP-47**
-- **Partial sky.** A neighbour that is not in `cell_ids` is dropped, and so is a neighbour whose interpolation weight is below 10⁻¹², the threshold of the support test of M-MASK-HPX. The weights of the remaining neighbours of that stencil point are renormalised to sum to 1 exactly, with no floor on their sum. A stencil point with no remaining neighbour takes the neighbours of the stencil centre instead: it reads the value of the pixel itself. Nothing is cropped, and nothing marks the pixels whose stencil is truncated. **⚠ OP-50** On the full sky the threshold changes nothing beyond rounding. On a partial sky, STL drops only the neighbours outside `cell_ids`, so at a stencil point that falls on a pixel longitude or on a ring its values depend on its rounding. **⚠ OP-110**
+- **Partial sky.** A neighbour that is not in `cell_ids` is dropped, and so is a neighbour whose interpolation weight is below 10⁻¹², the threshold of the support test of M-MASK-HEALPIX. The weights of the remaining neighbours of that stencil point are renormalised to sum to 1 exactly, with no floor on their sum. A stencil point with no remaining neighbour takes the neighbours of the stencil centre instead: it reads the value of the pixel itself. Nothing is cropped, and nothing marks the pixels whose stencil is truncated. **⚠ OP-50** On the full sky the threshold changes nothing beyond rounding. On a partial sky, STL drops only the neighbours outside `cell_ids`, so at a stencil point that falls on a pixel longitude or on a ring its values depend on its rounding. **⚠ OP-110**
 - **Pixel centres** are computed by healpix-geo on an ellipsoid, `"WGS84"` by default: the Earth, not a sphere. The longitudes are unchanged; the latitude of a centre becomes the geodetic latitude whose authalic latitude is that of the sphere, at most 0.128° away (at ±45°). It is then used as a latitude on the unit sphere: the rotation, the stencil and the interpolation are those of the sphere. With `ellipsoid="sphere"` the centres are those of HEALPix. **⚠ OP-45**
-- **Precision.** healpix-analyse casts the kernel through float32, whatever the dtype of the operator: the kernel used differs from that of M-WAV-HPX by 5e-8 of its largest modulus, and its sum is 9e-9 instead of 0. Its disk cache, enabled by default in STL, stores the interpolation weights in float32: the first operator of a geometry computes them in float64, and every later one, in the same process or not, reads them back in float32. **⚠ OP-46**
+- **Precision.** healpix-analyse casts the kernel through float32, whatever the dtype of the operator: the kernel used differs from that of M-WAV-HEALPIX by 5e-8 of its largest modulus, and its sum is 9e-9 instead of 0. Its disk cache, enabled by default in STL, stores the interpolation weights in float32: the first operator of a geometry computes them in float64, and every later one, in the same process or not, reads them back in float32. **⚠ OP-46**
 - **Checked** (sphere, cache disabled): STL's `apply` equals steps 1 to 4 written in NumPy with the float32 kernel, to 2e-14 of the largest modulus (`nside` 8 and 16, full sky), and to 4e-8 with the float64 kernel; on a disc of 154 pixels (`nside` 16), to 9e-15 with the partial-sky rule above without the threshold of OP-110, where 121 pixels have a truncated stencil and 1320 of the 15400 stencil points have no neighbour; on the pixels with a complete stencil the partial sky equals the full sky (4e-16), on the others the relative rms difference is 0.48 for a white noise. The rotation matrices of healpix-analyse equal the formula of step 2 to 1e-15, for `"phi"` and `"cosmo"`. Gauge `"cosmo"` at `nside` 64: around each pole the u axis of gauge 0 is within 0.52° of ±x; across the equator the angle is 2φ − 2πg/L to 1.2° (rings 2 `nside` ± 1), from 1.2° to 180°; mirror relation to 4e-14 off the equatorial ring, not on it. With the default `"WGS84"`: `apply` equals the same formula with the WGS84 centres to 2e-14, and differs from the sphere by a relative rms of 2.0 % (`nside` 8) and 4.2 % (`nside` 16) for a white noise. With the cache enabled, a second operator has the weights of the first cast through float32 (difference 3e-8), and S3 and S4 change by up to 2.5e-7 in relative value.
 - **Source:** healpix-analyse `HealPixConv`, `_build_rotation_matrices`, `_local_kernel_grid`, `_get_interp_weights`, `_bind_support_batched`, `healpix_interp.get_interp_weights`; `WaveletOperatorHealpixKernel_torch.apply`, `_get_conv`.
 
-### 4.2 Wavelet — M-WAV-HPX
+### 4.2 Wavelet — M-WAV-HEALPIX
 
-One complex kernel on the stencil offsets (u, v) of M-CONV-HPX, with u the offset along the second stencil axis:
+One complex kernel on the stencil offsets (u, v) of M-CONV-HEALPIX, with u the offset along the second stencil axis:
 
 ```latex
 \psi[u, v] = \exp\Big(-\frac{u^2 + v^2}{2}\Big)\, \exp\Big(i\,\frac{\pi u}{2}\Big)
@@ -1054,10 +1054,10 @@ then the mean is subtracted, and the kernel is divided by Σ |ψ|, taken after t
 - ψ\[−u, v\] is the conjugate of ψ\[u, v\], and ψ\[u, −v\] = ψ\[u, v\].
 - The same kernel serves every level and every gauge. The real and imaginary parts are two output channels of one convolution.
 - STL's two wavelet types, `"HealpixWavelet"` (the default) and `"Morlet"`, give this same kernel.
-- **Checked:** STL's kernel equals the formula to 3e-19; its sum is 5e-17 and the sum of its moduli is 1; the two symmetries hold to 3e-20; both wavelet types give it; the kernel that the convolution uses is its cast through float32 (M-CONV-HPX).
+- **Checked:** STL's kernel equals the formula to 3e-19; its sum is 5e-17 and the sum of its moduli is 1; the two symmetries hold to 3e-20; both wavelet types give it; the kernel that the convolution uses is its cast through float32 (M-CONV-HEALPIX).
 - **Source:** `WaveletOperatorHealpixKernel_torch._wavelet_kernel`.
 
-### 4.3 Downsampling — M-DOWN-HPX
+### 4.3 Downsampling — M-DOWN-HEALPIX
 
 One step takes level d to d + 1. The coarse pixels are the NESTED parents of the fine ones, in ascending order. For a coarse pixel of centre n₀, with γ the angular distance from n₀ to the centre of a fine pixel:
 
@@ -1069,7 +1069,7 @@ x^{(d+1)}[n_0] = \frac{\sum_{\gamma \le \rho} e^{-\gamma^2 / 2\sigma^2}\, x^{(d)
 - The sums run over every fine pixel within ρ of n₀, not only over the 4 children. On the full sky, with d the depth of the fine level (log₂ of its `nside`), that is 22 to 24 fine pixels at d = 1, 26 to 28 at d = 2, 27 to 30 at d = 3, 26 to 32 at d = 4, 25 to 32 at d = 5 and 24 to 32 at d = 6 to 9. The 4 children carry 0.33 to 0.34 of the weight at d = 1, and 0.28 to 0.31 at the larger depths (measured in T5.4, every coarse pixel, d = 1 to 9). The weights sum to 1 for each coarse pixel.
 - **Partial sky.** Only the available fine pixels enter the sums, and the weights are renormalised over them; the coarse pixels are the parents of the available fine pixels. A coarse pixel can be computed from a few fine pixels: nothing marks it. **⚠ OP-50**
 - This is the smoothing of HEALPix: a Gaussian of the distance, not the 6-tap kernel of M-SMOOTH-2D. **⚠ OP-49**
-- **Pixel centres:** as in M-CONV-HPX, on `"WGS84"` by default; γ is then the distance on the unit sphere between the points whose latitudes are the WGS84 ones. **⚠ OP-45**
+- **Pixel centres:** as in M-CONV-HEALPIX, on `"WGS84"` by default; γ is then the distance on the unit sphere between the points whose latitudes are the WGS84 ones. **⚠ OP-45**
 - Several levels are reached by repeating the step. Complex arrays are downsampled part by part (real and imaginary).
 - healpix-analyse has two fallbacks that a full sky and the partial skies checked here never reach: if every fine pixel within ρ has a zero weight, uniform weights over the available ones; if none is available, the value 0, with a warning.
 - STL's `_smooth_kernel` (a K × K Gaussian) serves a separate smoothing function, `apply_smooth`, which the scattering loop does not call; neither does it call the plain average of the 4 children (`smooth=False`) nor the max-pooling of healpix-analyse. They are not transferred.
@@ -1077,18 +1077,18 @@ x^{(d+1)}[n_0] = \frac{\sum_{\gamma \le \rho} e^{-\gamma^2 / 2\sigma^2}\, x^{(d)
 - **Checked** (sphere): the matrix of `HealPixDown` equals the formula written in NumPy to 6e-16 (`nside` 16 to 8 and 8 to 4); STL's `downsample` applies it to each map (4e-15), two levels are the step repeated (7e-16), and a complex array is downsampled part by part (9e-16). On a disc of 154 fine pixels: 44 coarse pixels, the sorted parents, computed from 10 to 32 fine pixels each, equal to the formula restricted to the available pixels (2e-16); 29 of the 44 differ from the full-sky values. With the default `"WGS84"`: the matrix equals the same formula with the WGS84 latitudes (3e-16) and differs from that of the sphere by up to 1.1e-2 per weight. With a mask (`nside` 16, a disc of 94 NaN, two levels): equal to M-DOWN-MASK to 7e-16, NaN at the same pixels; the largest f kept is 0.326.
 - **Source:** healpix-analyse `HealPixDown._build_smooth_matrix`; `WaveletOperatorHealpixKernel_torch._down_one_level`, `_downsample_masked`.
 
-### 4.4 Masks and borders — M-MASK-HPX
+### 4.4 Masks and borders — M-MASK-HEALPIX
 
-- **Masks of the layers:** as M-MASK, with the decimation of M-DOWN-HPX and with "the wavelet support touches an invalid pixel" read as: a convolution of the invalid 0/1 map with a kernel of ones over the stencil (M-CONV-HPX) is above 10⁻¹² for at least one of the L gauges. The support of a pixel is therefore the set of pixels that the interpolation reads, over the K² stencil points and the L gauges.
+- **Masks of the layers:** as M-MASK, with the decimation of M-DOWN-HEALPIX and with "the wavelet support touches an invalid pixel" read as: a convolution of the invalid 0/1 map with a kernel of ones over the stencil (M-CONV-HEALPIX) is above 10⁻¹² for at least one of the L gauges. The support of a pixel is therefore the set of pixels that the interpolation reads, over the K² stencil points and the L gauges.
 - **Weights at the level of rounding.** The support test leaves valid a pixel that reads an invalid one with a weight below 10⁻¹²; with STL's default `replace_nan_value=NaN` that pixel gets NaN in the statistics. ESTEL's masks are weights, and its values stay finite. **⚠ OP-102**
 - **Reweighting maps:** 1/(1 − f), with 1 − f not below 10⁻⁸, and 0 on the invalid pixels; one family for the field and one for the first-layer data convolved at scale j, as in M-DOWN-MASK.
 - **Covariances:** as M-MASK: the mask of the deeper layer; at equal depth with different histories, the union.
-- **Borders:** none, β = 0, on the full sky and on a partial sky alike. The edge of a partial sky is not cropped: the pixels whose stencil or whose decimation is truncated (M-CONV-HPX, M-DOWN-HPX) enter every mean. **⚠ OP-50**
+- **Borders:** none, β = 0, on the full sky and on a partial sky alike. The edge of a partial sky is not cropped: the pixels whose stencil or whose decimation is truncated (M-CONV-HEALPIX, M-DOWN-HEALPIX) enter every mean. **⚠ OP-50**
 - **A second way to handle NaN** exists in STL, `nan_aware_stats`, which uses `nanmean` without precomputed masks. It is not transferred: ESTEL has one way, masks as weights.
 - **Checked** (`nside` 16, J = 3, a disc of 94 NaN, sphere): the masks of STL equal those of M-MASK rebuilt in NumPy from the stencil and the decimation above, for layer 0 (94, 26 and 9 invalid pixels at levels 0, 1, 2), layer 1 (244, 112, 70), the downsampled layer 1 and layer 2 (from 95 to 460); the test "above 10⁻¹²" selects the same pixels as "a neighbour of positive weight is invalid"; the reweighting maps equal 1/(1 − f) to 1e-15; the masked mean is the sum over the valid pixels divided by their number (5e-18); the border is 0 with a mask and on a partial sky, where the mean runs over all the pixels.
 - **Source:** `_build_masks`, `_support_mask`, `_reweight_from_fraction`, `_find_mask`, `cov`, `_get_crop_border_size_zero`.
 
-### 4.5 Defaults — M-DEF-HPX
+### 4.5 Defaults — M-DEF-HEALPIX
 
 | Parameter | Default |
 | --- | --- |
@@ -1118,13 +1118,13 @@ The rule of §1.11 applies. OP-90 to OP-92 come from the check of T5.0; the chec
 | OP-46 | healpix-analyse casts the kernel through float32 (5e-8 of its largest modulus; its sum becomes 9e-9) and caches its interpolation weights in float32: with the cache, enabled by default, the first operator of a geometry has float64 weights and the later ones float32 weights (S3 and S4 change by up to 2.5e-7). The decimation is in float64 | ESTEL builds the kernel and its tables in float64, then casts them to the dtype of the data, as the planar kernels (OP-31); the parity harness runs healpix-analyse with its cache disabled and its kernel kept in float64 (Part II, §14.2) | differs |
 | OP-47 | The gauge `"cosmo"` is regular at the poles and discontinuous across the equator, where the orientations of the two sides differ by 2φ − 2πg/L; the southern frame is the mirror image of the northern one, so the moduli are symmetric under a mirror through the equator, except on the equatorial ring. The reading of the draft (singular at the poles) was that of the gauge `"phi"` | reproduce; document | reproduced |
 | OP-48 | The HEALPix wavelet is not the planar one (Gaussian times plane wave, divided by the sum of moduli), so coefficients are not comparable between geometries | reproduce; LF22 | reproduced |
-| OP-49 | The decimation is a Gaussian of radius 3 pixels and σ = radius/2, over 22 to 32 fine pixels, depending on the depth (M-DOWN-HPX), of which the 4 children carry 0.28 to 0.34 of the weight; it is not the planar smoothing kernel | reproduce; Part III, §20.10 | reproduced |
+| OP-49 | The decimation is a Gaussian of radius 3 pixels and σ = radius/2, over 22 to 32 fine pixels, depending on the depth (M-DOWN-HEALPIX), of which the 4 children carry 0.28 to 0.34 of the weight; it is not the planar smoothing kernel | reproduce; Part III, §20.10 | reproduced |
 | OP-50 | No border is cropped on a partial sky. At the edge, the convolution renormalises its interpolation weights over the available pixels and replaces a stencil point without any available pixel by the pixel itself; the decimation renormalises over the available fine pixels. These pixels enter every mean (on a disc of 154 pixels at `nside` 16: 121 pixels with a truncated stencil, a relative rms difference of 0.48 from the full-sky values) | reproduce, document; a treatment of the edge later (LF67) | later (LF67) |
 | OP-90 | `cell_ids` must be in ascending order: otherwise the convolution of healpix-analyse (and of `TorchGeometry`) returns its values permuted once more by the inverse sort order, and the decimation reads its input as if it were sorted; no error is raised (measured: differences of the order of the values) | ESTEL requires `cell_ids` strictly increasing, with a clear error at construction (Part II, §12.4) | differs |
 | OP-91 | A partial sky of 12 n² pixels given without `nside` is taken for a full sky of `nside` = n | ESTEL infers `depth` on a full sky only, and requires it whenever `cell_ids` is given (Part II, §12.4) | differs |
 | OP-92 | The gather tables of `TorchGeometry` equal those of healpix-analyse as linear operators (to 1e-13, and the outputs to 2e-14), not entry by entry: about 1 % of the index entries differ (10924 of 1228800 at `nside` 16). The entries that differ lie in groups of 4 neighbours equal as linear functionals (3121 groups at `nside` 16, to 1.3e-13): a rotated point falls on a pixel centre or a ring boundary and a zero weight fills an arbitrary slot, or the same neighbours come in another order | the tables are compared as operators (T5.1) | closed |
-| OP-102 | With STL's default `replace_nan_value=NaN`, the invalid pixels of a level hold NaN. A valid pixel whose interpolation reads an invalid pixel with a weight at the level of rounding, below the 10⁻¹² of the support test (M-MASK-HPX; the zero weights of OP-92), is not masked but gets NaN: in S1 and S2, and through the normalisation in S3 and S4. Found by the review of #171: at `nside` 16, level 1, pixel 188 reads pixel 167 with a weight of 8.6e-16 at gauge 2 (T5.3 gives the numbers on #164). The same happens at level 0, through the NaN of the field itself, which `replace_nan_value` does not reach: on a disc of 359 pixels at `nside` 16 with 2 missing pixels, the valid cell 60 reads the missing cell 39 with a weight of 1.87e-15 at gauge 2 | ESTEL uses masks as weights and gives finite values; the parity fixtures run STL with `replace_nan_value=None`, the setting STL's own syntheses pass, as for OP-60 (decision on #163), and apply STL's operator, built on the field with its NaN, to the field with 0 at the missing pixels, so that STL never computes on NaN (decision on #164) | differs |
-| OP-110 | On a partial sky, STL's rule of M-CONV-HPX is not decided by the weights alone where a stencil point falls on a pixel longitude or on a ring. One of its 4 weights is zero in exact arithmetic and a few 1e-17 after rounding, and which pixel holds it is arbitrary (OP-92). When the pixels of non-zero weight are not in `cell_ids` and the pixel of rounding weight is, the point reads that pixel with the weight 1, or reads the pixel itself, depending on the rounding (STL's `TorchGeometry` and healpix-analyse differ there by 8.9e-3). Found by the oracle of T5.4 on the fixtures of T5.3, and by the port of T5.1, on the meridians φ = 0 and π/4. **Ill-conditioned rows** (decision 2 on #165): a (gauge, pixel) row of the convolution is ill-conditioned when one of its stencil points has no neighbour in `cell_ids` with a weight of at least 10⁻¹², while one of its 4 neighbours, in `cell_ids` or not, has a weight below 10⁻¹²; the definition does not depend on which slot the rounding gives the near-zero weight. With the threshold, against the fixtures of T5.3: on the disc of 50 pixels at `nside` 8, 16 rows of 200 are ill-conditioned and 4 of them differ from STL, all at cell 307, by up to 0.148 of the largest modulus; on the disc of 209 pixels at `nside` 16, 14 rows of 836 are ill-conditioned and 7 differ, at cells 60, 1219, 1231, 2291 and 2300, by up to 0.051. No other row differs (to 1.8e-14), and the full sky is not affected. The threshold applies to the support test of the masks too (M-MASK-HPX): a neighbour below 10⁻¹² is absent there as well, so several weights each below it no longer add up past it, as they can in STL (a rare case; the masks of the fixtures of T5.3 are unchanged) | ESTEL applies the threshold of M-CONV-HPX: a neighbour of weight below 10⁻¹² counts as absent. STL's values at these points are set by its rounding, so the parity on a partial sky leaves out the ill-conditioned rows, and the statistics of a partial sky are compared with the oracle only (decision on #165). The edge of a partial sky is redefined later (LF67) | differs |
+| OP-102 | With STL's default `replace_nan_value=NaN`, the invalid pixels of a level hold NaN. A valid pixel whose interpolation reads an invalid pixel with a weight at the level of rounding, below the 10⁻¹² of the support test (M-MASK-HEALPIX; the zero weights of OP-92), is not masked but gets NaN: in S1 and S2, and through the normalisation in S3 and S4. Found by the review of #171: at `nside` 16, level 1, pixel 188 reads pixel 167 with a weight of 8.6e-16 at gauge 2 (T5.3 gives the numbers on #164). The same happens at level 0, through the NaN of the field itself, which `replace_nan_value` does not reach: on a disc of 359 pixels at `nside` 16 with 2 missing pixels, the valid cell 60 reads the missing cell 39 with a weight of 1.87e-15 at gauge 2 | ESTEL uses masks as weights and gives finite values; the parity fixtures run STL with `replace_nan_value=None`, the setting STL's own syntheses pass, as for OP-60 (decision on #163), and apply STL's operator, built on the field with its NaN, to the field with 0 at the missing pixels, so that STL never computes on NaN (decision on #164) | differs |
+| OP-110 | On a partial sky, STL's rule of M-CONV-HEALPIX is not decided by the weights alone where a stencil point falls on a pixel longitude or on a ring. One of its 4 weights is zero in exact arithmetic and a few 1e-17 after rounding, and which pixel holds it is arbitrary (OP-92). When the pixels of non-zero weight are not in `cell_ids` and the pixel of rounding weight is, the point reads that pixel with the weight 1, or reads the pixel itself, depending on the rounding (STL's `TorchGeometry` and healpix-analyse differ there by 8.9e-3). Found by the oracle of T5.4 on the fixtures of T5.3, and by the port of T5.1, on the meridians φ = 0 and π/4. **Ill-conditioned rows** (decision 2 on #165): a (gauge, pixel) row of the convolution is ill-conditioned when one of its stencil points has no neighbour in `cell_ids` with a weight of at least 10⁻¹², while one of its 4 neighbours, in `cell_ids` or not, has a weight below 10⁻¹²; the definition does not depend on which slot the rounding gives the near-zero weight. With the threshold, against the fixtures of T5.3: on the disc of 50 pixels at `nside` 8, 16 rows of 200 are ill-conditioned and 4 of them differ from STL, all at cell 307, by up to 0.148 of the largest modulus; on the disc of 209 pixels at `nside` 16, 14 rows of 836 are ill-conditioned and 7 differ, at cells 60, 1219, 1231, 2291 and 2300, by up to 0.051. No other row differs (to 1.8e-14), and the full sky is not affected. The threshold applies to the support test of the masks too (M-MASK-HEALPIX): a neighbour below 10⁻¹² is absent there as well, so several weights each below it no longer add up past it, as they can in STL (a rare case; the masks of the fixtures of T5.3 are unchanged) | ESTEL applies the threshold of M-CONV-HEALPIX: a neighbour of weight below 10⁻¹² counts as absent. STL's values at these points are set by its rounding, so the parity on a partial sky leaves out the ill-conditioned rows, and the statistics of a partial sky are compared with the oracle only (decision on #165). The edge of a partial sky is redefined later (LF67) | differs |
 | OP-111 | STL accepts `cell_ids` that cover the whole sphere at the given `nside`, 12 · 4^depth of them, and treats them as a full sky (checked in the parity container: `nside` 8 with `cell_ids` 0 to 767 gives `pbc` True and the statistics of the full sky, difference 0) | ESTEL refuses them with a clear error that says to omit `cell_ids` for a full sky (review rule A6: a full sky has one way to be said); no value changes, since the same statistics are obtained without `cell_ids`; precedent OP-20 (decision on #166) | differs |
 
 
@@ -1166,7 +1166,7 @@ From statistics: the target is a statistics object computed beforehand with `nor
 
 - STL reweights the target's statistics in place. From statistics, the object of the caller is therefore modified: S3 and S4 stay multiplied by their weights, `mean_pre_std` and `std_pre_std` are replaced by their batch means if `mean_field=True`, and `compute_PS` is set to False if the spectrum is not used. A second synthesis from the same object has another target. **⚠ OP-70**
 - **Checked** (32 × 32, J = 3, L = 4; 1, 2 and 3 targets; 1 and 2 channels; `mean_field` True and False): μ and σ as above (3 targets of different amplitudes: STL 1.857454, the formula 1.857454, the mean of the standard deviations 1.728709); |mean| ≤ 2.4e-17 and var = 1 exactly for one target; after one synthesis from statistics, the caller's S3 and S4 are multiplied by 3.5 and 12.25, and a second call starts from a loss of 1.6e2 instead of 0.96.
-- **HEALPix.** As above, with one pixel axis: a target `(Npix,)` is `(1, 1, Npix)`, `(Nc, Npix)` is `(1, Nc, Npix)`, and `(Nb, Nc, Npix)` stays a batch. The means of the standardisation are plain means over the pixels (M-DATA-HPX).
+- **HEALPix.** As above, with one pixel axis: a target `(Npix,)` is `(1, 1, Npix)`, `(Nc, Npix)` is `(1, Nc, Npix)`, and `(Nb, Nc, Npix)` stays a batch. The means of the standardisation are plain means over the pixels (M-DATA-HEALPIX).
   - **Checked** (1, 2 and 3 targets; 1 and 2 channels; `mean_field` True and False): μ and σ are those of the formula above. For 3 targets of different amplitudes, STL's σ is 2.142642, and so is the formula's; the mean of the standard deviations is 1.993640. For one target, |mean| is 6.9e-18 and var − 1 is −1.1e-16. After one synthesis from statistics, the caller's S3 are multiplied by 3.5 (OP-70).
 - **Source:** `optimize_from_maps`, `optimize_from_stats`, `standardize`.
 
@@ -1278,8 +1278,8 @@ The user-level functions build two operators, one for the target and one for the
 - **Reference.** The target operator's reference (`var_ref`, `S2_ref_sqrt_chan_diag` and, with the spectrum, `PS_ref_sqrt_chan_diag`) is copied into the running operator; from statistics, it is read from the target's statistics.
 - **Checked** (targets of 32 × 32, 64 × 32 and 48 × 48, periodic): both operators have J = 3 (the default), L = 4, bump-steerable wavelets, 6 bins over the band of J = 3, the `fft` estimator and the spectrum in the loss; they are two objects, and the running one holds the target's three reference arrays; the seed is 26, the pre-filter on, the weights 3.5 and 12.25. From statistics computed with J = 2: the running operator has J = 2, the same 4 bins and the target's reference. From statistics computed with L = 8: STL raises a size error (4 against 8).
 - **HEALPix.**
-  - **What the user level passes.** On a full sky, J is the default of M-DEF-HPX. From maps, the user level passes J, `has_fewer_convolutions` and `compute_PS`, and the number of bins only with the spectrum: L, the wavelet type and K are the defaults of M-DEF-HPX. The running operator also gets `replace_nan_value=None`. With `compute_PS=False`, no spectrum operator is built. With `compute_PS=None`, the default, a full sky without NaN has the spectrum in the loss (the angular spectrum, 14 bins at `nside` 8), which ESTEL leaves out (OP-77).
-  - **No `wavelet_op_kwargs`.** STL's user-level syntheses build their operators without `wavelet_op_kwargs`, from maps and from statistics alike. On HEALPix they therefore always run on the `"WGS84"` ellipsoid with healpix-analyse's cache on, and nothing changes it. From statistics, this holds even when the statistics were computed with other settings: the running operator, like L in OP-76, does not take the ellipsoid or the cache settings of the statistics. With the cache, when the disk cache holds no entry for this geometry (M-CONV-HPX), the target operator computes its interpolation weights in float64, and the running operator reads them back from the cache in float32 (OP-46): at the standardised target, the loss is 1.1e-15 instead of 0 (`nside` 8). This is a precision of OP-45 and OP-46, not a new open point. ESTEL computes on the sphere (OP-45), and the comparison of T5.3 and T5.8 calls the mid level with operators built on the sphere and without the cache.
+  - **What the user level passes.** On a full sky, J is the default of M-DEF-HEALPIX. From maps, the user level passes J, `has_fewer_convolutions` and `compute_PS`, and the number of bins only with the spectrum: L, the wavelet type and K are the defaults of M-DEF-HEALPIX. The running operator also gets `replace_nan_value=None`. With `compute_PS=False`, no spectrum operator is built. With `compute_PS=None`, the default, a full sky without NaN has the spectrum in the loss (the angular spectrum, 14 bins at `nside` 8), which ESTEL leaves out (OP-77).
+  - **No `wavelet_op_kwargs`.** STL's user-level syntheses build their operators without `wavelet_op_kwargs`, from maps and from statistics alike. On HEALPix they therefore always run on the `"WGS84"` ellipsoid with healpix-analyse's cache on, and nothing changes it. From statistics, this holds even when the statistics were computed with other settings: the running operator, like L in OP-76, does not take the ellipsoid or the cache settings of the statistics. With the cache, when the disk cache holds no entry for this geometry (M-CONV-HEALPIX), the target operator computes its interpolation weights in float64, and the running operator reads them back from the cache in float32 (OP-46): at the standardised target, the loss is 1.1e-15 instead of 0 (`nside` 8). This is a precision of OP-45 and OP-46, not a new open point. ESTEL computes on the sphere (OP-45), and the comparison of T5.3 and T5.8 calls the mid level with operators built on the sphere and without the cache.
   - **`running_shape` fails on HEALPix.** A running field of another resolution is wrapped in the target's geometry (`new_like` in `ScatteringMatchModel`), which then fails; `synthesize_from_stats(..., running_shape=(3072,))` fails the same way. ESTEL refuses `running_shape` on HEALPix data with a clear error in 1.0.0, and keeps it for planar data (decision on #163). **⚠ OP-101**
   - **Checked:** in the six cases of M-SYN-LOSS, both operators have J = 2, L = 4, the wavelet type `"HealpixWavelet"` and `compute_PS=False`, with no spectrum operator. They are two objects, and the running one holds the target's `var_ref` and `S2_ref_sqrt_chan_diag`. The seed is 26 and the weights are 3.5 and 12.25. With STL's defaults, both operators are on `"WGS84"` with the cache on, and so is the running operator from statistics. A target at `nside` 8 with `running_shape=(3072,)` raises `ValueError: Expected 768 pixels, got 3072.`, from maps and from statistics (statistics of `nside` 8).
 - **Source:** `synthesize_from_maps`, `synthesize_from_stats`.

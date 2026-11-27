@@ -1,4 +1,4 @@
-"""Static masks and reweighting maps (maths.md M-DOWN-MASK, M-MASK; M-MASK-HPX for HEALPix).
+"""Static masks and reweighting maps (maths.md M-DOWN-MASK, M-MASK; M-MASK-HEALPIX for HEALPix).
 
 Built once, in NumPy float64, when an operator is built, from the full-resolution mask of the
 data; never traced, never differentiated (tag N of Part II, §12). The static part of the
@@ -64,7 +64,7 @@ class MaskMaps:
 
 
 def _pad(a: RealMap, widths: Sequence[tuple[int, int]], pbc: bool) -> RealMap:
-    """Pad every axis of ``a``: circular if ``pbc``, replicate otherwise (M-CONV-2D)."""
+    """Pad every axis of ``a``: circular if ``pbc``, replicate otherwise (M-CONV)."""
     if pbc:
         for (before, after), n in zip(widths, a.shape, strict=True):
             if max(before, after) > n:
@@ -77,7 +77,7 @@ def _pad(a: RealMap, widths: Sequence[tuple[int, int]], pbc: bool) -> RealMap:
 
 
 def _correlate(a: RealMap, kernel: RealMap, stride: int) -> RealMap:
-    """Valid correlation of ``a`` with ``kernel`` on every axis, at ``stride`` (M-CONV-2D)."""
+    """Valid correlation of ``a`` with ``kernel`` on every axis, at ``stride`` (M-CONV)."""
     windows = np.lib.stride_tricks.sliding_window_view(a, kernel.shape)
     windows = windows[tuple(slice(None, None, stride) for _ in range(a.ndim))]
     axes = tuple(range(a.ndim, 2 * a.ndim))
@@ -116,20 +116,20 @@ def propagate_mask_conv(mask: BoolMap, footprint: Sequence[int], pbc: bool) -> B
 
 
 REWEIGHT_FLOOR = 1e-8
-"""The floor of 1 - f in the reweighting maps (maths.md M-MASK-HPX). It never acts: a valid
+"""The floor of 1 - f in the reweighting maps (maths.md M-MASK-HEALPIX). It never acts: a valid
 pixel has f ≤ τ < 1, so 1 - f ≥ 1 - τ (0.5 or more for every geometry of 1.0.0); it is kept so
-that the rule of M-MASK-HPX is written once, and it changes no planar or HEALPix value."""
+that the rule of M-MASK-HEALPIX is written once, and it changes no planar or HEALPix value."""
 
 SUPPORT_THRESHOLD_HEALPIX = 1e-12
-"""Above it, the support of a HEALPix pixel touches an invalid pixel (maths.md M-MASK-HPX); and
-an interpolation weight below it counts as absent in the stencils of a partial sky (M-CONV-HPX,
+"""Above it, the support of a HEALPix pixel touches an invalid pixel (maths.md M-MASK-HEALPIX); and
+an interpolation weight below it counts as absent in the stencils of a partial sky (M-CONV-HEALPIX,
 OP-110; ``estel.wavelets._tables_healpix``): one threshold, defined here."""
 
 
 def _threshold(fraction: RealMap, threshold: float) -> tuple[BoolMap, RealMap]:
     """The invalid pixels (f > τ, as STL's ``f <= τ`` test fails) and the reweighting
     1 / (1 - f), 1 - f floored at :data:`REWEIGHT_FLOOR`, 0 at invalid pixels (M-DOWN-MASK,
-    M-MASK-HPX)."""
+    M-MASK-HEALPIX)."""
     invalid = ~(fraction <= threshold)
     kept = np.maximum(1.0 - np.where(invalid, 0.0, fraction), REWEIGHT_FLOOR)
     return invalid, np.where(invalid, 0.0, 1.0 / kept)
@@ -185,12 +185,12 @@ def build_mask_maps_with(
     pbc: bool,
 ) -> MaskMaps:
     """The static maps of ``mask`` for the scales of ``scale_levels`` (M-DOWN-MASK, M-MASK,
-    M-MASK-HPX), each map on the pixels of its level, for any geometry.
+    M-MASK-HEALPIX), each map on the pixels of its level, for any geometry.
 
     ``support(d, invalid)``: the invalid outputs of a convolution at level ``d`` of data whose
     invalid pixels are ``invalid`` (planar: the box footprint touches one, M-MASK; HEALPix: the
-    support test of M-MASK-HPX); ``decimate(d, a)``: one downsampling step of the map ``a``
-    from level ``d`` to ``d + 1`` (M-DOWN, M-DOWN-HPX), applied to the 0/1 invalid map, after
+    support test of M-MASK-HEALPIX); ``decimate(d, a)``: one downsampling step of the map ``a``
+    from level ``d`` to ``d + 1`` (M-DOWN, M-DOWN-HEALPIX), applied to the 0/1 invalid map, after
     its own thresholding, as STL does. ``pbc`` goes to :attr:`MaskMaps.pbc`. The maps are
     computed level by level, every convolution of a level together, so that a geometry whose
     tables are large needs those of one level at a time.

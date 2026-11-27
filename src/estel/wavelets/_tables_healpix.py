@@ -6,7 +6,7 @@ Where each block comes from (the five blocks decided on 24 November 2026, Part I
    and the RING to NESTED conversion (:func:`ring2nest`) are written in ``_pixels_healpix.py``
    from the published HEALPix formulas only (Górski et al. 2005, ApJ 622, 759);
 2. the bilinear interpolation of 4 pixels (``_pixels_healpix.interpolation_ring``) is written
-   from its definition in ``docs/maths.md``, M-CONV-HPX, step 3; :func:`interp_weights_nested`
+   from its definition in ``docs/maths.md``, M-CONV-HEALPIX, step 3; :func:`interp_weights_nested`
    applies it to directions, through degrees as healpix-analyse ``aac5e26`` does;
 3. the rotations of the stencil, the gauge ``"cosmo"`` only (:func:`rotation_matrices`);
 4. the stencil and its binding on a partial sky (:func:`local_kernel_grid`,
@@ -40,7 +40,7 @@ Table layout (for T5.5, which applies the tables, and T6.3, which checks the sig
 ``gather_weighted`` against them). Both fit the L0 primitives of Part II, §12.3, applied along
 the pixel axis of a map ``x`` of shape ``(..., Npix)`` whose pixels are ``cell_ids``, ascending:
 
-* **Convolution** (M-CONV-HPX), :func:`stencils_healpix`: ``index`` and ``weight`` of shape
+* **Convolution** (M-CONV-HEALPIX), :func:`stencils_healpix`: ``index`` and ``weight`` of shape
   ``(L · Npix, K², 4)``. Row ``r = g · Npix + k`` is gauge ``g`` at pixel ``cell_ids[k]``;
   column ``p = (v + c) K + (u + c)`` the stencil point (u, v); the last axis the 4 neighbours of
   the bilinear interpolation, ``index`` their positions in ``cell_ids`` and ``weight`` their
@@ -52,7 +52,7 @@ the pixel axis of a map ``x`` of shape ``(..., Npix)`` whose pixels are ``cell_i
 
   the product with the complex kernel being two real products, with its real and imaginary
   parts (Part I, §3.1, rule 6).
-* **Decimation** (M-DOWN-HPX), :func:`decimation_healpix`: a CSR matrix of ``nnz`` entries,
+* **Decimation** (M-DOWN-HEALPIX), :func:`decimation_healpix`: a CSR matrix of ``nnz`` entries,
   sorted by coarse pixel then by fine pixel. ``index`` and ``weight`` of shape ``(nnz, 1, 1)``,
   the positions in ``cell_ids`` of the fine pixels and their weights; ``segment_ids`` of shape
   ``(nnz, )``, the position of the coarse pixel in ``cell_ids_out``. Then::
@@ -61,7 +61,7 @@ the pixel axis of a map ``x`` of shape ``(..., Npix)`` whose pixels are ``cell_i
       y = segment_sum(z[..., 0], -1, segment_ids, len(cell_ids_out))   # (..., Npix_coarse)
 
 ``tests/geometry/test_healpix_geometry.py`` checks each geometry function against healpy (in the
-tests only, Part I, §1.5) and the rotations against M-CONV-HPX, step 2;
+tests only, Part I, §1.5) and the rotations against M-CONV-HEALPIX, step 2;
 ``tests/parity/test_healpix_tables.py`` checks the tables, as operators (OP-92), against STL's
 fixtures (T5.3).
 """
@@ -173,7 +173,7 @@ def rotation_matrices(
     phi: NDArray[np.float64],
     L: int,  # noqa: N803
 ) -> NDArray[np.float64]:
-    """The rotations of the gauge ``"cosmo"`` (maths.md M-CONV-HPX, step 2), ``(N, L, 3, 3)``.
+    """The rotations of the gauge ``"cosmo"`` (maths.md M-CONV-HEALPIX, step 2), ``(N, L, 3, 3)``.
 
     R = R_gauge(alpha_g) · R_z(φ) · R_y(θ) for pixel (θ, φ) and gauge g, R_gauge a rotation about
     the pixel's direction by alpha_g = -φ + π g / L in the northern hemisphere (θ ≤ π/2, the
@@ -215,7 +215,7 @@ def rotation_matrices(
 
 
 def local_kernel_grid(kernel_size: int, depth: int) -> NDArray[np.float64]:
-    """The K x K stencil around the North Pole, unit vectors ``(K², 3)`` (M-CONV-HPX, step 1).
+    """The K x K stencil around the North Pole, unit vectors ``(K², 3)`` (M-CONV-HEALPIX, step 1).
 
     Point (u, v) at colatitude √(u² + v²) alpha and azimuth atan2(v, u), with
     alpha = √(4π / (12 nside²)), nside = 2^depth; entry p = (v + c) K + (u + c).
@@ -258,11 +258,11 @@ def _bind_support(
     kernel_size: int,
 ) -> tuple[NDArray[np.int64], NDArray[np.float64], NDArray[np.bool_]]:
     """Bind the neighbours ``(L, N, P, 4)`` on the pixels ``ids`` (ascending): the partial-sky
-    rule of maths.md M-CONV-HPX (OP-50), as decided on 24 November 2026 (issue #26).
+    rule of maths.md M-CONV-HEALPIX (OP-50), as decided on 24 November 2026 (issue #26).
 
     A neighbour counts as absent when it is outside ``ids`` or when its interpolation weight is
     below ``SUPPORT_THRESHOLD_HEALPIX`` (1e-12, the threshold of the support test of
-    M-MASK-HPX, defined in ``estel.data._masks``). The weights of the remaining neighbours of a
+    M-MASK-HEALPIX, defined in ``estel.data._masks``). The weights of the remaining neighbours of a
     stencil point are renormalised to sum to 1 exactly, with no floor on their sum. A stencil
     point with no remaining neighbour takes the neighbours of the stencil centre of its pixel
     and gauge, which reads the pixel itself.
@@ -323,13 +323,13 @@ def stencils_healpix(
     L: int = GAUGES_HEALPIX,  # noqa: N803
     kernel_size: int = KERNEL_SIZE_HEALPIX,
 ) -> StencilsHealpix:
-    """The interpolation tables of the rotated stencils at one level (maths.md M-CONV-HPX).
+    """The interpolation tables of the rotated stencils at one level (maths.md M-CONV-HEALPIX).
 
     ``cell_ids``: the NESTED pixels of the map, strictly increasing, or ``None`` for the full
     sky; ``depth``: log2(nside) of the level, 0 to :data:`MAX_DEPTH`; ``L``: the number of
     gauges of ``"cosmo"``; ``kernel_size``: K, odd. The kernel is not in the tables: it is the
-    same at every level and for every gauge (M-WAV-HPX, :func:`kernel_weights_healpix`). On a
-    partial sky, the rule of M-CONV-HPX (OP-50) as decided on issue #26, which differs from STL
+    same at every level and for every gauge (M-WAV-HEALPIX, :func:`kernel_weights_healpix`). On a
+    partial sky, the rule of M-CONV-HEALPIX (OP-50) as decided on issue #26, which differs from STL
     at the ill-conditioned points of the edge (OP-110; :func:`_bind_support`). Layout: the
     module docstring.
     """
@@ -474,7 +474,7 @@ class DecimationHealpix:
 
 
 def decimation_healpix(cell_ids: ArrayLike | None, depth: int) -> DecimationHealpix:
-    """The tables of one decimation step, from ``depth`` to ``depth - 1`` (maths.md M-DOWN-HPX).
+    """The tables of one decimation step, from ``depth`` to ``depth - 1`` (maths.md M-DOWN-HEALPIX).
 
     ``cell_ids``: the NESTED fine pixels, strictly increasing, or ``None`` for the full sky;
     ``depth``: log2(nside) of the fine level, 1 to :data:`MAX_DEPTH`. The coarse pixels are the

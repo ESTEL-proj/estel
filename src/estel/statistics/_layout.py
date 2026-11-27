@@ -483,7 +483,7 @@ def layout_tensor_prod(plan: STPlanTensorProd) -> Layout:
     """The layout of the statistics of a tensor product without normalisation, from the plan
     alone (``_grid.grids_tensor_prod``; task T3.6): one segment per family and multi-index
     level, S1 and S2 at the level of their scale (the low-pass scale J_a of a block is its
-    level J_a), S3 and S4 at the level of j3 (M-LP, M-S-TP), mean and var at level 0. Every
+    level J_a), S3 and S4 at the level of j3 (M-LP, M-S-TENSORPROD), mean and var at level 0. Every
     table grows with the number of chunks, never with the full grid."""
     n_blocks = plan.n_blocks
     origin = (0,) * n_blocks

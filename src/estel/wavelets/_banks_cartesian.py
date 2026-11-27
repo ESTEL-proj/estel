@@ -146,7 +146,7 @@ def bump_steerable_2d(L: int, size: int = KERNEL_SIZE_CARTESIAN) -> NDArray[np.c
     Built in Fourier space on a 256 x 256 grid, brought to pixel space by an inverse FFT,
     centred, cropped to ``size`` x ``size`` and made zero-mean, without renormalisation
     (OP-10). Kernel l responds to frequencies along theta_l = pi l/L + pi/2 from axis 1
-    (OP-22). The filtering is a correlation with these kernels (M-CONV-2D).
+    (OP-22). The filtering is a correlation with these kernels (M-CONV).
 
     ``L`` is any integer ≥ 1, as in STL; the width factor 2.5 was tuned for L = 4 (OP-9).
     ``size`` is odd. The result is complex128, a new array at each call.

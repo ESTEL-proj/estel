@@ -67,11 +67,11 @@ class STOperator:
     J:
         The number of scales; by default ⌊log₂ min N⌋ - 2 (M-DEF, M-DEF-1D). The spatial sizes
         must be divisible by 2^(J-1) (OP-8). On HEALPix, max(1, depth - 1), with
-        1 ≤ J ≤ depth + 1 (M-DEF-HPX).
+        1 ≤ J ≤ depth + 1 (M-DEF-HEALPIX).
     L:
         The number of orientations; by default 4 in 2D and 1 in 1D. In 1D, L is 1 or 2 (the
         second filter is the conjugate of the first, M-WAV-1D). On HEALPix, the number of gauges,
-        4 by default (M-DEF-HPX).
+        4 by default (M-DEF-HEALPIX).
     standardize:
         Remove the mean and divide by the standard deviation of each map before the transform
         (M-STD), True by default (OP-120; STL: False, whose values ``standardize=False``
@@ -300,11 +300,11 @@ class STOperatorTensorProd(STOperator):
         ``pbc``, and its number of channels fix the operator; its values are not read.
     J:
         One number of scales per block, as a list, for example ``[4, 3]``; an entry ``None``,
-        or ``J=None``, gives the default of the block, ⌊log₂ min N⁽ᵃ⁾⌋ - 2 (M-DEF-TP). The
+        or ``J=None``, gives the default of the block, ⌊log₂ min N⁽ᵃ⁾⌋ - 2 (M-DEF-TENSORPROD). The
         sizes of block a must be divisible by 2^(J_a - 1) (OP-8).
     L:
         One number of orientations per block, as a list; by default 4 for a 2D block and 2
-        for a 1D block, which takes 1 or 2 (M-DATA-TP).
+        for a 1D block, which takes 1 or 2 (M-DATA-TENSORPROD).
     lowpass:
         ``"ST"`` (the default): each block whose sizes are divisible by 2^J_a has a low-pass
         filter, its scale J_a in S1 and S2, and the scale with the low-pass filter in every

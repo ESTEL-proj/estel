@@ -29,7 +29,14 @@ from estel.backend import _registry
 from tests.parity._compare import assert_parity
 
 pytestmark = pytest.mark.maths(
-    "M-W1-TP", "M-LP", "M-IDX-TP", "M-S-TP", "M-BORDER-TP", "M-NORM-TP", "M-MOM", "M-STD"
+    "M-W1-TENSORPROD",
+    "M-LP",
+    "M-IDX-TENSORPROD",
+    "M-S-TENSORPROD",
+    "M-BORDER-TENSORPROD",
+    "M-NORM-TENSORPROD",
+    "M-MOM",
+    "M-STD",
 )
 GEOMETRIES = {2: Data2D, 1: Data1D}
 GRIDS = ("S1", "S2", "S3", "S4")

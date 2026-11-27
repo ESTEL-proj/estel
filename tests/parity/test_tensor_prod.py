@@ -1,6 +1,7 @@
 """Parity of ``STOperatorTensorProd`` with STL on tensor products (task T3.2, issue #23; Part II,
-§14.3, §14.4; maths.md M-DATA-TP, M-W1-TP, M-LP, M-IDX-TP, M-S-TP, M-BORDER-TP, M-NORM-TP,
-M-FLAT, M-SYN-LOSS; OP-30, OP-34, OP-42, OP-43, OP-81, OP-82).
+§14.3, §14.4; maths.md M-DATA-TENSORPROD, M-W1-TENSORPROD, M-LP, M-IDX-TENSORPROD, M-S-TENSORPROD,
+M-BORDER-TENSORPROD, M-NORM-TENSORPROD, M-FLAT, M-SYN-LOSS; OP-30, OP-34, OP-42, OP-43, OP-81,
+OP-82).
 
 The fixtures of T3.4 (STL `2D+1D` at ``8f51143``):
 
@@ -16,7 +17,7 @@ The fixtures of T3.4 (STL `2D+1D` at ``8f51143``):
 Every comparison is in float64, with the tolerances of Part II, §14.3: same full-grid shapes,
 NaN at the same positions, values within rtol 1e-10 and atol 0.1 x rtol x max|STL| (for
 ``mean``, its scale is the standard deviation of the data). STL interleaves the downsamplings
-and the block convolutions as ESTEL does (M-W1-TP); the second layer is summed as a Gram
+and the block convolutions as ESTEL does (M-W1-TENSORPROD); the second layer is summed as a Gram
 product (M-GRAM): the difference is rounding.
 """
 
@@ -37,7 +38,14 @@ from estel.synthesis._loss import flatten
 from tests.parity._compare import assert_parity, full_grid, load_fixture, read_manifest
 
 pytestmark = pytest.mark.maths(
-    "M-DATA-TP", "M-W1-TP", "M-LP", "M-IDX-TP", "M-S-TP", "M-BORDER-TP", "M-NORM-TP", "M-FLAT"
+    "M-DATA-TENSORPROD",
+    "M-W1-TENSORPROD",
+    "M-LP",
+    "M-IDX-TENSORPROD",
+    "M-S-TENSORPROD",
+    "M-BORDER-TENSORPROD",
+    "M-NORM-TENSORPROD",
+    "M-FLAT",
 )
 GEOMETRIES = {"2D": Data2D, "1D": Data1D}
 FAMILIES = ("var", "S1", "S2", "S3", "S4")
@@ -131,9 +139,9 @@ def test_statistics_equal_stl(name: str, lowpass: str | None) -> None:
 def test_normalised_statistics_equal_stl() -> None:
     """``statistics_tp``: the three runs, the references of the two ``norm="self"`` runs
     (``var_ref`` and ``S2_ref_sqrt_chan_diag``) and the real and complex flat vectors equal
-    STL's (maths.md M-NORM-TP, M-FLAT). As in STL, the first two runs are one operator, applied
-    with ``norm="self"`` then ``norm="ref"`` (STL's ``store_ref`` then ``load_ref``), whose stored
-    reference normalises the other field; the third is a new operator (task T2.19)."""
+    STL's (maths.md M-NORM-TENSORPROD, M-FLAT). As in STL, the first two runs are one operator,
+    applied with ``norm="self"`` then ``norm="ref"`` (STL's ``store_ref`` then ``load_ref``), whose
+    stored reference normalises the other field; the third is a new operator (task T2.19)."""
     parameters = _parameters("statistics_tp")
     arrays = _arrays("statistics_tp")
     blocks, pbc, J = parameters["blocks"], parameters["pbc"], parameters["J"]  # noqa: N806

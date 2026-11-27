@@ -1,6 +1,6 @@
 """Parity case: the gradient of the synthesis loss of STL `2D+1D` on a tensor product (Part II,
 §14.3 "Gradients"; task T3.4, issue #127, decisions of the maintainer, second version; maths.md
-M-SYN-LOSS, M-NORM-TP, M-FLAT).
+M-SYN-LOSS, M-NORM-TENSORPROD, M-FLAT).
 
 On case C of maths.md §3 (a 16 x 16 periodic 2D block and an 8-sample open 1D block, STL's
 default J = (2, 1), L = (4, 2), ``lowpass="ST"``), with two maps of two channels, computes the

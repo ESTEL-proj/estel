@@ -1,5 +1,5 @@
 """Parity of ``STOperator`` on HEALPix data with STL ``HealpixUpdate`` (task T5.6, issue #167;
-maths.md §4 "Scattering loop", M-DATA-HPX, M-MASK-HPX; section 1 from M-MEAN to M-FLAT).
+maths.md §4 "Scattering loop", M-DATA-HEALPIX, M-MASK-HEALPIX; section 1 from M-MEAN to M-FLAT).
 
 The fixture ``statistics_hpx`` (T5.3, STL ``HealpixUpdate`` at ``90eb1a9``) holds, for each
 configuration: STL's statistics without normalisation (``vanilla``), with ``norm="store_ref"``
@@ -60,7 +60,7 @@ MARKS = {
     "nan_16": (pytest.mark.slow,),  # nside 16, with the masks of the plan
 }
 pytestmark = pytest.mark.maths(
-    "M-DATA-HPX", "M-MASK-HPX", "M-MEAN", "M-MOM", "M-S1", "M-S2", "M-S3", "M-S4", "M-CHAN",
+    "M-DATA-HEALPIX", "M-MASK-HEALPIX", "M-MEAN", "M-MOM", "M-S1", "M-S2", "M-S3", "M-S4", "M-CHAN",
     "M-NORM", "M-RED-ISO", "M-RED-ANG", "M-RED-SCALE", "M-FLAT",
 )  # fmt: skip
 

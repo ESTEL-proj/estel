@@ -278,7 +278,7 @@ These rules apply to L1 and L2 from the first commit of step 1. From phase P1, E
 3. **No decisions on array values inside traced code.** No `if x.isnan().any()`, no `.item()`, no `float(x)`, no `print(x)`. NaN detection and estimator selection happen when the `Data` object or the operator is constructed; the masks and reweighting maps they produce are then static data of the plan (§2.3).
 4. **Large constants are arguments, not closures.** Kernels, masks and stencils are passed as arrays to the computation (`filters` in `scattering(data, plan, filters)`), so they are not baked into the compiled program. Baking small kernels in as compiled constants was tried in step 1 and brought no gain (Part III, §19.14).
 5. **Explicit randomness.** Every random function takes a key or a seed (`make_key(seed)`).
-6. **Complex convolutions are real convolutions**, as STL's `_semicomplex_conv` already does: the arithmetic stays real and kernels are stored as real pairs; the rule does not fix the number of calls. A complex kernel on a real map is one real call, the real and imaginary parts of the kernel stacked; on the complex intermediate map of a tensor product (maths M-W1-TP), four real calls. Complex-to-complex convolutions were tried in step 1 and gained less (Part II, §15.2, T3.5; Part III, §19.14).
+6. **Complex convolutions are real convolutions**, as STL's `_semicomplex_conv` already does: the arithmetic stays real and kernels are stored as real pairs; the rule does not fix the number of calls. A complex kernel on a real map is one real call, the real and imaginary parts of the kernel stacked; on the complex intermediate map of a tensor product (maths M-W1-TENSORPROD), four real calls. Complex-to-complex convolutions were tried in step 1 and gained less (Part II, §15.2, T3.5; Part III, §19.14).
 7. **float32 by default, float64 on request.** Every computation must run in float32, the default, as well as in float64: no hard-coded float64 constant, no silent change of dtype; kernels, masks and plan arrays are cast to the operator's dtype when it is built, and the tests run in both. `set_default_dtype("float64")` enables float64 on every backend; on JAX it switches on `jax_enable_x64`, and raises an error if JAX already ran in float32 in that process.
 8. **Short Python loops, for JAX.** JAX unrolls Python loops when it traces the code, so their length drives compile time, which is part of the benchmark with a budget per case. Step 1 starts from the structure of STL's scattering loop, which limits memory and avoids recomputation, especially for tensor products, written in functional style. Before 1.0.0, a reorganisation that makes the computation faster or lighter belongs to step 1 if every value stays within the parity tolerance with STL and the benchmark shows its gain: done early, it guides the developments that follow, and parity with STL checks that it changes nothing (Part II, §15.2, T2.11 to T2.15; Part IV, §22, "Efficiency in step 1"). A reorganisation that changes values remains step 2 work (Part III, §19.13).
 9. **Data and statistics are pytrees.** `Data` and `STStatistics` are registered as pytrees (arrays as leaves, metadata static), so that `jax.vmap` and `jax.jit` accept them.
@@ -383,21 +383,21 @@ In step 1, `maths.md` records the mathematics of STL **as it is**, including cho
 | M-NOT | Notation: batch, channels, blocks, levels, slots, ⟨·⟩ over valid pixels | 1 |
 | M-DATA | Fields, masks, valid-pixel weights, pbc per block | 1 |
 | M-WAV-1D, M-WAV-2D | Bump-steerable kernels: construction in Fourier space, crop to 5 taps or 5×5, orientations; the analytic 1D wavelet and its conjugate | 1 |
-| M-WAV-HPX | HEALPix gauge-oriented kernels, stencils, decimation. The definitions of the STL-Dev-MPI `CLAUDE.md` §3, which give the same numbers as the PyTorch code | 1 |
+| M-WAV-HEALPIX | HEALPix gauge-oriented kernels, stencils, decimation. The definitions of the STL-Dev-MPI `CLAUDE.md` §3, which give the same numbers as the PyTorch code | 1 |
 | M-SMOOTH-2D, M-SMOOTH-1D, M-LP | Smoothing kernel s, the filter of one downsampling step; low-pass filter φ\_J, the effective filter of scale J, realised as the cascade of the smoothing kernels | 1 |
 | M-DOWN | Normalised downsampling, and the threshold below which an output pixel is masked | 1 |
 | M-BORDER | Padding modes; crop widths as a function of the convolutions applied | 1 |
 | M-MASK | Mask propagation through convolutions | 1 |
 | M-MOM | mean, var | 1 |
 | M-S1 … M-S4 | Vanilla ScatCov, including cross-channel terms and the regularised division of the cross S1 term | 1 |
-| M-TP | Tensor products: multi-index scales, the componentwise partial order, product orientations, low-pass φ and box term per block, as in STL | 1 |
+| `M-…-TENSORPROD` (`docs/maths.md` §3) | Tensor products: multi-index scales, the componentwise partial order, product orientations, low-pass φ and box term per block, as in STL | 1 |
 | M-NORM | norm="self", norm="ref", batch mean | 1 |
 | M-RED | iso, angular\_fourier, scale\_cosine | 1 |
 | M-PS | Spectra per geometry: 2D estimators of v1.6.0, in 1.0.0 the 2D estimators only; 1D, tensor-product and HEALPix spectra in step 2 (LF23, LF24) | 1 |
 | M-SYN | Loss, weights, Gaussian start, Tukey taper, frozen pixels, Nyquist pre-filter | 1 |
-| M-LP34 | Low-pass filters in every geometry and in S3/S4 | 2 |
-| M-PS-POS | Positive spectrum estimator for non-periodic data | 2 |
-| M-TP-MASK | NaN masks in tensor products | 2 |
+| `M-LP2` (`docs/maths_step2.md` §6.4) | Low-pass filters in every geometry and in S3/S4 | 2 |
+| none yet (LF7) | Positive spectrum estimator for non-periodic data | 2 |
+| none yet (LF8) | NaN masks in tensor products | 2 |
 | M-CANON | The canonical coefficient set, for the compact layout | 2 |
 
 ## 5. Tests, reference values, tolerances

@@ -303,14 +303,14 @@ class STPlan(_SharedFields):
 
     def _check_reference(self, reference: _NormReference, n_batch: int, dtype: Any) -> None:
         """Raise unless ``reference`` can normalise the statistics of this plan, for a batch of
-        ``n_batch`` in ``dtype`` (maths.md M-NORM, M-NORM-TP)."""
+        ``n_batch`` in ``dtype`` (maths.md M-NORM, M-NORM-TENSORPROD)."""
         raise NotImplementedError
 
     def _self_reference(
         self, backend: Backend, buffer: Any, layout: Layout, ref_batch_mean: bool
     ) -> _NormReference:
         """The reference of ``norm="self"``, from the raw ``buffer`` of the loop in ``layout``
-        (M-NORM, M-NORM-TP), averaged over the batch with ``ref_batch_mean``: the scales of
+        (M-NORM, M-NORM-TENSORPROD), averaged over the batch with ``ref_batch_mean``: the scales of
         sigma, the orientations its diagonal averages, and the blocks of a tensor product, read
         from this plan."""
         raise NotImplementedError
@@ -731,13 +731,14 @@ spectrum, so STL's ``"PS"`` and ``("ST", "PS")`` are not taken."""
 
 @dataclass(frozen=True, eq=False)
 class STPlanTensorProd(STPlan):
-    """The static description of the statistics of a tensor product (maths.md M-NOT-TP, M-LP,
-    M-IDX-TP, M-CHAN; Part II, §12.6; task T3.6): what the compact layout, the normalisation and
-    the files need, and the static description of the loop of task T3.2 (:attr:`loop`).
+    """The static description of the statistics of a tensor product (maths.md M-NOT-TENSORPROD,
+    M-LP, M-IDX-TENSORPROD, M-CHAN; Part II, §12.6; task T3.6): what the compact layout, the
+    normalisation and the files need, and the static description of the loop of task T3.2
+    (:attr:`loop`).
 
     Built by :func:`build_statistics_plan_tensor_prod` from the plan of the wavelet operator of
     the tensor product (``WaveletPlanTensorProd``, task T3.1); NumPy only, immutable and
-    hashable. Its index sets are those of each block (M-IDX-TP): the index set of the tensor
+    hashable. Its index sets are those of each block (M-IDX-TENSORPROD): the index set of the tensor
     product is their Cartesian product, which the layout enumerates chunk by chunk, never as a
     table the size of the full grid.
     """
@@ -757,7 +758,7 @@ class STPlanTensorProd(STPlan):
     L: tuple[int, ...]
     """L_a, the number of orientations of each block."""
     kernel_size: int
-    """K, the size of the wavelet kernels, the same in every block (M-W1-TP)."""
+    """K, the size of the wavelet kernels, the same in every block (M-W1-TENSORPROD)."""
     spatial_shape: tuple[int, ...]
     """The spatial shape of the data at full resolution, the axes of every block in order."""
     lowpass: str | None
@@ -780,11 +781,11 @@ class STPlanTensorProd(STPlan):
     fields, so not part of the identity of the plan."""
     first_layer: tuple[tuple[int, ...], ...]
     """For each block, its scales of S1 and S2: 0 … J'_a - 1, with J'_a = J_a + 1 when the
-    block has a low-pass filter, whose scale is J_a (M-IDX-TP, M-LP)."""
+    block has a low-pass filter, whose scale is J_a (M-IDX-TENSORPROD, M-LP)."""
     s3: tuple[tuple[tuple[int, int], ...], ...]
-    """For each block, its pairs ``(j2, j3)`` of S3, j2 ≤ j3 < J_a (M-IDX-TP)."""
+    """For each block, its pairs ``(j2, j3)`` of S3, j2 ≤ j3 < J_a (M-IDX-TENSORPROD)."""
     s4: tuple[tuple[tuple[int, int, int], ...], ...]
-    """For each block, its triples ``(j1, j2, j3)`` of S4, j1 ≤ j2 ≤ j3 < J_a (M-IDX-TP)."""
+    """For each block, its triples ``(j1, j2, j3)`` of S4, j1 ≤ j2 ≤ j3 < J_a (M-IDX-TENSORPROD)."""
     _key: tuple[Any, ...] = field(repr=False)
 
     @property
@@ -879,15 +880,15 @@ def build_statistics_plan_tensor_prod(
     stacklevel: int = 1,
 ) -> STPlanTensorProd:
     """The :class:`STPlanTensorProd` of a ``DataTensorProd``, with one J and one L per block
-    (M-DATA-TP, M-DEF-TP: a list, an entry ``None`` giving the default of the block). The values
-    of ``data`` are not read. ``lowpass`` is ``"ST"`` (STL's default) or ``None`` (M-LP);
-    ``cross_matrix`` and ``standardize`` are those of
+    (M-DATA-TENSORPROD, M-DEF-TENSORPROD: a list, an entry ``None`` giving the default of the
+    block). The values of ``data`` are not read. ``lowpass`` is ``"ST"`` (STL's default) or ``None``
+    (M-LP); ``cross_matrix`` and ``standardize`` are those of
     :func:`build_plan_single_domain`. The static description of the loop, its index tables, crop
     widths and mean denominators, is built here too (:attr:`STPlanTensorProd.loop`).
 
     Warns once, as STL does, for each block whose sizes are not divisible by 2^J_a: it has no
     low-pass filter (M-LP, OP-34); and once for the plan when a border is too large for a block
-    and is reduced (M-BORDER-TP, OP-13). ``stacklevel`` places the warnings, as for
+    and is reduced (M-BORDER-TENSORPROD, OP-13). ``stacklevel`` places the warnings, as for
     ``warnings.warn``, from the caller of this function: 1 for that caller, 2 for its caller."""
     if not isinstance(data, Data) or data._geometry != "tensor_prod":
         raise TypeError(

@@ -1,6 +1,6 @@
 """Parity case: the statistics of STL `HealpixUpdate` on HEALPix data, normalised and reduced,
 with the masks of the scattering layers (Part II, §14.2, §14.4; task T5.3, issue #164, decision
-2; maths.md section 1, M-DATA-HPX, M-MASK-HPX).
+2; maths.md section 1, M-DATA-HEALPIX, M-MASK-HEALPIX).
 
 For each configuration ``<config>``, runs STL's scattering operator (``ST_Operator.apply``)
 without spectrum (``compute_PS=False``), L = 4 gauges, with the settings of ``_healpix.py`` (the
@@ -47,8 +47,8 @@ It stores, for each configuration:
   ``iso_angular`` (S3, S4), ``iso_scale`` (S3, S4) and ``iso_angular_scale`` (S3, S4);
 * ``<config>_vector`` and ``<config>_vector_reduced``: the flat real vectors;
 * ``<config>_cell_ids_<d>``, the pixels of level d = 1 … J-1, as the decimation of the grid
-  gives them (M-DOWN-HPX: the NESTED parents of the available fine pixels, ascending);
-* with missing pixels, the static maps of M-MASK-HPX as STL holds them, on the pixels
+  gives them (M-DOWN-HEALPIX: the NESTED parents of the available fine pixels, ascending);
+* with missing pixels, the static maps of M-MASK-HEALPIX as STL holds them, on the pixels
   ``<config>_cell_ids_<d>`` of their level, the boolean masks as float64 0/1 (1 = invalid):
   ``<config>_smooth_<d>`` (layer 0, d = 0 … J-1, d = 0 being the input mask) and
   ``<config>_reweight_smooth_<d>`` (d ≥ 1); ``<config>_layer1_<j>`` (first-layer data
@@ -61,7 +61,7 @@ The configurations cover the cells of §14.4 for HEALPix: the full sky at ``nsid
 and 16 (J = 3); two channels with every pair (cross terms); a disc at ``nside`` 16, a partial
 sky given by ``cell_ids``; a mask of missing values on the full sky at ``nside`` 16 (J = 3),
 given as ``mask_full_res``, with a batch of two and ``norm_batch_mean=True``; and a disc with a
-hole of missing values, its mask inferred by STL from the NaN of a single map (M-DATA-HPX); the
+hole of missing values, its mask inferred by STL from the NaN of a single map (M-DATA-HEALPIX); the
 hole is 2 pixels, so its masks of the field and of the first layer at levels 1 and 2
 (``smooth_1``, ``smooth_2``, ``layer1_1``, ``layer1_2``) are empty, and ``layer2_2_0`` is
 invalid everywhere (the support at level 2 covers its 30 pixels). J is
@@ -202,7 +202,7 @@ def _numpy(x: Any) -> NDArray[Any]:
 
 
 def _masks(name: str, wavelet_op: Any) -> dict[str, NDArray[Any]]:
-    """The static maps of M-MASK-HPX that STL's wavelet operator holds (no public accessor)."""
+    """The static maps of M-MASK-HEALPIX that STL's wavelet operator holds (no public accessor)."""
     out: dict[str, NDArray[Any]] = {}
     for d, mask in wavelet_op._mask_smooth.items():
         out[f"{name}_smooth_{d}"] = _numpy(mask)
@@ -256,7 +256,7 @@ def _configuration(data_cls: Any, name: str, config: dict[str, Any]) -> dict[str
         fields = {key: np.where(missing, np.nan, f) for key, f in fields.items()}
         out[f"{name}_mask"] = missing.astype(np.float64)
         if config.get("mask_from_nan"):
-            # STL infers the mask from the NaN of a single map (M-DATA-HPX).
+            # STL infers the mask from the NaN of a single map (M-DATA-HEALPIX).
             example = data_cls(array=torch.from_numpy(fields["field"][0, 0].copy()), **geometry)
         else:
             kwargs["mask_full_res"] = data_cls(

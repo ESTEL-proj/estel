@@ -76,7 +76,7 @@ target_seed = 9
 
 [cases.healpix-masked-64]
 # Added with task T5.7 (issue #168, decision 2): a HEALPix full sky at nside 64 (depth 6), NESTED,
-# J = 5 (the default of maths.md M-DEF-HPX), L = 4 gauges, one channel, with about 10 % of
+# J = 5 (the default of maths.md M-DEF-HEALPIX), L = 4 gauges, one channel, with about 10 % of
 # missing pixels in five discs, so that the masks, whose tables the operator builds, are
 # measured. The field is a white noise averaged over neighbouring pixels (bench/README.md).
 # ESTEL only: its check against STL is the parity tests of HEALPix (T5.6); STL's HEALPix times

@@ -1,6 +1,6 @@
 """Parity case: the normalised statistics of STL `2D+1D` on tensor products, and their flat
 vectors (Part II, §14.2, §14.4; task T3.4, issue #127, decisions of the maintainer, second
-version; maths.md M-NORM-TP, M-NORM, M-FLAT, M-IDX-TP, M-LP).
+version; maths.md M-NORM-TENSORPROD, M-NORM, M-FLAT, M-IDX-TENSORPROD, M-LP).
 
 On case C of maths.md §3 (a 16 x 16 periodic 2D block and an 8-sample open 1D block, STL's
 default J = (2, 1), L = (4, 2), ``lowpass="ST"``), with two maps of two channels, runs STL's
