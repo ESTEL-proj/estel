@@ -190,7 +190,7 @@ CONVENTION_HEALPIX = frozenset({"nest2xyf", "xyf2nest", "xyf2ang", "ring2nest"})
 PACKAGES = frozenset({"healpix_analyse", "healpy", "healpix_geo", "healpix-geo", "optax"})
 
 # Names fixed by another program, which never change (rule 3): pytest's module marker, the
-# interface of the parity cases (tools/stl_parity/run_case.py reads them), and, computed, the
+# interface of the parity cases (tools/stl_parity/make_fixtures.py reads them), and, computed, the
 # fixtures of every conftest.py.
 FIXED_BY_PROGRAM = frozenset({"pytestmark", "STL_ENV", "PARAMETERS", "run"})
 

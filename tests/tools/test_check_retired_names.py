@@ -273,6 +273,10 @@ def test_a_violation_with_no_row_fails(
         pytest.param(
             {"docs/guide.md": "See M-S1, M-W1-TENSORPROD, M-DATA-HEALPIX.\n"}, id="rule9-good-ids"
         ),
+        pytest.param(
+            {"docs/guide.md": "| `M-…-TENSORPROD` (`docs/maths.md` §3) | Tensor products |\n"},
+            id="rule9-a-range-of-ids",
+        ),
         pytest.param({"tools/x.py": 'HEALPIX_ANALYSE_VERSION = "1"\n'}, id="rule7-package"),
         pytest.param(
             {
