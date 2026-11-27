@@ -467,6 +467,47 @@ def test_a_row_done_fails_on_its_own_old_name(
     assert "its row is done" in output
 
 
+MODULE_ROW = table(
+    row("estel.wavelets._tensor_prod", "estel.wavelets._operator_tensor_prod", done=True)
+)
+
+
+@pytest.mark.parametrize(
+    ("files", "fails"),
+    [
+        pytest.param(
+            {"docs/guide.md": "See `_tensor_prod.py`.\n"}, True, id="its-file-name-alone"
+        ),
+        pytest.param(
+            {
+                "src/estel/data/_tensor_prod.py": "X = 1\n",
+                "docs/guide.md": "See `_tensor_prod.py`.\n",
+            },
+            False,
+            id="the-file-name-of-another-module",
+        ),
+        pytest.param(
+            {
+                "src/estel/data/_tensor_prod.py": "X = 1\n",
+                "docs/guide.md": "See `wavelets/_tensor_prod.py`.\n",
+            },
+            True,
+            id="its-qualified-path",
+        ),
+    ],
+)
+def test_a_module_row_done_leaves_the_file_name_of_another_module(
+    tmp_path: Path, files: dict[str, str], fails: bool
+) -> None:
+    """A renamed module's file name alone, `_tensor_prod.py`, may cite another module of that
+    name, here `data/_tensor_prod.py`: it fails only while no other module has that name."""
+    module = {"src/estel/wavelets/_operator_tensor_prod.py": "Y = 1\n"}
+    status, output = names(tmp_path, {**module, **files, **MODULE_ROW})
+    assert status == int(fails), output
+    if fails:
+        assert "docs/guide.md:1" in output
+
+
 def test_prose_names_that_are_no_words_are_matched_outside_backticks(tmp_path: Path) -> None:
     files = {
         "src/estel/wavelets/_operator.py": "class WaveletPlanSingleDomain:\n    pass\n",

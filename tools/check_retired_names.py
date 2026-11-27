@@ -1238,6 +1238,9 @@ def check_done_occurrences(
             parts = row.old.split(".")
             forms = {".".join(parts[i:]) for i in range(len(parts) - 1)}
             forms |= {"/".join(parts[i:]) + ".py" for i in range(len(parts))}
+            if any(m not in homes for m in defined.get(parts[-1], ())):
+                # Another module has its name: its file name alone may cite that one.
+                forms.discard(parts[-1] + ".py")
             if not lifted:
                 for info in modules.values():
                     lines = sorted(
