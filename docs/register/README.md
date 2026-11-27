@@ -53,7 +53,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 
 ## Queue
 
-10 entries: 10 need a human, 0 can be treated.
+12 entries: 12 need a human, 0 can be treated.
 
 ### Needs a human
 
@@ -66,6 +66,8 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 | [LF73](LF73.md) | A cheaper gradient of the HEALPix convolution | — | whether a rule through `custom_jvp`, and its PyTorch counterpart, keeps the second order on both backends; the memory of the transposed tables; whether the Rust engine (LF3) makes it unnecessary | Optimisation |
 | [LF74](LF74.md) | Plots and diagnostics that wait for later cards | — | the Fourier diagnostics on the sphere, defined through spherical harmonics; the plots of `angular_fourier` and `scale_cosine` on tensor products, as LF68 defines them | New feature |
 | [LF75](LF75.md) | A real name for the HEALPix wavelet | — | the name, from the definition of the HEALPix kernel (maths M-WAV-HPX) | Structure |
+| [LF76](LF76.md) | One Jmin for the scattering and the spectrum | — | whether `Jmin` is shared by the scattering statistics and the spectrum, or implemented for the scattering statistics alone if the spectral coverage of the spectrum is no longer tied to J (LF10, LF61) | New feature |
+| [LF77](LF77.md) | Syntheses that need a second operator: size, periodicity | — | whether the second operator of a synthesis whose running field differs from its target in what the plan fixes (its size, its periodicity) is a problem: its build time and memory, the reference passed from one to the other; if it is, how one operator could serve several sizes or periodicities | Structure |
 | [W5](W5.md) | Notation of the maths tab harmonised | — | for each remark R-N01 to R-N18 of issue #71 except R-N10: its recommendation, or another choice; the single table of symbols (R-N18) | Work that is not a feature |
 | [W6](W6.md) | Vocabulary of the code harmonised | — | for each remark R-V01 to R-V10 of issue #72: its recommendation, or another choice | Work that is not a feature |
 | [W7](W7.md) | Structure of maths.md and of the specification | — | for each remark R-S03, R-S04, R-S06 and R-S09 of issue #73: its recommendation, or another choice; whether the remarks apply to the transfer document, archived after 1.0.0, or to `docs/maths.md` and the reference document only | Work that is not a feature |
@@ -95,7 +97,7 @@ Something found during step 1 that belongs to a later step (2a, 2b or 3) becomes
 | [LF58](LF58.md) | One loss function for both synthesis entries | 2a.4 | — | Mathematical choice |
 | [LF59](LF59.md) | Running field of a synthesis standardised | 2a.4 | — | Mathematical choice |
 | [LF64](LF64.md) | Nyquist pre-filter on rectangular fields | 2a.4 | — | Mathematical choice |
-| [LF10](LF10.md) | v1.6.0 spectrum estimators in every geometry | 2a.X | N_max on blocks of different sizes and dimensions; J_PS on blocks of different sizes and dimensions; the joint bins of a tensor product; the border β_b on 1D and product blocks (its J₀ Hankel transform is 2D) | New feature |
+| [LF10](LF10.md) | v1.6.0 spectrum estimators in every geometry | 2a.X | N_max on blocks of different sizes and dimensions; J_PS on blocks of different sizes and dimensions; the joint bins of a tensor product; the border β_b on 1D and product blocks (its J₀ Hankel transform is 2D); the spectral coverage in every geometry: the band of frequencies, the number and the width of the bins | New feature |
 | [LF11](LF11.md) | Plotting, diagnostics and gaussianise | 2a.X | the generator of `gaussianise`, after the comparison: the default, one function with `method=` or several, the names | New feature |
 
 ### Can be treated
