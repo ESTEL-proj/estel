@@ -200,7 +200,7 @@ forbidden_modules = [
     "estel.data._masks",
 ]
 allow_indirect_imports = true
-broken_contract_guidance = "Go through estel.wavelets._operator: WaveletOperator and its WaveletPlan give the levels, their shapes, the kernels, and the rules of borders and masks; add what L2 needs there."
+broken_contract_guidance = "Go through estel.wavelets._operator: WaveletOperator and its WaveletPlanSingleDomain give the levels, their shapes, the kernels, and the rules of borders and masks; add what L2 needs there."
 
 [[tool.importlinter.contracts]]
 id = "layers"

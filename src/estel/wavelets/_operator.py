@@ -12,12 +12,12 @@ weights only.
 Like ``STOperator``, the wavelet operator is a static part plus arrays, applied by pure
 functions:
 
-* :class:`WaveletPlan`, the static part, held by the ``STPlan``: built once, in NumPy float64,
+* :class:`WaveletPlanSingleDomain`, the static part, held by the ``STPlan``: built once, in NumPy float64,
   never traced (tag N of Part II, §12); immutable and hashable. It holds the level at which
   each scale is computed, the levels and their shapes, how the low-pass filter is realised, the
   masks and reweighting maps of the data (``estel.data._masks``), and the rules of borders and
   masks.
-* :class:`WaveletFilters`, the arrays, held by the ``STFilters``: the wavelet bank, the
+* :class:`WaveletFiltersCartesian`, the arrays, held by the ``STFilters``: the wavelet bank, the
   smoothing kernel and the maps of each downsampling step, on the operator's backend and dtype.
 * :class:`WaveletOperator`, which binds the two to data, read for their geometry and backend
   only: :meth:`WaveletOperator.apply` and :meth:`WaveletOperator.downsample` are the pure
@@ -35,7 +35,7 @@ described here and applied with its first user, the tensor products (task T3.2).
 
 **Scales and levels** (maths.md M-NOT; Part III, §19.12, point 5): a scale ``j`` indexes a
 wavelet, a level ``d`` a resolution, the data downsampled ``d`` times. The plan holds the level
-at which each scale is computed, :attr:`WaveletPlan.scale_levels`, and everything else reads
+at which each scale is computed, :attr:`WaveletPlanSingleDomain.scale_levels`, and everything else reads
 it there: in 1.0.0 scale ``j`` is computed at level d = j (STL's ``j_to_dg``), and
 :func:`build_wavelet_plan` is the one place that says so.
 """
@@ -207,7 +207,7 @@ class MeanWeights:
 
 
 @dataclass(frozen=True, eq=False)
-class WaveletPlan:
+class WaveletPlanSingleDomain:
     """The static part of a wavelet operator, held by the ``STPlan`` (Part II, §12.6).
 
     Built by :func:`build_wavelet_plan`; NumPy only, immutable and hashable. Two wavelet plans
@@ -260,7 +260,7 @@ class WaveletPlan:
         return hash(self._key)
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, WaveletPlan):
+        if not isinstance(other, WaveletPlanSingleDomain):
             return NotImplemented
         return self._key == other._key
 
@@ -288,7 +288,7 @@ class WaveletPlan:
         """The arrays of this plan on the backend ``backend_name``, cast once to ``dtype`` on
         ``device``: a hook, so that the operator and the ``STPlan`` build the filters of every
         geometry with one call (planar: :func:`build_wavelet_filters`; HEALPix:
-        ``_healpix_operator.build_healpix_wavelet_filters``). ``tables``: those
+        ``_healpix_operator.build_wavelet_filters_healpix``). ``tables``: those
         :func:`build_wavelet_plan_with_tables` returned with this plan, or ``None``; 1D and 2D
         plans have none."""
         return build_wavelet_filters(self, backend_name, dtype, device)
@@ -372,7 +372,7 @@ def build_wavelet_plan(
     wavelet: str | None = None,
     *,
     kernel_size: int = KERNEL_SIZE,
-) -> WaveletPlan:
+) -> WaveletPlanSingleDomain:
     """The plan of :func:`build_wavelet_plan_with_tables`, without its tables."""
     return build_wavelet_plan_with_tables(data, J, L, wavelet, kernel_size=kernel_size)[0]
 
@@ -384,13 +384,13 @@ def build_wavelet_plan_with_tables(
     wavelet: str | None = None,
     *,
     kernel_size: int = KERNEL_SIZE,
-) -> tuple[WaveletPlan, Any]:
-    """The :class:`WaveletPlan` of wavelets with ``J`` scales and ``L`` orientations on data
+) -> tuple[WaveletPlanSingleDomain, Any]:
+    """The :class:`WaveletPlanSingleDomain` of wavelets with ``J`` scales and ``L`` orientations on data
     with the geometry, spatial shape, ``pbc`` and mask of ``data``; its values are not read.
 
     By default J = ⌊log₂ min N⌋ - 2, and L = 4 in 2D, 1 in 1D (M-DEF, M-DEF-1D). Raises when J
     is not an integer ≥ 1 or the sizes are not divisible by 2^(J-1) (M-DATA-2D, OP-8), and when
-    L is not an integer ≥ 1, as STL accepts (Part II, §12.5); :meth:`WaveletPlan.bank` checks L
+    L is not an integer ≥ 1, as STL accepts (Part II, §12.5); :meth:`WaveletPlanSingleDomain.bank` checks L
     against the bank of the geometry.
 
     ``None`` (the default) means the wavelet of the geometry: ``"bump_steerable"`` for 1D
@@ -398,12 +398,12 @@ def build_wavelet_plan_with_tables(
     geometry accepts ``None`` and its own name only: 1D and 2D data ``"bump_steerable"``,
     ``DataHealpix`` ``"healpix"``; another name raises a ``ValueError`` that lists them.
 
-    HEALPix data get a ``HealpixWaveletPlan`` (``_healpix_operator``), with their own defaults
+    HEALPix data get a ``WaveletPlanHealpix`` (``_healpix_operator``), with their own defaults
     and rules (maths.md M-DEF-HPX, M-MASK-HPX): the plan of each geometry is chosen here, once,
     and everything after it goes through the hooks of the plan and of its filters.
 
     Beside the plan, the NumPy tables built with it, a value that only its own
-    :meth:`WaveletPlan._build_filters` reads (``tables=``), so that the operator builds them once
+    :meth:`WaveletPlanSingleDomain._build_filters` reads (``tables=``), so that the operator builds them once
     (task T5.7): the tables of a masked HEALPix plan, ``None`` otherwise.
     """
     if not isinstance(data, Data):
@@ -412,10 +412,10 @@ def build_wavelet_plan_with_tables(
             f"{type(data).__name__}."
         )
     if isinstance(data, DataHealpix):
-        # Imported here: the HEALPix plan subclasses WaveletPlan, defined in this module.
-        from ._healpix_operator import build_healpix_wavelet_plan_with_tables
+        # Imported here: the HEALPix plan subclasses WaveletPlanSingleDomain, defined in this module.
+        from ._healpix_operator import build_wavelet_plan_with_tables_healpix
 
-        return build_healpix_wavelet_plan_with_tables(data, J, L, wavelet, kernel_size=kernel_size)
+        return build_wavelet_plan_with_tables_healpix(data, J, L, wavelet, kernel_size=kernel_size)
     if isinstance(data, DataTensorProd):
         raise TypeError(
             "STOperator takes single-domain data, not a DataTensorProd: the scattering operator of "
@@ -458,8 +458,8 @@ def _wavelet_plan(
     size: int,
     *,
     lowpass: bool = False,
-) -> WaveletPlan:
-    """The :class:`WaveletPlan` of a planar ``geometry`` with the static metadata given, and J,
+) -> WaveletPlanSingleDomain:
+    """The :class:`WaveletPlanSingleDomain` of a planar ``geometry`` with the static metadata given, and J,
     L and K already validated: of data (:func:`build_wavelet_plan`), or of one block of a
     tensor product (``estel.wavelets._tensor_prod``).
 
@@ -486,7 +486,7 @@ def _wavelet_plan(
         )
     )
     static_mask = None if mask is None else _StaticMask(mask)
-    return WaveletPlan(
+    return WaveletPlanSingleDomain(
         geometry=geometry,
         J=n_scales,
         L=n_orientations,
@@ -521,7 +521,7 @@ def _wavelet_plan(
 # ---------------------------------------------------------------------- the arrays
 
 
-class WaveletFilters(NamedTuple):
+class WaveletFiltersCartesian(NamedTuple):
     """The arrays of a wavelet operator, held by the ``STFilters`` (Part II, §12.6): backend
     arrays in the operator's dtype, built once by :func:`build_wavelet_filters`."""
 
@@ -532,14 +532,14 @@ class WaveletFilters(NamedTuple):
     """The real smoothing kernel of the downsampling (M-SMOOTH-2D, M-SMOOTH-1D)."""
     field_down: Mapping[int, tuple[Any, Any]]
     """Per level d but the last, the ``(valid, reweight)`` maps of the field from d to d+1, or
-    no entry without missing values (``WaveletPlan.downsample_maps(d)``)."""
+    no entry without missing values (``WaveletPlanSingleDomain.downsample_maps(d)``)."""
     modulus_down: Mapping[tuple[int, int], tuple[Any, Any]]
     """Per ``(d, j)``, d a level but the last and j a scale computed at d or before, the maps
     of first-layer data convolved at j from d to d+1, or no entry without missing values
-    (``WaveletPlan.downsample_maps(d, (j,))``)."""
+    (``WaveletPlanSingleDomain.downsample_maps(d, (j,))``)."""
 
     # The hooks the operator reads the arrays through, shared with the filters of HEALPix
-    # (``_healpix_operator.HealpixWaveletFilters``), whose tables differ from level to level.
+    # (``_healpix_operator.WaveletFiltersHealpix``), whose tables differ from level to level.
 
     def _conv_tables(self, level: int) -> Any:
         """The tables of ``Data._conv`` at ``level``: the bank, the same at every level."""
@@ -556,13 +556,13 @@ class WaveletFilters(NamedTuple):
 
 
 def build_wavelet_filters(
-    plan: WaveletPlan, backend_name: str, dtype: FloatDType, device: Any
-) -> WaveletFilters:
+    plan: WaveletPlanSingleDomain, backend_name: str, dtype: FloatDType, device: Any
+) -> WaveletFiltersCartesian:
     """The arrays of ``plan`` on the backend ``backend_name``, cast once to ``dtype`` on
     ``device`` (Part I, §3.1, rules 4 and 7)."""
     backend = _registry.backend_named(backend_name)
     field_down, modulus_down = downsample_maps_of(plan, backend_name, dtype, device)
-    return WaveletFilters(
+    return WaveletFiltersCartesian(
         kernels=backend.asarray(plan.bank(), COMPLEX[dtype], device),
         smoothing=backend.asarray(smoothing_kernel(plan.ndim), dtype, device),
         field_down=field_down,
@@ -571,11 +571,11 @@ def build_wavelet_filters(
 
 
 def downsample_maps_of(
-    plan: WaveletPlan, backend_name: str, dtype: FloatDType, device: Any
+    plan: WaveletPlanSingleDomain, backend_name: str, dtype: FloatDType, device: Any
 ) -> tuple[dict[int, tuple[Any, Any]], dict[tuple[int, int], tuple[Any, Any]]]:
     """The ``(valid, reweight)`` maps of every downsampling step of ``plan``, on the backend in
     ``dtype``: per level ``d`` for the field, and per ``(d, j)`` for first-layer data convolved
-    at scale ``j`` (``WaveletPlan.downsample_maps``; M-DOWN-MASK). Empty without missing
+    at scale ``j`` (``WaveletPlanSingleDomain.downsample_maps``; M-DOWN-MASK). Empty without missing
     values. Shared by the filters of every geometry."""
     backend = _registry.backend_named(backend_name)
 
@@ -632,8 +632,8 @@ class WaveletOperator:
     __slots__ = ("_data", "_filters", "_plan")
 
     _data: Data
-    _plan: WaveletPlan
-    _filters: WaveletFilters | None
+    _plan: WaveletPlanSingleDomain
+    _filters: WaveletFiltersCartesian | None
 
     def __init__(
         self,
@@ -648,7 +648,9 @@ class WaveletOperator:
         filters = plan._build_filters(data.backend, default_dtype(), default_device(), tables)
         self._bind(data, plan, filters)
 
-    def _bind(self, data: Data, plan: WaveletPlan, filters: WaveletFilters | None) -> None:
+    def _bind(
+        self, data: Data, plan: WaveletPlanSingleDomain, filters: WaveletFiltersCartesian | None
+    ) -> None:
         object.__setattr__(self, "_data", data)
         object.__setattr__(self, "_plan", plan)
         object.__setattr__(self, "_filters", filters)
@@ -658,7 +660,10 @@ class WaveletOperator:
 
     @classmethod
     def from_parts(
-        cls, data: Data, plan: WaveletPlan, filters: WaveletFilters | None = None
+        cls,
+        data: Data,
+        plan: WaveletPlanSingleDomain,
+        filters: WaveletFiltersCartesian | None = None,
     ) -> WaveletOperator:
         """The operator of a static part and its arrays, bound to ``data``, which must have
         the static metadata ``plan`` was built from: no validation and no conversion, so that
@@ -668,12 +673,12 @@ class WaveletOperator:
         return new
 
     @property
-    def plan(self) -> WaveletPlan:
+    def plan(self) -> WaveletPlanSingleDomain:
         """The static part."""
         return self._plan
 
     @property
-    def filters(self) -> WaveletFilters | None:
+    def filters(self) -> WaveletFiltersCartesian | None:
         """The arrays, or ``None`` for an operator bound to its static part only."""
         return self._filters
 
@@ -802,7 +807,7 @@ class WaveletOperator:
         out = self._data._downsample(flat, weights, level)
         return xp.reshape(out, (*lead, *tuple(out.shape[2:])))
 
-    def _arrays(self, function: str) -> WaveletFilters:
+    def _arrays(self, function: str) -> WaveletFiltersCartesian:
         if self._filters is None:
             raise ValueError(
                 f"WaveletOperator.{function}: this operator holds its static part only. Bind "

@@ -38,7 +38,7 @@ from estel.wavelets._healpix_geometry import (
     xyf2ang,
     xyf2nest,
 )
-from estel.wavelets._healpix_operator import build_healpix_wavelet_plan
+from estel.wavelets._healpix_operator import build_wavelet_plan_healpix
 
 
 def _pixels(depth: int) -> np.ndarray:
@@ -286,9 +286,9 @@ def test_masks_built_by_batches_equal_one_batch(monkeypatch: pytest.MonkeyPatch)
     mask = np.zeros(192, dtype=bool)
     mask[[5, 6, 70, 71, 140]] = True
     data = DataHealpix(np.ones(192), mask=mask)
-    whole = build_healpix_wavelet_plan(data, 2, kernel_size=5).masks
+    whole = build_wavelet_plan_healpix(data, 2, kernel_size=5).masks
     monkeypatch.setattr(_healpix_geometry, "_STENCIL_BATCH", 7)
-    batched = build_healpix_wavelet_plan(data, 2, kernel_size=5).masks
+    batched = build_wavelet_plan_healpix(data, 2, kernel_size=5).masks
     assert whole is not None
     assert batched is not None
     for name in ("smooth_invalid", "smooth_reweight", "wav_invalid", "wav_reweight", "layer1",

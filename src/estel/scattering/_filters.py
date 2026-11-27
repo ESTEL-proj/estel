@@ -1,7 +1,7 @@
 """``STFilters``: the numerical arrays of a scattering transform (Part II, §12.6; task
 T2.5).
 
-The arrays of the wavelet operator (``wavelets``, a ``WaveletFilters``; Part I, §2.3): the
+The arrays of the wavelet operator (``wavelets``, a ``WaveletFiltersCartesian``; Part I, §2.3): the
 wavelet bank, the smoothing kernel and the maps of each downsampling (maths.md M-WAV-2D,
 M-WAV-1D, M-SMOOTH-2D, M-SMOOTH-1D, M-DOWN-MASK); and everything derived from the plan to apply
 them: the valid pixels, the weights of the means of the field and of the first layer and the
@@ -30,8 +30,8 @@ from .._config import FloatDType
 from ..backend import _registry
 from ..spectra._estimators import SpectrumFilters, build_spectrum_filters
 from ..statistics._layout import ChunkTables, loop_gather, tensor_prod_gather
-from ..wavelets._operator import MeanWeights, WaveletFilters
-from ..wavelets._tensor_prod import build_tensor_prod_wavelet_filters
+from ..wavelets._operator import MeanWeights, WaveletFiltersCartesian
+from ..wavelets._tensor_prod import build_wavelet_filters_tensor_prod
 from ._tensor_prod import Scale
 
 if TYPE_CHECKING:
@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 class _FilterFields(NamedTuple):
     """The fields of :class:`STFilters`, internal to ESTEL."""
 
-    wavelets: WaveletFilters
+    wavelets: WaveletFiltersCartesian
     """The arrays of the wavelet operator: the wavelet bank, the smoothing kernel and the maps
     of each downsampling step (``plan.wavelets``)."""
     valid: Any
@@ -162,7 +162,7 @@ def build_filters(
 class _TensorProdFilterFields(NamedTuple):
     """The fields of :class:`TensorProdFilters`, internal to ESTEL."""
 
-    wavelets: tuple[WaveletFilters, ...]
+    wavelets: tuple[WaveletFiltersCartesian, ...]
     """The arrays of the wavelet operator of each block: its bank and smoothing kernel."""
     arm_crops: dict[Scale, tuple[Any, ...]]
     """Per wavelet scale j3, per block, the crops of the arms along that block,
@@ -212,7 +212,7 @@ def build_tensor_prod_filters(
     second = loop.second_layer
     pack = tensor_prod_gather(plan)
     return TensorProdFilters(
-        wavelets=build_tensor_prod_wavelet_filters(plan.wavelets, backend_name, dtype, device),
+        wavelets=build_wavelet_filters_tensor_prod(plan.wavelets, backend_name, dtype, device),
         arm_crops={s.j3: tuple(real(c) for c in s.arm_crops) for s in second},
         band_crops={s.j3: tuple(real(c) for c in s.band_crops) for s in second},
         s3_rows={s.j3: index(s.s3_rows) for s in second},
