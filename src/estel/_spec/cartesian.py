@@ -61,7 +61,7 @@ NAN_THRESHOLD = {2: 0.33, 1: 0.5}
 
 def _check_ndim(ndim: int) -> None:
     if ndim not in (1, 2):
-        raise ValueError(f"ndim={ndim!r}: planar data have 1 or 2 spatial axes; pass 1 or 2.")
+        raise ValueError(f"ndim={ndim!r}: Cartesian data have 1 or 2 spatial axes; pass 1 or 2.")
 
 
 # ---------------------------------------------------------------------- data and defaults

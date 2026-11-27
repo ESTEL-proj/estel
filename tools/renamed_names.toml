@@ -346,7 +346,7 @@ row = [
     { old = "docs/transfer/part2.md#planar", new = "Cartesian or single-domain, by hand (rule 10)", kind = "rename", task = "T7.11", done = true, note = "prose" },
     { old = "docs/transfer/part3.md#planar", new = "Cartesian or single-domain, by hand (rule 10)", kind = "rename", task = "T7.11", done = true, note = "prose" },
     { old = "src/estel/_spec/healpix.py#planar", new = "Cartesian or single-domain, by hand (rule 10)", kind = "rename", task = "T7.11", done = true, note = "prose" },
-    { old = "src/estel/_spec/planar.py#planar", new = "Cartesian or single-domain, by hand (rule 10)", kind = "rename", task = "T7.11", done = false, note = "prose" },
+    { old = "src/estel/_spec/planar.py#planar", new = "Cartesian or single-domain, by hand (rule 10)", kind = "rename", task = "T7.11", done = true, note = "prose" },
     { old = "src/estel/_spec/spectra.py#planar", new = "Cartesian or single-domain, by hand (rule 10)", kind = "rename", task = "T7.11", done = true, note = "prose" },
     { old = "src/estel/_spec/tensor_prod.py#planar", new = "Cartesian or single-domain, by hand (rule 10)", kind = "rename", task = "T7.11", done = true, note = "prose" },
     { old = "src/estel/data/_base.py#planar", new = "Cartesian or single-domain, by hand (rule 10)", kind = "rename", task = "T7.11", done = true, note = "prose" },

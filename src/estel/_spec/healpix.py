@@ -645,7 +645,7 @@ def spec_levels_healpix(
     L: int = N_GAUGES,  # noqa: N803
     K: int = KERNEL_SIZE,  # noqa: N803
 ) -> tuple[dict[str, Any], ...]:
-    """The geometry of the levels d = 0 … J-1: for each, its ``nside`` (``nside / 2^d``), its
+    """The levels d = 0 … J-1: for each, its ``nside`` (``nside / 2^d``), its
     ``cell_ids``, its convolution tables (``"conv"``) and, but for the last, its decimation
     matrix to the next level (``"down"``). Implements the levels of M-DATA-HEALPIX and
     M-DOWN-HEALPIX ("several levels are reached by repeating the step"). Read-only, built once per
