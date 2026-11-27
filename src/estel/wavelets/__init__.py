@@ -1,9 +1,9 @@
 """Wavelets: the wavelet operator, the static banks of filters and the smoothing kernel
 (Part II, §12.5).
 
-``_operator.py`` holds the internal ``WaveletOperatorSingleDomain``, the only way to the wavelets
-and to the geometry of the pyramid (Part I, §2.3): the rest of ESTEL goes through it, and imports
-neither the banks nor the mask builders of ``estel.data``.
+``_operator.py`` holds the internal ``WaveletOperator``, the only way to the wavelets and to the
+geometry of the pyramid (Part I, §2.3): the rest of ESTEL goes through it, and imports neither the
+banks nor the mask builders of ``estel.data``.
 
 The modules of one geometry are named after it (Part I, §2.4.1, rule 3); ``_operator.py`` is
 bare, and holds what every geometry shares. The banks are built in NumPy float64 when an

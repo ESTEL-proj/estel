@@ -19,7 +19,9 @@ In L1 and L2 (``data``, ``wavelets``, ``scattering``, ``statistics``, ``synthesi
 Outside ``data`` and ``wavelets``, no use of a hook of filtering or downsampling (§2.3):
 
 * an attribute named ``_conv``, ``_downsample``, ``_crop_weights`` or ``_lowpass``, called or
-  not, and ``getattr`` with one of these names. Only ``WaveletOperatorSingleDomain`` calls them.
+  not, and ``getattr`` with one of these names. Only the wavelet operators call them:
+  ``WaveletOperatorSingleDomain`` and ``WaveletOperatorTensorProd``, whose root is
+  ``WaveletOperator``.
 
 The checks are syntactic, so they cannot tell an array from a list or a dict: in L1 and L2,
 build containers with literals and comprehensions as well.
@@ -66,10 +68,12 @@ INPLACE_METHOD = (
     "value it returns (Part I, §3.1, rule 1)."
 )
 GEOMETRY_HOOK = (
-    "uses the geometry hook `{name}` outside estel.wavelets and estel.data. Only "
-    "`WaveletOperatorSingleDomain` calls the hooks of filtering and downsampling: go through it "
-    "(`estel.wavelets._operator`: `apply`, `downsample`, `mean_weights`), and add what is "
-    "missing there (Part I, §2.3, §2.4)."
+    "uses the geometry hook `{name}` outside estel.wavelets and estel.data. Only the wavelet "
+    "operators call the hooks of filtering and downsampling: go through one "
+    "(`WaveletOperatorSingleDomain` in `estel.wavelets._operator`, `WaveletOperatorTensorProd` "
+    "in `estel.wavelets._operator_tensor_prod`: `apply`, `downsample`, `lowpass`, "
+    "`mean_weights`), and add what is missing to their root, `WaveletOperator` (Part I, §2.3, "
+    "§2.4)."
 )
 INPLACE_KEYWORD = (
     "passes `inplace={value}` to `{expr}`. Remove it and use the returned value: data objects "

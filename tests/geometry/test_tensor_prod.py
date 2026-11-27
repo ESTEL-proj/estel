@@ -25,7 +25,11 @@ from estel.backend._protocol import Backend, DType
 from estel.data._base import DownsampleWeights
 from estel.data._cartesian import DataCartesian
 from estel.wavelets._banks_cartesian import smoothing_kernel_cartesian, wavelet_bank_cartesian
-from estel.wavelets._operator import WaveletOperatorSingleDomain, default_scales_of_cartesian
+from estel.wavelets._operator import (
+    WaveletOperator,
+    WaveletOperatorSingleDomain,
+    default_scales_of_cartesian,
+)
 from estel.wavelets._operator_tensor_prod import (
     WaveletOperatorTensorProd,
     WaveletPlanTensorProd,
@@ -275,6 +279,19 @@ def test_the_orientation_axes_follow_the_channels_in_block_order(
         (0, 3, 2, 1, *range(4, 4 + n_spatial)),
     )
     _assert_close(backend, both, expected, dtype)
+
+
+@pytest.mark.maths("M-NOT-TP")
+def test_the_operator_of_a_tensor_prod_is_a_wavelet_operator() -> None:
+    """It gives the members its root declares: the multi-index levels and their shapes; its
+    means are weighted block by block, so mean_weights raises and says so."""
+    product = DataTensorProd(np.zeros((8, 8, 4)), [Data2D, Data1D], pbc=[True, True])
+    operator = WaveletOperatorTensorProd(product, [2, 1])
+    assert isinstance(operator, WaveletOperator)
+    assert operator.levels == ((0, 0), (1, 0))
+    assert [operator.level_shape(d) for d in operator.levels] == [(8, 8, 4), (4, 4, 4)]
+    with pytest.raises(NotImplementedError, match="crop_weights"):
+        operator.mean_weights({})
 
 
 @pytest.mark.maths("M-BORDER-TP")

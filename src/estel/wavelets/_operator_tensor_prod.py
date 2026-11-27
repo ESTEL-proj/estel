@@ -1,16 +1,17 @@
 """The wavelet operator of a tensor product, composed from those of its blocks (Part I, §2.3;
 Part II, §12.5; maths.md M-NOT-TP, M-W1-TP, M-DEF-TP; task T3.1).
 
-Internal, like :class:`~estel.wavelets._operator.WaveletOperatorSingleDomain`. A tensor product of B
-blocks (``DataTensorProd``) has one J and one L per block, and its levels are multi-indices
-d = (d₀, …, d_{B-1}): the field downsampled d_a times along block a (M-NOT-TP). Each block has
-the static part and the arrays of a planar wavelet operator, built for its geometry, its sizes
-and its ``pbc`` (:class:`~estel.wavelets._operator.WaveletPlanCartesian`,
+Internal, a :class:`~estel.wavelets._operator.WaveletOperator`, beside the
+:class:`~estel.wavelets._operator.WaveletOperatorSingleDomain` of 1D, 2D and HEALPix data. A tensor
+product of B blocks (``DataTensorProd``) has one J and one L per block, and its levels are
+multi-indices d = (d₀, …, d_{B-1}): the field downsampled d_a times along block a (M-NOT-TP). Each
+block has the static part and the arrays of a planar wavelet operator, built for its geometry, its
+sizes and its ``pbc`` (:class:`~estel.wavelets._operator.WaveletPlanCartesian`,
 :class:`~estel.wavelets._operator.WaveletFiltersCartesian`), a ``WaveletPlan`` and its
-``WaveletFilters``; the operator of the tensor product
-holds them in block order and reads the arrays of each block through the hooks of its filters
-(``_conv_tables``, ``_down_tables``), never through a field of one geometry, and applies them
-along the axes of each block, through the hooks of ``DataTensorProd``, which dispatch to the
+``WaveletFilters``; the operator of the tensor product holds them in block order and reads the
+arrays of each block through the hooks of its filters (``_conv_tables``, ``_down_tables``), never
+through a field of one geometry, and applies them along the axes of each block, through the hooks of
+``DataTensorProd``, which dispatch to the
 geometry of the block:
 
 * :meth:`WaveletOperatorTensorProd.apply`, the block convolution ψ⁽ᵃ⁾ ⋆_a of M-W1-TP, at the
@@ -41,6 +42,7 @@ by 2^(J_a - 1), and the caller's lists are never modified.
 
 from __future__ import annotations
 
+import itertools
 import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -59,6 +61,7 @@ from ..data._tensor_prod import DataTensorProd
 from ._banks_cartesian import KERNEL_SIZE_CARTESIAN, _check_size_cartesian
 from ._operator import (
     WaveletFilters,
+    WaveletOperator,
     WaveletPlan,
     WaveletPlanCartesian,
     _check_scales_cartesian,
@@ -287,8 +290,9 @@ def build_wavelet_filters_tensor_prod(
 # ---------------------------------------------------------------------- the operator
 
 
-class WaveletOperatorTensorProd:
-    """The wavelets of a tensor product, block by block: internal (Part II, §12.5).
+class WaveletOperatorTensorProd(WaveletOperator):
+    """The wavelets of a tensor product, block by block: internal (Part II, §12.5), a
+    :class:`~estel.wavelets._operator.WaveletOperator` whose levels are multi-indices.
 
     ``WaveletOperatorTensorProd(data, J, L)`` builds the static part and, on the backend of
     ``data`` in the default dtype, the arrays.
@@ -379,6 +383,16 @@ class WaveletOperatorTensorProd:
         """The arrays of each block, or ``None`` for an operator bound to its static part
         only."""
         return self._filters
+
+    @property
+    def levels(self) -> tuple[LevelTensorProd, ...]:
+        """The multi-index levels: every level of each block, with every level of the others,
+        in lexicographic order (maths.md M-NOT-TP)."""
+        return tuple(itertools.product(*(b.levels for b in self._plan.blocks)))
+
+    def level_shape(self, level: LevelTensorProd) -> tuple[int, ...]:
+        """The spatial shape at the multi-index ``level``: each block at its own level."""
+        return self._plan.level_shape(level)
 
     # ------------------------------------------------------------------ static rules
 

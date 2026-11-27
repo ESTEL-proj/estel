@@ -1,4 +1,4 @@
-"""``WaveletOperatorSingleDomain``: the only way to the wavelets and to the geometry of the pyramid
+"""``WaveletOperator``: the only way to the wavelets and to the geometry of the pyramid
 (Part I, §2.3; Part II, §12.5; task T2.10).
 
 Internal: ESTEL computes scattering statistics, and STL's ``data.get_wavelet_op()`` has no
@@ -20,11 +20,10 @@ functions:
 * :class:`WaveletFilters`, the arrays, held by the ``STFilters``: the wavelet bank, or the tables
   of the level, the smoothing kernel, or the tables of the decimation, and the maps of each
   downsampling step, on the operator's backend and dtype.
-* :class:`WaveletOperatorSingleDomain`, which binds the two to data, read for their geometry and
-  backend only: :meth:`WaveletOperatorSingleDomain.apply` and
-  :meth:`WaveletOperatorSingleDomain.downsample` are the pure functions the loop calls, on maps,
-  scales and levels, and :meth:`WaveletOperatorSingleDomain.mean_weights` gives the plan the weights
-  of its means.
+* :class:`WaveletOperator`, which binds the two to data, read for their geometry and backend
+  only: :meth:`WaveletOperator.apply` and :meth:`WaveletOperator.downsample` are the pure
+  functions the loop calls, on maps, scales and levels, and
+  :meth:`WaveletOperator.mean_weights` gives the plan the weights of its means.
 
 The plans and the filters follow the tree of geometries (Part I, §2.3.1). :class:`WaveletPlan`,
 abstract, is the root of the plans: :class:`WaveletPlanSingleDomain`, abstract, with its leaves
@@ -32,7 +31,10 @@ abstract, is the root of the plans: :class:`WaveletPlanSingleDomain`, abstract, 
 ``_operator_tensor_prod.WaveletPlanTensorProd``, which holds the plans of its blocks.
 :class:`WaveletFilters`, abstract, is the root of the filters of every single-domain geometry,
 :class:`WaveletFiltersCartesian` and ``_operator_healpix.WaveletFiltersHealpix``; a tensor product
-holds one per block. Code that takes any plan or any filters names the root, and reads the
+holds one per block. :class:`WaveletOperator`, abstract, is the root of the operators:
+:class:`WaveletOperatorSingleDomain`, for 1D, 2D and HEALPix data, and
+``_operator_tensor_prod.WaveletOperatorTensorProd``, which composes the operators of its
+blocks. Code that takes any plan, any filters or any operator names the root, and reads the
 filters only through their hooks; an abstract class cannot be built.
 
 The code proper to each geometry stays in the hooks of its ``Data`` subclass and in the NumPy
@@ -724,8 +726,88 @@ def downsample_maps_of(
 # ---------------------------------------------------------------------- the operator
 
 
-class WaveletOperatorSingleDomain:
-    """The wavelets of 1D, 2D and HEALPix data, level by level: internal (Part II, §12.5).
+class WaveletOperator(ABC):
+    """The wavelets of any geometry, level by level, bound to data: internal (Part II, §12.5;
+    Part I, §2.3.1). Abstract, the root of the wavelet operators, and the only way to the
+    wavelets and to the geometry of the pyramid (Part I, §2.3). Its children are
+    :class:`WaveletOperatorSingleDomain`, for 1D, 2D and HEALPix data, and
+    ``_operator_tensor_prod.WaveletOperatorTensorProd``, which composes the operators of its
+    blocks, with multi-index levels.
+
+    It declares what generic code calls on any wavelet operator: its static part and its arrays,
+    the levels and their shapes, the convolution by the wavelets, the downsampling, the low-pass
+    filter and the weights of the means. A level is an int for single-domain data and a tuple of
+    ints, one per block, for a tensor product (maths.md M-NOT, M-NOT-TP); the arguments after a
+    level say where an operation acts: none for single-domain data, the block for a tensor
+    product. Every operator is immutable; the pure functions modify nothing and depend on no array
+    value.
+    """
+
+    __slots__ = ()
+
+    _abstract: ClassVar[bool] = True
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> Self:
+        _refuse_abstract(cls, "wavelet operators")
+        return super().__new__(cls)
+
+    @classmethod
+    @abstractmethod
+    def from_parts(cls, data: Data, *args: Any, **kwargs: Any) -> WaveletOperator:
+        """The operator of a static part and its arrays, bound to ``data``: no validation and no
+        conversion, so that it works inside traced code."""
+
+    @property
+    @abstractmethod
+    def plan(self) -> WaveletPlan:
+        """The static part."""
+
+    @property
+    @abstractmethod
+    def filters(self) -> Any:
+        """The arrays, or ``None`` for an operator bound to its static part only."""
+
+    @property
+    @abstractmethod
+    def levels(self) -> tuple[Any, ...]:
+        """The resolution levels the operator goes through."""
+
+    @abstractmethod
+    def level_shape(self, level: Any) -> tuple[int, ...]:
+        """The spatial shape of a map at ``level``."""
+
+    @abstractmethod
+    def apply(self, x: Any, j: Any, *args: Any, **kwargs: Any) -> Any:
+        """ψ_j ⋆ x, the convolution by the wavelets at scale ``j`` (maths.md M-W1, M-W1-TP):
+        complex, with the orientations of the wavelets. Pure."""
+
+    @abstractmethod
+    def downsample(self, x: Any, level: Any, *args: Any, **kwargs: Any) -> Any:
+        """One downsampling step of ``x``, from ``level`` to the next level (maths.md M-DOWN,
+        M-DOWN-MASK). Pure."""
+
+    def lowpass(self, x: Any, level: Any, *args: Any, **kwargs: Any) -> Any:
+        """The last step of the low-pass filter φ, from ``level`` (maths.md M-LP). Pure.
+        Raises when the geometry does not compute it."""
+        raise NotImplementedError(
+            f"{type(self).__name__}.lowpass: the statistics of single-domain data have no low-pass "
+            "coefficient in ESTEL 1.0.0, as in STL (maths.md M-LP); the low-pass filter of every "
+            "geometry comes with LF6. Only the blocks of a tensor product have one."
+        )
+
+    def mean_weights(self, means: Any) -> Any:
+        """The static weights of the means ``means`` (maths.md M-MEAN, M-BORDER, M-MASK). NumPy
+        only: called once, when a plan is built. Raises when the geometry weights its means
+        otherwise."""
+        raise NotImplementedError(
+            f"{type(self).__name__}.mean_weights: a tensor product weights its means block by "
+            "block, with crop_weights and the crop of each block (maths.md M-BORDER-TP)."
+        )
+
+
+class WaveletOperatorSingleDomain(WaveletOperator):
+    """The wavelets of 1D, 2D and HEALPix data, level by level: internal (Part II, §12.5), a
+    :class:`WaveletOperator`.
 
     ``WaveletOperatorSingleDomain(data, J, L)`` builds the static part and, on the backend of
     ``data`` in the default dtype, the arrays. ``STOperator`` holds the two apart, in its plan and
@@ -801,6 +883,20 @@ class WaveletOperatorSingleDomain:
     def filters(self) -> WaveletFilters | None:
         """The arrays, or ``None`` for an operator bound to its static part only."""
         return self._filters
+
+    @property
+    def levels(self) -> tuple[int, ...]:
+        """The resolution levels the loop goes through, those of the plan."""
+        return self._plan.levels
+
+    def level_shape(self, level: int) -> tuple[int, ...]:
+        """The spatial shape at ``level``, one of :attr:`levels`."""
+        if not _is_index(level) or level not in self._plan.levels:
+            raise ValueError(
+                f"level_shape(level={level!r}): the levels are {self._plan.levels[0]} … "
+                f"{self._plan.levels[-1]} (J = {self._plan.J})."
+            )
+        return self._plan.level_shapes[self._plan.levels.index(level)]
 
     # ------------------------------------------------------------------ static rules
 

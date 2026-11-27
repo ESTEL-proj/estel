@@ -29,6 +29,7 @@ from estel.wavelets._banks_cartesian import (
 from estel.wavelets._operator import (
     COMPLEX,
     WaveletFilters,
+    WaveletOperator,
     WaveletOperatorSingleDomain,
     WaveletPlan,
     WaveletPlanCartesian,
@@ -186,12 +187,28 @@ def test_static_part_gives_the_levels_and_is_hashable() -> None:
     assert plan != build_wavelet_plan(_data(2, pbc=True), 3)
 
 
-@pytest.mark.parametrize("abstract", [WaveletPlan, WaveletPlanSingleDomain, WaveletFilters])
+@pytest.mark.parametrize(
+    "abstract", [WaveletPlan, WaveletPlanSingleDomain, WaveletFilters, WaveletOperator]
+)
 def test_an_abstract_class_of_the_wavelets_cannot_be_built(abstract: type) -> None:
-    """The roots of the wavelet plans and filters, and the plan of single-domain data, are
-    abstract (Part I, §2.3.1): building one raises, and says what to build instead."""
+    """The roots of the wavelet plans, filters and operators, and the plan of single-domain
+    data, are abstract (Part I, §2.3.1): building one raises, and says what to build instead."""
     with pytest.raises(TypeError, match=r"abstract class of the wavelet .* estel\.STOperator"):
         abstract()
+
+
+def test_the_single_domain_operator_is_a_wavelet_operator() -> None:
+    """It gives the members its root declares: its levels and their shapes, those of its plan;
+    the low-pass filter of single-domain data raises, and says it comes with LF6."""
+    data = _data(2, pbc=True, lead=(1, 1))
+    operator = WaveletOperatorSingleDomain.from_parts(data, build_wavelet_plan(data, 3))
+    assert isinstance(operator, WaveletOperator)
+    assert operator.levels == (0, 1, 2)
+    assert [operator.level_shape(d) for d in operator.levels] == [(16, 16), (8, 8), (4, 4)]
+    with pytest.raises(ValueError, match=r"the levels are 0 … 2"):
+        operator.level_shape(3)
+    with pytest.raises(NotImplementedError, match="LF6"):
+        operator.lowpass(data.array, 2)
 
 
 def test_wavelet_operator_rejects_bad_arguments(backend: Backend) -> None:

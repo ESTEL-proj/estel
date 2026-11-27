@@ -475,9 +475,7 @@ MODULE_ROW = table(
 @pytest.mark.parametrize(
     ("files", "fails"),
     [
-        pytest.param(
-            {"docs/guide.md": "See `_tensor_prod.py`.\n"}, True, id="its-file-name-alone"
-        ),
+        pytest.param({"docs/guide.md": "See `_tensor_prod.py`.\n"}, True, id="its-file-name-alone"),
         pytest.param(
             {
                 "src/estel/data/_tensor_prod.py": "X = 1\n",
