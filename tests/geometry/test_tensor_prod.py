@@ -211,7 +211,7 @@ def test_filtering_and_downsampling_along_different_blocks_commute(
 
 @pytest.mark.maths("M-W1-TP")
 @pytest.mark.parametrize(("block", "geometry", "n_orientations"), [(0, Data2D, 4), (1, Data1D, 2)])
-def test_the_kernels_of_the_blocks_are_those_of_the_planar_operators(
+def test_the_kernels_of_the_blocks_are_those_of_the_cartesian_operators(
     backend: Backend, dtype: DType, block: int, geometry: type[Data], n_orientations: int
 ) -> None:
     """The kernels of a ``[2D, 1D]`` operator are bit for bit those of the 2D operator and of
@@ -468,7 +468,7 @@ def test_hooks_need_a_block(backend: Backend, dtype: DType) -> None:
         product._crop_weights(0, 0, block=2)
 
 
-def test_scattering_operators_of_planar_data_refuse_a_tensor_product() -> None:
+def test_scattering_operators_of_single_domain_data_refuse_tensor_prod_data() -> None:
     product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[True, True])
     with pytest.raises(TypeError, match=r"a tensor product is STOperatorTensorProd"):
         STOperator(product)
@@ -495,7 +495,7 @@ def _block_convolution(
 
 @pytest.mark.slow
 @pytest.mark.maths("M-W1-TP")
-def test_jit_takes_a_tensor_product(backend: Backend, dtype: DType) -> None:
+def test_jit_takes_tensor_prod_data(backend: Backend, dtype: DType) -> None:
     """``backend.jit`` (``jax.jit`` on JAX, the identity on PyTorch) of a function of a
     ``DataTensorProd``: the blocks are static, the array the only leaf.
 
@@ -514,7 +514,7 @@ def test_jit_takes_a_tensor_product(backend: Backend, dtype: DType) -> None:
 @jax_only
 @pytest.mark.slow
 @pytest.mark.maths("M-W1-TP")
-def test_vmap_maps_a_function_of_a_tensor_product(backend: Backend, dtype: DType) -> None:
+def test_vmap_maps_a_function_of_tensor_prod_data(backend: Backend, dtype: DType) -> None:
     """``jax.vmap`` over a stack of fields, a ``DataTensorProd`` whose leaf has one more
     leading axis: each field gives the block convolutions of that field alone.
 

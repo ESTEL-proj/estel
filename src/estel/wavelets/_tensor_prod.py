@@ -50,7 +50,7 @@ from numpy.typing import NDArray
 from .._config import FloatDType, default_device, default_dtype
 from ..backend import _registry
 from ..data._base import Data, DownsampleWeights
-from ..data._planar import Data1D
+from ..data._cartesian import Data1D
 from ..data._tensor_prod import DataTensorProd
 from ._banks import KERNEL_SIZE, _check_size
 from ._operator import (

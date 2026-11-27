@@ -2,7 +2,7 @@
 
 A ``Data`` object is one backend array plus static metadata: the periodicity ``pbc`` and the mask of
 missing values. It is immutable: operations return new objects (:meth:`Data.with_array`),
-never modify one. Subclasses (``Data1D``, ``Data2D`` in ``_planar.py``) set the number of spatial
+never modify one. Subclasses (``Data1D``, ``Data2D`` in ``_cartesian.py``) set the number of spatial
 axes and the geometry constants, and override only the geometry hooks (tag G of §12.4);
 ``DataHealpix`` (``_healpix.py``) has one pixel axis on the sphere; ``DataTensorProd``
 (``_tensor_prod.py``) composes the planar ones, one geometry per block.
@@ -483,7 +483,7 @@ class DownsampleWeights(NamedTuple):
     kernel: Any
     """The static kernel of the step, with the real dtype of the data: planar, the smoothing
     kernel of maths.md M-SMOOTH-2D, M-SMOOTH-1D; HEALPix, the decimation tables of the step
-    (``HealpixDownTables``, M-DOWN-HPX)."""
+    (``DownTablesHealpix``, M-DOWN-HPX)."""
     valid: Any = None
     """Without missing values, ``None``. Otherwise the valid input pixels, a boolean array of
     the spatial shape at the input level: invalid pixels are set to 0 before filtering, never

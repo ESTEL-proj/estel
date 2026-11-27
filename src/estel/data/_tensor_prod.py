@@ -4,7 +4,7 @@ M-DATA-TP).
 A tensor-product field is one array whose spatial axes are those of its blocks, in block order:
 ``(Nb, Nc, *N⁽⁰⁾, …, *N⁽ᴮ⁻¹⁾)``, for example ``[Data2D, Data1D]`` for space and time. The
 object **composes** the geometries of its blocks: a static description per block
-(:class:`BlockSpec`: its class, its axes, its ``pbc``), never a class created at run time nor
+(:class:`BlockSpecTensorProd`: its class, its axes, its ``pbc``), never a class created at run time nor
 an assignment to ``__class__`` (Part I, §2.4).
 
 Its geometry hooks ``_conv``, ``_downsample`` and ``_crop_weights`` act on one block at a time,
@@ -27,14 +27,14 @@ from numpy.typing import NDArray
 
 from ..backend import _registry
 from ._base import Data, DownsampleWeights, _promote_spatial, _to_backend
-from ._planar import Data1D, Data2D
+from ._cartesian import Data1D, Data2D
 
 BLOCK_GEOMETRIES: tuple[type[Data], ...] = (Data2D, Data1D)
 """The geometries a block of a tensor product may have in 1.0.0 (maths.md M-DATA-TP);
 HEALPix blocks come later (LF9)."""
 
 
-class BlockSpec(NamedTuple):
+class BlockSpecTensorProd(NamedTuple):
     """The static description of one block of a tensor product: hashable, compared by value,
     so that it is pytree metadata (Part I, §2.3)."""
 
@@ -73,7 +73,7 @@ class DataTensorProd(Data):
 
     __slots__ = ("_blocks",)
 
-    _blocks: tuple[BlockSpec, ...]
+    _blocks: tuple[BlockSpecTensorProd, ...]
 
     def __init__(
         self,
@@ -107,13 +107,17 @@ class DataTensorProd(Data):
         specs = []
         first = 2
         for geometry, flag in zip(geometries, flags, strict=True):
-            specs.append(BlockSpec(geometry, tuple(range(first, first + geometry.ndim)), flag))
+            specs.append(
+                BlockSpecTensorProd(geometry, tuple(range(first, first + geometry.ndim)), flag)
+            )
             first += geometry.ndim
         self._set_blocks(values, tuple(specs), backend_name)
 
     # ------------------------------------------------------------------ construction
 
-    def _set_blocks(self, array: Any, blocks: tuple[BlockSpec, ...], backend: str) -> None:
+    def _set_blocks(
+        self, array: Any, blocks: tuple[BlockSpecTensorProd, ...], backend: str
+    ) -> None:
         # The pbc of the mother class is one boolean; a tensor product has one per block, held
         # by its blocks, and no mask (LF8).
         object.__setattr__(self, "_array", array)
@@ -123,7 +127,9 @@ class DataTensorProd(Data):
         object.__setattr__(self, "_blocks", blocks)
 
     @classmethod
-    def _from_blocks(cls, array: Any, blocks: tuple[BlockSpec, ...], backend: str) -> Data:
+    def _from_blocks(
+        cls, array: Any, blocks: tuple[BlockSpecTensorProd, ...], backend: str
+    ) -> Data:
         """A new object from parts already validated: no conversion, no check of values, so
         that it works inside traced code."""
         new = cls.__new__(cls)
@@ -154,7 +160,7 @@ class DataTensorProd(Data):
         return tuple(b.pbc for b in self._blocks)
 
     @property
-    def _block_specs(self) -> tuple[BlockSpec, ...]:
+    def _block_specs(self) -> tuple[BlockSpecTensorProd, ...]:
         """The static description of each block: its geometry, its axes and its ``pbc``."""
         return self._blocks
 
@@ -236,7 +242,7 @@ class DataTensorProd(Data):
             owner=f"DataTensorProd._crop_weights (block {block})",
         )
 
-    def _spec(self, block: object, hook: str) -> BlockSpec:
+    def _spec(self, block: object, hook: str) -> BlockSpecTensorProd:
         n = len(self._blocks)
         if block is None:
             raise TypeError(

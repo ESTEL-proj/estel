@@ -44,9 +44,9 @@ from numpy.typing import NDArray
 from .._config import FloatDType
 from ..backend import _registry
 from ..data._base import _StaticMask
-from ..data._healpix import DataHealpix, HealpixConvTables, HealpixDownTables, _StaticCellIds
+from ..data._healpix import ConvTablesHealpix, DataHealpix, DownTablesHealpix, _StaticCellIds
 from ..data._masks import (
-    HEALPIX_SUPPORT_THRESHOLD,
+    SUPPORT_THRESHOLD_HEALPIX,
     BoolMap,
     MaskMaps,
     RealMap,
@@ -117,9 +117,9 @@ class HealpixWaveletFilters(NamedTuple):
     the tables of every level, and the maps of each downsampling step, as ``WaveletFilters``.
     A named tuple of arrays, so a pytree."""
 
-    conv: tuple[HealpixConvTables, ...]
+    conv: tuple[ConvTablesHealpix, ...]
     """For each level of the plan, the tables of ``DataHealpix._conv``."""
-    down: tuple[HealpixDownTables, ...]
+    down: tuple[DownTablesHealpix, ...]
     """For each level but the last, the tables of the decimation to the next level."""
     field_down: dict[int, tuple[Any, Any]]
     """As ``WaveletFilters.field_down``: per level d but the last, the ``(valid, reweight)``
@@ -128,11 +128,11 @@ class HealpixWaveletFilters(NamedTuple):
     """As ``WaveletFilters.modulus_down``: per ``(d, j)``, the maps of first-layer data
     convolved at scale j from d to d + 1, or no entry without missing values."""
 
-    def _conv_tables(self, level: int) -> HealpixConvTables:
+    def _conv_tables(self, level: int) -> ConvTablesHealpix:
         """The tables of ``_conv`` at ``level``."""
         return self.conv[level]
 
-    def _down_tables(self, level: int) -> HealpixDownTables:
+    def _down_tables(self, level: int) -> DownTablesHealpix:
         """The tables of the step from ``level`` to ``level + 1``."""
         return self.down[level]
 
@@ -279,7 +279,7 @@ def _healpix_masks(
             # One gauge and one batch of pixels at a time bound the temporaries (task T5.7).
             found: BoolMap = np.logical_or.reduce(
                 [
-                    (bad[index[g, rows]] * weight[g, rows]).sum(axis=-1) > HEALPIX_SUPPORT_THRESHOLD
+                    (bad[index[g, rows]] * weight[g, rows]).sum(axis=-1) > SUPPORT_THRESHOLD_HEALPIX
                     for g in range(n_gauges)
                 ]
             )
@@ -328,7 +328,7 @@ def build_healpix_wavelet_filters(
     # The kernel is folded into the tables (_fold_kernel): the product with it is the identity.
     identity = backend.asarray(np.eye(2), dtype, device)
 
-    def conv(level: int) -> HealpixConvTables:
+    def conv(level: int) -> ConvTablesHealpix:
         found = handed.stencils.get(level) or healpix_stencils(
             plan.level_cell_ids(level),
             plan.depth - level,
@@ -337,17 +337,17 @@ def build_healpix_wavelet_filters(
         )
         index, weight = _fold_kernel(found, kernel, dtype)
         shape = (plan.L, plan.level_shapes[level][0], *index.shape[1:])
-        return HealpixConvTables(
+        return ConvTablesHealpix(
             index=backend.asarray(index.reshape(shape), "int32", device),
             weight=backend.asarray(weight.reshape(shape), dtype, device),
             kernel=identity,
         )
 
-    def down(level: int) -> HealpixDownTables:
+    def down(level: int) -> DownTablesHealpix:
         found = handed.decimation.get(level) or healpix_decimation(
             plan.level_cell_ids(level), plan.depth - level
         )
-        return HealpixDownTables(
+        return DownTablesHealpix(
             index=backend.asarray(found.index, "int32", device),
             weight=backend.asarray(found.weight, dtype, device),
             segment_ids=backend.asarray(found.segment_ids, "int32", device),

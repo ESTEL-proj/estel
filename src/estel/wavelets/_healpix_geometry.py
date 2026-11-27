@@ -76,7 +76,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from estel.data._healpix import check_cell_ids, check_depth
-from estel.data._masks import HEALPIX_SUPPORT_THRESHOLD
+from estel.data._masks import SUPPORT_THRESHOLD_HEALPIX
 from estel.wavelets._banks import _check_n_orientations
 from estel.wavelets._healpix_bank import HEALPIX_GAUGES, HEALPIX_KERNEL_SIZE, _check_kernel_size
 from estel.wavelets._healpix_pixels import (
@@ -261,7 +261,7 @@ def _bind_support(
     rule of maths.md M-CONV-HPX (OP-50), as decided on 24 November 2026 (issue #26).
 
     A neighbour counts as absent when it is outside ``ids`` or when its interpolation weight is
-    below ``HEALPIX_SUPPORT_THRESHOLD`` (1e-12, the threshold of the support test of
+    below ``SUPPORT_THRESHOLD_HEALPIX`` (1e-12, the threshold of the support test of
     M-MASK-HPX, defined in ``estel.data._masks``). The weights of the remaining neighbours of a
     stencil point are renormalised to sum to 1 exactly, with no floor on their sum. A stencil
     point with no remaining neighbour takes the neighbours of the stencil centre of its pixel
@@ -284,13 +284,13 @@ def _bind_support(
         return pos, found
 
     _, found = lookup(index)
-    present = found & (weight >= HEALPIX_SUPPORT_THRESHOLD)
+    present = found & (weight >= SUPPORT_THRESHOLD_HEALPIX)
     empty: NDArray[np.bool_] = ~np.asarray(present.any(axis=-1))  # (L, N, P)
     centre = (kernel_size // 2) * (kernel_size + 1)
     index = np.where(empty[..., None], index[:, :, centre : centre + 1], index)
     weight = np.where(empty[..., None], weight[:, :, centre : centre + 1], weight)
     pos, found = lookup(index)
-    present = found & (weight >= HEALPIX_SUPPORT_THRESHOLD)
+    present = found & (weight >= SUPPORT_THRESHOLD_HEALPIX)
     w = np.where(present, weight, 0.0)
     total = w.sum(axis=-1, keepdims=True)
     if not np.all(total > 0):

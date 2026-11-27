@@ -24,8 +24,8 @@ batches of :data:`_STENCIL_BATCH_ROWS` rows inside the L0 primitive (``gather_we
 ``batch_rows``; task T5.7), so that the interpolated values of the stencils are never
 materialised whole; the decimation, whose gathered values are its output, is gathered at once.
 
-``data`` does not import ``wavelets``: the tables come in as :class:`HealpixConvTables` and
-:class:`HealpixDownTables`, named tuples of backend arrays, built by the wavelet operator.
+``data`` does not import ``wavelets``: the tables come in as :class:`ConvTablesHealpix` and
+:class:`DownTablesHealpix`, named tuples of backend arrays, built by the wavelet operator.
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ _PARTITION_ADVICE = (
 # ---------------------------------------------------------------------- tables of the hooks
 
 
-class HealpixConvTables(NamedTuple):
+class ConvTablesHealpix(NamedTuple):
     """The static tables of ``DataHealpix._conv`` at one level, backend arrays built by the
     wavelet operator from ``healpix_stencils`` and ``healpix_kernel_weights`` (Part II, §12.5).
 
@@ -78,7 +78,7 @@ class HealpixConvTables(NamedTuple):
     pairs, or the identity when it is folded into the tables."""
 
 
-class HealpixDownTables(NamedTuple):
+class DownTablesHealpix(NamedTuple):
     """The static tables of one decimation step, ``DataHealpix._downsample`` from a level to the
     next: a CSR matrix sorted by coarse pixel, from ``healpix_decimation``."""
 
@@ -293,14 +293,14 @@ class DataHealpix(Data):
 
     def _conv(self, x: Any, tables: Any, level: int) -> Any:
         """The convolution of maths.md M-CONV-HPX at ``level``, with the
-        :class:`HealpixConvTables` of that level: ``(Nb, Nc, Npix)`` real or complex to
+        :class:`ConvTablesHealpix` of that level: ``(Nb, Nc, Npix)`` real or complex to
         ``(Nb, L, Nc, Npix)`` complex. A complex map is convolved part by part, two real
         applications; a real one, one (Part I, §3.1, rule 6)."""
         owner = "DataHealpix._conv"
         self._check_array(x, level, "_conv")
-        if not isinstance(tables, HealpixConvTables):
+        if not isinstance(tables, ConvTablesHealpix):
             raise TypeError(
-                f"{owner}: pass the HealpixConvTables of the level, built by the wavelet "
+                f"{owner}: pass the ConvTablesHealpix of the level, built by the wavelet "
                 f"operator; got {type(tables).__name__}."
             )
         backend = _registry.backend_named(self._backend)
@@ -319,16 +319,16 @@ class DataHealpix(Data):
 
     def _downsample(self, x: Any, weights: DownsampleWeights, level: int) -> Any:
         """One step of maths.md M-DOWN-HPX, from ``level`` to ``level + 1``, with the
-        :class:`HealpixDownTables` of the step in ``weights.kernel``; normalised as M-DOWN-MASK
+        :class:`DownTablesHealpix` of the step in ``weights.kernel``; normalised as M-DOWN-MASK
         with missing values: invalid input pixels set to 0 (never read, OP-27), then the
         reweighting 1 / (1 - f) of the output (M-MASK-HPX). A complex map is decimated part by
         part."""
         owner = "DataHealpix._downsample"
         self._check_array(x, level, "_downsample")
         tables, valid, reweight = weights
-        if not isinstance(tables, HealpixDownTables):
+        if not isinstance(tables, DownTablesHealpix):
             raise TypeError(
-                f"{owner}: pass the HealpixDownTables of the step in DownsampleWeights.kernel, "
+                f"{owner}: pass the DownTablesHealpix of the step in DownsampleWeights.kernel, "
                 f"built by the wavelet operator; got {type(tables).__name__}."
             )
         if (valid is None) != (reweight is None):
@@ -376,7 +376,7 @@ class DataHealpix(Data):
             "products only (maths.md M-LP), and the blocks are Data1D and Data2D (M-DATA-TP)."
         )
 
-    def _spectrum_geometry(self) -> Any:
+    def _spectrum_grids(self) -> Any:
         """Not in 1.0.0: the angular spectrum of HEALPix data comes later (LF24)."""
         raise NotImplementedError(
             "DataHealpix has no spectrum geometry in ESTEL 1.0.0: the angular spectrum of "
@@ -411,7 +411,7 @@ at a time. An internal constant, not an option (Part IV, §22); STL's ``TorchCon
 by 16384 pixels too."""
 
 
-def _stencil_rows(backend: Any, x: Any, tables: HealpixConvTables, pixels: slice) -> Any:
+def _stencil_rows(backend: Any, x: Any, tables: ConvTablesHealpix, pixels: slice) -> Any:
     """The convolution of the real map ``x``, ``(..., Npix)``, at the output pixels ``pixels``
     of the level, as real pairs ``(..., L, n, 2)``, n the number of these pixels (M-CONV-HPX,
     step 4): ``gather_weighted``, then one real product with ``tables.kernel`` (the identity
@@ -434,7 +434,7 @@ def _stencil_rows(backend: Any, x: Any, tables: HealpixConvTables, pixels: slice
 def _decimation_rows(
     backend: Any,
     x: Any,
-    tables: HealpixDownTables,
+    tables: DownTablesHealpix,
     entries: slice,
     first_segment: int,
     num_segments: int,
