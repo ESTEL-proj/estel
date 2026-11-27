@@ -396,7 +396,9 @@ def test_reference_of_other_tensor_prod_data_is_accepted() -> None:
         statistics_of(buffer, other, planar._reference, norm="ref")
     assert isinstance(planar._plan, STPlanSingleDomain)
     with pytest.raises(ValueError, match="tensor product"):
-        _normalization.check_reference(reference, planar._plan, 2, reference.var.dtype)
+        _normalization.check_reference_single_domain(
+            reference, planar._plan, 2, reference.var.dtype
+        )
 
 
 @pytest.mark.parametrize(

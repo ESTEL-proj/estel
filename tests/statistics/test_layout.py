@@ -259,8 +259,8 @@ def test_layout_tables_grow_with_the_chunks(monkeypatch: pytest.MonkeyPatch) -> 
         operator = STOperator(data, 5, L=4, compute_PS=False)
     plan = operator.plan
     assert isinstance(plan, STPlanSingleDomain)
-    layout = _layout.base_layout(plan)
-    present = _grid.auto_scales(plan)
+    layout = _layout.layout_single_domain(plan)
+    present = _grid.auto_scales_single_domain(plan)
     tables = _normalization._norm_tables(layout, present.shape, present.tobytes(), plan.L)
     assert all(
         layout.chunk_starts(name).shape == (layout.grid(name).n_chunks,) for name in layout.names

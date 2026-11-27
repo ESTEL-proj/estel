@@ -34,7 +34,7 @@ to the order of the sums. The convolutions and the downsamplings are those of th
 and weights, and does not depend on the geometry. Nothing is written in place (Part I, §3.1,
 rule 1): every step returns a new array, the divided sums of each level are collected in a
 list, in the order of ``statistics._layout.loop_sums``, and one static gather, built in NumPy
-with the plan (``statistics._layout.loop_gather``), concatenates them, chunk by chunk, into
+with the plan (``statistics._layout.gather_single_domain``), concatenates them, chunk by chunk, into
 the compact buffer at the end (Part III, §19.3, §19.9): no full-grid
 tensor is written in the computation (review rule X5). The loops run over scales, levels and
 channel pairs, as STL's, never over pixels or orientations.
@@ -59,7 +59,7 @@ from ..backend._protocol import Backend
 from ..data._base import Data
 from ..data._moments import modulus
 from ..spectra._estimators import spectrum_floats
-from ..statistics._layout import gather_loop, loop_gather, spectrum_pairs
+from ..statistics._layout import gather_loop, gather_single_domain, spectrum_pairs
 from ..wavelets._operator import WaveletOperatorSingleDomain
 from . import _loop
 from ._filters import STFiltersSingleDomain, window_single_domain
@@ -139,7 +139,7 @@ def values_single_domain(
     # One static gather from the sums, in the order of loop_sums, to the compact buffer
     # (Part III, §19.3, §19.9), chunk by chunk: no full-grid tensor inside the computation
     # (review rule X5).
-    gather = loop_gather(plan)
+    gather = gather_single_domain(plan)
     if len(divided) != gather.n_sums:
         raise RuntimeError(
             f"the loop produced {len(divided)} sums where the plan expects {gather.n_sums}: "

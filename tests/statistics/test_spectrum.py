@@ -121,7 +121,7 @@ def test_positions_equal_the_fixture(name: str) -> None:
     ``full_grid`` with STL's shapes and NaN at the same positions; PS is the fixture's raw
     spectrum, and the last segment of the buffer, at level 0."""
     plan = _plan(name)
-    layout = _layout.base_layout(plan)
+    layout = _layout.layout_single_domain(plan)
     grids = _raw(name, "field")
     stats = statistics_of(_buffer(layout, grids), plan)
     for family in FAMILIES:  # PS: the fixture's <config>_raw_PS (_raw)
@@ -139,14 +139,14 @@ def _runs(name: str) -> dict[str, STStatistics]:
     config = _configs()[name]
     store_plan = _plan(name)
     store = statistics_of(
-        _buffer(_layout.base_layout(store_plan), _raw(name, "field")),
+        _buffer(_layout.layout_single_domain(store_plan), _raw(name, "field")),
         store_plan,
         norm="self",
         ref_batch_mean=config["norm_batch_mean"],
     )
     load_plan = _plan(name, "ref_field")
     load = statistics_of(
-        _buffer(_layout.base_layout(load_plan), _raw(name, "ref_field")),
+        _buffer(_layout.layout_single_domain(load_plan), _raw(name, "ref_field")),
         load_plan,
         store._reference,
         norm="ref",
@@ -237,7 +237,7 @@ def _with_reference(reference: Any, **spectrum: Any) -> STStatistics:
     data = Data2D(rng.standard_normal((2, 2, 64, 64)), pbc=False)
     plan = build_plan_single_domain(data, 3, 4, compute_PS=True, **spectrum)
     buffer = _registry.current_backend().asarray(
-        rng.random((2, _layout.base_layout(plan).n_floats)) + 0.5, "float64", None
+        rng.random((2, _layout.layout_single_domain(plan).n_floats)) + 0.5, "float64", None
     )
     return statistics_of(buffer, plan, reference, norm="ref")
 
@@ -273,7 +273,7 @@ def test_reference_with_the_spectrum_on_statistics_without_it() -> None:
     plan = build_plan_single_domain(data, 3, 4)
     assert plan.spectrum is None
     buffer = _registry.current_backend().asarray(
-        rng.random((2, _layout.base_layout(plan).n_floats)) + 0.5, "float64", None
+        rng.random((2, _layout.layout_single_domain(plan).n_floats)) + 0.5, "float64", None
     )
     found = statistics_of(buffer, plan, reference, norm="ref")
     assert "PS" not in found._layout.names
@@ -295,7 +295,7 @@ def test_gradients_through_the_spectrum_reference() -> None:
     rng = np.random.default_rng(9)
     data = Data2D(rng.standard_normal((1, 2, 32, 32)), pbc=True)
     plan = build_plan_single_domain(data, 3, 4, compute_PS=True)
-    layout = _layout.base_layout(plan)
+    layout = _layout.layout_single_domain(plan)
     n_bins = layout.grid("PS").n_orientations
     starts = layout.chunk_starts("PS")  # the pairs (0, 0), (0, 1), (1, 1)
     auto_0, cross, auto_1 = (int(a) + np.arange(n_bins) for a in starts)
@@ -379,11 +379,11 @@ def test_spectrum_tables_grow_with_the_chunks(monkeypatch: pytest.MonkeyPatch) -
     rng = np.random.default_rng(7)
     data = Data2D(rng.standard_normal((1, 3, 32, 32)), pbc=True)
     plan = build_plan_single_domain(data, 3, 4, compute_PS=True, n_bins=96)
-    layout = _layout.base_layout(plan)
+    layout = _layout.layout_single_domain(plan)
     grid = layout.grid("PS")
     n_coefficients = grid.n_chunks * grid.n_orientations
     assert (n_coefficients, int(np.prod(grid.shape))) == (576, 864)
-    present = _grid.auto_scales(plan)
+    present = _grid.auto_scales_single_domain(plan)
     spectrum = _normalization.spectrum_reference_of(plan.spectrum, plan.pairs).present.tobytes()
     tables = _normalization._norm_tables(
         layout, present.shape, present.tobytes(), plan.L, None, spectrum

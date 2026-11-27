@@ -105,12 +105,12 @@ from ..backend._protocol import Backend
 from ..data._base import Data
 from ..spectra._bins import SpectrumBins, log_gaussian_bins
 from ..spectra._estimators import choose_estimator, static_tables
-from ..statistics._grid import auto_scales, auto_scales_tensor_prod, orientations_at
-from ..statistics._layout import Layout, base_layout, layout_tensor_prod
+from ..statistics._grid import auto_scales_single_domain, auto_scales_tensor_prod, orientations_at
+from ..statistics._layout import Layout, layout_single_domain, layout_tensor_prod
 from ..statistics._normalization import (
     _NormReference,
     blocks_tensor_prod,
-    check_reference,
+    check_reference_single_domain,
     check_reference_tensor_prod,
     self_reference,
     spectrum_reference_of,
@@ -565,10 +565,10 @@ class STPlanSingleDomain(_PlanFieldsSingleDomain, STPlan):
         return values_single_domain(data, self, cast(STFiltersSingleDomain, filters))
 
     def _layout(self) -> Layout:
-        return base_layout(self)
+        return layout_single_domain(self)
 
     def _check_reference(self, reference: _NormReference, n_batch: int, dtype: Any) -> None:
-        check_reference(reference, self, n_batch, dtype)
+        check_reference_single_domain(reference, self, n_batch, dtype)
 
     def _self_reference(
         self, backend: Backend, buffer: Any, layout: Layout, ref_batch_mean: bool
@@ -577,7 +577,7 @@ class STPlanSingleDomain(_PlanFieldsSingleDomain, STPlan):
             backend,
             buffer,
             layout,
-            auto_scales(self),
+            auto_scales_single_domain(self),
             self.L,
             ref_batch_mean,
             spectrum=None

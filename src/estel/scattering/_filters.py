@@ -29,7 +29,7 @@ from numpy.typing import NDArray
 from .._config import FloatDType
 from ..backend import _registry
 from ..spectra._estimators import SpectrumFilters, build_spectrum_filters
-from ..statistics._layout import ChunkTables, gather_tensor_prod, loop_gather
+from ..statistics._layout import ChunkTables, gather_single_domain, gather_tensor_prod
 from ..wavelets._operator import MeanWeights, WaveletFilters
 from ..wavelets._operator_tensor_prod import build_wavelet_filters_tensor_prod
 from ._tensor_prod import ScaleTensorProd
@@ -65,7 +65,7 @@ class _FilterFieldsSingleDomain(NamedTuple):
     """The integer arrays of the static gather from the divided sums of the loop, in the order
     of ``statistics._layout.loop_sums``, to the compact buffer of the statistics: for each kind
     of chunk the loop computes complex and the buffer stores with real entries, the floats kept
-    (int32; ``statistics._layout.loop_gather``; Part III, §19.3, §19.9; task T3.7)."""
+    (int32; ``statistics._layout.gather_single_domain``; Part III, §19.3, §19.9; task T3.7)."""
     spectrum: SpectrumFilters | None = None
     """The static arrays of the 2D power spectrum (maths.md §1.9; task T4.1), or ``None``
     without it."""
@@ -150,7 +150,7 @@ def build_filters_single_domain(
         },
         gather=tuple(
             backend.asarray(take.astype(np.int32), "int32", device)
-            for take in loop_gather(plan).takes
+            for take in gather_single_domain(plan).takes
         ),
         spectrum=None
         if plan.spectrum is None

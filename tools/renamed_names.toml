@@ -204,6 +204,13 @@ row = [
     { old = "tests/statistics/test_tensor_prod.py#planar-j3", new = "single-domain-j3", kind = "rename", task = "T7.8", done = true, note = "a test id" },
     { old = "tests/statistics/test_tensor_prod.py#planar-l", new = "single-domain-l", kind = "rename", task = "T7.8", done = true, note = "a test id" },
     { old = "tests/statistics/test_tensor_prod.py#tp", new = "tensor_prod", kind = "rename", task = "T7.8", done = true },
+    { old = "estel.statistics._grid:auto_scales", new = "auto_scales_single_domain", kind = "rename", task = "T7.8", done = true, note = "its body serves single-domain data only, beside its tensor-product twin (rule 3; decision 2 on #199)" },
+    { old = "estel.statistics._grid:base_grids", new = "grids_single_domain", kind = "rename", task = "T7.8", done = true, note = "its body serves single-domain data only, beside its tensor-product twin (rule 3; decision 2 on #199)" },
+    { old = "estel.statistics._layout:base_layout", new = "layout_single_domain", kind = "rename", task = "T7.8", done = true, note = "its body serves single-domain data only, beside its tensor-product twin (rule 3; decision 2 on #199)" },
+    { old = "estel.statistics._layout:loop_gather", new = "gather_single_domain", kind = "rename", task = "T7.8", done = true, note = "its body serves single-domain data only, beside its tensor-product twin (rule 3; decision 2 on #199)" },
+    { old = "estel.statistics._normalization:_compiled", new = "_compiled_single_domain", kind = "rename", task = "T7.8", done = true, note = "its body serves single-domain data only, beside its tensor-product twin (rule 3; decision 2 on #199)" },
+    { old = "estel.statistics._normalization:_divide", new = "_divide_single_domain", kind = "rename", task = "T7.8", done = true, note = "its body serves single-domain data only, beside its tensor-product twin (rule 3; decision 2 on #199)" },
+    { old = "estel.statistics._normalization:check_reference", new = "check_reference_single_domain", kind = "rename", task = "T7.8", done = true, note = "its body serves single-domain data only, beside its tensor-product twin (rule 3; decision 2 on #199)" },
 
   # T7.9: the bricks of the spectrum (#200)
     { old = "estel.scattering._plan:SpectrumPlan", new = "estel.spectra._estimators:SpectrumEstimatorPlan2D", kind = "move", task = "T7.9", done = false, note = "decisions on #193; moved to spectra/ (Part II, §15.2, T7.9)" },

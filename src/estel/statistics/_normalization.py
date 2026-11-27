@@ -136,7 +136,7 @@ class _NormReference:
     every orientation l inside (in a tensor product, those of :meth:`BlocksTensorProd.row_shape`,
     in C order)."""
     present: NDArray[np.bool_]
-    """``(Nc, J)``, static: where sigma exists (``_grid.auto_scales``); ``(Nc, J'_0, …)`` in a
+    """``(Nc, J)``, static: where sigma exists (``_grid.auto_scales_single_domain``); ``(Nc, J'_0, …)`` in a
     tensor product (``_grid.auto_scales_tensor_prod``)."""
     n_orientations: int
     """L; in a tensor product, the product of the L_a."""
@@ -331,7 +331,7 @@ def _reference_tables(
 ) -> tuple[NDArray[np.int64], NDArray[np.int64]]:
     """The floats of var and of the auto S2 at every sigma of the ``present`` given by
     ``shape`` and ``data``, in a buffer of ``layout``, a layout of the loop
-    (``_layout.base_layout``, ``_layout.layout_tensor_prod``): one real chunk of S2 per sigma
+    (``_layout.layout_single_domain``, ``_layout.layout_tensor_prod``): one real chunk of S2 per sigma
     row, of L floats (of the orientations of its row in a tensor product)."""
     positions, shapes, _ = _sigma_rows(shape, data, blocks, n_orientations)
     channels = np.arange(int(shape[0]), dtype=np.int64)[:, None]
@@ -545,7 +545,7 @@ def normalize(
     √(sigma_{c1} sigma_{c2}) and S2 by sigma_{c1} sigma_{c2} at (j, l); S3 by
     sigma_{c1}(j2, l2) sigma_{c2}(j3, l3); S4 by sigma_{c1}(j1, l1) sigma_{c2}(j2, l2); PS by
     σᴾˢ_{c1}(b) σᴾˢ_{c2}(b) (maths.md §1.9). The reference broadcasts over the batch (Nr = 1)
-    or matches it. ``layout`` is a layout of the loop (``_layout.base_layout``,
+    or matches it. ``layout`` is a layout of the loop (``_layout.layout_single_domain``,
     ``_layout.layout_tensor_prod``). In a tensor product the scales and orientations are
     multi-indices, and S3 and S4 read the wavelet scales of the reference only (M-NORM-TP).
     """
@@ -564,7 +564,7 @@ def normalize(
     if "PS" in layout.names and reference.spectrum is not None:
         spectrum = reference.spectrum.present.tobytes()
     key = (layout, present.shape, present.tobytes(), reference.n_orientations, spectrum)
-    divide = _compiled(backend.name, *key)
+    divide = _compiled_single_domain(backend.name, *key)
     transform = _norm_tables(*key[:4], None, spectrum).transform
     tables = map_tables(backend, transform, buffer)
     sigma_ps = reference.sigma_ps if spectrum is not None else None
@@ -572,7 +572,7 @@ def normalize(
 
 
 @functools.lru_cache(maxsize=64)
-def _compiled(
+def _compiled_single_domain(
     backend_name: str,
     layout: Layout,
     shape: tuple[int, ...],
@@ -586,10 +586,12 @@ def _compiled(
     (``Backend.jit``; the identity on PyTorch)."""
     backend = _registry.backend_named(backend_name)
     tables = _norm_tables(layout, shape, data, n_orientations, None, spectrum)
-    return backend.jit(functools.partial(_divide, backend, tables, layout, n_orientations))
+    return backend.jit(
+        functools.partial(_divide_single_domain, backend, tables, layout, n_orientations)
+    )
 
 
-def _divide(
+def _divide_single_domain(
     backend: Backend,
     tables: _NormTables,
     layout: Layout,
@@ -767,7 +769,7 @@ def _divide_tensor_prod(
     return apply(backend, buffer, tables.transform, scale, chunks)
 
 
-def check_reference(
+def check_reference_single_domain(
     reference: _NormReference, plan: STPlanSingleDomain, n_batch: int, dtype: Any
 ) -> None:
     """Raise unless ``reference`` can normalise the statistics of ``plan``, before they are
@@ -859,7 +861,7 @@ def check_reference_tensor_prod(
     (maths.md M-NORM-TP, M-NORM; Part IV, R-Y03): it must come from a tensor product with the
     same blocks, J, L, low-pass flags and number of channels, with a normalisation scale for
     every channel the plan normalises; the sizes and the periodicity of the blocks are free, as
-    in M-NORM. The batch and the dtype follow :func:`check_reference`."""
+    in M-NORM. The batch and the dtype follow :func:`check_reference_single_domain`."""
     expected = blocks_tensor_prod(plan)
     found = reference.blocks
     if found is None:

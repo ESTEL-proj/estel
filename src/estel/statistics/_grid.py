@@ -352,7 +352,7 @@ def _family(
     )
 
 
-def base_grids(plan: STPlanSingleDomain) -> tuple[FamilyGrid, ...]:
+def grids_single_domain(plan: STPlanSingleDomain) -> tuple[FamilyGrid, ...]:
     """The layout of the statistics without normalisation (maths.md M-MOM, M-S1 to M-S4,
     M-CHAN, OP-3): what the scattering loop computes, from the plan alone, by chunks. Real
     entries are mean, var, the auto S1 and S2, and the diagonal of S4 (c1 = c2, j1 = j2,
@@ -441,7 +441,7 @@ def spectrum_grid(n_bins: int, pairs: NDArray[np.bool_]) -> FamilyGrid:
     )
 
 
-def auto_scales(plan: STPlanSingleDomain) -> NDArray[np.bool_]:
+def auto_scales_single_domain(plan: STPlanSingleDomain) -> NDArray[np.bool_]:
     """``(Nc, J)``: where the auto S2 exists, so where the normalisation scale sigma_c(j, l) of
     M-NORM is defined: the channels with auto statistics, at the scales with valid pixels."""
     present = np.array(
