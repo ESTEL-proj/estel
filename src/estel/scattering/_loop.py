@@ -28,8 +28,8 @@ union of the two masks, which is STL's window for that pair, and it is divided b
 of pixels of that intersection, the denominator of the plan. The product also holds the pairs
 STL does not compute (j1 > j2, about half of it): they are not read. Every value is STL's up
 to the order of the sums. The convolutions and the downsamplings are those of the wavelet operator
-(``WaveletOperatorSingleDomain.apply``, ``downsample``; Part I, §2.3): the loop sees levels, maps and
-weights, and does not depend on the geometry. Nothing is written in place (Part I, §3.1,
+(``WaveletOperatorSingleDomain.apply``, ``downsample``; Part I, §2.3): the loop sees levels, maps
+and weights, and does not depend on the geometry. Nothing is written in place (Part I, §3.1,
 rule 1): every step returns a new array, the divided sums of each level are collected in a
 list, in the order of ``statistics._layout.loop_sums``, and one static gather, built in NumPy
 with the plan (``statistics._layout.loop_gather``), concatenates them, chunk by chunk, into

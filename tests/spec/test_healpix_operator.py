@@ -1,6 +1,6 @@
 """Spec parity of the wavelet operator of HEALPix data: ``DataHealpix`` and its
-``WaveletOperatorSingleDomain`` against the oracle ``estel._spec.healpix`` (task T5.5, issue #166; maths.md
-M-CONV-HPX, M-WAV-HPX, M-DOWN-HPX, M-MASK-HPX, M-DEF-HPX; Part I, §4.2).
+``WaveletOperatorSingleDomain`` against the oracle ``estel._spec.healpix`` (task T5.5, issue #166;
+maths.md M-CONV-HPX, M-WAV-HPX, M-DOWN-HPX, M-MASK-HPX, M-DEF-HPX; Part I, §4.2).
 
 The oracle has its own geometry, written from maths.md §4 (T5.4); ESTEL applies the tables
 ported from ``TorchGeometry`` (T5.1). Both apply the partial-sky rule of M-CONV-HPX with the

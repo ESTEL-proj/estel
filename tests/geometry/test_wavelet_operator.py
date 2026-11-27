@@ -1,5 +1,5 @@
-"""The internal ``WaveletOperatorSingleDomain`` (Part I, §2.3; Part II, §12.5; task T2.10): its functions
-against the geometry hooks and the maths entries they implement.
+"""The internal ``WaveletOperatorSingleDomain`` (Part I, §2.3; Part II, §12.5; task T2.10): its
+functions against the geometry hooks and the maths entries they implement.
 
 The hooks are tested against NumPy references in ``test_hooks.py``, the mask maps in
 ``test_masks.py`` and the weights of every mean of a plan in ``tests/scattering/test_plan.py``;

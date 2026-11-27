@@ -3,10 +3,10 @@ maths.md §4; task T5.5, issue #166).
 
 :class:`WaveletPlanHealpix` is a :class:`~estel.wavelets._operator.WaveletPlanSingleDomain`,
 beside the ``WaveletPlanCartesian`` of 1D and 2D data, and :class:`WaveletFiltersHealpix` is a
-``WaveletFilters``, beside ``WaveletFiltersCartesian``: ``WaveletOperatorSingleDomain`` and the ``STPlan``
-reach them through the same hooks as the Cartesian ones (``_build_filters``, ``_conv_tables``,
-``_down_tables``, ``border``, ``bank``), with no branch on the geometry at the call sites;
-``build_wavelet_plan`` chooses the plan once, when it is built.
+``WaveletFilters``, beside ``WaveletFiltersCartesian``: ``WaveletOperatorSingleDomain`` and the
+``STPlan`` reach them through the same hooks as the Cartesian ones (``_build_filters``,
+``_conv_tables``, ``_down_tables``, ``border``, ``bank``), with no branch on the geometry at the
+call sites; ``build_wavelet_plan`` chooses the plan once, when it is built.
 
 **What is static, and where** (issue #166, decisions 2 and 7). The plan holds only what is small
 and static: the depth and the ``cell_ids`` of the data, the levels and their numbers of pixels,

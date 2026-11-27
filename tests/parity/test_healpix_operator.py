@@ -1,5 +1,5 @@
-"""Parity of ``DataHealpix`` and its ``WaveletOperatorSingleDomain`` with STL (task T5.5, issue #166;
-maths.md M-CONV-HPX, M-DOWN-HPX, M-MASK-HPX, OP-110).
+"""Parity of ``DataHealpix`` and its ``WaveletOperatorSingleDomain`` with STL (task T5.5, issue
+#166; maths.md M-CONV-HPX, M-DOWN-HPX, M-MASK-HPX, OP-110).
 
 Through the operator the scattering loop will use (``apply``, ``downsample``, the masks of the
 plan), against the fixtures of T5.3: the responses of ``operators_hpx`` to 3 random maps, and the

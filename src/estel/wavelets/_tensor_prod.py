@@ -1,8 +1,8 @@
 """The wavelet operator of a tensor product, composed from those of its blocks (Part I, §2.3;
 Part II, §12.5; maths.md M-NOT-TP, M-W1-TP, M-DEF-TP; task T3.1).
 
-Internal, like :class:`~estel.wavelets._operator.WaveletOperatorSingleDomain`. A tensor product of B blocks
-(``DataTensorProd``) has one J and one L per block, and its levels are multi-indices
+Internal, like :class:`~estel.wavelets._operator.WaveletOperatorSingleDomain`. A tensor product of B
+blocks (``DataTensorProd``) has one J and one L per block, and its levels are multi-indices
 d = (d₀, …, d_{B-1}): the field downsampled d_a times along block a (M-NOT-TP). Each block has
 the static part and the arrays of a planar wavelet operator, built for its geometry, its sizes
 and its ``pbc`` (:class:`~estel.wavelets._operator.WaveletPlanCartesian`,
@@ -439,8 +439,8 @@ class WaveletOperatorTensorProd:
 
     def convolve(self, x: Any, j: int, *, block: int, level: LevelTensorProd) -> Any:
         """ψ⁽ᵃ⁾_{j} ⋆_a x as :meth:`apply`, with the orientation of this convolution right after
-        the batch axis, as ``WaveletOperatorSingleDomain.apply`` places it: ``x`` is ``(Nb, *O, *spatial)``
-        at the multi-index ``level``, with any axes ``O``, and the result is
+        the batch axis, as ``WaveletOperatorSingleDomain.apply`` places it: ``x`` is
+        ``(Nb, *O, *spatial)`` at the multi-index ``level``, with any axes ``O``, and the result is
         ``(Nb, L_a, *O, *spatial)``, without a transposition. The scattering loop of tensor
         products (task T3.2) chains these block after block, so that the orientations of the
         blocks come in reverse block order, ``(Nb, L_{B-1}, …, L₀, *O, *spatial)``; the loop

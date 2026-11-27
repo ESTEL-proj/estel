@@ -58,9 +58,9 @@ the scales of the convolutions applied, which in ESTEL is plan data rather than 
 * S4 at ``(j1, j2, j3)``: ``(j1, j3)`` and ``(j2, j3)``, at the level of scale ``j3``.
 
 The plan lists these means, and the wavelet operator gives their weights
-(``WaveletOperatorSingleDomain.mean_weights``). The border of a mean is the larger of its operands' borders
-(M-BORDER, "fully flexible"); the geometry turns it into weights, reducing a border too large
-for the grid as STL does, with one warning per plan (OP-13). The invalid pixels of a mean are
+(``WaveletOperatorSingleDomain.mean_weights``). The border of a mean is the larger of its operands'
+borders (M-BORDER, "fully flexible"); the geometry turns it into weights, reducing a border too
+large for the grid as STL does, with one warning per plan (OP-13). The invalid pixels of a mean are
 the union of its operands' masks (M-MASK, "Covariances"). STL takes the mask of the operand
 with more convolutions instead, assuming that it contains the other one; where it does not
 (masked 1D data), STL's S3 is NaN, and the union gives a value (OP-35). Without missing values

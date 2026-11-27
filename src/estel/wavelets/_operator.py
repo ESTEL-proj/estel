@@ -20,10 +20,11 @@ functions:
 * :class:`WaveletFilters`, the arrays, held by the ``STFilters``: the wavelet bank, or the tables
   of the level, the smoothing kernel, or the tables of the decimation, and the maps of each
   downsampling step, on the operator's backend and dtype.
-* :class:`WaveletOperatorSingleDomain`, which binds the two to data, read for their geometry and backend
-  only: :meth:`WaveletOperatorSingleDomain.apply` and :meth:`WaveletOperatorSingleDomain.downsample` are the pure
-  functions the loop calls, on maps, scales and levels, and
-  :meth:`WaveletOperatorSingleDomain.mean_weights` gives the plan the weights of its means.
+* :class:`WaveletOperatorSingleDomain`, which binds the two to data, read for their geometry and
+  backend only: :meth:`WaveletOperatorSingleDomain.apply` and
+  :meth:`WaveletOperatorSingleDomain.downsample` are the pure functions the loop calls, on maps,
+  scales and levels, and :meth:`WaveletOperatorSingleDomain.mean_weights` gives the plan the weights
+  of its means.
 
 The plans and the filters follow the tree of geometries (Part I, §2.3.1). :class:`WaveletPlan`,
 abstract, is the root of the plans: :class:`WaveletPlanSingleDomain`, abstract, with its leaves
@@ -192,8 +193,8 @@ class MeanWeights:
     weights: RealMap
     """1 on the pixels that enter the mean, 0 on the border crop and on invalid pixels; a
     read-only float64 array of the spatial shape at ``level``. The means of one call to
-    ``WaveletOperatorSingleDomain.mean_weights`` with the same level, border and invalid pixels share one
-    array: the weights are stored once per distinct level, border and mask."""
+    ``WaveletOperatorSingleDomain.mean_weights`` with the same level, border and invalid pixels
+    share one array: the weights are stored once per distinct level, border and mask."""
     denominator: float
     """The number of pixels that enter the mean, ``weights.sum()``, at least 1: a mean with
     no valid pixel has no ``MeanWeights`` (OP-3)."""
@@ -741,9 +742,9 @@ def downsample_maps_of(
 class WaveletOperatorSingleDomain:
     """The wavelets of 1D, 2D and HEALPix data, level by level: internal (Part II, §12.5).
 
-    ``WaveletOperatorSingleDomain(data, J, L)`` builds the static part and, on the backend of ``data`` in
-    the default dtype, the arrays. ``STOperator`` holds the two apart, in its plan and its
-    filters, and the loop binds them to the data it computes on with :meth:`from_parts`; the
+    ``WaveletOperatorSingleDomain(data, J, L)`` builds the static part and, on the backend of
+    ``data`` in the default dtype, the arrays. ``STOperator`` holds the two apart, in its plan and
+    its filters, and the loop binds them to the data it computes on with :meth:`from_parts`; the
     functions are the same.
 
     Parameters
@@ -944,9 +945,9 @@ class WaveletOperatorSingleDomain:
     def _arrays(self, function: str) -> WaveletFilters:
         if self._filters is None:
             raise ValueError(
-                f"WaveletOperatorSingleDomain.{function}: this operator holds its static part only. Bind "
-                "the arrays too: WaveletOperatorSingleDomain.from_parts(data, plan, filters), with "
-                "filters = plan._build_filters(backend, dtype, device)."
+                f"WaveletOperatorSingleDomain.{function}: this operator holds its static part "
+                "only. Bind the arrays too: WaveletOperatorSingleDomain.from_parts(data, plan, "
+                "filters), with filters = plan._build_filters(backend, dtype, device)."
             )
         return self._filters
 
@@ -958,17 +959,18 @@ class WaveletOperatorSingleDomain:
         expected = self._plan.level_shapes[level]
         if len(shape) < 2 + ndim or shape[-ndim:] != expected:
             raise ValueError(
-                f"WaveletOperatorSingleDomain.{function}: the array has shape {shape}, but a map at level "
-                f"{level} is (Nb, Nc, ..., {', '.join(str(n) for n in expected)}). Bring it to "
-                f"level {level} first, one downsample step per level."
+                f"WaveletOperatorSingleDomain.{function}: the array has shape {shape}, but a map "
+                f"at level {level} is (Nb, Nc, ..., {', '.join(str(n) for n in expected)}). Bring "
+                f"it to level {level} first, one downsample step per level."
             )
         return shape[:-ndim], shape[-ndim:]
 
     def __repr__(self) -> str:
         plan = self._plan
         return (
-            f"WaveletOperatorSingleDomain(J={plan.J}, L={plan.L}, geometry={plan.geometry.__name__}, "
-            f"spatial_shape={plan.spatial_shape}, pbc={plan.pbc})"
+            f"WaveletOperatorSingleDomain(J={plan.J}, L={plan.L}, "
+            f"geometry={plan.geometry.__name__}, spatial_shape={plan.spatial_shape}, "
+            f"pbc={plan.pbc})"
         )
 
 
