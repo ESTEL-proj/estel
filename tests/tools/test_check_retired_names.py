@@ -538,6 +538,30 @@ def test_a_module_row_done_leaves_the_file_name_of_another_module(
         assert "docs/guide.md:1" in output or "src/estel/wavelets/_operator.py:1" in output
 
 
+@pytest.mark.parametrize(
+    ("prose", "fails"),
+    [
+        pytest.param("The benchmark case `planar-masked`.\n", False, id="bench-label"),
+        pytest.param("A `planar` grid (STL's word).\n", False, id="stl-quote"),
+        pytest.param("A `planar` grid.\n", True, id="neither"),
+    ],
+)
+def test_a_row_done_honours_the_exemptions_of_the_rule(
+    tmp_path: Path, prose: str, fails: bool
+) -> None:
+    """The bare name of a module row done, `planar`, follows the exemptions of the main check
+    in prose: a benchmark label of step 1 (rule 7) and a quote of STL followed by "(STL's
+    word)" (rule 10) may still say it."""
+    files = {
+        "src/estel/_spec/cartesian.py": "X = 1\n",
+        "docs/guide.md": prose,
+        **table(row("estel._spec.planar", "estel._spec.cartesian", "T7.3", done=True)),
+    }
+    status, output = names(tmp_path, files)
+    assert status == int(fails), output
+    assert ("docs/guide.md:1: " in output) == fails, output
+
+
 def test_prose_names_that_are_no_words_are_matched_outside_backticks(tmp_path: Path) -> None:
     files = {
         "src/estel/wavelets/_operator.py": "class WaveletPlanSingleDomain:\n    pass\n",
