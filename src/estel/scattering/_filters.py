@@ -63,7 +63,7 @@ class _FilterFieldsSingleDomain(NamedTuple):
     of the plan."""
     gather: tuple[Any, ...]
     """The integer arrays of the static gather from the divided sums of the loop, in the order
-    of ``statistics._layout.loop_sums``, to the compact buffer of the statistics: for each kind
+    of ``statistics._layout.loop_sums_single_domain``, to the compact buffer of the statistics: for each kind
     of chunk the loop computes complex and the buffer stores with real entries, the floats kept
     (int32; ``statistics._layout.gather_single_domain``; Part III, §19.3, §19.9; task T3.7)."""
     spectrum: SpectrumFilters | None = None

@@ -76,7 +76,7 @@ class _Reductions(NamedTuple):
 
 _NO_REDUCTION = _Reductions()
 
-_FULL_GRID_LIMIT = 2 * 1024**3
+_FULL_GRID_LIMIT_TENSOR_PROD = 2 * 1024**3
 """The largest full-grid view of the statistics of a tensor product, in bytes, batch included,
 in its dtype (Part II, §12.7; Part IV, §22, "No role for the full grid in tensor products"):
 beyond it ``full_grid`` raises. Internal and temporary: removed after 1.0.0 (LF65)."""
@@ -214,11 +214,11 @@ class STStatistics:
             n_batch = int(self._buffer.shape[0])
             itemsize = int(np.dtype(dtype_name(self._buffer)).itemsize)
             size = compact.full_grid_bytes(self._layout, grid.name, n_batch, itemsize)
-            if size > _FULL_GRID_LIMIT:
+            if size > _FULL_GRID_LIMIT_TENSOR_PROD:
                 raise ValueError(
                     f"full_grid({family!r}): the full-grid view of this tensor product would take "
                     f"{size / 1024**3:.2f} GiB ({n_batch} batch element(s), shape "
-                    f"{grid.shape}), more than the {_FULL_GRID_LIMIT / 1024**3:.0f} GiB that "
+                    f"{grid.shape}), more than the {_FULL_GRID_LIMIT_TENSOR_PROD / 1024**3:.0f} GiB that "
                     "full_grid builds for a tensor product. Use to_vector(), which holds the "
                     "coefficients alone, or select(family=..., channel=(a, b)) to reduce the "
                     "view first (Part II, §12.7; LF65)."
@@ -603,7 +603,7 @@ class STStatistics:
                 **(
                     {}
                     if self._reference.blocks is None
-                    else {"blocks": _blocks_content(self._reference.blocks)}
+                    else {"blocks": _blocks_content_tensor_prod(self._reference.blocks)}
                 ),
                 **(
                     {}
@@ -958,7 +958,7 @@ def _mask_positions(mask_st: Any, length: int) -> NDArray[np.int64]:
     return np.flatnonzero(found)
 
 
-def _blocks_content(blocks: BlocksTensorProd) -> dict[str, Any]:
+def _blocks_content_tensor_prod(blocks: BlocksTensorProd) -> dict[str, Any]:
     return {
         "geometries": list(blocks.geometries),
         "J": list(blocks.J),

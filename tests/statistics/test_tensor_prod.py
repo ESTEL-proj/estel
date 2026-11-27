@@ -270,7 +270,7 @@ def test_full_grid_is_refused_above_the_threshold(monkeypatch: pytest.MonkeyPatc
     stats = _two_channels()
     s4 = _layout.full_grid_bytes(stats._layout, "S4", 2, 8)
     assert s4 == 2 * 2 * 2 * (2 * 1) ** 3 * (4 * 2) ** 3 * 16
-    monkeypatch.setattr(_statistics, "_FULL_GRID_LIMIT", s4 - 1)
+    monkeypatch.setattr(_statistics, "_FULL_GRID_LIMIT_TENSOR_PROD", s4 - 1)
     with pytest.raises(ValueError, match=r"GiB.*to_vector\(\).*select"):
         stats.full_grid("S4")
     assert _numpy(stats.full_grid("S3")).shape == (2, 2, 2, 2, 1, 2, 1, 4, 2, 4, 2)

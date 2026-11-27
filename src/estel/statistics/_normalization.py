@@ -34,7 +34,7 @@ from numpy.typing import NDArray
 from ..backend import _registry
 from ..backend._protocol import Backend
 from ._arrays import backend_object_of, constant
-from ._grid import orientations_at
+from ._grid import orientations_at_tensor_prod
 from ._layout import (
     Chunked,
     Copy,
@@ -106,7 +106,7 @@ class BlocksTensorProd(NamedTuple):
     def row_shape(self, scale: tuple[int, ...]) -> tuple[int, ...]:
         """The orientations of sigma at the multi-index ``scale``: L_a, or 1 along a block at
         its low-pass scale (M-LP)."""
-        return orientations_at(scale, self.J, self.L)
+        return orientations_at_tensor_prod(scale, self.J, self.L)
 
 
 def blocks_tensor_prod(plan: STPlanTensorProd) -> BlocksTensorProd:
@@ -557,7 +557,7 @@ def normalize(
         tables_tensor_prod = _norm_tables(*key_tensor_prod, reference.blocks)
         divide_tensor_prod = _compiled_tensor_prod(backend.name, *key_tensor_prod, reference.blocks)
         chunks = map_tables(backend, tables_tensor_prod.transform, buffer)
-        found = _factor_tables(backend, tables_tensor_prod, reference, buffer)
+        found = _factor_tables_tensor_prod(backend, tables_tensor_prod, reference, buffer)
         return (
             divide_tensor_prod(buffer, reference.var, reference.sigma, chunks, found),
             tables_tensor_prod.transform.layout,
@@ -647,7 +647,7 @@ def _divide_single_domain(
 # ---------------------------------------------------------------------- tensor products
 
 
-def _groups(
+def _groups_tensor_prod(
     tables: _NormTables, name: str
 ) -> tuple[tuple[NDArray[np.int64] | None, tuple[int, ...]], ...]:
     """The groups of chunks the map of the normalisation passes to the divisor of ``name``, in
@@ -660,7 +660,7 @@ def _groups(
     return tuple((g.rows, g.orientations) for g in groups)
 
 
-def _factor_tables(
+def _factor_tables_tensor_prod(
     backend: Backend, tables: _NormTables, reference: _NormReference, like: Any
 ) -> dict[str, Any]:
     """The first float in sigma of the two factors of the divisor of every chunk, group by
@@ -679,7 +679,7 @@ def _factor_tables(
                     constant(backend, starts[a if rows is None else a[rows]], like, "int32"),
                     constant(backend, starts[b if rows is None else b[rows]], like, "int32"),
                 )
-                for rows, _ in _groups(tables, name)
+                for rows, _ in _groups_tensor_prod(tables, name)
             ),
         }
     return found
@@ -732,7 +732,7 @@ def _divide_tensor_prod(
             n = int(channels.shape[0])
             divisor = xp.reshape(xp.take(var, channels, axis=1), (n_ref, n, 1, 1))
             return lambda dense, *_: dense / divisor
-        groups = _groups(tables, name)
+        groups = _groups_tensor_prod(tables, name)
         axes = _SIGMA_ORIENTATIONS[name]
         # The orientation groups of the family, one axis per block each: l; l2, l3; l1, l2, l3.
         n_groups = {"S1": 1, "S2": 1, "S3": 2, "S4": 3}[name]

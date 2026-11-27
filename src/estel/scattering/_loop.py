@@ -114,7 +114,7 @@ def first_layer_sums(
     w: Any, u: Any, weights: Any, denominator: float, pairs: ChannelPairs, axes: tuple[int, ...]
 ) -> list[_Sum]:
     """The sums of the S1 and S2 means of one scale (M-S1, M-S2, M-CHAN, OP-16), in the order of
-    ``loop_sums``: S1 of the auto channels, every channel at once, then of the cross pairs, pair
+    ``loop_sums_single_domain``: S1 of the auto channels, every channel at once, then of the cross pairs, pair
     by pair; then S2 alike. ``w`` is the first-layer map W_j x and ``u`` its modulus,
     ``(Nb, L, Nc, *spatial)``, ``weights`` the window of the means (``window_single_domain``).
     Shared by the loops of planar data and of tensor products, whose orientations are flattened into
@@ -161,7 +161,7 @@ def _divide_level(backend: Backend, pending: Sequence[_Sum], total: Any) -> list
     """The means of one level: its weighted sums, stacked as one real ``(Nb, n)`` array, passed
     once to ``total`` (:func:`_global_sum`), split back, then divided by their denominators,
     in their order, each as a real ``(Nb, m)`` array (complex values as (re, im) pairs, the
-    order of ``loop_sums``). The stacking is exact: it only moves values."""
+    order of ``loop_sums_single_domain``). The stacking is exact: it only moves values."""
     if not pending:
         return []
     xp = backend.xp

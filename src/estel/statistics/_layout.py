@@ -28,7 +28,7 @@ from layouts and the plan (Part III, §19.6, §19.9), applied with a few generic
 differentiable to any order on every backend. Each acts chunk by chunk, with tables that grow
 with the number of chunks and of orientations, never with the number of coefficients:
 
-* :func:`gather_single_domain`: from the sums of the scattering loop (:func:`loop_sums`),
+* :func:`gather_single_domain`: from the sums of the scattering loop (:func:`loop_sums_single_domain`),
   each of which is a chunk, to the buffer of :func:`layout_single_domain` (the floats before the
   power spectrum, the last family when the plan has it);
 * :class:`FloatMap`: from one buffer to another, family by family: a copy, or the chunks of a
@@ -500,7 +500,7 @@ def layout_tensor_prod(plan: STPlanTensorProd) -> Layout:
     return layout
 
 
-class LoopSum(NamedTuple):
+class LoopSumSingleDomain(NamedTuple):
     """One weighted sum of the scattering loop, as the loop takes it (``scattering._loop``):
     what the gather to the compact buffer reads (Part III, §19.2, §19.9)."""
 
@@ -514,7 +514,7 @@ class LoopSum(NamedTuple):
     """Whether the loop computes it complex: the cross S1 and S2, S3 and S4."""
 
 
-def loop_sums(plan: STPlanSingleDomain) -> tuple[LoopSum, ...]:
+def loop_sums_single_domain(plan: STPlanSingleDomain) -> tuple[LoopSumSingleDomain, ...]:
     """The sums of the scattering loop, in the order the loop takes them
     (``scattering._loop``): mean and var, then for each level and each scale j3 computed there,
     S1 (auto channels, then cross pairs) and S2 alike, then for each scale j2 of the second
@@ -524,28 +524,35 @@ def loop_sums(plan: STPlanSingleDomain) -> tuple[LoopSum, ...]:
     compact buffer."""
     pairs = plan.pairs
     channels_12 = (*((c, c) for c in pairs.auto), *pairs.cross)
-    sums = [LoopSum("mean", (), False), LoopSum("var", (), False)]
+    sums = [LoopSumSingleDomain("mean", (), False), LoopSumSingleDomain("var", (), False)]
     for level in plan.levels:
         for j3 in (j for j in plan.scales if plan.scale_levels[j] == level):
             if j3 in plan.first_layer:
                 for family in ("S1", "S2"):
-                    sums.extend(LoopSum(family, (c1, c2, j3), c1 != c2) for c1, c2 in channels_12)
+                    sums.extend(
+                        LoopSumSingleDomain(family, (c1, c2, j3), c1 != c2)
+                        for c1, c2 in channels_12
+                    )
             arms = plan.second_layer[j3].arms if j3 in plan.second_layer else ()
             for j2 in arms:
                 if (j2, j3) in plan.s3:
-                    sums.extend(LoopSum("S3", (c1, c2, j2, j3), True) for c1, c2 in pairs.ordered)
+                    sums.extend(
+                        LoopSumSingleDomain("S3", (c1, c2, j2, j3), True)
+                        for c1, c2 in pairs.ordered
+                    )
                 for j1 in range(j2 + 1):
                     if (j1, j2, j3) in plan.s4:
                         sums.extend(
-                            LoopSum("S4", (c1, c2, j1, j2, j3), True) for c1, c2 in pairs.ordered
+                            LoopSumSingleDomain("S4", (c1, c2, j1, j2, j3), True)
+                            for c1, c2 in pairs.ordered
                         )
     return tuple(sums)
 
 
-class LoopGather(NamedTuple):
+class LoopGatherSingleDomain(NamedTuple):
     """The static gather from the sums of the scattering loop to the buffer of
     :func:`layout_single_domain` (Part III, §19.3, §19.9), chunk by chunk: each sum of
-    ``loop_sums`` is a chunk (or, for mean and var, the chunks of every channel)."""
+    ``loop_sums_single_domain`` is a chunk (or, for mean and var, the chunks of every channel)."""
 
     pieces: NDArray[np.int64]
     """``(n_pieces, 4)``: in the order of the buffer, the sum each piece reads, its first float
@@ -559,16 +566,16 @@ class LoopGather(NamedTuple):
     """The number of sums the loop produces."""
 
 
-def _carried_shape(plan: STPlanSingleDomain, family: str) -> tuple[int, ...]:
-    """The axes a sum of the loop carries after the batch axis (``loop_sums``)."""
+def _carried_shape_single_domain(plan: STPlanSingleDomain, family: str) -> tuple[int, ...]:
+    """The axes a sum of the loop carries after the batch axis (``loop_sums_single_domain``)."""
     if family in ("mean", "var"):
         return (plan.n_channels,)
     return (plan.L,) * {"S1": 1, "S2": 1, "S3": 2, "S4": 3}[family]
 
 
 @functools.lru_cache(maxsize=64)
-def gather_single_domain(plan: STPlanSingleDomain) -> LoopGather:
-    """The :class:`LoopGather` of ``plan``.
+def gather_single_domain(plan: STPlanSingleDomain) -> LoopGatherSingleDomain:
+    """The :class:`LoopGatherSingleDomain` of ``plan``.
 
     The loop divides its sums level by level, each as real floats: a complex sum as (re, im)
     pairs, its carried axes in C order. The buffer is their concatenation in the order of its
@@ -576,7 +583,7 @@ def gather_single_domain(plan: STPlanSingleDomain) -> LoopGather:
     The power spectrum, the last family of the layout when the plan has it, is not a sum of the
     loop: the gather gives the floats before it (``layout.span("PS")[0]``)."""
     layout = layout_single_domain(plan)
-    sums = loop_sums(plan)
+    sums = loop_sums_single_domain(plan)
     found: dict[tuple[str, tuple[int, ...]], tuple[int, int, bool]] = {
         key: where
         for i, item in enumerate(sums)
@@ -592,7 +599,7 @@ def gather_single_domain(plan: STPlanSingleDomain) -> LoopGather:
     for grid in layout.grids:
         if grid.name == "PS":  # the last family, written by the estimators of the spectrum
             continue
-        n_o = int(np.prod(_carried_shape(plan, grid.name))) if grid.is_complex else 1
+        n_o = int(np.prod(_carried_shape_single_domain(plan, grid.name))) if grid.is_complex else 1
         floats = grid.floats_per_kind
         for row, kind in zip(grid.chunks.tolist(), grid.kinds.tolist(), strict=True):
             where = found.get((grid.name, tuple(row)))
@@ -600,7 +607,7 @@ def gather_single_domain(plan: STPlanSingleDomain) -> LoopGather:
             if where is None or (not where[2] and not real.all()):
                 raise ValueError(
                     f"{grid.name}: the loop does not compute every coefficient of the layout; "
-                    "statistics._layout.loop_sums and "
+                    "statistics._layout.loop_sums_single_domain and "
                     "statistics._layout.layout_single_domain disagree."
                 )
             source, start, is_complex = where
@@ -630,7 +637,7 @@ def gather_single_domain(plan: STPlanSingleDomain) -> LoopGather:
             merged = [*merged[:-1], (last[0], last[1], piece[2], -1)]
         else:
             merged.append(piece)
-    return LoopGather(
+    return LoopGatherSingleDomain(
         pieces=np.array(merged, dtype=np.int64).reshape(-1, 4),
         takes=tuple(takes),
         n_sums=len(sums),
@@ -682,10 +689,12 @@ def gather_tensor_prod(plan: STPlanTensorProd) -> Pack:
     return pack_spec(layout, "S4")
 
 
-def gather_loop(backend: Backend, sums: Sequence[Any], gather: LoopGather, takes: Any) -> Any:
+def gather_loop_single_domain(
+    backend: Backend, sums: Sequence[Any], gather: LoopGatherSingleDomain, takes: Any
+) -> Any:
     """The buffer ``(Nb, n_floats)`` from the divided sums of the loop, each a real ``(Nb, m)``
-    array in the order of ``loop_sums``: their chunks concatenated in the order of the buffer.
-    ``takes`` holds :attr:`LoopGather.takes` as integer arrays of the backend."""
+    array in the order of ``loop_sums_single_domain``: their chunks concatenated in the order of the buffer.
+    ``takes`` holds :attr:`LoopGatherSingleDomain.takes` as integer arrays of the backend."""
     xp = backend.xp
     pieces: list[Any] = []
     for source, start, stop, take in gather.pieces.tolist():

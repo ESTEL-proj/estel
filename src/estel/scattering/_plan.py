@@ -105,7 +105,11 @@ from ..backend._protocol import Backend
 from ..data._base import Data
 from ..spectra._bins import SpectrumBins, log_gaussian_bins
 from ..spectra._estimators import choose_estimator, static_tables
-from ..statistics._grid import auto_scales_single_domain, auto_scales_tensor_prod, orientations_at
+from ..statistics._grid import (
+    auto_scales_single_domain,
+    auto_scales_tensor_prod,
+    orientations_at_tensor_prod,
+)
 from ..statistics._layout import Layout, layout_single_domain, layout_tensor_prod
 from ..statistics._normalization import (
     _NormReference,
@@ -912,8 +916,8 @@ class STPlanTensorProd(STPlan):
 
     def orientations_at(self, scale: tuple[int, ...]) -> tuple[int, ...]:
         """The orientation shape of the chunks of S1 and S2 at the multi-index ``scale``
-        (``statistics._grid.orientations_at``)."""
-        return orientations_at(scale, self.J, self.L)
+        (``statistics._grid.orientations_at_tensor_prod``)."""
+        return orientations_at_tensor_prod(scale, self.J, self.L)
 
     def _check_data(self, data: Data, filters: STFilters) -> None:
         if not isinstance(filters, STFiltersTensorProd):
