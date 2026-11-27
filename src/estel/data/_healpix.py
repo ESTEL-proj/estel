@@ -140,22 +140,22 @@ class DataHealpix(Data):
 
     Parameters
     ----------
-    array:
+    array : array_like
         The data, real: as for :class:`estel.Data`. ``(Npix,)`` is promoted to ``(1, 1, Npix)``
         and ``(Nc, Npix)`` to ``(1, Nc, Npix)``. The pixels are in the NESTED ordering.
-    mask:
+    mask : array_like or None
         Optional boolean array ``(Npix,)``, True where a value is missing, shared by every batch
         element and channel. If it is not given, it is read from the NaN of ``array``, which must
         then hold a single map (maths.md M-DATA-HEALPIX, OP-26).
-    depth:
+    depth : int or None
         log₂ ``nside`` of the map. On a full sky it is read from Npix = 12 · 4^depth, and may be
         given to check it; with ``cell_ids`` it is required (OP-91).
-    cell_ids:
+    cell_ids : array_like or None
         The NESTED indices of the pixels of a partial sky, integers, strictly increasing (OP-90),
         one per pixel; ``None`` (the default) for the full sky. ``cell_ids`` that cover the whole
         sphere, 12 · 4^depth of them, raise: omit them for a full sky (rule A6). With
         ``cell_ids``, ``pbc`` is False.
-    partition:
+    partition : None
         Reserved for step 2 (LF34): ``None`` only.
 
     ``pbc`` is a read-only property, True on a full sky and False with ``cell_ids``.
@@ -166,6 +166,8 @@ class DataHealpix(Data):
     """
 
     ndim: ClassVar[int] = 1
+    """The number of spatial axes of the array, 1: the pixels lie on one axis, though the sphere
+    is a 2D surface."""
     _nan_threshold: ClassVar[float] = 0.33
     _geometry: ClassVar[str] = "healpix"
 

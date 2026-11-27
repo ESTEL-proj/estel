@@ -45,17 +45,17 @@ class Data:
 
     Parameters
     ----------
-    array:
+    array : array_like
         The data, real-valued: a NumPy array (or anything ``numpy.asarray`` accepts), converted
         to the current backend with the default dtype and device; or an array of the current
         backend, float32 or float64, kept as it is (so that gradients reach it). The accepted
         shapes are those of the geometry (``Data2D``: ``(N1, N2)``, ``(Nc, N1, N2)`` or
         ``(Nb, Nc, N1, N2)``); the array is promoted to ``(Nb, Nc, *spatial)``.
-    mask:
+    mask : array_like or None
         Optional boolean array of the spatial shape, True where a value is missing, shared by
         every batch element and every channel. If it is not given, it is read from the NaN of
         ``array``, which must then hold a single map (``Nb = Nc = 1``).
-    pbc:
+    pbc : bool
         Periodic boundary conditions, ``True`` or ``False``: required, with no default.
     """
 
