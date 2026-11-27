@@ -1,4 +1,4 @@
-"""Parity of ``DataHealpix`` and its ``WaveletOperator`` with STL (task T5.5, issue #166;
+"""Parity of ``DataHealpix`` and its ``WaveletOperatorSingleDomain`` with STL (task T5.5, issue #166;
 maths.md M-CONV-HPX, M-DOWN-HPX, M-MASK-HPX, OP-110).
 
 Through the operator the scattering loop will use (``apply``, ``downsample``, the masks of the
@@ -24,7 +24,7 @@ from estel import DataHealpix, _config
 from estel.backend import _registry
 from estel.backend._protocol import DType
 from estel.wavelets._healpix_operator import WaveletPlanHealpix
-from estel.wavelets._operator import WaveletOperator, build_wavelet_plan
+from estel.wavelets._operator import WaveletOperatorSingleDomain, build_wavelet_plan
 from tests.parity._compare import assert_parity, load_fixture
 from tests.parity.test_healpix_tables import EXCLUDED_ROWS, _well_conditioned_rows
 
@@ -57,15 +57,15 @@ def _statistics() -> dict[str, NDArray[Any]]:
     return load_fixture("statistics_hpx")
 
 
-def _operator(name: str, J: int) -> WaveletOperator:  # noqa: N803
+def _operator(name: str, J: int) -> WaveletOperatorSingleDomain:  # noqa: N803
     """The operator of a domain of ``operators_hpx``, on its 3 maps as 3 batch elements."""
     fixture = _operators()
     ids = fixture[f"{name}_cell_ids"].astype(np.int64)
     maps = fixture[f"{name}_maps"][:, None]  # (3, 1, Npix)
     if name.startswith("full"):
-        return WaveletOperator(DataHealpix(maps), J)
+        return WaveletOperatorSingleDomain(DataHealpix(maps), J)
     depth = int(name.split("_")[1]).bit_length() - 1
-    return WaveletOperator(DataHealpix(maps, depth=depth, cell_ids=ids), J)
+    return WaveletOperatorSingleDomain(DataHealpix(maps, depth=depth, cell_ids=ids), J)
 
 
 @pytest.mark.maths("M-CONV-HPX", "M-WAV-HPX")

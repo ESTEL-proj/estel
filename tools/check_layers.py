@@ -19,7 +19,7 @@ In L1 and L2 (``data``, ``wavelets``, ``scattering``, ``statistics``, ``synthesi
 Outside ``data`` and ``wavelets``, no use of a hook of filtering or downsampling (§2.3):
 
 * an attribute named ``_conv``, ``_downsample``, ``_crop_weights`` or ``_lowpass``, called or
-  not, and ``getattr`` with one of these names. Only ``WaveletOperator`` calls them.
+  not, and ``getattr`` with one of these names. Only ``WaveletOperatorSingleDomain`` calls them.
 
 The checks are syntactic, so they cannot tell an array from a list or a dict: in L1 and L2,
 build containers with literals and comprehensions as well.
@@ -67,7 +67,7 @@ INPLACE_METHOD = (
 )
 GEOMETRY_HOOK = (
     "uses the geometry hook `{name}` outside estel.wavelets and estel.data. Only "
-    "`WaveletOperator` calls the hooks of filtering and downsampling: go through it "
+    "`WaveletOperatorSingleDomain` calls the hooks of filtering and downsampling: go through it "
     "(`estel.wavelets._operator`: `apply`, `downsample`, `mean_weights`), and add what is "
     "missing there (Part I, §2.3, §2.4)."
 )

@@ -347,12 +347,12 @@ class Data:
 
     # ------------------------------------------------------------------ geometry hooks
 
-    # Only ``WaveletOperator`` (``estel.wavelets._operator``) calls the hooks of filtering and
+    # Only ``WaveletOperatorSingleDomain`` (``estel.wavelets._operator``) calls the hooks of filtering and
     # downsampling, _conv, _downsample and _crop_weights (Part I, §2.3, §2.4).
 
     def _conv(self, x: Any, tables: Any, level: int) -> Any:
         """Filter ``x`` with the wavelets at resolution ``level`` (maths.md M-W1), with the
-        static ``tables`` of that level, given by ``WaveletOperator``.
+        static ``tables`` of that level, given by ``WaveletOperatorSingleDomain``.
 
         ``x`` is an array of this object's backend, ``(Nb, Nc, *spatial)`` at that level, real
         or complex; ``tables`` are, for planar data, the complex bank of the geometry, cast to
@@ -375,7 +375,7 @@ class Data:
 
         ``x`` is an array of this object's backend, ``(Nb, Nc, *spatial)`` at ``level``, real
         or complex; ``weights`` the static weights of the step (:class:`DownsampleWeights`),
-        given by ``WaveletOperator``.
+        given by ``WaveletOperatorSingleDomain``.
         The result has the shape of the coarser level and the dtype of ``x``. Each geometry
         implements it (planar: a normalised strided correlation with the smoothing kernel).
         """

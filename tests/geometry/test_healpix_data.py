@@ -18,7 +18,7 @@ from estel.backend._protocol import Backend, DType
 from estel.data._base import DownsampleWeights
 from estel.data._healpix import _StaticCellIds
 from estel.synthesis._api import _running_data
-from estel.wavelets._operator import WaveletOperator, build_wavelet_plan
+from estel.wavelets._operator import WaveletOperatorSingleDomain, build_wavelet_plan
 
 pytestmark = pytest.mark.maths("M-DATA-HPX")
 
@@ -224,7 +224,7 @@ def test_the_hooks_keep_the_dtype(
     monkeypatch.setattr(_config, "_dtype", dtype)
     complex_dtype = {"float32": "complex64", "float64": "complex128"}[dtype]
     data = DataHealpix(_field(48, (1, 2)))
-    operator = WaveletOperator(data, 2)
+    operator = WaveletOperatorSingleDomain(data, 2)
     filters = operator.filters
     assert filters is not None
     tables = filters._conv_tables(0)
@@ -241,7 +241,7 @@ def test_the_hooks_keep_the_dtype(
 @pytest.mark.maths("M-CONV-HPX", "M-DOWN-HPX")
 def test_a_complex_map_is_convolved_and_decimated_part_by_part(backend: Backend) -> None:
     data = DataHealpix(_field(48, (1, 1)))
-    operator = WaveletOperator(data, 2)
+    operator = WaveletOperatorSingleDomain(data, 2)
     xp = backend.xp
     re, im = data.array, xp.flip(data.array, axis=-1)
     z = backend.real_pairs_to_complex(xp.stack([re, im], axis=-1))

@@ -1,4 +1,4 @@
-"""``WaveletOperator``: the only way to the wavelets and to the geometry of the pyramid
+"""``WaveletOperatorSingleDomain``: the only way to the wavelets and to the geometry of the pyramid
 (Part I, §2.3; Part II, §12.5; task T2.10).
 
 Internal: ESTEL computes scattering statistics, and STL's ``data.get_wavelet_op()`` has no
@@ -20,10 +20,10 @@ functions:
 * :class:`WaveletFilters`, the arrays, held by the ``STFilters``: the wavelet bank, or the tables
   of the level, the smoothing kernel, or the tables of the decimation, and the maps of each
   downsampling step, on the operator's backend and dtype.
-* :class:`WaveletOperator`, which binds the two to data, read for their geometry and backend
-  only: :meth:`WaveletOperator.apply` and :meth:`WaveletOperator.downsample` are the pure
+* :class:`WaveletOperatorSingleDomain`, which binds the two to data, read for their geometry and backend
+  only: :meth:`WaveletOperatorSingleDomain.apply` and :meth:`WaveletOperatorSingleDomain.downsample` are the pure
   functions the loop calls, on maps, scales and levels, and
-  :meth:`WaveletOperator.mean_weights` gives the plan the weights of its means.
+  :meth:`WaveletOperatorSingleDomain.mean_weights` gives the plan the weights of its means.
 
 The plans and the filters follow the tree of geometries (Part I, §2.3.1). :class:`WaveletPlan`,
 abstract, is the root of the plans: :class:`WaveletPlanSingleDomain`, abstract, with its leaves
@@ -192,7 +192,7 @@ class MeanWeights:
     weights: RealMap
     """1 on the pixels that enter the mean, 0 on the border crop and on invalid pixels; a
     read-only float64 array of the spatial shape at ``level``. The means of one call to
-    ``WaveletOperator.mean_weights`` with the same level, border and invalid pixels share one
+    ``WaveletOperatorSingleDomain.mean_weights`` with the same level, border and invalid pixels share one
     array: the weights are stored once per distinct level, border and mask."""
     denominator: float
     """The number of pixels that enter the mean, ``weights.sum()``, at least 1: a mean with
@@ -738,10 +738,10 @@ def downsample_maps_of(
 # ---------------------------------------------------------------------- the operator
 
 
-class WaveletOperator:
+class WaveletOperatorSingleDomain:
     """The wavelets of 1D, 2D and HEALPix data, level by level: internal (Part II, §12.5).
 
-    ``WaveletOperator(data, J, L)`` builds the static part and, on the backend of ``data`` in
+    ``WaveletOperatorSingleDomain(data, J, L)`` builds the static part and, on the backend of ``data`` in
     the default dtype, the arrays. ``STOperator`` holds the two apart, in its plan and its
     filters, and the loop binds them to the data it computes on with :meth:`from_parts`; the
     functions are the same.
@@ -790,7 +790,7 @@ class WaveletOperator:
         object.__setattr__(self, "_filters", filters)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        raise AttributeError("WaveletOperator is immutable: build a new one instead.")
+        raise AttributeError("WaveletOperatorSingleDomain is immutable: build a new one instead.")
 
     @classmethod
     def from_parts(
@@ -798,7 +798,7 @@ class WaveletOperator:
         data: Data,
         plan: WaveletPlanSingleDomain,
         filters: WaveletFilters | None = None,
-    ) -> WaveletOperator:
+    ) -> WaveletOperatorSingleDomain:
         """The operator of a static part and its arrays, bound to ``data``, which must have
         the static metadata ``plan`` was built from: no validation and no conversion, so that
         it works inside traced code. Without ``filters``, the static rules only."""
@@ -944,8 +944,8 @@ class WaveletOperator:
     def _arrays(self, function: str) -> WaveletFilters:
         if self._filters is None:
             raise ValueError(
-                f"WaveletOperator.{function}: this operator holds its static part only. Bind "
-                "the arrays too: WaveletOperator.from_parts(data, plan, filters), with "
+                f"WaveletOperatorSingleDomain.{function}: this operator holds its static part only. Bind "
+                "the arrays too: WaveletOperatorSingleDomain.from_parts(data, plan, filters), with "
                 "filters = plan._build_filters(backend, dtype, device)."
             )
         return self._filters
@@ -958,7 +958,7 @@ class WaveletOperator:
         expected = self._plan.level_shapes[level]
         if len(shape) < 2 + ndim or shape[-ndim:] != expected:
             raise ValueError(
-                f"WaveletOperator.{function}: the array has shape {shape}, but a map at level "
+                f"WaveletOperatorSingleDomain.{function}: the array has shape {shape}, but a map at level "
                 f"{level} is (Nb, Nc, ..., {', '.join(str(n) for n in expected)}). Bring it to "
                 f"level {level} first, one downsample step per level."
             )
@@ -967,7 +967,7 @@ class WaveletOperator:
     def __repr__(self) -> str:
         plan = self._plan
         return (
-            f"WaveletOperator(J={plan.J}, L={plan.L}, geometry={plan.geometry.__name__}, "
+            f"WaveletOperatorSingleDomain(J={plan.J}, L={plan.L}, geometry={plan.geometry.__name__}, "
             f"spatial_shape={plan.spatial_shape}, pbc={plan.pbc})"
         )
 

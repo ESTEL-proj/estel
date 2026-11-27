@@ -1,4 +1,4 @@
-"""The derivatives of the functions of the internal ``WaveletOperator``, to second order
+"""The derivatives of the functions of the internal ``WaveletOperatorSingleDomain``, to second order
 (task T2.10; Part I, §2.3, §3.2.2), as ``test_scattering.py`` does for the whole loop (T2.7),
 and those of the wavelet operator of a tensor product (task T3.1).
 
@@ -21,8 +21,8 @@ from numpy.typing import NDArray
 from estel import Data1D, Data2D, DataHealpix, DataTensorProd
 from estel.backend._protocol import Backend
 from estel.data._moments import modulus
-from estel.wavelets._operator import WaveletOperator
-from estel.wavelets._tensor_prod import TensorProdWaveletOperator
+from estel.wavelets._operator import WaveletOperatorSingleDomain
+from estel.wavelets._tensor_prod import WaveletOperatorTensorProd
 from tests.differentiation._cases import direction_like
 
 STEP = 1e-6
@@ -37,7 +37,7 @@ def _two_layers(
     mask[(slice(3, 5),) * cls.ndim] = True
     field = np.random.default_rng(0).standard_normal(shape) + 0.2
     data = cls(field, mask=mask, pbc=False)
-    operator = WaveletOperator(data, 2, 2)
+    operator = WaveletOperatorSingleDomain(data, 2, 2)
     xp = backend.xp
 
     def function(x: Any) -> Any:
@@ -90,13 +90,13 @@ def test_jvp_and_hvp_of_apply_and_downsample_match_finite_differences(
     )
 
 
-def _tensor_prod_layers(backend: Backend) -> tuple[Any, Callable[[Any], Any]]:
+def _layers_tensor_prod(backend: Backend) -> tuple[Any, Callable[[Any], Any]]:
     """Two layers of the pyramid of a ``[2D, 1D]`` field, block by block (maths.md M-W1-TP):
     the block convolutions at level (0, 0), the modulus, a downsampling along each block, then
     the block convolutions at level (1, 1); not periodic in block 0, periodic in block 1."""
     field = np.random.default_rng(0).standard_normal((1, 2, 8, 8, 8)) + 0.2
     data = DataTensorProd(field, [Data2D, Data1D], pbc=[False, True])
-    operator = TensorProdWaveletOperator(data, [2, 2])
+    operator = WaveletOperatorTensorProd(data, [2, 2])
     xp = backend.xp
 
     def product(x: Any, j: int, level: tuple[int, int]) -> Any:
@@ -115,7 +115,7 @@ def _tensor_prod_layers(backend: Backend) -> tuple[Any, Callable[[Any], Any]]:
 
 @pytest.mark.slow
 @pytest.mark.maths("M-W1-TP", "M-NOT-TP")
-def test_jvp_and_hvp_of_the_tensor_product_operator_match_finite_differences(
+def test_jvp_and_hvp_of_the_tensor_prod_operator_match_finite_differences(
     backend: Backend,
 ) -> None:
     """The hooks of ``DataTensorProd``, through its wavelet operator, differentiated to second
@@ -124,7 +124,7 @@ def test_jvp_and_hvp_of_the_tensor_product_operator_match_finite_differences(
 
     Slow: second-order derivatives belong to the full tier (AGENTS.md, golden rule 13; the
     decisions of the maintainer on issue #22)."""
-    x, function = _tensor_prod_layers(backend)
+    x, function = _layers_tensor_prod(backend)
     v = direction_like(backend, x, seed=1)
     _, tangent = backend.jvp(function, (x,), (v,))
     np.testing.assert_allclose(
@@ -148,7 +148,7 @@ def test_jvp_and_hvp_of_the_tensor_product_operator_match_finite_differences(
     )
 
 
-def _healpix_layers(backend: Backend) -> tuple[Any, Callable[[Any], Any]]:
+def _layers_healpix(backend: Backend) -> tuple[Any, Callable[[Any], Any]]:
     """Two layers of the pyramid of a HEALPix field, ``nside`` 4 with one missing pixel, the
     smallest map whose first layer keeps valid pixels through a masked decimation (at ``nside``
     2 the stencil covers most of the sphere, and one missing pixel invalidates the whole first
@@ -158,7 +158,7 @@ def _healpix_layers(backend: Backend) -> tuple[Any, Callable[[Any], Any]]:
     mask[70] = True
     field = np.random.default_rng(0).standard_normal((1, 2, 192)) + 0.2
     data = DataHealpix(field, mask=mask)
-    operator = WaveletOperator(data, 2)
+    operator = WaveletOperatorSingleDomain(data, 2)
     xp = backend.xp
 
     def function(x: Any) -> Any:
@@ -174,7 +174,7 @@ def test_jvp_and_hvp_of_the_healpix_operator_match_finite_differences(backend: B
     """The hooks of ``DataHealpix`` (``gather_weighted``, ``segment_sum``), through its wavelet
     operator, differentiated to second order, as for the planar operator (issue #166,
     decision 5)."""
-    x, function = _healpix_layers(backend)
+    x, function = _layers_healpix(backend)
     v = direction_like(backend, x, seed=1)
     _, tangent = backend.jvp(function, (x,), (v,))
     np.testing.assert_allclose(

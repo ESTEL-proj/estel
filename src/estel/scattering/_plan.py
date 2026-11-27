@@ -58,7 +58,7 @@ the scales of the convolutions applied, which in ESTEL is plan data rather than 
 * S4 at ``(j1, j2, j3)``: ``(j1, j3)`` and ``(j2, j3)``, at the level of scale ``j3``.
 
 The plan lists these means, and the wavelet operator gives their weights
-(``WaveletOperator.mean_weights``). The border of a mean is the larger of its operands' borders
+(``WaveletOperatorSingleDomain.mean_weights``). The border of a mean is the larger of its operands' borders
 (M-BORDER, "fully flexible"); the geometry turns it into weights, reducing a border too large
 for the grid as STL does, with one warning per plan (OP-13). The invalid pixels of a mean are
 the union of its operands' masks (M-MASK, "Covariances"). STL takes the mask of the operand
@@ -119,7 +119,7 @@ from ..wavelets._operator import (
     KERNEL_SIZE,
     History,
     MeanWeights,
-    WaveletOperator,
+    WaveletOperatorSingleDomain,
     WaveletPlanSingleDomain,
     build_wavelet_plan_with_tables,
 )
@@ -694,7 +694,7 @@ def build_plan_with_tables(
             for j1, j2, j3 in s4_triples
         },
     }
-    candidates = WaveletOperator.from_parts(data, wavelets).mean_weights(
+    candidates = WaveletOperatorSingleDomain.from_parts(data, wavelets).mean_weights(
         {key: (histories, level) for key, (_, histories, level) in means.items()}
     )
     weights = {key: w for key, w in candidates.items() if w is not None}

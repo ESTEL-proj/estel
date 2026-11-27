@@ -26,13 +26,13 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel.wavelets._healpix_bank import healpix_kernel_weights
+from estel.wavelets._healpix_bank import kernel_weights_healpix
 from estel.wavelets._healpix_geometry import (
-    HealpixDecimation,
-    HealpixStencils,
+    DecimationHealpix,
+    StencilsHealpix,
     _stencil_interpolation,
-    healpix_decimation,
-    healpix_stencils,
+    decimation_healpix,
+    stencils_healpix,
 )
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
@@ -57,22 +57,22 @@ def _grid(name: str) -> tuple[NDArray[np.int64] | None, int, NDArray[np.int64]]:
 
 
 @functools.cache
-def _tables(name: str) -> tuple[HealpixStencils, HealpixDecimation]:
+def _tables(name: str) -> tuple[StencilsHealpix, DecimationHealpix]:
     cell_ids, depth, _ = _grid(name)
     parameters = read_manifest()[f"{CASE}.npz"]["parameters"]
-    stencils = healpix_stencils(cell_ids, depth, L=parameters["L"], kernel_size=parameters["K"])
-    return stencils, healpix_decimation(cell_ids, depth)
+    stencils = stencils_healpix(cell_ids, depth, L=parameters["L"], kernel_size=parameters["K"])
+    return stencils, decimation_healpix(cell_ids, depth)
 
 
-def _convolve(tables: HealpixStencils, maps: NDArray[np.float64]) -> NDArray[np.complex128]:
+def _convolve(tables: StencilsHealpix, maps: NDArray[np.float64]) -> NDArray[np.complex128]:
     """``gather_weighted`` along the pixels, then the kernel: ``(B, Npix)`` -> ``(B, L, Npix)``."""
     gathered = (maps[:, tables.index] * tables.weight).sum(axis=-1)  # (B, L · Npix, K²)
-    kernel = healpix_kernel_weights(kernel_size=tables.kernel_size)
+    kernel = kernel_weights_healpix(kernel_size=tables.kernel_size)
     out: NDArray[np.complex128] = gathered @ kernel.real + 1j * (gathered @ kernel.imag)
     return out.reshape(maps.shape[0], tables.n_gauges, -1)
 
 
-def _decimate(tables: HealpixDecimation, maps: NDArray[np.float64]) -> NDArray[np.float64]:
+def _decimate(tables: DecimationHealpix, maps: NDArray[np.float64]) -> NDArray[np.float64]:
     """``gather_weighted`` then ``segment_sum``: ``(B, Npix)`` -> ``(B, Npix_coarse)``."""
     gathered = maps[:, tables.index[:, 0, 0]] * tables.weight[:, 0, 0]
     rows = np.arange(maps.shape[0])[:, None]
@@ -105,7 +105,7 @@ def _well_conditioned_rows(name: str) -> tuple[NDArray[np.bool_], NDArray[np.boo
 def test_kernel_equals_stl() -> None:
     expected = _fixture()["kernel"]  # (1, 1, K²)
     assert_parity(
-        healpix_kernel_weights(kernel_size=read_manifest()[f"{CASE}.npz"]["parameters"]["K"])[
+        kernel_weights_healpix(kernel_size=read_manifest()[f"{CASE}.npz"]["parameters"]["K"])[
             None, None
         ],
         expected,
@@ -115,9 +115,9 @@ def test_kernel_equals_stl() -> None:
 @pytest.mark.maths("M-CONV-HPX", "M-WAV-HPX")
 def test_dense_convolution_equals_stl() -> None:
     """``conv_4[g, k, n]``: the response at pixel k and gauge g to the unit map at pixel n."""
-    stencils = healpix_stencils(None, 2)
+    stencils = stencils_healpix(None, 2)
     n_pix = 192
-    kernel = healpix_kernel_weights(kernel_size=stencils.kernel_size)
+    kernel = kernel_weights_healpix(kernel_size=stencils.kernel_size)
     values = kernel[None, :, None] * stencils.weight  # (L · Npix, K², 4)
     rows = np.broadcast_to(np.arange(stencils.index.shape[0])[:, None, None], stencils.index.shape)
     dense = np.zeros((stencils.index.shape[0], n_pix), dtype=np.complex128)
@@ -127,7 +127,7 @@ def test_dense_convolution_equals_stl() -> None:
 
 @pytest.mark.maths("M-DOWN-HPX")
 def test_dense_decimation_equals_stl() -> None:
-    tables = healpix_decimation(None, 2)
+    tables = decimation_healpix(None, 2)
     dense = np.zeros((tables.num_segments, 192))
     np.add.at(dense, (tables.segment_ids, tables.index[:, 0, 0]), tables.weight[:, 0, 0])
     np.testing.assert_array_equal(tables.cell_ids_out, _fixture()["down_4_cell_ids"])

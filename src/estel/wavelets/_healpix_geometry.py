@@ -12,7 +12,7 @@ Where each block comes from (the five blocks decided on 24 November 2026, Part I
 4. the stencil and its binding on a partial sky (:func:`local_kernel_grid`,
    :func:`_bind_support`), with the rule decided by the maintainer on 24 November 2026 (issue
    #26), which differs from STL at the ill-conditioned points of the edge (maths.md OP-110);
-5. the decimation (:func:`centres_lonlat`, :func:`_haversine`, :func:`healpix_decimation`),
+5. the decimation (:func:`centres_lonlat`, :func:`_haversine`, :func:`decimation_healpix`),
    whose search of the candidate fine pixels is ESTEL's own (:func:`_cone_pairs`), exact and in
    NumPy, where STL uses healpix-geo.
 
@@ -40,7 +40,7 @@ Table layout (for T5.5, which applies the tables, and T6.3, which checks the sig
 ``gather_weighted`` against them). Both fit the L0 primitives of Part II, §12.3, applied along
 the pixel axis of a map ``x`` of shape ``(..., Npix)`` whose pixels are ``cell_ids``, ascending:
 
-* **Convolution** (M-CONV-HPX), :func:`healpix_stencils`: ``index`` and ``weight`` of shape
+* **Convolution** (M-CONV-HPX), :func:`stencils_healpix`: ``index`` and ``weight`` of shape
   ``(L · Npix, K², 4)``. Row ``r = g · Npix + k`` is gauge ``g`` at pixel ``cell_ids[k]``;
   column ``p = (v + c) K + (u + c)`` the stencil point (u, v); the last axis the 4 neighbours of
   the bilinear interpolation, ``index`` their positions in ``cell_ids`` and ``weight`` their
@@ -48,11 +48,11 @@ the pixel axis of a map ``x`` of shape ``(..., Npix)`` whose pixels are ``cell_i
 
       z = gather_weighted(x, -1, index, weight)       # (..., L · Npix, K²): the interpolated
       y = z @ W                                       # stencil values; W the kernel (K², )
-      y = reshape(y, (..., L, Npix))                  # of healpix_kernel_weights
+      y = reshape(y, (..., L, Npix))                  # of kernel_weights_healpix
 
   the product with the complex kernel being two real products, with its real and imaginary
   parts (Part I, §3.1, rule 6).
-* **Decimation** (M-DOWN-HPX), :func:`healpix_decimation`: a CSR matrix of ``nnz`` entries,
+* **Decimation** (M-DOWN-HPX), :func:`decimation_healpix`: a CSR matrix of ``nnz`` entries,
   sorted by coarse pixel then by fine pixel. ``index`` and ``weight`` of shape ``(nnz, 1, 1)``,
   the positions in ``cell_ids`` of the fine pixels and their weights; ``segment_ids`` of shape
   ``(nnz, )``, the position of the coarse pixel in ``cell_ids_out``. Then::
@@ -78,7 +78,7 @@ from numpy.typing import ArrayLike, NDArray
 from estel.data._healpix import check_cell_ids, check_depth
 from estel.data._masks import SUPPORT_THRESHOLD_HEALPIX
 from estel.wavelets._banks import _check_n_orientations
-from estel.wavelets._healpix_bank import HEALPIX_GAUGES, HEALPIX_KERNEL_SIZE, _check_kernel_size
+from estel.wavelets._healpix_bank import GAUGES_HEALPIX, KERNEL_SIZE_HEALPIX, _check_kernel_size
 from estel.wavelets._healpix_pixels import (
     interpolation_ring,
     nest2xyf,
@@ -89,16 +89,16 @@ from estel.wavelets._healpix_pixels import (
 
 __all__ = [
     "MAX_DEPTH",
-    "HealpixDecimation",
-    "HealpixStencils",
+    "DecimationHealpix",
+    "StencilsHealpix",
     "centres_lonlat",
-    "healpix_decimation",
-    "healpix_stencils",
+    "decimation_healpix",
     "interp_weights_nested",
     "local_kernel_grid",
     "nest2xyf",
     "ring2nest",
     "rotation_matrices",
+    "stencils_healpix",
     "xyf2ang",
     "xyf2nest",
 ]
@@ -110,7 +110,7 @@ _CONE_CHUNK = 1 << 14
 """Coarse pixels searched at once by :func:`_cone_pairs`: bounds its temporary arrays."""
 
 _STENCIL_BATCH = 1 << 10
-"""Output pixels whose stencils :func:`healpix_stencils` builds at once (task T5.7, issue #168):
+"""Output pixels whose stencils :func:`stencils_healpix` builds at once (task T5.7, issue #168):
 the NumPy temporaries of the interpolation, about 30 arrays of L · K² · 4 entries per pixel,
 are bounded by a batch (0.11 GB with L = 4 and K = 5) instead of growing with the map (22 GB
 at ``nside`` 128). From 256 to 4096 pixels a batch, the build takes the same time. The tables
@@ -296,7 +296,7 @@ def _bind_support(
     if not np.all(total > 0):
         # The stencil centre is the pixel centre, read with weight 1 by the pixel itself.
         raise RuntimeError(
-            "healpix_stencils: a stencil centre reads no pixel of cell_ids; this is a bug of "
+            "stencils_healpix: a stencil centre reads no pixel of cell_ids; this is a bug of "
             "ESTEL, please report it with cell_ids and depth."
         )
     positions: NDArray[np.int64] = np.where(present, pos, 0)
@@ -304,7 +304,7 @@ def _bind_support(
 
 
 @dataclass(frozen=True, eq=False)
-class HealpixStencils:
+class StencilsHealpix:
     """The convolution tables of one level, for ``gather_weighted`` (module docstring).
 
     ``index`` int32 and ``weight`` float64, shape ``(L · Npix, K², 4)``, row ``g · Npix + k``.
@@ -316,19 +316,19 @@ class HealpixStencils:
     kernel_size: int
 
 
-def healpix_stencils(
+def stencils_healpix(
     cell_ids: ArrayLike | None,
     depth: int,
     *,
-    L: int = HEALPIX_GAUGES,  # noqa: N803
-    kernel_size: int = HEALPIX_KERNEL_SIZE,
-) -> HealpixStencils:
+    L: int = GAUGES_HEALPIX,  # noqa: N803
+    kernel_size: int = KERNEL_SIZE_HEALPIX,
+) -> StencilsHealpix:
     """The interpolation tables of the rotated stencils at one level (maths.md M-CONV-HPX).
 
     ``cell_ids``: the NESTED pixels of the map, strictly increasing, or ``None`` for the full
     sky; ``depth``: log2(nside) of the level, 0 to :data:`MAX_DEPTH`; ``L``: the number of
     gauges of ``"cosmo"``; ``kernel_size``: K, odd. The kernel is not in the tables: it is the
-    same at every level and for every gauge (M-WAV-HPX, :func:`healpix_kernel_weights`). On a
+    same at every level and for every gauge (M-WAV-HPX, :func:`kernel_weights_healpix`). On a
     partial sky, the rule of M-CONV-HPX (OP-50) as decided on issue #26, which differs from STL
     at the ill-conditioned points of the edge (OP-110; :func:`_bind_support`). Layout: the
     module docstring.
@@ -354,7 +354,7 @@ def healpix_stencils(
     index = np.concatenate(indices, axis=1)
     del indices
     rows = (n_gauges * ids.size, size * size, 4)
-    return HealpixStencils(
+    return StencilsHealpix(
         index=index.reshape(rows),
         weight=weight.reshape(rows),
         n_gauges=n_gauges,
@@ -454,7 +454,7 @@ def _cone_pairs(
 
 
 @dataclass(frozen=True, eq=False)
-class HealpixDecimation:
+class DecimationHealpix:
     """The decimation tables of one step, for ``gather_weighted`` then ``segment_sum``
     (module docstring).
 
@@ -473,7 +473,7 @@ class HealpixDecimation:
         return int(self.cell_ids_out.size)
 
 
-def healpix_decimation(cell_ids: ArrayLike | None, depth: int) -> HealpixDecimation:
+def decimation_healpix(cell_ids: ArrayLike | None, depth: int) -> DecimationHealpix:
     """The tables of one decimation step, from ``depth`` to ``depth - 1`` (maths.md M-DOWN-HPX).
 
     ``cell_ids``: the NESTED fine pixels, strictly increasing, or ``None`` for the full sky;
@@ -500,11 +500,11 @@ def healpix_decimation(cell_ids: ArrayLike | None, depth: int) -> HealpixDecimat
         # healpix-analyse's fallbacks (uniform weights, or a zero row) cannot be reached: every
         # coarse pixel has a fine child within rho of its centre.
         raise RuntimeError(
-            "healpix_decimation: a coarse pixel has no fine pixel within the radius; this is a "
+            "decimation_healpix: a coarse pixel has no fine pixel within the radius; this is a "
             "bug of ESTEL, please report it with cell_ids and depth."
         )
     w = w / row_sum[rows]
-    return HealpixDecimation(
+    return DecimationHealpix(
         index=cols.astype(np.int32).reshape(-1, 1, 1),
         weight=w.reshape(-1, 1, 1),
         segment_ids=rows.astype(np.int32),

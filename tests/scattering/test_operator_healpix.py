@@ -251,14 +251,14 @@ def test_a_masked_operator_builds_the_tables_of_a_level_once(
 
         return wrapper
 
-    for name in ("healpix_stencils", "healpix_decimation"):
+    for name in ("stencils_healpix", "decimation_healpix"):
         monkeypatch.setattr(_healpix_operator, name, counted(name))
     data = DataHealpix(_field((192,)), mask=_hole(192))
     operator = _operator(data, 2)
     assert sorted(builds) == [
-        ("healpix_decimation", 2),
-        ("healpix_stencils", 1),
-        ("healpix_stencils", 2),
+        ("decimation_healpix", 2),
+        ("stencils_healpix", 1),
+        ("stencils_healpix", 2),
     ]
     wavelets = cast(Any, operator.plan).wavelets
     assert isinstance(wavelets, _healpix_operator.WaveletPlanHealpix)
@@ -267,7 +267,7 @@ def test_a_masked_operator_builds_the_tables_of_a_level_once(
     builds.clear()
     STOperator.from_statistics(operator.apply(data))
     assert sorted(builds) == [
-        ("healpix_decimation", 2),
-        ("healpix_stencils", 1),
-        ("healpix_stencils", 2),
+        ("decimation_healpix", 2),
+        ("stencils_healpix", 1),
+        ("stencils_healpix", 2),
     ]

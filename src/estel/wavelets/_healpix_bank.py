@@ -4,10 +4,10 @@ Built once, in NumPy float64, when an operator is built; never traced, never dif
 N of Part II, §12). The plan casts it to the dtype of the data (maths.md OP-46, decided on 24
 November 2026: no cast through float32, unlike healpix-analyse's ``HealPixConv.set_kernel``).
 
-:func:`healpix_kernel_weights` is the kernel of maths.md M-WAV-HPX, ported from STL
+:func:`kernel_weights_healpix` is the kernel of maths.md M-WAV-HPX, ported from STL
 `HealpixUpdate` ``90eb1a9`` (``WaveletOperatorHealpixKernel_torch._wavelet_kernel``): one complex
 kernel on the K x K stencil of M-CONV-HPX, the same at every level and for every gauge; the
-orientations are the gauges of the stencil (``_healpix_geometry.healpix_stencils``), not
+orientations are the gauges of the stencil (``_healpix_geometry.stencils_healpix``), not
 rotations of the kernel. ``tests/parity/test_healpix_tables.py`` checks it against STL's.
 """
 
@@ -20,12 +20,12 @@ from numpy.typing import NDArray
 
 from estel.wavelets._banks import _check_zero_sum
 
-__all__ = ["HEALPIX_GAUGES", "HEALPIX_KERNEL_SIZE", "healpix_kernel_weights"]
+__all__ = ["GAUGES_HEALPIX", "KERNEL_SIZE_HEALPIX", "kernel_weights_healpix"]
 
-HEALPIX_KERNEL_SIZE = 5
+KERNEL_SIZE_HEALPIX = 5
 """K, the stencil size of the HEALPix convolution, 5 x 5 points (maths.md M-DEF-HPX)."""
 
-HEALPIX_GAUGES = 4
+GAUGES_HEALPIX = 4
 """L, the number of gauges of the HEALPix convolution (maths.md M-DEF-HPX)."""
 
 
@@ -34,19 +34,19 @@ def _check_kernel_size(kernel_size: object) -> int:
     if isinstance(kernel_size, bool) or not isinstance(kernel_size, Integral):
         raise TypeError(
             f"kernel_size={kernel_size!r}: the stencil size is an odd integer ≥ 3, such as "
-            f"{HEALPIX_KERNEL_SIZE}."
+            f"{KERNEL_SIZE_HEALPIX}."
         )
     size = int(kernel_size)
     if size < 3 or size % 2 == 0:
         raise ValueError(
             f"kernel_size={size}: the stencil size must be odd, so that the stencil has a centre "
             f"pixel, and at least 3 (a 1 x 1 kernel is zero once its mean is subtracted); the "
-            f"default is {HEALPIX_KERNEL_SIZE} (maths.md M-DEF-HPX)."
+            f"default is {KERNEL_SIZE_HEALPIX} (maths.md M-DEF-HPX)."
         )
     return size
 
 
-def healpix_kernel_weights(*, kernel_size: int = HEALPIX_KERNEL_SIZE) -> NDArray[np.complex128]:
+def kernel_weights_healpix(*, kernel_size: int = KERNEL_SIZE_HEALPIX) -> NDArray[np.complex128]:
     """The complex wavelet kernel of maths.md M-WAV-HPX, flattened on the stencil.
 
     ψ[u, v] = exp(-(u² + v²) / 2) · exp(i π u / 2) on the offsets u, v ∈ {-c, …, c},
@@ -56,7 +56,7 @@ def healpix_kernel_weights(*, kernel_size: int = HEALPIX_KERNEL_SIZE) -> NDArray
     Shapes:
         ``(K², )``, entry p = (v + c) K + (u + c): v runs along the first stencil axis and u
         along the second, the flattening of the stencil of M-CONV-HPX, step 1, and of the
-        tables of ``healpix_stencils``.
+        tables of ``stencils_healpix``.
     Dtypes:
         complex128, whatever the dtype of the data: the plan casts it (OP-46).
     Values:
@@ -73,5 +73,5 @@ def healpix_kernel_weights(*, kernel_size: int = HEALPIX_KERNEL_SIZE) -> NDArray
     kernel = np.cos(phase) * envelope + 1j * (np.sin(phase) * envelope)
     centred = kernel - kernel.mean()
     result: NDArray[np.complex128] = (centred / np.abs(centred).sum()).reshape(-1)
-    _check_zero_sum(result[None], 1, "healpix_kernel_weights")
+    _check_zero_sum(result[None], 1, "kernel_weights_healpix")
     return result

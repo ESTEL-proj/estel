@@ -1,5 +1,5 @@
 """Spec parity of the wavelet operator of HEALPix data: ``DataHealpix`` and its
-``WaveletOperator`` against the oracle ``estel._spec.healpix`` (task T5.5, issue #166; maths.md
+``WaveletOperatorSingleDomain`` against the oracle ``estel._spec.healpix`` (task T5.5, issue #166; maths.md
 M-CONV-HPX, M-WAV-HPX, M-DOWN-HPX, M-MASK-HPX, M-DEF-HPX; Part I, §4.2).
 
 The oracle has its own geometry, written from maths.md §4 (T5.4); ESTEL applies the tables
@@ -26,7 +26,7 @@ from estel import DataHealpix, _config
 from estel._spec import healpix as spec
 from estel.backend import _registry
 from estel.backend._protocol import DType
-from estel.wavelets._operator import WaveletOperator, build_wavelet_plan
+from estel.wavelets._operator import WaveletOperatorSingleDomain, build_wavelet_plan
 from tests.parity._compare import assert_parity, load_fixture
 
 DOMAINS = [
@@ -79,7 +79,7 @@ def test_convolution_equals_the_oracle(name: str, dtype: DType) -> None:
 
     Slow: at ``nside`` 16 only, the oracle's naive tables (decision 4 on #165)."""
     nside, ids, maps = _domain(name)
-    operator = WaveletOperator(_data(nside, ids, maps), 1)
+    operator = WaveletOperatorSingleDomain(_data(nside, ids, maps), 1)
     # The 3 maps are channels: (1, L, 3, Npix) -> (3, L, Npix).
     actual = np.swapaxes(_numpy(operator.apply(operator._data.array, 0))[0], 0, 1)
     tables = spec.spec_conv_tables(nside, ids)
@@ -93,7 +93,7 @@ def test_convolution_equals_the_oracle(name: str, dtype: DType) -> None:
 def test_decimation_equals_the_oracle(name: str, dtype: DType) -> None:
     """Slow: at ``nside`` 16 only, the oracle's naive decimation (decision 4 on #165)."""
     nside, ids, maps = _domain(name)
-    operator = WaveletOperator(_data(nside, ids, maps), 2)
+    operator = WaveletOperatorSingleDomain(_data(nside, ids, maps), 2)
     matrix, _ = spec.spec_decimation_healpix(nside, ids)
     actual = _numpy(operator.downsample(operator._data.array, 0))[0]
     assert_parity(actual, maps @ matrix.T, dtype)
@@ -161,7 +161,7 @@ def test_defaults_and_no_border(nside: int) -> None:
     assert (plan.J, plan.L, plan.kernel_size) == (defaults["J"], defaults["L"], defaults["K"])
     assert plan.nan_threshold == defaults["nan_threshold"]
     partial = DataHealpix(np.zeros(5), depth=nside.bit_length() - 1, cell_ids=np.arange(5))
-    operator = WaveletOperator.from_parts(partial, build_wavelet_plan(partial, 1))
+    operator = WaveletOperatorSingleDomain.from_parts(partial, build_wavelet_plan(partial, 1))
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         weights = operator.mean_weights({"s1": (((0,),), 0)})["s1"]

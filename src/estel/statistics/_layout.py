@@ -53,7 +53,7 @@ from numpy.typing import NDArray
 
 from ..backend._protocol import Backend
 from ..io._schema import SCHEMA_VERSION
-from ..wavelets._tensor_prod import Level
+from ..wavelets._tensor_prod import LevelTensorProd
 from ._arrays import constant, dtype_name
 from ._grid import FamilyGrid, base_grids, tensor_prod_grids
 
@@ -68,7 +68,7 @@ class Segment:
 
     family: str
     """``"mean"``, ``"var"``, ``"S1"`` … ``"S4"``, ``"PS"``."""
-    level: Level
+    level: LevelTensorProd
     """The output level of its entries: ``(d,)`` for 1D and 2D data, a multi-index in tensor
     products (T3.6); ``()`` when they come from several levels (after ``scale_cosine``)."""
     index_names: tuple[str, ...]
@@ -109,7 +109,7 @@ class FamilyChunks(NamedTuple):
 
     grid: FamilyGrid
     """The family: axes, coordinates, chunks, their kinds."""
-    levels: tuple[Level, ...]
+    levels: tuple[LevelTensorProd, ...]
     """The distinct levels :attr:`level_ids` refers to."""
     level_ids: NDArray[np.int64]
     """``(n_chunks,)``: the level of each chunk, as a position in :attr:`levels`."""
@@ -283,7 +283,7 @@ class Layout:
         """``(n_chunks,)``: the first float of each chunk of ``name`` in the buffer."""
         return self._starts[name]
 
-    def levels(self, name: str) -> tuple[tuple[Level, ...], NDArray[np.int64]]:
+    def levels(self, name: str) -> tuple[tuple[LevelTensorProd, ...], NDArray[np.int64]]:
         """The levels of the segments of ``name``, and the level of each of its chunks as a
         position among them."""
         segments = [s for s in self.segments if s.family == name]
@@ -650,11 +650,15 @@ def tensor_prod_gather(plan: TensorProdPlan) -> Pack:
     loop = plan.loop
     n_blocks, nc = plan.n_blocks, plan.n_channels
 
-    def s3_chunk(arms: tuple[Level, ...], j3: Level, row: int) -> tuple[int, ...]:
+    def s3_chunk(
+        arms: tuple[LevelTensorProd, ...], j3: LevelTensorProd, row: int
+    ) -> tuple[int, ...]:
         arm, c1, c2 = row // (nc * nc), (row // nc) % nc, row % nc
         return (c1, c2, *arms[arm], *j3)
 
-    def s4_chunk(arms: tuple[Level, ...], j3: Level, row: int) -> tuple[int, ...]:
+    def s4_chunk(
+        arms: tuple[LevelTensorProd, ...], j3: LevelTensorProd, row: int
+    ) -> tuple[int, ...]:
         c2, rest = row % nc, row // nc
         arm2, rest = rest % len(arms), rest // len(arms)
         c1, arm1 = rest % nc, rest // nc

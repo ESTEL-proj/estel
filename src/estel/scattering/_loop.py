@@ -28,7 +28,7 @@ union of the two masks, which is STL's window for that pair, and it is divided b
 of pixels of that intersection, the denominator of the plan. The product also holds the pairs
 STL does not compute (j1 > j2, about half of it): they are not read. Every value is STL's up
 to the order of the sums. The convolutions and the downsamplings are those of the wavelet operator
-(``WaveletOperator.apply``, ``downsample``; Part I, §2.3): the loop sees levels, maps and
+(``WaveletOperatorSingleDomain.apply``, ``downsample``; Part I, §2.3): the loop sees levels, maps and
 weights, and does not depend on the geometry. Nothing is written in place (Part I, §3.1,
 rule 1): every step returns a new array, the divided sums of each level are collected in a
 list, in the order of ``statistics._layout.loop_sums``, and one static gather, built in NumPy
@@ -62,7 +62,7 @@ from ..data._moments import _backend as _backend_of
 from ..data._moments import cov_sum_valid, divide, gram_sum, modulus, standardize, sum_valid
 from ..spectra._estimators import spectrum_floats
 from ..statistics._layout import gather_loop, loop_gather, spectrum_pairs
-from ..wavelets._operator import WaveletOperator
+from ..wavelets._operator import WaveletOperatorSingleDomain
 from ._filters import PlanarFilters, window
 
 if TYPE_CHECKING:
@@ -206,7 +206,7 @@ def scattering_values(data: Data, plan: PlanarPlan, filters: PlanarFilters) -> S
     xp = backend.xp
     axes = tuple(range(-data.ndim, 0))
     pairs = plan.pairs
-    wavelets = WaveletOperator.from_parts(data, plan.wavelets, filters.wavelets)
+    wavelets = WaveletOperatorSingleDomain.from_parts(data, plan.wavelets, filters.wavelets)
 
     def total(x: Any) -> Any:
         return _global_sum(x)
@@ -271,7 +271,7 @@ def scattering_values(data: Data, plan: PlanarPlan, filters: PlanarFilters) -> S
 
 def _second_layer(
     backend: Backend,
-    wavelets: WaveletOperator,
+    wavelets: WaveletOperatorSingleDomain,
     plan: PlanarPlan,
     filters: PlanarFilters,
     j3: int,

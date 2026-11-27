@@ -25,9 +25,9 @@ from estel.backend._protocol import Backend, DType
 from estel.data._base import DownsampleWeights
 from estel.data._cartesian import DataCartesian
 from estel.wavelets._banks import smoothing_kernel
-from estel.wavelets._operator import WaveletOperator, default_scales_of, wavelet_bank
+from estel.wavelets._operator import WaveletOperatorSingleDomain, default_scales_of, wavelet_bank
 from estel.wavelets._tensor_prod import (
-    TensorProdWaveletOperator,
+    WaveletOperatorTensorProd,
     WaveletPlanTensorProd,
     build_wavelet_filters_tensor_prod,
     build_wavelet_plan_tensor_prod,
@@ -63,12 +63,12 @@ def _operator(
     product: DataTensorProd,
     dtype: DType,
     J: list[int] | None = None,  # noqa: N803
-) -> TensorProdWaveletOperator:
+) -> WaveletOperatorTensorProd:
     """The wavelet operator of ``product`` with its arrays in ``dtype``."""
     plan = build_wavelet_plan_tensor_prod(product, J)
     real: FloatDType = "float64" if dtype == "float64" else "float32"
     filters = build_wavelet_filters_tensor_prod(plan, product.backend, real, default_device())
-    return TensorProdWaveletOperator.from_parts(product, plan, filters)
+    return WaveletOperatorTensorProd.from_parts(product, plan, filters)
 
 
 def _smoothing(backend: Backend, geometry: type[DataCartesian], dtype: DType) -> DownsampleWeights:
@@ -219,7 +219,7 @@ def test_the_kernels_of_the_blocks_are_those_of_the_cartesian_operators(
     product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[True, True])
     operator = _operator(product, dtype)
     assert operator.filters is not None
-    plain = WaveletOperator(
+    plain = WaveletOperatorSingleDomain(
         geometry(np.zeros(SIZES[geometry]), pbc=True), L=n_orientations
     ).plan.bank()
     np.testing.assert_array_equal(operator.plan.blocks[block].bank(), plain)
@@ -233,7 +233,7 @@ def test_the_kernels_of_the_blocks_are_those_of_the_cartesian_operators(
 def test_the_second_kernel_of_a_1d_block_is_the_conjugate_of_the_first() -> None:
     """With L = 2 in a 1D block, the second kernel is the conjugate of the first (M-W1-TP)."""
     product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[True, True])
-    bank = TensorProdWaveletOperator(product).plan.blocks[1].bank()
+    bank = WaveletOperatorTensorProd(product).plan.blocks[1].bank()
     np.testing.assert_array_equal(bank[1], np.conj(bank[0]))
 
 
@@ -282,12 +282,12 @@ def test_the_crop_is_the_outer_product_of_the_crops_of_the_blocks() -> None:
     """Block by block, the border of each block along its axes; a border too large for a block
     is reduced, with one warning for the operator (OP-13)."""
     product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[False, False])
-    operator = TensorProdWaveletOperator(product, [2, 1])
+    operator = WaveletOperatorTensorProd(product, [2, 1])
     crop = operator.crop_weights((1, 0), (1, 2))
     plain_2d = Data2D(np.zeros((16, 16)), pbc=False)._crop_weights(1, 1)
     plain_1d = Data1D(np.zeros(8), pbc=False)._crop_weights(0, 2)
     np.testing.assert_array_equal(crop, np.multiply.outer(plain_2d, plain_1d))
-    small = TensorProdWaveletOperator(
+    small = WaveletOperatorTensorProd(
         DataTensorProd(np.zeros((8, 8)), [Data1D, Data1D], pbc=[False, False]), [1, 1]
     )
     with warnings.catch_warnings(record=True) as caught:
@@ -354,7 +354,7 @@ def test_default_scales_of_a_block(shape: tuple[int, ...], expected: int) -> Non
 @pytest.mark.maths("M-DATA-TP", "M-DEF-TP")
 def test_defaults_of_a_32x32x8_field() -> None:
     product = DataTensorProd(np.zeros((32, 32, 8)), [Data2D, Data1D], pbc=[True, True])
-    operator = TensorProdWaveletOperator(product)
+    operator = WaveletOperatorTensorProd(product)
     assert operator.plan.J == (3, 1)
     assert operator.plan.L == (4, 2)
 
@@ -464,7 +464,7 @@ def test_the_arguments_of_the_operator_are_checked(
     2^(J_a - 1) (OP-8)."""
     product = DataTensorProd(np.zeros((16, 16, 12)), [Data2D, Data1D], pbc=[True, True])
     with pytest.raises(error, match=match):
-        TensorProdWaveletOperator(product, J, L)
+        WaveletOperatorTensorProd(product, J, L)
 
 
 @pytest.mark.maths("M-DATA-TP", "M-DEF-TP")
@@ -473,18 +473,18 @@ def test_defaults_that_do_not_hold_raise() -> None:
     OP-8): construction fails with a message that says what to pass."""
     small = DataTensorProd(np.zeros((16, 16, 4)), [Data2D, Data1D], pbc=[True, True])
     with pytest.raises(ValueError, match=r"default J_1 = ⌊log2 4⌋ - 2 = 0.*Pass J_1 explicitly"):
-        TensorProdWaveletOperator(small)
+        WaveletOperatorTensorProd(small)
     odd = DataTensorProd(np.zeros((16, 16, 31)), [Data2D, Data1D], pbc=[True, True])
     with pytest.raises(ValueError, match=r"the default J_1 = 2 needs every size.*Use J_1 ≤ 1"):
-        TensorProdWaveletOperator(odd)
-    assert TensorProdWaveletOperator(odd, [None, 1]).plan.J == (2, 1)
+        WaveletOperatorTensorProd(odd)
+    assert WaveletOperatorTensorProd(odd, [None, 1]).plan.J == (2, 1)
 
 
 def test_the_callers_lists_are_left_unchanged() -> None:
     product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[True, True])
     scales: list[int | None] = [None, 1]
     orientations: list[int | None] = [None, None]
-    operator = TensorProdWaveletOperator(product, scales, orientations)
+    operator = WaveletOperatorTensorProd(product, scales, orientations)
     assert scales == [None, 1]
     assert orientations == [None, None]
     assert operator.plan.J == (2, 1)
@@ -520,7 +520,7 @@ def _block_convolution(
     then block 1, through the hooks of the data it is given."""
 
     def function(data: DataTensorProd) -> Any:
-        operator = TensorProdWaveletOperator.from_parts(data, plan, filters)
+        operator = WaveletOperatorTensorProd.from_parts(data, plan, filters)
         first = operator.apply(data.array, 0, block=0, level=(0, 0))
         return operator.apply(first, 0, block=1, level=(0, 0))
 

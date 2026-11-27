@@ -1,7 +1,7 @@
 """The wavelet operator of a tensor product, composed from those of its blocks (Part I, §2.3;
 Part II, §12.5; maths.md M-NOT-TP, M-W1-TP, M-DEF-TP; task T3.1).
 
-Internal, like :class:`~estel.wavelets._operator.WaveletOperator`. A tensor product of B blocks
+Internal, like :class:`~estel.wavelets._operator.WaveletOperatorSingleDomain`. A tensor product of B blocks
 (``DataTensorProd``) has one J and one L per block, and its levels are multi-indices
 d = (d₀, …, d_{B-1}): the field downsampled d_a times along block a (M-NOT-TP). Each block has
 the static part and the arrays of a planar wavelet operator, built for its geometry, its sizes
@@ -13,15 +13,15 @@ holds them in block order and reads the arrays of each block through the hooks o
 along the axes of each block, through the hooks of ``DataTensorProd``, which dispatch to the
 geometry of the block:
 
-* :meth:`TensorProdWaveletOperator.apply`, the block convolution ψ⁽ᵃ⁾ ⋆_a of M-W1-TP, at the
+* :meth:`WaveletOperatorTensorProd.apply`, the block convolution ψ⁽ᵃ⁾ ⋆_a of M-W1-TP, at the
   level of the scale j_a in block a and at any level of the other blocks;
-* :meth:`TensorProdWaveletOperator.downsample`, one step along block a;
-* :meth:`TensorProdWaveletOperator.crop_weights`, the border crop of M-BORDER-TP, the outer
+* :meth:`WaveletOperatorTensorProd.downsample`, one step along block a;
+* :meth:`WaveletOperatorTensorProd.crop_weights`, the border crop of M-BORDER-TP, the outer
   product of the crops of the blocks.
 
-* :meth:`TensorProdWaveletOperator.convolve`, the same convolution with its orientation right
-  after the batch axis, as ``WaveletOperator.apply`` places it, for the scattering loop;
-* :meth:`TensorProdWaveletOperator.lowpass`, the last step of the low-pass filter φ⁽ᵃ⁾ of block
+* :meth:`WaveletOperatorTensorProd.convolve`, the same convolution with its orientation right
+  after the batch axis, as ``WaveletOperatorSingleDomain.apply`` places it, for the scattering loop;
+* :meth:`WaveletOperatorTensorProd.lowpass`, the last step of the low-pass filter φ⁽ᵃ⁾ of block
   a (M-LP), realised as the plan of the block says (``lowpass_realization``,
   ``lowpass_level``).
 
@@ -67,7 +67,7 @@ from ._operator import (
     _wavelet_plan,
 )
 
-Level = tuple[int, ...]
+LevelTensorProd = tuple[int, ...]
 """A multi-index level d = (d₀, …, d_{B-1}): the field downsampled d_a times along block a
 (maths.md M-NOT-TP); ``(d,)`` for a single geometry (the segments of ``statistics._layout``)."""
 
@@ -139,7 +139,7 @@ class WaveletPlanTensorProd(WaveletPlan):
             plan.spatial_shape, level, border, owner=f"DataTensorProd (block {block})"
         )
 
-    def level_shape(self, level: Level) -> tuple[int, ...]:
+    def level_shape(self, level: LevelTensorProd) -> tuple[int, ...]:
         """The spatial shape at the multi-index ``level``: each block at its own level."""
         self.check_level(level)
         return tuple(n for b, d in zip(self.blocks, level, strict=True) for n in b.level_shapes[d])
@@ -182,8 +182,8 @@ def build_wavelet_plan_tensor_prod(
     function: 1 for that caller, 2 for its caller."""
     if not isinstance(data, DataTensorProd):
         raise TypeError(
-            f"TensorProdWaveletOperator takes a DataTensorProd, got {type(data).__name__}; for "
-            "1D and 2D data, use WaveletOperator."
+            f"WaveletOperatorTensorProd takes a DataTensorProd, got {type(data).__name__}; for "
+            "1D and 2D data, use WaveletOperatorSingleDomain."
         )
     _check_wavelet(wavelet)
     specs = data._block_specs
@@ -285,10 +285,10 @@ def build_wavelet_filters_tensor_prod(
 # ---------------------------------------------------------------------- the operator
 
 
-class TensorProdWaveletOperator:
+class WaveletOperatorTensorProd:
     """The wavelets of a tensor product, block by block: internal (Part II, §12.5).
 
-    ``TensorProdWaveletOperator(data, J, L)`` builds the static part and, on the backend of
+    ``WaveletOperatorTensorProd(data, J, L)`` builds the static part and, on the backend of
     ``data`` in the default dtype, the arrays.
 
     Parameters
@@ -344,7 +344,7 @@ class TensorProdWaveletOperator:
         object.__setattr__(self, "_filters", filters)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        raise AttributeError("TensorProdWaveletOperator is immutable: build a new one instead.")
+        raise AttributeError("WaveletOperatorTensorProd is immutable: build a new one instead.")
 
     @classmethod
     def from_parts(
@@ -352,7 +352,7 @@ class TensorProdWaveletOperator:
         data: Data,
         plan: WaveletPlanTensorProd,
         filters: tuple[WaveletFilters, ...] | None = None,
-    ) -> TensorProdWaveletOperator:
+    ) -> WaveletOperatorTensorProd:
         """The operator of a static part and its arrays, bound to ``data``, a
         ``DataTensorProd`` with the static metadata ``plan`` was built from: its class checked
         (the loop, in L2, knows the mother class only; Part I, §2.4), no other validation and no
@@ -360,8 +360,8 @@ class TensorProdWaveletOperator:
         only."""
         if not isinstance(data, DataTensorProd):
             raise TypeError(
-                f"TensorProdWaveletOperator takes a DataTensorProd, got {type(data).__name__}; "
-                "for 1D and 2D data, use WaveletOperator."
+                f"WaveletOperatorTensorProd takes a DataTensorProd, got {type(data).__name__}; "
+                "for 1D and 2D data, use WaveletOperatorSingleDomain."
             )
         new = cls.__new__(cls)
         new._bind(data, plan, filters)
@@ -380,7 +380,7 @@ class TensorProdWaveletOperator:
 
     # ------------------------------------------------------------------ static rules
 
-    def crop_weights(self, level: Level, border: tuple[int, ...]) -> NDArray[np.float64]:
+    def crop_weights(self, level: LevelTensorProd, border: tuple[int, ...]) -> NDArray[np.float64]:
         """The border crop of maths.md M-BORDER-TP at the multi-index ``level``, as weights: a
         NumPy float64 array of the spatial shape at that level, the outer product of the crops
         of the blocks, block a cropped by ``border[a]`` pixels at both ends of each of its axes.
@@ -413,7 +413,7 @@ class TensorProdWaveletOperator:
 
     # ------------------------------------------------------------------ pure functions
 
-    def apply(self, x: Any, j: int, *, block: int, level: Level) -> Any:
+    def apply(self, x: Any, j: int, *, block: int, level: LevelTensorProd) -> Any:
         """ψ⁽ᵃ⁾_{j} ⋆_a x, the block convolution of maths.md M-W1-TP along block a = ``block``
         at its scale ``j``: complex, L_a orientations.
 
@@ -437,9 +437,9 @@ class TensorProdWaveletOperator:
         out = xp.permute_dims(out, (0, 2, 1, *range(3, 3 + n_spatial)))
         return xp.reshape(out, (*lead, self._plan.blocks[block].L, *spatial))
 
-    def convolve(self, x: Any, j: int, *, block: int, level: Level) -> Any:
+    def convolve(self, x: Any, j: int, *, block: int, level: LevelTensorProd) -> Any:
         """ψ⁽ᵃ⁾_{j} ⋆_a x as :meth:`apply`, with the orientation of this convolution right after
-        the batch axis, as ``WaveletOperator.apply`` places it: ``x`` is ``(Nb, *O, *spatial)``
+        the batch axis, as ``WaveletOperatorSingleDomain.apply`` places it: ``x`` is ``(Nb, *O, *spatial)``
         at the multi-index ``level``, with any axes ``O``, and the result is
         ``(Nb, L_a, *O, *spatial)``, without a transposition. The scattering loop of tensor
         products (task T3.2) chains these block after block, so that the orientations of the
@@ -467,7 +467,7 @@ class TensorProdWaveletOperator:
         out = self._data._conv(flat, filters[a]._conv_tables(level[a]), level[a], block=a)
         return xp.reshape(out, (lead[0], block_plan.L, *lead[1:], *spatial))
 
-    def lowpass(self, x: Any, level: Level, *, block: int) -> Any:
+    def lowpass(self, x: Any, level: LevelTensorProd, *, block: int) -> Any:
         """The last step of the low-pass filter φ⁽ᵃ⁾ of block a = ``block`` (maths.md M-LP), from
         the multi-index ``level``, whose entry for block a is the level before
         ``lowpass_level`` of that block, to the level with d_a = ``lowpass_level``.
@@ -504,7 +504,7 @@ class TensorProdWaveletOperator:
         out = self._data._downsample(flat, weights, level[a], block=a)
         return xp.reshape(out, (*lead, *tuple(out.shape[2:])))
 
-    def downsample(self, x: Any, level: Level, *, block: int) -> Any:
+    def downsample(self, x: Any, level: LevelTensorProd, *, block: int) -> Any:
         """One downsampling step of ``x`` along block a = ``block``, from the multi-index
         ``level`` to the level with d_a + 1 (maths.md M-DOWN along the axes of block a,
         M-NOT-TP); the other blocks keep their level.
@@ -534,8 +534,8 @@ class TensorProdWaveletOperator:
     def _arrays(self, function: str) -> tuple[WaveletFilters, ...]:
         if self._filters is None:
             raise ValueError(
-                f"TensorProdWaveletOperator.{function}: this operator holds its static part "
-                "only. Bind the arrays too: TensorProdWaveletOperator.from_parts(data, plan, "
+                f"WaveletOperatorTensorProd.{function}: this operator holds its static part "
+                "only. Bind the arrays too: WaveletOperatorTensorProd.from_parts(data, plan, "
                 "filters), with filters = build_wavelet_filters_tensor_prod(plan, backend, "
                 "dtype, device)."
             )
@@ -545,13 +545,13 @@ class TensorProdWaveletOperator:
         n = len(self._plan.blocks)
         if isinstance(block, bool) or not isinstance(block, Integral) or not 0 <= int(block) < n:
             raise ValueError(
-                f"TensorProdWaveletOperator.{function}(block={block!r}): pass a block index, "
+                f"WaveletOperatorTensorProd.{function}(block={block!r}): pass a block index, "
                 f"0 ≤ block < {n}."
             )
         return int(block)
 
     def _split(
-        self, x: Any, level: Level, function: str, minimum: int = 2
+        self, x: Any, level: LevelTensorProd, function: str, minimum: int = 2
     ) -> tuple[tuple[int, ...], tuple[int, ...]]:
         """The leading and the spatial shape of ``x``, a map ``(Nb, Nc, *O, *spatial)`` at the
         multi-index ``level`` (``(Nb, *O, *spatial)`` with ``minimum=1``); shapes are static, so
@@ -561,7 +561,7 @@ class TensorProdWaveletOperator:
         shape = tuple(int(n) for n in x.shape)
         if len(shape) < minimum + ndim or shape[-ndim:] != expected:
             raise ValueError(
-                f"TensorProdWaveletOperator.{function}: the array has shape {shape}, but a map "
+                f"WaveletOperatorTensorProd.{function}: the array has shape {shape}, but a map "
                 f"at level {level} is (Nb, Nc, ..., {', '.join(str(n) for n in expected)}). "
                 "Bring it to that level first, one downsample step per block and level."
             )
@@ -571,6 +571,6 @@ class TensorProdWaveletOperator:
         plan = self._plan
         names = ", ".join(b.geometry.__name__ for b in plan.blocks)
         return (
-            f"TensorProdWaveletOperator(J={list(plan.J)}, L={list(plan.L)}, blocks=[{names}], "
+            f"WaveletOperatorTensorProd(J={list(plan.J)}, L={list(plan.L)}, blocks=[{names}], "
             f"spatial_shape={plan.spatial_shape}, pbc={list(self._data.pbc)})"
         )

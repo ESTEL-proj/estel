@@ -59,7 +59,7 @@ _PARTITION_ADVICE = (
 
 class ConvTablesHealpix(NamedTuple):
     """The static tables of ``DataHealpix._conv`` at one level, backend arrays built by the
-    wavelet operator from ``healpix_stencils`` and ``healpix_kernel_weights`` (Part II, §12.5).
+    wavelet operator from ``stencils_healpix`` and ``kernel_weights_healpix`` (Part II, §12.5).
 
     The convolution is ``gather_weighted`` with ``index`` and ``weight``, then the product with
     ``kernel``: the stencils ``(L, Npix, K², 4)`` (stencil point, neighbour) and the kernel of
@@ -80,7 +80,7 @@ class ConvTablesHealpix(NamedTuple):
 
 class DownTablesHealpix(NamedTuple):
     """The static tables of one decimation step, ``DataHealpix._downsample`` from a level to the
-    next: a CSR matrix sorted by coarse pixel, from ``healpix_decimation``."""
+    next: a CSR matrix sorted by coarse pixel, from ``decimation_healpix``."""
 
     index: Any
     """The positions of the fine pixels in the pixels of the level, int32, ``(nnz, 1, 1)``."""

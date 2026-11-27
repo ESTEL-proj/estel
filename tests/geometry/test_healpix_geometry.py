@@ -20,7 +20,7 @@ import pytest
 
 from estel import DataHealpix
 from estel.wavelets import _healpix_geometry, _healpix_operator
-from estel.wavelets._healpix_bank import healpix_kernel_weights
+from estel.wavelets._healpix_bank import kernel_weights_healpix
 from estel.wavelets._healpix_geometry import (
     MAX_DEPTH,
     _bind_support,
@@ -28,13 +28,13 @@ from estel.wavelets._healpix_geometry import (
     _haversine,
     _stencil_interpolation,
     centres_lonlat,
-    healpix_decimation,
-    healpix_stencils,
+    decimation_healpix,
     interp_weights_nested,
     local_kernel_grid,
     nest2xyf,
     ring2nest,
     rotation_matrices,
+    stencils_healpix,
     xyf2ang,
     xyf2nest,
 )
@@ -167,7 +167,7 @@ def test_stencil_points_and_their_order() -> None:
 @pytest.mark.maths("M-WAV-HPX")
 @pytest.mark.parametrize("size", [3, 5, 7])
 def test_kernel_equals_the_formula(size: int) -> None:
-    kernel = healpix_kernel_weights(kernel_size=size)
+    kernel = kernel_weights_healpix(kernel_size=size)
     assert kernel.shape == (size * size,)
     assert kernel.dtype == np.complex128
     c = (size - 1) // 2
@@ -188,7 +188,7 @@ def test_kernel_equals_the_formula(size: int) -> None:
 )
 def test_kernel_size_is_checked(size: object, error: type[Exception]) -> None:
     with pytest.raises(error, match="kernel_size"):
-        healpix_kernel_weights(kernel_size=size)  # type: ignore[arg-type]
+        kernel_weights_healpix(kernel_size=size)  # type: ignore[arg-type]
 
 
 # --------------------------------------------------------------------------------- decimation
@@ -222,7 +222,7 @@ def test_candidate_search_equals_brute_force(
 def test_decimation_of_the_full_sky() -> None:
     """26 to 32 fine pixels per coarse pixel, weights of sum 1, the 4 children carrying 0.28 to
     0.30 of the weight (M-DOWN-HPX)."""
-    tables = healpix_decimation(None, 4)
+    tables = decimation_healpix(None, 4)
     assert tables.index.shape == tables.weight.shape == (tables.segment_ids.size, 1, 1)
     assert tables.index.dtype == tables.segment_ids.dtype == np.int32
     assert tables.weight.dtype == np.float64
@@ -245,7 +245,7 @@ def test_decimation_of_the_full_sky() -> None:
 @pytest.mark.maths("M-CONV-HPX")
 def test_stencil_layout_and_dtypes() -> None:
     depth, n_gauges, size = 2, 3, 5
-    tables = healpix_stencils(None, depth, L=n_gauges, kernel_size=size)
+    tables = stencils_healpix(None, depth, L=n_gauges, kernel_size=size)
     n_pix = 12 * 4**depth
     assert tables.index.shape == tables.weight.shape == (n_gauges * n_pix, size * size, 4)
     assert tables.index.dtype == np.int32
@@ -270,9 +270,9 @@ def test_stencils_built_by_batches_equal_one_batch(
     built at once: 7 pixels a batch at ``nside`` 4, on the full sky and on a disc."""
     depth = 2
     ids = None if sky == "full" else _disc(depth, 1.4, 0.5, 0.9)
-    whole = healpix_stencils(ids, depth)
+    whole = stencils_healpix(ids, depth)
     monkeypatch.setattr(_healpix_geometry, "_STENCIL_BATCH", 7)
-    batched = healpix_stencils(ids, depth)
+    batched = stencils_healpix(ids, depth)
     np.testing.assert_array_equal(batched.index, whole.index)
     np.testing.assert_array_equal(batched.weight, whole.weight)
     assert batched.index.dtype == np.int32
@@ -308,8 +308,8 @@ def test_kernel_folded_into_the_stencils(sky: str, monkeypatch: pytest.MonkeyPat
     kernel to rounding, and a fold by batches (7 rows) equals one batch, bit for bit."""
     depth = 2
     ids = None if sky == "full" else _disc(depth, 1.4, 0.5, 0.9)
-    tables = healpix_stencils(ids, depth)
-    kernel = healpix_kernel_weights(kernel_size=5)
+    tables = stencils_healpix(ids, depth)
+    kernel = kernel_weights_healpix(kernel_size=5)
     index, weight = _healpix_operator._fold_kernel(tables, kernel)
     rows, width = tables.index.shape[0], index.shape[-1]
     assert index.shape == weight.shape == (rows, 2, width)
@@ -348,8 +348,8 @@ def test_partial_sky_rule() -> None:
 
 def test_deepest_level_fits_int32() -> None:
     ids = np.array([0, 1, 2, 3, 12 * 4**MAX_DEPTH - 1], dtype=np.int64)
-    stencils = healpix_stencils(ids, MAX_DEPTH, L=1, kernel_size=3)
-    decimation = healpix_decimation(ids, MAX_DEPTH)
+    stencils = stencils_healpix(ids, MAX_DEPTH, L=1, kernel_size=3)
+    decimation = decimation_healpix(ids, MAX_DEPTH)
     assert stencils.index.dtype == decimation.index.dtype == np.int32
     np.testing.assert_array_equal(decimation.cell_ids_out, [0, (12 * 4**MAX_DEPTH - 1) // 4])
 
@@ -372,9 +372,9 @@ def test_stencil_arguments_are_checked(
     kwargs: dict[str, Any], error: type[Exception], match: str
 ) -> None:
     with pytest.raises(error, match=match):
-        healpix_stencils(**kwargs)
+        stencils_healpix(**kwargs)
 
 
 def test_decimation_needs_a_finer_level() -> None:
     with pytest.raises(ValueError, match="at least 1"):
-        healpix_decimation(None, 0)
+        decimation_healpix(None, 0)
