@@ -170,7 +170,7 @@ def build_wavelet_plan_tensor_prod(
     L: Sequence[int | None] | None = None,  # noqa: N803
     wavelet: str = "bump_steerable",
     *,
-    kernel_size: int = KERNEL_SIZE_CARTESIAN,
+    kernel_size: int | None = None,
     lowpass: str | None = None,
     stacklevel: int = 1,
 ) -> WaveletPlanTensorProd:
@@ -196,7 +196,8 @@ def build_wavelet_plan_tensor_prod(
     orientations = _per_block(
         L, "L", n_blocks, ", ".join(str(default_block_orientations(s.geometry)) for s in specs)
     )
-    size = _check_size_cartesian(kernel_size)
+    # The blocks are Cartesian in 1.0.0 (LF9): K of the Cartesian banks by default.
+    size = _check_size_cartesian(KERNEL_SIZE_CARTESIAN if kernel_size is None else kernel_size)
     plans = []
     for a, (spec, shape, j_value, l_value) in enumerate(
         zip(specs, shapes, scales, orientations, strict=True)
@@ -328,7 +329,7 @@ class WaveletOperatorTensorProd(WaveletOperator):
         L: Sequence[int | None] | None = None,  # noqa: N803
         wavelet: str = "bump_steerable",
         *,
-        kernel_size: int = KERNEL_SIZE_CARTESIAN,
+        kernel_size: int | None = None,
         lowpass: str | None = None,
     ) -> None:
         plan = build_wavelet_plan_tensor_prod(

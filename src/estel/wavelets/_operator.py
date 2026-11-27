@@ -73,15 +73,14 @@ from ..data._base import Data, DownsampleWeights, _StaticMask
 from ..data._healpix import DataHealpix
 from ..data._masks import BoolMap, MaskMaps, RealMap, build_mask_maps
 from ..data._tensor_prod import DataTensorProd
-
-# The default K, for the plan (re-exported).
-from ._banks_cartesian import KERNEL_SIZE_CARTESIAN as KERNEL_SIZE_CARTESIAN
 from ._banks_cartesian import (
+    KERNEL_SIZE_CARTESIAN,
     WAVELETS_CARTESIAN,
     _check_size_cartesian,
     smoothing_kernel_cartesian,
     wavelet_bank_cartesian,
 )
+from ._banks_healpix import KERNEL_SIZE_HEALPIX
 from ._checks import _check_n_orientations
 
 History = tuple[int, ...]
@@ -433,7 +432,7 @@ def build_wavelet_plan(
     L: int | None = None,  # noqa: N803
     wavelet: str | None = None,
     *,
-    kernel_size: int = KERNEL_SIZE_CARTESIAN,
+    kernel_size: int | None = None,
 ) -> WaveletPlanSingleDomain:
     """The plan of :func:`build_wavelet_plan_with_tables`, without its tables."""
     return build_wavelet_plan_with_tables(data, J, L, wavelet, kernel_size=kernel_size)[0]
@@ -445,7 +444,7 @@ def build_wavelet_plan_with_tables(
     L: int | None = None,  # noqa: N803
     wavelet: str | None = None,
     *,
-    kernel_size: int = KERNEL_SIZE_CARTESIAN,
+    kernel_size: int | None = None,
 ) -> tuple[WaveletPlanSingleDomain, Any]:
     """The :class:`WaveletPlanSingleDomain` of wavelets with ``J`` scales and ``L`` orientations
     on data with the geometry, spatial shape, ``pbc`` and mask of ``data``; its values are not
@@ -454,7 +453,9 @@ def build_wavelet_plan_with_tables(
     By default J = ⌊log₂ min N⌋ - 2, and L = 4 in 2D, 1 in 1D (M-DEF, M-DEF-1D). Raises when J
     is not an integer ≥ 1 or the sizes are not divisible by 2^(J-1) (M-DATA-2D, OP-8), and when
     L is not an integer ≥ 1, as STL accepts (Part II, §12.5); :meth:`WaveletPlanSingleDomain.bank`
-    checks L against the bank of the geometry.
+    checks L against the bank of the geometry. ``kernel_size`` is K; ``None`` (the default)
+    means K of the geometry, ``KERNEL_SIZE_CARTESIAN`` for 1D and 2D data and
+    ``KERNEL_SIZE_HEALPIX`` for ``DataHealpix``, 5 for both.
 
     ``None`` (the default) means the wavelet of the geometry: ``"bump_steerable"`` for 1D
     and 2D data (M-WAV-2D, M-WAV-1D), ``"healpix"`` for ``DataHealpix`` (M-WAV-HPX). Each
@@ -479,7 +480,8 @@ def build_wavelet_plan_with_tables(
         # module.
         from ._operator_healpix import build_wavelet_plan_with_tables_healpix
 
-        return build_wavelet_plan_with_tables_healpix(data, J, L, wavelet, kernel_size=kernel_size)
+        size = KERNEL_SIZE_HEALPIX if kernel_size is None else kernel_size
+        return build_wavelet_plan_with_tables_healpix(data, J, L, wavelet, kernel_size=size)
     if isinstance(data, DataTensorProd):
         raise TypeError(
             "STOperator takes single-domain data, not a DataTensorProd: the scattering operator of "
@@ -497,7 +499,7 @@ def build_wavelet_plan_with_tables(
         n_scales,
         n_orientations,
         wavelet or WAVELETS_CARTESIAN[0],
-        _check_size_cartesian(kernel_size),
+        _check_size_cartesian(KERNEL_SIZE_CARTESIAN if kernel_size is None else kernel_size),
     )
     return plan, None
 
@@ -844,7 +846,7 @@ class WaveletOperatorSingleDomain(WaveletOperator):
         L: int | None = None,  # noqa: N803
         wavelet: str | None = None,
         *,
-        kernel_size: int = KERNEL_SIZE_CARTESIAN,
+        kernel_size: int | None = None,
     ) -> None:
         plan, tables = build_wavelet_plan_with_tables(data, J, L, wavelet, kernel_size=kernel_size)
         filters = plan._build_filters(data.backend, default_dtype(), default_device(), tables)

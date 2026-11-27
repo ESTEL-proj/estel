@@ -116,7 +116,6 @@ from ..statistics._normalization import (
     tensor_prod_blocks,
 )
 from ..wavelets._operator import (
-    KERNEL_SIZE_CARTESIAN,
     History,
     MeanWeights,
     WaveletOperatorSingleDomain,
@@ -599,7 +598,7 @@ def build_plan(
     J: int | None = None,  # noqa: N803 (maths.md notation)
     L: int | None = None,  # noqa: N803
     *,
-    kernel_size: int = KERNEL_SIZE_CARTESIAN,
+    kernel_size: int | None = None,
     cross_matrix: Any = None,
     standardize: bool = False,
     compute_PS: bool | None = False,  # noqa: N803 (STL's name)
@@ -627,7 +626,7 @@ def build_plan_with_tables(
     J: int | None = None,  # noqa: N803 (maths.md notation)
     L: int | None = None,  # noqa: N803
     *,
-    kernel_size: int = KERNEL_SIZE_CARTESIAN,
+    kernel_size: int | None = None,
     cross_matrix: Any = None,
     standardize: bool = False,
     compute_PS: bool | None = False,  # noqa: N803 (STL's name)
@@ -638,7 +637,7 @@ def build_plan_with_tables(
     """The :class:`PlanarPlan` of a scattering transform with ``J`` scales and ``L``
     orientations on data with the geometry, spatial shape, ``pbc``, mask and number of channels
     of ``data``; by default J and L are those of the geometry (M-DEF, M-DEF-1D) and the kernel
-    size that of the wavelets.
+    size that of the wavelets of the geometry (``kernel_size=None``).
 
     ``cross_matrix`` is STL's ``compute_cross_matrix``, a boolean ``(Nc, Nc)`` array, or
     ``None`` for every pair c1 ≤ c2, the upper triangle (M-CHAN, M-DEF); ``standardize`` is the
@@ -969,7 +968,7 @@ def build_tensor_prod_statistics_plan(
     L: Any = None,  # noqa: N803
     *,
     lowpass: str | None = "ST",
-    kernel_size: int = KERNEL_SIZE_CARTESIAN,
+    kernel_size: int | None = None,
     cross_matrix: Any = None,
     standardize: bool = False,
     stacklevel: int = 1,
