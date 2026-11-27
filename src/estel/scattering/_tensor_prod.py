@@ -4,7 +4,7 @@ M-W1-TP, M-LP, M-IDX-TP, M-S-TP, M-BORDER-TP; maths_step2.md M-GRAM; task T3.2).
 Built once, in NumPy, with the plan (:func:`build_loop_tensor_prod`, called by
 ``_plan.build_statistics_plan_tensor_prod``) and held by it (``STPlanTensorProd.loop``): the index
 sets, crop widths and mean denominators live in the plan (AGENTS.md). Never traced. It holds
-what the loop of ``_loop_tp.py`` reads besides the plan of each block:
+what the loop of ``_loop_tensor_prod.py`` reads besides the plan of each block:
 
 * **the first layer**, one :class:`FirstLayerScale` per scale j of S1 and S2, in lexicographic
   order (the last block fastest), the order in which the loop reaches them: the orientation
@@ -82,7 +82,7 @@ class SecondLayerScale:
     """The level of j3, read from the plans of the blocks."""
     arms: tuple[ScaleTensorProd, ...]
     """The scales j2 ≤ j3 (componentwise), in the order the loop stacks them: sorted on the
-    last block first (``_loop_tp``). The rows of the Gram matrix, with the orientations and
+    last block first (``_loop_tensor_prod``). The rows of the Gram matrix, with the orientations and
     channels of each arm."""
     arm_crops: tuple[NDArray[np.float64] | None, ...]
     """Per block, the crop of each arm along that block, ``(n_arms, *shape of the block at
@@ -124,7 +124,7 @@ def lexicographic(sizes: tuple[int, ...]) -> list[ScaleTensorProd]:
 
 
 def arm_order(j3: ScaleTensorProd) -> tuple[ScaleTensorProd, ...]:
-    """The scales j2 ≤ j3 in the order the loop stacks them (``_loop_tp``): at block a, the
+    """The scales j2 ≤ j3 in the order the loop stacks them (``_loop_tensor_prod``): at block a, the
     arms already filtered along the blocks before a are concatenated over j2_a, so the last
     block varies slowest."""
     return tuple(sorted(lexicographic(tuple(j + 1 for j in j3)), key=lambda j: j[::-1]))

@@ -286,10 +286,10 @@ class STOperatorTensorProd(STOperator):
     construction (J and L per block, ``lowpass``), ``lowpass``, ``__repr__`` and the plan that
     :meth:`from_statistics` takes, and inherits the rest, ``apply`` (and with it the
     normalisation chosen at each call), ``from_statistics``, ``plan``, ``filters``, ``J``, ``L``
-    and ``standardize``. Its plan and filters,
-    subclasses of ``STPlan`` and ``STFilters``, carry the hooks of its loop: the index sets,
-    the levels and the two layers (``_loop_tp``). Its statistics are stored in the compact layout of
-    tensor products; their full grid is a view built on demand, for small cases only.
+    and ``standardize``. Its plan and filters, subclasses of ``STPlan`` and ``STFilters``,
+    carry the hooks of its loop: the index sets, the levels and the two layers
+    (``_loop_tensor_prod``). Its statistics are stored in the compact layout of tensor
+    products; their full grid is a view built on demand, for small cases only.
 
     Parameters
     ----------

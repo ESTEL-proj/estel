@@ -130,8 +130,9 @@ from ._filters import (
     build_filters,
     build_filters_tensor_prod,
 )
-from ._loop import ScatteringValues, scattering_values
-from ._loop_tp import values_tensor_prod
+from ._loop import ScatteringValues
+from ._loop_single_domain import values_single_domain
+from ._loop_tensor_prod import values_tensor_prod
 from ._tensor_prod import LoopTensorProd, build_loop_tensor_prod
 
 ChannelPair = tuple[int, int]
@@ -547,7 +548,8 @@ class STPlanSingleDomain(_PlanFields, STPlan):
         return build_filters(self, backend_name, dtype, device, tables)
 
     def _values(self, data: Data, filters: STFilters) -> ScatteringValues:
-        return scattering_values(data, self, cast(STFiltersSingleDomain, filters))  # by _check_data
+        # The cast holds by _check_data.
+        return values_single_domain(data, self, cast(STFiltersSingleDomain, filters))
 
     def _layout(self) -> Layout:
         return base_layout(self)

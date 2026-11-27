@@ -2,14 +2,15 @@
 form of the second layer (Part II, §12.6; maths.md M-W1-TP, M-LP, M-S-TP, M-BORDER-TP;
 maths_step2.md M-GRAM; task T3.2).
 
-:func:`values_tensor_prod` is the counterpart of ``_loop.scattering_values`` for a
-``DataTensorProd``: the data, the plan and the filters in, the statistics without normalisation
-out, in the compact buffer of ``statistics._layout.tensor_prod_layout`` (task T3.6). It shares
-the code of the planar loop for what does not depend on the geometry (``_loop``: the means of
-the field, the sums of S1 and S2 of a scale, the Gram products of a level, the sums then the
-division with the hook of distributed runs); it differs by the hooks of Part II, §12.6: the
-index sets and levels are multi-indices, and the first and the second layer apply the block
-convolutions one block after the other.
+:func:`values_tensor_prod` is the counterpart of ``_loop_single_domain.values_single_domain``
+for a ``DataTensorProd``: the data, the plan and the filters in, the statistics without
+normalisation out, in the compact buffer of ``statistics._layout.tensor_prod_layout`` (task
+T3.6). It shares the code of the planar loop for what does not depend on the geometry
+(``_loop``: the means of the field, the sums of S1 and S2 of a scale, the Gram products of a
+level, the sums then the division with the hook of distributed runs, ``_loop._global_sum``,
+read from its module at each call so that a replaced hook reaches this loop too); it differs
+by the hooks of Part II, §12.6: the index sets and levels are multi-indices, and the first and
+the second layer apply the block convolutions one block after the other.
 
 **The first layer** follows STL (M-W1-TP, "How STL reaches it"): the field is downsampled along
 block 0 to the level of j₀ and filtered along block 0; the complex result is downsampled along
@@ -52,11 +53,11 @@ from ..data._base import Data
 from ..data._moments import modulus
 from ..statistics._layout import pack, tensor_prod_gather
 from ..wavelets._operator_tensor_prod import WaveletOperatorTensorProd
+from . import _loop
 from ._filters import STFiltersTensorProd
 from ._loop import (
     ScatteringValues,
     _divide_level,
-    _global_sum,
     field_moments,
     first_layer_sums,
     gram_sums,
@@ -86,7 +87,7 @@ def values_tensor_prod(
     x, sums, mean_pre_std, std_pre_std = field_moments(
         data.array, None, loop.moments_denominator, axes, plan.standardize
     )
-    moments = _divide_level(backend, sums, _global_sum)
+    moments = _divide_level(backend, sums, _loop._global_sum)
 
     # The first layer, every scale of S1 and S2 in lexicographic order: W_j x, (Nb, L'_{B-1},
     # …, L'_0, Nc, *spatial at level j), the orientations in reverse block order.
@@ -99,7 +100,7 @@ def values_tensor_prod(
         info = scales[scale]
         if info.centred:  # X - ⟨X⟩ over every pixel of X (M-LP, OP-42), complex like the others
             # A mean of the loop: its sum goes through the hook of distributed runs too.
-            mean = _global_sum(xp.sum(w, axis=axes)) / info.denominator
+            mean = _loop._global_sum(xp.sum(w, axis=axes)) / info.denominator
             centred = w - xp.reshape(mean, (*tuple(mean.shape), *(1,) * len(axes)))
             w = xp.astype(centred, _complex_of(backend, w))
         u = modulus(w)
@@ -196,7 +197,7 @@ def _first_layer_means(
     flat_u = xp.reshape(u, (n_batch, n_o, plan.n_channels, *spatial))
     window = None if info.window is None else tuple(slice(a, b) for a, b in info.window)
     pending = first_layer_sums(flat_w, flat_u, window, info.denominator, plan.pairs, axes)
-    divided = _divide_level(backend, pending, _global_sum)
+    divided = _divide_level(backend, pending, _loop._global_sum)
     pairs = plan.pairs
     order = [
         *(("S1", (c, c)) for c in pairs.auto),
@@ -389,7 +390,7 @@ def _second_layer_means(
         shapes.append((int(info.s4_rows.shape[0]), n_o**3, 2))
     # Sums, then their global sum (the hook of distributed runs), then the division.
     flat = [xp.reshape(s, (n_batch, -1)) for s in sums]
-    total = _global_sum(xp.concat(flat, axis=1))
+    total = _loop._global_sum(xp.concat(flat, axis=1))
     out: list[Any] = []
     offset = 0
     denominators = [filters.s3_denominators[info.j3], filters.s4_denominators[info.j3]]
