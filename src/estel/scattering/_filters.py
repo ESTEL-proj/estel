@@ -190,7 +190,7 @@ class TensorProdFilters(_TensorProdFilterFields, STFilters):
 
     @property
     def _any_array(self) -> Any:
-        return self.wavelets[0].smoothing
+        return self.wavelets[0]._any_array
 
 
 def build_tensor_prod_filters(

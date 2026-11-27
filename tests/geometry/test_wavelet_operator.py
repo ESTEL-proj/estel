@@ -25,6 +25,7 @@ from estel.wavelets._banks import bump_steerable_1d, bump_steerable_2d, smoothin
 from estel.wavelets._operator import (
     COMPLEX,
     WaveletOperator,
+    WaveletPlanCartesian,
     build_wavelet_filters,
     build_wavelet_plan,
 )
@@ -204,6 +205,8 @@ def test_wavelet_operator_rejects_bad_arguments(backend: Backend) -> None:
         build_wavelet_plan(np.zeros(16))  # type: ignore[arg-type]
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        filters = build_wavelet_filters(operator.plan, data.backend, "float64", None)
+        plan = operator.plan
+        assert isinstance(plan, WaveletPlanCartesian)  # the plan of 1D and 2D data
+        filters = build_wavelet_filters(plan, data.backend, "float64", None)
     assert tuple(filters.kernels.shape) == (1, 5)
     assert not filters.field_down

@@ -3,11 +3,14 @@ Part II, §12.5; maths.md M-NOT-TP, M-W1-TP, M-DEF-TP; task T3.1).
 
 Internal, like :class:`~estel.wavelets._operator.WaveletOperator`. A tensor product of B blocks
 (``DataTensorProd``) has one J and one L per block, and its levels are multi-indices
-d = (d₀, …, d_{B-1}): the field downsampled d_a times along block a (M-NOT-TP). Each block has the
-static part and the arrays of a planar wavelet operator, built for its geometry, its sizes and its
-``pbc`` (:class:`WaveletPlanSingleDomain`, :class:`WaveletFiltersCartesian`); the operator of the
-tensor product holds them in block order and applies them along the axes of each block, through the
-hooks of ``DataTensorProd``, which dispatch to the geometry of the block:
+d = (d₀, …, d_{B-1}): the field downsampled d_a times along block a (M-NOT-TP). Each block has
+the static part and the arrays of a planar wavelet operator, built for its geometry, its sizes
+and its ``pbc`` (:class:`~estel.wavelets._operator.WaveletPlanCartesian`,
+:class:`~estel.wavelets._operator.WaveletFiltersCartesian`); the operator of the tensor product
+holds them in block order and reads the arrays of each block through the hooks of its filters
+(``_conv_tables``, ``_down_tables``), never through a field of one geometry, and applies them
+along the axes of each block, through the hooks of ``DataTensorProd``, which dispatch to the
+geometry of the block:
 
 * :meth:`TensorProdWaveletOperator.apply`, the block convolution ψ⁽ᵃ⁾ ⋆_a of M-W1-TP, at the
   level of the scale j_a in block a and at any level of the other blocks;
@@ -55,12 +58,11 @@ from ..data._tensor_prod import DataTensorProd
 from ._banks import KERNEL_SIZE, _check_size
 from ._operator import (
     WaveletFiltersCartesian,
-    WaveletPlanSingleDomain,
+    WaveletPlanCartesian,
     _check_scales,
     _check_wavelet,
     _is_index,
     _wavelet_plan,
-    build_wavelet_filters,
 )
 
 Level = tuple[int, ...]
@@ -87,7 +89,7 @@ class WaveletPlanTensorProd:
     are equal when they were built from the same parameters and the same static metadata of
     the data."""
 
-    blocks: tuple[WaveletPlanSingleDomain, ...]
+    blocks: tuple[WaveletPlanCartesian, ...]
     """The plan of each block, built for its geometry, its sizes and its ``pbc``."""
     axes: tuple[tuple[int, ...], ...]
     """The axes of each block in the array ``(Nb, Nc, *spatial)``."""
@@ -274,7 +276,7 @@ def build_wavelet_filters_tensor_prod(
 ) -> tuple[WaveletFiltersCartesian, ...]:
     """The arrays of each block of ``plan``: its wavelet bank and its smoothing kernel, on the
     backend ``backend_name``, cast once to ``dtype`` on ``device``."""
-    return tuple(build_wavelet_filters(b, backend_name, dtype, device) for b in plan.blocks)
+    return tuple(b._build_filters(backend_name, dtype, device) for b in plan.blocks)
 
 
 # ---------------------------------------------------------------------- the operator
@@ -459,7 +461,7 @@ class TensorProdWaveletOperator:
             )
         xp = _registry.backend_named(self._data.backend).xp
         flat = xp.reshape(x, (lead[0], -1, *spatial))
-        out = self._data._conv(flat, filters[a].kernels, level[a], block=a)
+        out = self._data._conv(flat, filters[a]._conv_tables(level[a]), level[a], block=a)
         return xp.reshape(out, (lead[0], block_plan.L, *lead[1:], *spatial))
 
     def lowpass(self, x: Any, level: Level, *, block: int) -> Any:
@@ -495,7 +497,7 @@ class TensorProdWaveletOperator:
         lead, spatial = self._split(x, level, "lowpass", minimum=1)
         xp = _registry.backend_named(self._data.backend).xp
         flat = xp.reshape(x, (lead[0], -1, *spatial))
-        weights = DownsampleWeights(filters[a].smoothing)
+        weights = DownsampleWeights(filters[a]._down_tables(level[a]))
         out = self._data._downsample(flat, weights, level[a], block=a)
         return xp.reshape(out, (*lead, *tuple(out.shape[2:])))
 
@@ -522,7 +524,7 @@ class TensorProdWaveletOperator:
             )
         xp = _registry.backend_named(self._data.backend).xp
         flat = xp.reshape(x, (lead[0], -1, *spatial))
-        weights = DownsampleWeights(filters[a].smoothing)
+        weights = DownsampleWeights(filters[a]._down_tables(level[a]))
         out = self._data._downsample(flat, weights, level[a], block=a)
         return xp.reshape(out, (*lead, *tuple(out.shape[2:])))
 

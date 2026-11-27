@@ -44,10 +44,11 @@ from __future__ import annotations
 
 import math
 import warnings
+from abc import ABC, abstractmethod
 from collections.abc import Hashable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from numbers import Integral
-from typing import Any, Literal, NamedTuple, TypeVar, cast
+from typing import Any, Literal, TypeVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -207,8 +208,12 @@ class MeanWeights:
 
 
 @dataclass(frozen=True, eq=False)
-class WaveletPlanSingleDomain:
-    """The static part of a wavelet operator, held by the ``STPlan`` (Part II, §12.6).
+class WaveletPlanSingleDomain(ABC):
+    """The static part of a wavelet operator of single-domain data, held by the ``STPlan``
+    (Part II, §12.6; Part I, §2.3.1): abstract, the fields and the rules shared by every
+    single-domain plan, the low-pass filter included (LF6). Its leaves are
+    :class:`WaveletPlanCartesian`, for 1D and 2D data, and
+    ``_healpix_operator.WaveletPlanHealpix``.
 
     Built by :func:`build_wavelet_plan`; NumPy only, immutable and hashable. Two wavelet plans
     are equal, and hash equal, when they were built from the same parameters and the same
@@ -277,26 +282,25 @@ class WaveletPlanSingleDomain:
         wavelet scale, without the level of the low-pass filter."""
         return tuple(d for d in self.levels if d <= max(self.scale_levels))
 
+    @abstractmethod
     def bank(self) -> NDArray[np.complex128]:
-        """The wavelet bank, ``(L, *kernel)``, NumPy complex128 (M-WAV-2D, M-WAV-1D). Raises a
-        ``ValueError`` when the geometry has no bank with ``L`` orientations."""
-        return wavelet_bank(self.ndim, self.L, self.kernel_size)
+        """The wavelet bank of the geometry, NumPy complex128. Raises a ``ValueError`` when the
+        geometry has no bank with ``L`` orientations."""
 
+    @abstractmethod
     def _build_filters(
         self, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
     ) -> Any:
         """The arrays of this plan on the backend ``backend_name``, cast once to ``dtype`` on
         ``device``: a hook, so that the operator and the ``STPlan`` build the filters of every
-        geometry with one call (planar: :func:`build_wavelet_filters`; HEALPix:
+        geometry with one call (Cartesian: :func:`build_wavelet_filters`; HEALPix:
         ``_healpix_operator.build_wavelet_filters_healpix``). ``tables``: those
-        :func:`build_wavelet_plan_with_tables` returned with this plan, or ``None``; 1D and 2D
-        plans have none."""
-        return build_wavelet_filters(self, backend_name, dtype, device)
+        :func:`build_wavelet_plan_with_tables` returned with this plan, or ``None``."""
 
+    @abstractmethod
     def border(self, history: History, level: int) -> int:
         """The border β, in pixels at ``level``, of data convolved at the scales ``history``
-        (M-BORDER; :func:`border_width`)."""
-        return border_width(history, level, self.kernel_size, self.pbc)
+        (M-BORDER)."""
 
     def invalid(self, history: History, level: int) -> BoolMap | None:
         """The invalid pixels at ``level`` of data convolved at the scales ``history``
@@ -363,6 +367,30 @@ class WaveletPlanSingleDomain:
             invalid = masks.layer1[j] if convolved_here else masks.wav_invalid[(level, j)]
             reweight = masks.wav_reweight[(level + 1, j)]
         return ~invalid, reweight
+
+
+@dataclass(frozen=True, eq=False)
+class WaveletPlanCartesian(WaveletPlanSingleDomain):
+    """The static part of the wavelet operator of 1D and 2D data, and of the Cartesian blocks
+    of a tensor product (Part I, §2.3.1): a :class:`WaveletPlanSingleDomain` with the
+    bump-steerable bank, the border rule of a regular grid and its filters,
+    :class:`WaveletFiltersCartesian`. Built by :func:`build_wavelet_plan`."""
+
+    def bank(self) -> NDArray[np.complex128]:
+        """The wavelet bank, ``(L, *kernel)``, NumPy complex128 (M-WAV-2D, M-WAV-1D). Raises a
+        ``ValueError`` when the geometry has no bank with ``L`` orientations."""
+        return wavelet_bank(self.ndim, self.L, self.kernel_size)
+
+    def _build_filters(
+        self, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
+    ) -> WaveletFiltersCartesian:
+        """:func:`build_wavelet_filters`; 1D and 2D plans have no ``tables``."""
+        return build_wavelet_filters(self, backend_name, dtype, device)
+
+    def border(self, history: History, level: int) -> int:
+        """The border β, in pixels at ``level``, of data convolved at the scales ``history``
+        (M-BORDER; :func:`border_width`)."""
+        return border_width(history, level, self.kernel_size, self.pbc)
 
 
 def build_wavelet_plan(
@@ -460,10 +488,10 @@ def _wavelet_plan(
     size: int,
     *,
     lowpass: bool = False,
-) -> WaveletPlanSingleDomain:
-    """The :class:`WaveletPlanSingleDomain` of a planar ``geometry`` with the static metadata given,
-    and J, L and K already validated: of data (:func:`build_wavelet_plan`), or of one block of a
-    tensor product (``estel.wavelets._tensor_prod``).
+) -> WaveletPlanCartesian:
+    """The :class:`WaveletPlanCartesian` of a Cartesian ``geometry`` with the static metadata
+    given, and J, L and K already validated: of data (:func:`build_wavelet_plan`), or of one
+    block of a tensor product (``estel.wavelets._tensor_prod``).
 
     With ``lowpass``, the plan goes down to the level of the low-pass filter too, one level
     below that of its last wavelet scale (maths.md M-LP): the blocks of a tensor product that
@@ -488,7 +516,7 @@ def _wavelet_plan(
         )
     )
     static_mask = None if mask is None else _StaticMask(mask)
-    return WaveletPlanSingleDomain(
+    return WaveletPlanCartesian(
         geometry=geometry,
         J=n_scales,
         L=n_orientations,
@@ -523,9 +551,12 @@ def _wavelet_plan(
 # ---------------------------------------------------------------------- the arrays
 
 
-class WaveletFiltersCartesian(NamedTuple):
-    """The arrays of a wavelet operator, held by the ``STFilters`` (Part II, §12.6): backend
-    arrays in the operator's dtype, built once by :func:`build_wavelet_filters`."""
+@dataclass(frozen=True, eq=False)
+class WaveletFiltersCartesian:
+    """The arrays of the wavelet operator of 1D and 2D data, and of the Cartesian blocks of a
+    tensor product, held by the ``STFilters`` (Part II, §12.6): backend arrays in the operator's
+    dtype, built once by :func:`build_wavelet_filters`. A pytree whose leaves are its arrays, in
+    the order of its fields (:func:`_register_filters`)."""
 
     kernels: Any
     """The tables of ``_conv``: for planar data the complex wavelet bank, ``(L, *kernel)``, the
@@ -540,8 +571,9 @@ class WaveletFiltersCartesian(NamedTuple):
     of first-layer data convolved at j from d to d+1, or no entry without missing values
     (``WaveletPlanSingleDomain.downsample_maps(d, (j,))``)."""
 
-    # The hooks the operator reads the arrays through, shared with the filters of HEALPix
-    # (``_healpix_operator.WaveletFiltersHealpix``), whose tables differ from level to level.
+    # The hooks the operator, and the operator of a tensor product, read the arrays through,
+    # shared with the filters of HEALPix (``_healpix_operator.WaveletFiltersHealpix``), whose
+    # tables differ from level to level.
 
     def _conv_tables(self, level: int) -> Any:
         """The tables of ``Data._conv`` at ``level``: the bank, the same at every level."""
@@ -557,8 +589,26 @@ class WaveletFiltersCartesian(NamedTuple):
         return self.smoothing
 
 
+def _register_filters(cls: type) -> None:
+    """Register the filters ``cls``, a frozen dataclass, as a pytree on every backend, its
+    fields the children in their order and nothing static: the leaves and their order of the
+    named tuple it replaces (task T7.5), so that JAX traces it as before."""
+    names = tuple(f.name for f in fields(cls))
+
+    def flatten(filters: Any) -> tuple[tuple[Any, ...], tuple[()]]:
+        return tuple(getattr(filters, name) for name in names), ()
+
+    def unflatten(aux: tuple[()], children: tuple[Any, ...]) -> Any:
+        return cls(*children)
+
+    _registry.register_pytree(cls, flatten, unflatten)
+
+
+_register_filters(WaveletFiltersCartesian)
+
+
 def build_wavelet_filters(
-    plan: WaveletPlanSingleDomain, backend_name: str, dtype: FloatDType, device: Any
+    plan: WaveletPlanCartesian, backend_name: str, dtype: FloatDType, device: Any
 ) -> WaveletFiltersCartesian:
     """The arrays of ``plan`` on the backend ``backend_name``, cast once to ``dtype`` on
     ``device`` (Part I, §3.1, rules 4 and 7)."""

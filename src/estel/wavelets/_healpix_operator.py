@@ -2,10 +2,11 @@
 maths.md §4; task T5.5, issue #166).
 
 :class:`WaveletPlanHealpix` is a :class:`~estel.wavelets._operator.WaveletPlanSingleDomain`,
-and :class:`WaveletFiltersHealpix` plays the part of ``WaveletFiltersCartesian``:
-``WaveletOperator`` and the ``STPlan`` reach them through the same hooks as the planar ones
-(``_build_filters``, ``_conv_tables``, ``_down_tables``, ``border``, ``bank``), with no branch on
-the geometry at the call sites; ``build_wavelet_plan`` chooses the plan once, when it is built.
+beside the ``WaveletPlanCartesian`` of 1D and 2D data, and :class:`WaveletFiltersHealpix` offers
+the hooks of ``WaveletFiltersCartesian``: ``WaveletOperator`` and the ``STPlan`` reach them
+through the same hooks as the Cartesian ones (``_build_filters``, ``_conv_tables``,
+``_down_tables``, ``border``, ``bank``), with no branch on the geometry at the call sites;
+``build_wavelet_plan`` chooses the plan once, when it is built.
 
 **What is static, and where** (issue #166, decisions 2 and 7). The plan holds only what is small
 and static: the depth and the ``cell_ids`` of the data, the levels and their numbers of pixels,
@@ -62,7 +63,13 @@ from ._healpix_geometry import (
     healpix_decimation,
     healpix_stencils,
 )
-from ._operator import History, WaveletPlanSingleDomain, _read_only, downsample_maps_of
+from ._operator import (
+    History,
+    WaveletPlanSingleDomain,
+    _read_only,
+    _register_filters,
+    downsample_maps_of,
+)
 
 HEALPIX_WAVELETS = ("healpix",)
 """The wavelets of HEALPix data in 1.0.0: the kernel of maths.md M-WAV-HPX, STL's
@@ -113,10 +120,11 @@ class PlanTablesHealpix(NamedTuple):
     """The decimation from each level the masks downsample, as :func:`healpix_decimation`."""
 
 
-class WaveletFiltersHealpix(NamedTuple):
+@dataclass(frozen=True, eq=False)
+class WaveletFiltersHealpix:
     """The arrays of the wavelet operator of HEALPix data, on the operator's backend and dtype:
-    the tables of every level, and the maps of each downsampling step, as
-    ``WaveletFiltersCartesian``. A named tuple of arrays, so a pytree."""
+    the tables of every level, and the maps of each downsampling step. A pytree whose leaves are
+    its arrays, in the order of its fields (``_operator._register_filters``)."""
 
     conv: tuple[ConvTablesHealpix, ...]
     """For each level of the plan, the tables of ``DataHealpix._conv``."""
@@ -142,6 +150,9 @@ class WaveletFiltersHealpix(NamedTuple):
     def _any_array(self) -> Any:
         """An array of the operator's dtype, which gives the filters' backend and dtype."""
         return self.conv[0].kernel
+
+
+_register_filters(WaveletFiltersHealpix)
 
 
 # ---------------------------------------------------------------------- the plan
