@@ -158,8 +158,8 @@ def _check(
 def _fields(nc: int, npix: int) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Two seeded batches of two maps, with a non-zero mean and correlated channels."""
     rng = np.random.default_rng(167)
-    common = rng.normal(size=(2, 2, 1, npix))
-    fields = rng.normal(size=(2, 2, nc, npix)) + 0.5 * common + 0.3
+    shared = rng.normal(size=(2, 2, 1, npix))
+    fields = rng.normal(size=(2, 2, nc, npix)) + 0.5 * shared + 0.3
     return fields[0], fields[1]
 
 

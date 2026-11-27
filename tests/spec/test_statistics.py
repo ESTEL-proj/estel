@@ -103,8 +103,8 @@ def _fields(ndim: int, nb: int, nc: int) -> tuple[NDArray[np.float64], NDArray[n
     statistics are not noise."""
     rng = np.random.default_rng(2618)
     shape = (nb, nc, *(SIZES[ndim],) * ndim)
-    common = rng.normal(size=(2, nb, 1, *shape[2:]))
-    fields = rng.normal(size=(2, *shape)) + 0.5 * common + 0.3
+    shared = rng.normal(size=(2, nb, 1, *shape[2:]))
+    fields = rng.normal(size=(2, *shape)) + 0.5 * shared + 0.3
     return fields[0], fields[1]
 
 
