@@ -650,7 +650,7 @@ def _anchor_words(anchor: str) -> str:
     return " ".join(p.replace("-", " ") for p in anchor.split("--") if not p.startswith("m-"))
 
 
-PHRASE_RE = re.compile(r"(?i)\b(?:single|plain)[\s_-]+geometry\b")
+PHRASE_RE = re.compile(r"(?i)\b(?:single|plain)[\s_-]+geometr(?:y|ies)\b")
 STL_WORD = "(STL's word)"
 RETIRED_TEXT_RE = re.compile(r"(?i)hpx|tp|tensor_?product|planar")
 
@@ -754,7 +754,8 @@ def check_text(rel: str, text: str) -> Iterator[Violation]:
         if not is_code:
             for match in PHRASE_RE.finditer(segment):
                 if STL_WORD not in segment[match.end() : match.end() + 120]:
-                    phrase = re.sub(r"[\s_-]+", " ", match.group(0).lower())
+                    # The plural is the same phrase: one row covers both.
+                    phrase = re.sub(r"[\s_-]+", " ", match.group(0).lower()).replace("ies", "y")
                     yield Violation(
                         "rule 10",
                         f"{rel}#{phrase}",

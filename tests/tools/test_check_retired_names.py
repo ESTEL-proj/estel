@@ -225,6 +225,9 @@ def test_names_that_follow_the_rule_pass(tmp_path: Path) -> None:
         ),
         pytest.param({"docs/guide.md": "On planar data.\n"}, "rule 10", id="rule10-prose"),
         pytest.param({"docs/guide.md": "A single geometry.\n"}, "rule 10", id="rule10-phrase"),
+        pytest.param(
+            {"docs/guide.md": "Two plain geometries.\n"}, "rule 10", id="rule10-phrase-plural"
+        ),
         pytest.param({"tests/x.py": 'CASES = ["planar-wide"]\n'}, "rule 10", id="rule10-label"),
         pytest.param(
             {
