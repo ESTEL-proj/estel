@@ -136,8 +136,8 @@ class _NormReference:
     every orientation l inside (in a tensor product, those of :meth:`BlocksTensorProd.row_shape`,
     in C order)."""
     present: NDArray[np.bool_]
-    """``(Nc, J)``, static: where sigma exists (``_grid.auto_scales_single_domain``); ``(Nc, J'_0, …)`` in a
-    tensor product (``_grid.auto_scales_tensor_prod``)."""
+    """``(Nc, J)``, static: where sigma exists (``_grid.auto_scales_single_domain``);
+    ``(Nc, J'_0, …)`` in a tensor product (``_grid.auto_scales_tensor_prod``)."""
     n_orientations: int
     """L; in a tensor product, the product of the L_a."""
     ref_batch_mean: bool
@@ -331,8 +331,8 @@ def _reference_tables(
 ) -> tuple[NDArray[np.int64], NDArray[np.int64]]:
     """The floats of var and of the auto S2 at every sigma of the ``present`` given by
     ``shape`` and ``data``, in a buffer of ``layout``, a layout of the loop
-    (``_layout.layout_single_domain``, ``_layout.layout_tensor_prod``): one real chunk of S2 per sigma
-    row, of L floats (of the orientations of its row in a tensor product)."""
+    (``_layout.layout_single_domain``, ``_layout.layout_tensor_prod``): one real chunk of S2 per
+    sigma row, of L floats (of the orientations of its row in a tensor product)."""
     positions, shapes, _ = _sigma_rows(shape, data, blocks, n_orientations)
     channels = np.arange(int(shape[0]), dtype=np.int64)[:, None]
     var = _chunks_at(layout, "var", channels)

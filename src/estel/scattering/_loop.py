@@ -58,9 +58,9 @@ def _global_sum(partial_sums: Any) -> Any:
 
 class ScatteringValues(NamedTuple):
     """The statistics without normalisation, in the compact buffer of
-    ``statistics._layout.layout_single_domain(plan)`` (Part III, §19.2, §19.4; maths.md M-MOM, M-S1 to
-    M-S4, M-CHAN): every coefficient STL computes, and only those, real entries as one float,
-    complex entries as (re, im). ``estel.functional.scattering`` stores them in
+    ``statistics._layout.layout_single_domain(plan)`` (Part III, §19.2, §19.4; maths.md M-MOM,
+    M-S1 to M-S4, M-CHAN): every coefficient STL computes, and only those, real entries as one
+    float, complex entries as (re, im). ``estel.functional.scattering`` stores them in
     ``STStatistics``."""
 
     buffer: Any
