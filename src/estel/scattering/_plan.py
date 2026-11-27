@@ -95,7 +95,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -330,6 +330,18 @@ class _SharedFields:
 
     geometry: type[Data]
     """The geometry of the data, the Data subclass the plan was built for."""
+    if TYPE_CHECKING:  # read-only here: each subclass declares its own type, int or tuple
+
+        @property
+        def J(self) -> int | tuple[int, ...]:  # noqa: N802 (maths.md notation)
+            """The number of scales: an int for single-domain data, one per block for a
+            tensor product."""
+
+        @property
+        def L(self) -> int | tuple[int, ...]:  # noqa: N802
+            """The number of orientations: an int for single-domain data, one per block for
+            a tensor product."""
+
     n_channels: int
     """Nc, fixed when the plan is built."""
     cross_matrix: NDArray[np.bool_]

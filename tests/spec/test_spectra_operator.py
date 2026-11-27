@@ -94,7 +94,7 @@ def test_spectrum_equals_the_oracle(name: str, dtype: DType) -> None:
         )
     oracle_field = field if mask is None else np.where(mask, np.nan, field)
     expected = spectra.spec_spectra_2d(oracle_field, pbc, **options)
-    assert operator._plan.spectrum.method == expected["method"]  # type: ignore[union-attr]
+    assert operator._plan.spectrum.method == expected["method"]  # type: ignore[attr-defined]
     stats = operator.apply(data, norm="none")
     assert_parity(_numpy(stats.full_grid("PS")), expected["PS"], dtype)
 

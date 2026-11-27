@@ -40,7 +40,7 @@ from ..functional._scattering import apply_operator
 from ..statistics._arrays import dtype_name
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
-from ._filters import STFilters, STFiltersSingleDomain, STFiltersTensorProd
+from ._filters import STFilters
 from ._plan import (
     STPlan,
     STPlanSingleDomain,
@@ -103,14 +103,14 @@ class STOperator:
         1.0.0.
     """
 
-    _plan: STPlanSingleDomain | STPlanTensorProd
-    _filters: STFiltersSingleDomain | STFiltersTensorProd
+    _plan: STPlan
+    _filters: STFilters
     _backend: str
     _dtype: FloatDType
     _device: Any
     _engine: str
     _reference: _NormReference | None
-    _plan_type: ClassVar[type[STPlanSingleDomain] | type[STPlanTensorProd]] = STPlanSingleDomain
+    _plan_type: ClassVar[type[STPlan]] = STPlanSingleDomain
     """The plan of the operator's geometry, which :meth:`from_statistics` takes."""
     _other_statistics: ClassVar[str] = (
         "these are the statistics of a tensor product, which STOperator does not compute: use "
@@ -173,7 +173,7 @@ class STOperator:
 
     def _setup(
         self,
-        plan: STPlanSingleDomain | STPlanTensorProd,
+        plan: STPlan,
         backend: str,
         dtype: FloatDType,
         device: Any,
@@ -407,7 +407,7 @@ def _as_numpy(matrix: Any) -> Any:
     return matrix if name is None else _registry.backend_named(name).to_numpy(matrix)
 
 
-def _warn_channels_without_auto(plan: STPlanSingleDomain | STPlanTensorProd) -> None:
+def _warn_channels_without_auto(plan: STPlan) -> None:
     """STL's warning of the channels without auto statistics (maths.md M-CHAN, OP-30), given
     once, at construction, which knows the channel pairs; the normalisation is chosen later, at
     each call, so the warning says what happens if the statistics are normalised. It covers

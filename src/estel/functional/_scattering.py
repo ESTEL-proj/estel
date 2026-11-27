@@ -78,9 +78,7 @@ def scattering(
     return compute(data, found, parts, reference_of(ref, norm), norm, ref_batch_mean)
 
 
-def _parts(
-    plan: STPlan, filters: STFilters
-) -> tuple[STPlanSingleDomain | STPlanTensorProd, STFiltersSingleDomain | STFiltersTensorProd]:
+def _parts(plan: STPlan, filters: STFilters) -> tuple[STPlan, STFilters]:
     """The plan and the filters of a scattering operator, or a clear error: the type check of
     :func:`scattering`."""
     if not (

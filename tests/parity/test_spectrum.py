@@ -113,10 +113,10 @@ def test_spectrum_equals_stl(name: str, dtype: DType) -> None:
         stats = operator.apply(data, norm="none")
         assert_parity(_numpy(stats.full_grid("PS")), arrays[key], dtype)
         if method == "auto":
-            chosen = operator._plan.spectrum.method  # type: ignore[union-attr]
+            chosen = operator._plan.spectrum.method  # type: ignore[attr-defined]
             assert ESTIMATORS.index(chosen) == int(arrays[f"{name}_auto_method"][0])
             assert_parity(stats.bin_centers, arrays[f"{name}_bin_centers"])
-    bins = operator._plan.spectrum.bins()  # type: ignore[union-attr]
+    bins = operator._plan.spectrum.bins()  # type: ignore[attr-defined]
     assert_parity(bins.windows, arrays[f"{name}_bin_windows"])
     assert_parity(bins.norm, arrays[f"{name}_bin_norm"])
     np.testing.assert_array_equal(bins.n_modes, arrays[f"{name}_n_modes_radial"])
