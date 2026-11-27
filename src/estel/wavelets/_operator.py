@@ -771,8 +771,9 @@ class WaveletOperator(ABC):
 
     @property
     @abstractmethod
-    def filters(self) -> Any:
-        """The arrays, or ``None`` for an operator bound to its static part only."""
+    def filters(self) -> WaveletFilters | tuple[WaveletFilters, ...] | None:
+        """The arrays: the filters of a single-domain geometry, those of each block of a tensor
+        product, or ``None`` for an operator bound to its static part only."""
 
     @property
     @abstractmethod
@@ -793,23 +794,16 @@ class WaveletOperator(ABC):
         """One downsampling step of ``x``, from ``level`` to the next level (maths.md M-DOWN,
         M-DOWN-MASK). Pure."""
 
+    @abstractmethod
     def lowpass(self, x: Any, level: Any, *args: Any, **kwargs: Any) -> Any:
-        """The last step of the low-pass filter φ, from ``level`` (maths.md M-LP). Pure.
-        Raises when the geometry does not compute it."""
-        raise NotImplementedError(
-            f"{type(self).__name__}.lowpass: the statistics of single-domain data have no low-pass "
-            "coefficient in ESTEL 1.0.0, as in STL (maths.md M-LP); the low-pass filter of every "
-            "geometry comes with LF6. Only the blocks of a tensor product have one."
-        )
+        """The last step of the low-pass filter φ, from ``level`` (maths.md M-LP). Pure. An
+        operator whose geometry does not compute it raises."""
 
+    @abstractmethod
     def mean_weights(self, means: Any) -> Any:
         """The static weights of the means ``means`` (maths.md M-MEAN, M-BORDER, M-MASK). NumPy
-        only: called once, when a plan is built. Raises when the geometry weights its means
-        otherwise."""
-        raise NotImplementedError(
-            f"{type(self).__name__}.mean_weights: a tensor product weights its means block by "
-            "block, with crop_weights and the crop of each block (maths.md M-BORDER-TP)."
-        )
+        only: called once, when a plan is built. An operator whose geometry weights its means
+        otherwise raises."""
 
 
 class WaveletOperatorSingleDomain(WaveletOperator):
@@ -904,6 +898,16 @@ class WaveletOperatorSingleDomain(WaveletOperator):
                 f"{self._plan.levels[-1]} (J = {self._plan.J})."
             )
         return self._plan.level_shapes[self._plan.levels.index(level)]
+
+    def lowpass(self, x: Any, level: int) -> Any:
+        """Raises: single-domain data have no low-pass coefficient in 1.0.0, as in STL
+        (maths.md M-LP); LF6 brings the low-pass filter to every geometry."""
+        raise NotImplementedError(
+            "the low-pass filter is computed only along the blocks of a tensor product in ESTEL "
+            '1.0.0: use estel.STOperatorTensorProd(data, lowpass="ST"). The statistics of '
+            "estel.STOperator have no low-pass coefficient, as in STL (maths.md M-LP); the "
+            "low-pass filter of every geometry comes with LF6."
+        )
 
     # ------------------------------------------------------------------ static rules
 

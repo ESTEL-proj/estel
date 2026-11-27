@@ -391,6 +391,15 @@ class WaveletOperatorTensorProd(WaveletOperator):
         """The spatial shape at the multi-index ``level``: each block at its own level."""
         return self._plan.level_shape(level)
 
+    def mean_weights(self, means: Any) -> Any:
+        """Raises: a tensor product weights its means block by block, from the border of each
+        block (maths.md M-BORDER-TP), as its scattering plan does."""
+        raise NotImplementedError(
+            "the means of a tensor product are weighted block by block, from the border of each "
+            "block (maths.md M-BORDER-TP): build estel.STOperatorTensorProd(data, ...), whose "
+            "plan computes them."
+        )
+
     # ------------------------------------------------------------------ static rules
 
     def crop_weights(self, level: Level, border: tuple[int, ...]) -> NDArray[np.float64]:

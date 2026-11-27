@@ -290,7 +290,7 @@ def test_the_operator_of_a_tensor_prod_is_a_wavelet_operator() -> None:
     assert isinstance(operator, WaveletOperator)
     assert operator.levels == ((0, 0), (1, 0))
     assert [operator.level_shape(d) for d in operator.levels] == [(8, 8, 4), (4, 4, 4)]
-    with pytest.raises(NotImplementedError, match="crop_weights"):
+    with pytest.raises(NotImplementedError, match=r"M-BORDER-TP.*estel\.STOperatorTensorProd"):
         operator.mean_weights({})
 
 

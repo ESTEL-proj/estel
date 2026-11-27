@@ -207,7 +207,7 @@ def test_the_single_domain_operator_is_a_wavelet_operator() -> None:
     assert [operator.level_shape(d) for d in operator.levels] == [(16, 16), (8, 8), (4, 4)]
     with pytest.raises(ValueError, match=r"the levels are 0 … 2"):
         operator.level_shape(3)
-    with pytest.raises(NotImplementedError, match="LF6"):
+    with pytest.raises(NotImplementedError, match=r"estel\.STOperatorTensorProd.*LF6"):
         operator.lowpass(data.array, 2)
 
 
