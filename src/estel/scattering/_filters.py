@@ -31,7 +31,7 @@ from ..backend import _registry
 from ..spectra._estimators import SpectrumFilters, build_spectrum_filters
 from ..statistics._layout import ChunkTables, loop_gather, tensor_prod_gather
 from ..wavelets._operator import MeanWeights, WaveletFilters
-from ..wavelets._tensor_prod import build_tensor_prod_wavelet_filters
+from ..wavelets._tensor_prod import build_wavelet_filters_tensor_prod
 from ._tensor_prod import Scale
 
 if TYPE_CHECKING:
@@ -190,7 +190,7 @@ class TensorProdFilters(_TensorProdFilterFields, STFilters):
 
     @property
     def _any_array(self) -> Any:
-        return self.wavelets[0].smoothing
+        return self.wavelets[0]._any_array
 
 
 def build_tensor_prod_filters(
@@ -212,7 +212,7 @@ def build_tensor_prod_filters(
     second = loop.second_layer
     pack = tensor_prod_gather(plan)
     return TensorProdFilters(
-        wavelets=build_tensor_prod_wavelet_filters(plan.wavelets, backend_name, dtype, device),
+        wavelets=build_wavelet_filters_tensor_prod(plan.wavelets, backend_name, dtype, device),
         arm_crops={s.j3: tuple(real(c) for c in s.arm_crops) for s in second},
         band_crops={s.j3: tuple(real(c) for c in s.band_crops) for s in second},
         s3_rows={s.j3: index(s.s3_rows) for s in second},

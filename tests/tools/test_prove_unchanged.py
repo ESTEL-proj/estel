@@ -126,6 +126,26 @@ def test_a_class_renamed_through_the_table_is_the_same() -> None:
     assert canonical_dump(renamed, NO_NAMES) != canonical_dump(_plan(), NO_NAMES)
 
 
+def test_the_class_of_a_split_row_is_the_same_and_another_class_differs() -> None:
+    old = "estel.wavelets._operator:WaveletPlan"
+    names = Names(
+        [
+            Row(old, "WaveletPlanSingleDomain", "rename", "T7.5", True),
+            Row(old, "WaveletPlanCartesian", "split", "T7.5", True),
+        ]
+    )
+    main = _plan(geometry=_class("estel.wavelets._operator", "WaveletPlan"))
+    for new in ("WaveletPlanSingleDomain", "WaveletPlanCartesian"):
+        branch = _plan(geometry=_class("estel.wavelets._operator", new))
+        assert canonical_dump(branch, names) == canonical_dump(main, NO_NAMES)
+    other = _plan(geometry=_class("estel.wavelets._operator", "WaveletPlanHealpix"))
+    assert canonical_dump(other, names) != canonical_dump(main, NO_NAMES)
+    # The methods of the split class keep their names: compared as bodies of their own.
+    method = names.canonical("estel.wavelets._operator", "WaveletPlanCartesian.bank")
+    assert method == "estel.wavelets._operator:WaveletPlanCartesian.bank"
+    assert names.resolve(old).__name__ == "WaveletPlanSingleDomain"
+
+
 def test_a_module_renamed_through_the_table_is_the_same() -> None:
     names = Names([_done("estel.data._planar", "estel.data._cartesian")])
     assert names.canonical("estel.data._cartesian", "Data2D") == "estel.data._planar:Data2D"

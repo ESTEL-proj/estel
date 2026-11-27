@@ -5,9 +5,13 @@ Internal, like :class:`~estel.wavelets._operator.WaveletOperator`. A tensor prod
 (``DataTensorProd``) has one J and one L per block, and its levels are multi-indices
 d = (d₀, …, d_{B-1}): the field downsampled d_a times along block a (M-NOT-TP). Each block has
 the static part and the arrays of a planar wavelet operator, built for its geometry, its sizes
-and its ``pbc`` (:class:`WaveletPlan`, :class:`WaveletFilters`); the operator of the tensor
-product holds them in block order and applies them along the axes of each block, through the
-hooks of ``DataTensorProd``, which dispatch to the geometry of the block:
+and its ``pbc`` (:class:`~estel.wavelets._operator.WaveletPlanCartesian`,
+:class:`~estel.wavelets._operator.WaveletFiltersCartesian`), a ``WaveletPlan`` and its
+``WaveletFilters``; the operator of the tensor product
+holds them in block order and reads the arrays of each block through the hooks of its filters
+(``_conv_tables``, ``_down_tables``), never through a field of one geometry, and applies them
+along the axes of each block, through the hooks of ``DataTensorProd``, which dispatch to the
+geometry of the block:
 
 * :meth:`TensorProdWaveletOperator.apply`, the block convolution ψ⁽ᵃ⁾ ⋆_a of M-W1-TP, at the
   level of the scale j_a in block a and at any level of the other blocks;
@@ -56,11 +60,11 @@ from ._banks import KERNEL_SIZE, _check_size
 from ._operator import (
     WaveletFilters,
     WaveletPlan,
+    WaveletPlanCartesian,
     _check_scales,
     _check_wavelet,
     _is_index,
     _wavelet_plan,
-    build_wavelet_filters,
 )
 
 Level = tuple[int, ...]
@@ -81,13 +85,14 @@ def default_block_orientations(geometry: type[Data]) -> int:
 
 
 @dataclass(frozen=True, eq=False)
-class TensorProdWaveletPlan:
-    """The static part of the wavelet operator of a tensor product: the plans of its blocks,
-    in block order, and the axes of each block. NumPy only, immutable and hashable; two plans
+class WaveletPlanTensorProd(WaveletPlan):
+    """The static part of the wavelet operator of a tensor product, a
+    :class:`~estel.wavelets._operator.WaveletPlan`: the plans of its blocks, in block order, and
+    the axes of each block. NumPy only, immutable and hashable; two plans
     are equal when they were built from the same parameters and the same static metadata of
     the data."""
 
-    blocks: tuple[WaveletPlan, ...]
+    blocks: tuple[WaveletPlanCartesian, ...]
     """The plan of each block, built for its geometry, its sizes and its ``pbc``."""
     axes: tuple[tuple[int, ...], ...]
     """The axes of each block in the array ``(Nb, Nc, *spatial)``."""
@@ -97,7 +102,7 @@ class TensorProdWaveletPlan:
         return hash(self._key)
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, TensorProdWaveletPlan):
+        if not isinstance(other, WaveletPlanTensorProd):
             return NotImplemented
         return self._key == other._key
 
@@ -156,7 +161,7 @@ class TensorProdWaveletPlan:
                 )
 
 
-def build_tensor_prod_wavelet_plan(
+def build_wavelet_plan_tensor_prod(
     data: DataTensorProd,
     J: Sequence[int | None] | None = None,  # noqa: N803 (maths.md notation)
     L: Sequence[int | None] | None = None,  # noqa: N803
@@ -165,8 +170,8 @@ def build_tensor_prod_wavelet_plan(
     kernel_size: int = KERNEL_SIZE,
     lowpass: str | None = None,
     stacklevel: int = 1,
-) -> TensorProdWaveletPlan:
-    """The :class:`TensorProdWaveletPlan` of ``data``, with the J and L of each block; the values
+) -> WaveletPlanTensorProd:
+    """The :class:`WaveletPlanTensorProd` of ``data``, with the J and L of each block; the values
     of ``data`` are not read. The defaults are those of M-DEF-TP; the arguments are validated
     here, with the sizes of each block divisible by 2^(J_a - 1) (OP-8, OP-83).
 
@@ -221,7 +226,7 @@ def build_tensor_prod_wavelet_plan(
             )
         )
     axes = tuple(spec.axes for spec in specs)
-    return TensorProdWaveletPlan(blocks=tuple(plans), axes=axes, _key=(tuple(plans), axes))
+    return WaveletPlanTensorProd(blocks=tuple(plans), axes=axes, _key=(tuple(plans), axes))
 
 
 def _per_block(value: object, name: str, n_blocks: int, example: str) -> tuple[object, ...]:
@@ -269,12 +274,12 @@ def _check_block_orientations(value: object, geometry: type[Data], what: str, a:
 # ---------------------------------------------------------------------- the arrays
 
 
-def build_tensor_prod_wavelet_filters(
-    plan: TensorProdWaveletPlan, backend_name: str, dtype: FloatDType, device: Any
+def build_wavelet_filters_tensor_prod(
+    plan: WaveletPlanTensorProd, backend_name: str, dtype: FloatDType, device: Any
 ) -> tuple[WaveletFilters, ...]:
     """The arrays of each block of ``plan``: its wavelet bank and its smoothing kernel, on the
     backend ``backend_name``, cast once to ``dtype`` on ``device``."""
-    return tuple(build_wavelet_filters(b, backend_name, dtype, device) for b in plan.blocks)
+    return tuple(b._build_filters(backend_name, dtype, device) for b in plan.blocks)
 
 
 # ---------------------------------------------------------------------- the operator
@@ -307,7 +312,7 @@ class TensorProdWaveletOperator:
     __slots__ = ("_data", "_filters", "_plan")
 
     _data: DataTensorProd
-    _plan: TensorProdWaveletPlan
+    _plan: WaveletPlanTensorProd
     _filters: tuple[WaveletFilters, ...] | None
 
     def __init__(
@@ -320,10 +325,10 @@ class TensorProdWaveletOperator:
         kernel_size: int = KERNEL_SIZE,
         lowpass: str | None = None,
     ) -> None:
-        plan = build_tensor_prod_wavelet_plan(
+        plan = build_wavelet_plan_tensor_prod(
             data, J, L, wavelet, kernel_size=kernel_size, lowpass=lowpass, stacklevel=2
         )
-        filters = build_tensor_prod_wavelet_filters(
+        filters = build_wavelet_filters_tensor_prod(
             plan, data.backend, default_dtype(), default_device()
         )
         self._bind(data, plan, filters)
@@ -331,7 +336,7 @@ class TensorProdWaveletOperator:
     def _bind(
         self,
         data: DataTensorProd,
-        plan: TensorProdWaveletPlan,
+        plan: WaveletPlanTensorProd,
         filters: tuple[WaveletFilters, ...] | None,
     ) -> None:
         object.__setattr__(self, "_data", data)
@@ -345,7 +350,7 @@ class TensorProdWaveletOperator:
     def from_parts(
         cls,
         data: Data,
-        plan: TensorProdWaveletPlan,
+        plan: WaveletPlanTensorProd,
         filters: tuple[WaveletFilters, ...] | None = None,
     ) -> TensorProdWaveletOperator:
         """The operator of a static part and its arrays, bound to ``data``, a
@@ -363,7 +368,7 @@ class TensorProdWaveletOperator:
         return new
 
     @property
-    def plan(self) -> TensorProdWaveletPlan:
+    def plan(self) -> WaveletPlanTensorProd:
         """The static part."""
         return self._plan
 
@@ -459,7 +464,7 @@ class TensorProdWaveletOperator:
             )
         xp = _registry.backend_named(self._data.backend).xp
         flat = xp.reshape(x, (lead[0], -1, *spatial))
-        out = self._data._conv(flat, filters[a].kernels, level[a], block=a)
+        out = self._data._conv(flat, filters[a]._conv_tables(level[a]), level[a], block=a)
         return xp.reshape(out, (lead[0], block_plan.L, *lead[1:], *spatial))
 
     def lowpass(self, x: Any, level: Level, *, block: int) -> Any:
@@ -495,7 +500,7 @@ class TensorProdWaveletOperator:
         lead, spatial = self._split(x, level, "lowpass", minimum=1)
         xp = _registry.backend_named(self._data.backend).xp
         flat = xp.reshape(x, (lead[0], -1, *spatial))
-        weights = DownsampleWeights(filters[a].smoothing)
+        weights = DownsampleWeights(filters[a]._down_tables(level[a]))
         out = self._data._downsample(flat, weights, level[a], block=a)
         return xp.reshape(out, (*lead, *tuple(out.shape[2:])))
 
@@ -522,7 +527,7 @@ class TensorProdWaveletOperator:
             )
         xp = _registry.backend_named(self._data.backend).xp
         flat = xp.reshape(x, (lead[0], -1, *spatial))
-        weights = DownsampleWeights(filters[a].smoothing)
+        weights = DownsampleWeights(filters[a]._down_tables(level[a]))
         out = self._data._downsample(flat, weights, level[a], block=a)
         return xp.reshape(out, (*lead, *tuple(out.shape[2:])))
 
@@ -531,7 +536,7 @@ class TensorProdWaveletOperator:
             raise ValueError(
                 f"TensorProdWaveletOperator.{function}: this operator holds its static part "
                 "only. Bind the arrays too: TensorProdWaveletOperator.from_parts(data, plan, "
-                "filters), with filters = build_tensor_prod_wavelet_filters(plan, backend, "
+                "filters), with filters = build_wavelet_filters_tensor_prod(plan, backend, "
                 "dtype, device)."
             )
         return self._filters

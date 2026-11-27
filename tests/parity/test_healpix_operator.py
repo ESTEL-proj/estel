@@ -23,7 +23,7 @@ from numpy.typing import NDArray
 from estel import DataHealpix, _config
 from estel.backend import _registry
 from estel.backend._protocol import DType
-from estel.wavelets._healpix_operator import HealpixWaveletPlan
+from estel.wavelets._healpix_operator import WaveletPlanHealpix
 from estel.wavelets._operator import WaveletOperator, build_wavelet_plan
 from tests.parity._compare import assert_parity, load_fixture
 from tests.parity.test_healpix_tables import EXCLUDED_ROWS, _well_conditioned_rows
@@ -90,7 +90,7 @@ def test_decimation_equals_stl(name: str, dtype: DType) -> None:
     actual = _numpy(operator.downsample(operator._data.array, 0))[:, 0]
     assert_parity(actual, _operators()[f"{name}_down"], dtype)
     plan = operator.plan
-    assert isinstance(plan, HealpixWaveletPlan)
+    assert isinstance(plan, WaveletPlanHealpix)
     coarse = plan.level_cell_ids(1)
     if coarse is not None:
         np.testing.assert_array_equal(coarse, _operators()[f"{name}_down_cell_ids"])
@@ -114,7 +114,7 @@ def test_masks_equal_stl(name: str, dtype: DType) -> None:
         cell_ids=None if full else ids,
     )
     plan = build_wavelet_plan(data, 3)
-    assert isinstance(plan, HealpixWaveletPlan)
+    assert isinstance(plan, WaveletPlanHealpix)
     masks = plan.masks
     assert masks is not None
 

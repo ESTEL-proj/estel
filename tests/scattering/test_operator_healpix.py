@@ -261,9 +261,9 @@ def test_a_masked_operator_builds_the_tables_of_a_level_once(
         ("healpix_stencils", 2),
     ]
     wavelets = cast(Any, operator.plan).wavelets
-    assert isinstance(wavelets, _healpix_operator.HealpixWaveletPlan)
+    assert isinstance(wavelets, _healpix_operator.WaveletPlanHealpix)
     held = [getattr(wavelets, f.name) for f in dataclasses.fields(wavelets)]
-    assert not any(isinstance(v, _healpix_operator.HealpixPlanTables) for v in held)
+    assert not any(isinstance(v, _healpix_operator.PlanTablesHealpix) for v in held)
     builds.clear()
     STOperator.from_statistics(operator.apply(data))
     assert sorted(builds) == [

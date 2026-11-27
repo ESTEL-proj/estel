@@ -24,7 +24,11 @@ from estel.data._moments import modulus
 from estel.wavelets._banks import bump_steerable_1d, bump_steerable_2d, smoothing_kernel
 from estel.wavelets._operator import (
     COMPLEX,
+    WaveletFilters,
     WaveletOperator,
+    WaveletPlan,
+    WaveletPlanCartesian,
+    WaveletPlanSingleDomain,
     build_wavelet_filters,
     build_wavelet_plan,
 )
@@ -173,6 +177,14 @@ def test_static_part_gives_the_levels_and_is_hashable() -> None:
     assert plan != build_wavelet_plan(_data(2, pbc=True), 3)
 
 
+@pytest.mark.parametrize("abstract", [WaveletPlan, WaveletPlanSingleDomain, WaveletFilters])
+def test_an_abstract_class_of_the_wavelets_cannot_be_built(abstract: type) -> None:
+    """The roots of the wavelet plans and filters, and the plan of single-domain data, are
+    abstract (Part I, §2.3.1): building one raises, and says what to build instead."""
+    with pytest.raises(TypeError, match=r"abstract class of the wavelet .* estel\.STOperator"):
+        abstract()
+
+
 def test_wavelet_operator_rejects_bad_arguments(backend: Backend) -> None:
     data = _data(1, pbc=True, lead=(1, 1))
     operator = WaveletOperator(data, 3)
@@ -204,6 +216,8 @@ def test_wavelet_operator_rejects_bad_arguments(backend: Backend) -> None:
         build_wavelet_plan(np.zeros(16))  # type: ignore[arg-type]
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        filters = build_wavelet_filters(operator.plan, data.backend, "float64", None)
+        plan = operator.plan
+        assert isinstance(plan, WaveletPlanCartesian)  # the plan of 1D and 2D data
+        filters = build_wavelet_filters(plan, data.backend, "float64", None)
     assert tuple(filters.kernels.shape) == (1, 5)
     assert not filters.field_down

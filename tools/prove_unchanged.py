@@ -126,11 +126,19 @@ class Names:
     """The names of one tree and those of ``main``, through the rows done of its table.
 
     ``main`` names are *canonical*: what the cases are written with, and what the dumps hold.
+
+    A ``split`` row of a definition (``module:Class``) records the classes its instances now
+    have, beside the ``rename`` row of the name itself (T7.5: the instances of ``WaveletPlan``,
+    renamed ``WaveletPlanSingleDomain`` and made abstract, are ``WaveletPlanCartesian``). One old
+    name then has several new ones: :meth:`canonical` maps each of them back, the class itself
+    only, so that a dump that names the split class equals ``main``'s; its methods keep their
+    names, and are compared as bodies of their own.
     """
 
     def __init__(self, rows: list[Row]) -> None:
         self.modules: dict[str, list[str]] = {}  # old module -> new modules
         self.definitions: dict[str, str] = {}  # old module:qualname -> new module:qualname
+        self.split_back: dict[str, str] = {}  # new module:Class of a split row -> old one
         self.reintroduced: set[str] = set()
         for row in rows:
             if not row.done or "#" in row.old or row.old.startswith("M-"):
@@ -140,10 +148,14 @@ class Names:
                 continue
             if ":" in row.old:
                 module, qualname = _split(row.old)
-                new = (
-                    row.new if ":" in row.new else f"{module}:{self._requalify(qualname, row.new)}"
-                )
-                self.definitions[row.old] = new
+                news = [
+                    new if ":" in new else f"{module}:{self._requalify(qualname, new)}"
+                    for new in row.new.replace(",", " ").split()
+                ]
+                if row.kind == "split":
+                    self.split_back.update(dict.fromkeys(news, row.old))
+                else:
+                    self.definitions[row.old] = news[0]
             elif "/" not in row.old:
                 self.modules[row.old] = [m for m in row.new.replace(",", " ").split() if m]
         self.module_back = {new: old for old, news in self.modules.items() for new in news}
@@ -178,7 +190,9 @@ class Names:
 
     def canonical(self, module: str, qualname: str) -> str:
         """The name of ``main`` of a definition of this tree (``module:qualname``)."""
-        exact = self.definition_back.get(f"{module}:{qualname}")
+        exact = self.definition_back.get(f"{module}:{qualname}") or self.split_back.get(
+            f"{module}:{qualname}"
+        )
         if exact:
             return exact
         old_module = self.module_back.get(module, module)

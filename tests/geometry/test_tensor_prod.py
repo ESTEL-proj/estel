@@ -28,9 +28,9 @@ from estel.wavelets._banks import smoothing_kernel
 from estel.wavelets._operator import WaveletOperator, default_scales_of, wavelet_bank
 from estel.wavelets._tensor_prod import (
     TensorProdWaveletOperator,
-    TensorProdWaveletPlan,
-    build_tensor_prod_wavelet_filters,
-    build_tensor_prod_wavelet_plan,
+    WaveletPlanTensorProd,
+    build_wavelet_filters_tensor_prod,
+    build_wavelet_plan_tensor_prod,
 )
 from tests._backends import backend_name
 
@@ -65,9 +65,9 @@ def _operator(
     J: list[int] | None = None,  # noqa: N803
 ) -> TensorProdWaveletOperator:
     """The wavelet operator of ``product`` with its arrays in ``dtype``."""
-    plan = build_tensor_prod_wavelet_plan(product, J)
+    plan = build_wavelet_plan_tensor_prod(product, J)
     real: FloatDType = "float64" if dtype == "float64" else "float32"
-    filters = build_tensor_prod_wavelet_filters(plan, product.backend, real, default_device())
+    filters = build_wavelet_filters_tensor_prod(plan, product.backend, real, default_device())
     return TensorProdWaveletOperator.from_parts(product, plan, filters)
 
 
@@ -224,7 +224,7 @@ def test_the_kernels_of_the_blocks_are_those_of_the_cartesian_operators(
     ).plan.bank()
     np.testing.assert_array_equal(operator.plan.blocks[block].bank(), plain)
     np.testing.assert_array_equal(
-        backend.to_numpy(operator.filters[block].kernels),
+        backend.to_numpy(operator.filters[block]._conv_tables(0)),
         backend.to_numpy(backend.asarray(plain, COMPLEX[dtype])),
     )
 
@@ -266,7 +266,7 @@ def test_the_orientation_axes_follow_the_channels_in_block_order(
     both = operator.apply(first, 0, block=1, level=(0, 0))
     assert tuple(both.shape) == (n_batch, n_channels, l_0, l_1, *spatial)
     xp = backend.xp
-    banks = [f.kernels for f in operator.filters]
+    banks = [f._conv_tables(0) for f in operator.filters]
     by_block_0 = product._conv(product.array, banks[0], 0, block=0)  # (Nb, L₀, Nc, ...)
     flat = xp.reshape(by_block_0, (n_batch, l_0 * n_channels, *spatial))
     by_block_1 = product._conv(flat, banks[1], 0, block=1)  # (Nb, L₁, L₀·Nc, ...)
@@ -514,7 +514,7 @@ def test_scattering_operators_of_single_domain_data_refuse_tensor_prod_data() ->
 
 
 def _block_convolution(
-    plan: TensorProdWaveletPlan, filters: Any
+    plan: WaveletPlanTensorProd, filters: Any
 ) -> Callable[[DataTensorProd], Any]:
     """A function of a ``DataTensorProd``: the block convolutions of scale 0 along block 0
     then block 1, through the hooks of the data it is given."""

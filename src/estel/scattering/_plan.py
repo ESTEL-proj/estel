@@ -19,11 +19,11 @@ What it holds, for STL's loop structure (maths.md §1.6 to 1.7; STL ``ST_Operato
   ``levels``; in 1.0.0 scale ``j`` is computed at level d = j (STL's ``j_to_dg``), so the
   levels are 0 … J-1. Every mean is taken at the level of the scale of the last convolution
   of its operands, read from ``scale_levels``.
-* **The static part of the wavelet operator** (``wavelets``, a ``WaveletPlan``; Part I, §2.3):
-  the shape of each level, how the low-pass filter is realised and at which level, the masks
-  and reweighting maps of the data and of each downsampling step (M-DOWN-MASK, M-MASK), and
-  the rules of borders and masks. Everything that depends on the wavelets and on the geometry
-  comes from it: this module holds no geometry formula.
+* **The static part of the wavelet operator** (``wavelets``, a ``WaveletPlanSingleDomain``; Part I,
+  §2.3): the shape of each level, how the low-pass filter is realised and at which level, the masks
+  and reweighting maps of the data and of each downsampling step (M-DOWN-MASK, M-MASK), and the
+  rules of borders and masks. Everything that depends on the wavelets and on the geometry comes from
+  it: this module holds no geometry formula.
 * **The weights and denominator of every mean** (``MeanWeights``; M-MEAN, M-BORDER): 1 on
   the pixels that enter the mean, 0 elsewhere, and their sum; and the means that have no
   valid pixel, whose coefficients are NaN (OP-3).
@@ -120,10 +120,10 @@ from ..wavelets._operator import (
     History,
     MeanWeights,
     WaveletOperator,
-    WaveletPlan,
+    WaveletPlanSingleDomain,
     build_wavelet_plan_with_tables,
 )
-from ..wavelets._tensor_prod import TensorProdWaveletPlan, build_tensor_prod_wavelet_plan
+from ..wavelets._tensor_prod import WaveletPlanTensorProd, build_wavelet_plan_tensor_prod
 from ._filters import (
     PlanarFilters,
     STFilters,
@@ -453,7 +453,7 @@ class _PlanFields:
     """The channel pairs of each family (M-CHAN)."""
     standardize: bool
     """Whether each map is standardised before the transform (M-STD)."""
-    wavelets: WaveletPlan
+    wavelets: WaveletPlanSingleDomain
     """The static part of the wavelet operator (Part I, §2.3): the levels and their shapes, the
     low-pass filter and how it is realised, the masks and reweighting maps, and the rules of
     borders and masks."""
@@ -768,7 +768,7 @@ def resolve_compute_ps(compute_ps: object, geometry: type[Data]) -> bool:
 
 
 def _spectrum(
-    wavelets: WaveletPlan,
+    wavelets: WaveletPlanSingleDomain,
     J: int | None,  # noqa: N803 (maths.md notation)
     compute_ps: object,
     n_bins: object,
@@ -832,7 +832,7 @@ class TensorProdPlan(STPlan):
     the files need, and the static description of the loop of task T3.2 (:attr:`loop`).
 
     Built by :func:`build_tensor_prod_statistics_plan` from the plan of the wavelet operator of
-    the tensor product (``TensorProdWaveletPlan``, task T3.1); NumPy only, immutable and
+    the tensor product (``WaveletPlanTensorProd``, task T3.1); NumPy only, immutable and
     hashable. Its index sets are those of each block (M-IDX-TP): the index set of the tensor
     product is their Cartesian product, which the layout enumerates chunk by chunk, never as a
     table the size of the full grid.
@@ -842,7 +842,7 @@ class TensorProdPlan(STPlan):
 
     geometry: type[Data]
     """``DataTensorProd``."""
-    wavelets: TensorProdWaveletPlan
+    wavelets: WaveletPlanTensorProd
     """The plans of the blocks, in block order (task T3.1)."""
     block_geometries: tuple[type[Data], ...]
     """The geometry of each block, ``Data2D`` or ``Data1D``."""
@@ -998,7 +998,7 @@ def build_tensor_prod_statistics_plan(
         )
     _check_standardize(standardize)
     # The low-pass flags (M-LP, OP-34), with STL's warning, come with the plans of the blocks.
-    wavelets = build_tensor_prod_wavelet_plan(
+    wavelets = build_wavelet_plan_tensor_prod(
         cast(Any, data), J, L, kernel_size=kernel_size, lowpass=lowpass, stacklevel=stacklevel + 1
     )
     matrix = _cross_matrix(cross_matrix, data.n_channels)

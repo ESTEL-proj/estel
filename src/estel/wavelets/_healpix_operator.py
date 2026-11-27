@@ -1,11 +1,12 @@
 """The static part and the arrays of the wavelet operator of HEALPix data (Part II, §12.5;
 maths.md §4; task T5.5, issue #166).
 
-:class:`HealpixWaveletPlan` is a :class:`~estel.wavelets._operator.WaveletPlan`, and
-:class:`HealpixWaveletFilters` plays the part of ``WaveletFilters``: ``WaveletOperator`` and
-the ``STPlan`` reach them through the same hooks as the planar ones (``_build_filters``,
-``_conv_tables``, ``_down_tables``, ``border``, ``bank``), with no branch on the geometry at the
-call sites; ``build_wavelet_plan`` chooses the plan once, when it is built.
+:class:`WaveletPlanHealpix` is a :class:`~estel.wavelets._operator.WaveletPlanSingleDomain`,
+beside the ``WaveletPlanCartesian`` of 1D and 2D data, and :class:`WaveletFiltersHealpix` is a
+``WaveletFilters``, beside ``WaveletFiltersCartesian``: ``WaveletOperator`` and the ``STPlan``
+reach them through the same hooks as the Cartesian ones (``_build_filters``, ``_conv_tables``,
+``_down_tables``, ``border``, ``bank``), with no branch on the geometry at the call sites;
+``build_wavelet_plan`` chooses the plan once, when it is built.
 
 **What is static, and where** (issue #166, decisions 2 and 7). The plan holds only what is small
 and static: the depth and the ``cell_ids`` of the data, the levels and their numbers of pixels,
@@ -17,7 +18,7 @@ cast at once to the operator's dtype (indices int32), and the float64 arrays are
 is folded into the stencils (:func:`_fold_kernel`; task T5.7): each row reads its distinct
 pixels once, as real pairs. With missing values the
 plan builds them first, for the support test and the decimated fractions of the masks, and
-returns them beside the plan, as a value (:class:`HealpixPlanTables`; task T5.7): the
+returns them beside the plan, as a value (:class:`PlanTablesHealpix`; task T5.7): the
 constructor of the operator passes them to the builder of its filters, which reads them instead
 of building them again, so the tables of a level are built once in an operator. The plan holds
 none of them, and nothing is shared between operators.
@@ -62,7 +63,14 @@ from ._healpix_geometry import (
     healpix_decimation,
     healpix_stencils,
 )
-from ._operator import History, WaveletPlan, _read_only, downsample_maps_of
+from ._operator import (
+    History,
+    WaveletFilters,
+    WaveletPlanSingleDomain,
+    _read_only,
+    _register_filters,
+    downsample_maps_of,
+)
 
 HEALPIX_WAVELETS = ("healpix",)
 """The wavelets of HEALPix data in 1.0.0: the kernel of maths.md M-WAV-HPX, STL's
@@ -70,10 +78,11 @@ HEALPIX_WAVELETS = ("healpix",)
 
 
 @dataclass(frozen=True, eq=False)
-class HealpixWaveletPlan(WaveletPlan):
-    """The static part of the wavelet operator of HEALPix data: a :class:`WaveletPlan` whose
-    spatial shape is ``(Npix,)``, one pixel axis, plus the depth and the pixels of the data.
-    Built by :func:`build_healpix_wavelet_plan`."""
+class WaveletPlanHealpix(WaveletPlanSingleDomain):
+    """The static part of the wavelet operator of HEALPix data: a
+    :class:`WaveletPlanSingleDomain` whose spatial shape is ``(Npix,)``, one pixel axis, plus the
+    depth and the pixels of the data.
+    Built by :func:`build_wavelet_plan_healpix`."""
 
     depth: int = 0
     """log₂ ``nside`` of the data at full resolution."""
@@ -95,13 +104,13 @@ class HealpixWaveletPlan(WaveletPlan):
 
     def _build_filters(
         self, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
-    ) -> HealpixWaveletFilters:
-        return build_healpix_wavelet_filters(self, backend_name, dtype, device, tables)
+    ) -> WaveletFiltersHealpix:
+        return build_wavelet_filters_healpix(self, backend_name, dtype, device, tables)
 
 
-class HealpixPlanTables(NamedTuple):
+class PlanTablesHealpix(NamedTuple):
     """The NumPy tables, float64, that the masks of a plan were built from, by level (task T5.7,
-    issue #168): returned beside the plan by :func:`build_healpix_wavelet_plan_with_tables`, a
+    issue #168): returned beside the plan by :func:`build_wavelet_plan_with_tables_healpix`, a
     value that the constructor of the operator passes to the builder of its filters, so that the
     tables of a level are built once in an operator instead of twice. Read-only mappings; the
     plan does not hold them."""
@@ -112,10 +121,11 @@ class HealpixPlanTables(NamedTuple):
     """The decimation from each level the masks downsample, as :func:`healpix_decimation`."""
 
 
-class HealpixWaveletFilters(NamedTuple):
+@dataclass(frozen=True, eq=False)
+class WaveletFiltersHealpix(WaveletFilters):
     """The arrays of the wavelet operator of HEALPix data, on the operator's backend and dtype:
-    the tables of every level, and the maps of each downsampling step, as ``WaveletFilters``.
-    A named tuple of arrays, so a pytree."""
+    the tables of every level, and the maps of each downsampling step. A pytree whose leaves are
+    its arrays, in the order of its fields (``_operator._register_filters``)."""
 
     conv: tuple[ConvTablesHealpix, ...]
     """For each level of the plan, the tables of ``DataHealpix._conv``."""
@@ -142,6 +152,9 @@ class HealpixWaveletFilters(NamedTuple):
         return self.conv[0].kernel
 
 
+_register_filters(WaveletFiltersHealpix)
+
+
 # ---------------------------------------------------------------------- the plan
 
 
@@ -150,29 +163,29 @@ def default_healpix_scales(depth: int) -> int:
     return max(1, depth - 1)
 
 
-def build_healpix_wavelet_plan(
+def build_wavelet_plan_healpix(
     data: DataHealpix,
     J: int | None = None,  # noqa: N803 (maths.md notation)
     L: int | None = None,  # noqa: N803
     wavelet: str | None = None,
     *,
     kernel_size: int,
-) -> HealpixWaveletPlan:
-    """The plan of :func:`build_healpix_wavelet_plan_with_tables`, without its tables."""
-    return build_healpix_wavelet_plan_with_tables(data, J, L, wavelet, kernel_size=kernel_size)[0]
+) -> WaveletPlanHealpix:
+    """The plan of :func:`build_wavelet_plan_with_tables_healpix`, without its tables."""
+    return build_wavelet_plan_with_tables_healpix(data, J, L, wavelet, kernel_size=kernel_size)[0]
 
 
-def build_healpix_wavelet_plan_with_tables(
+def build_wavelet_plan_with_tables_healpix(
     data: DataHealpix,
     J: int | None = None,  # noqa: N803 (maths.md notation)
     L: int | None = None,  # noqa: N803
     wavelet: str | None = None,
     *,
     kernel_size: int,
-) -> tuple[HealpixWaveletPlan, HealpixPlanTables | None]:
-    """The :class:`HealpixWaveletPlan` of ``data`` with ``J`` scales and ``L`` gauges: J by
+) -> tuple[WaveletPlanHealpix, PlanTablesHealpix | None]:
+    """The :class:`WaveletPlanHealpix` of ``data`` with ``J`` scales and ``L`` gauges: J by
     default max(1, depth - 1), L = 4, K = 5 (maths.md M-DEF-HPX); its values are not read. With
-    missing values, also the tables its masks were built from (:class:`HealpixPlanTables`),
+    missing values, also the tables its masks were built from (:class:`PlanTablesHealpix`),
     for the filters of the same operator; ``None`` without.
 
     Raises when J is not an integer in 1 … depth + 1 (each scale one level coarser, down to
@@ -200,7 +213,7 @@ def build_healpix_wavelet_plan_with_tables(
             data.mask, depth, static_ids, scale_levels, n_gauges, size, data.pbc
         )
     static_mask = None if data.mask is None else _StaticMask(data.mask)
-    plan = HealpixWaveletPlan(
+    plan = WaveletPlanHealpix(
         geometry=DataHealpix,
         J=n_scales,
         L=n_gauges,
@@ -250,7 +263,7 @@ def _healpix_masks(
     n_gauges: int,
     size: int,
     pbc: bool,
-) -> tuple[MaskMaps, HealpixPlanTables]:
+) -> tuple[MaskMaps, PlanTablesHealpix]:
     """The masks and reweighting maps of M-MASK-HPX, from the tables of each level, each built
     once, and those tables, for the filters of the operator (module docstring)."""
 
@@ -300,7 +313,7 @@ def _healpix_masks(
     )
     # The levels the masks read (every scale level, and the steps between them), each from the
     # cache: nothing is built here.
-    tables = HealpixPlanTables(
+    tables = PlanTablesHealpix(
         stencils=MappingProxyType({d: built_stencils(d) for d in scale_levels}),
         decimation=MappingProxyType({d: decimation(d) for d in range(max(scale_levels))}),
     )
@@ -310,20 +323,20 @@ def _healpix_masks(
 # ---------------------------------------------------------------------- the arrays
 
 
-def build_healpix_wavelet_filters(
-    plan: HealpixWaveletPlan,
+def build_wavelet_filters_healpix(
+    plan: WaveletPlanHealpix,
     backend_name: str,
     dtype: FloatDType,
     device: Any,
-    tables: HealpixPlanTables | None = None,
-) -> HealpixWaveletFilters:
+    tables: PlanTablesHealpix | None = None,
+) -> WaveletFiltersHealpix:
     """The arrays of ``plan`` on the backend ``backend_name``: the tables of T5.1 of each level,
     built in float64 and cast once to ``dtype`` on ``device``, indices int32 (Part I, §3.1,
     rules 4 and 7; OP-46); the float64 tables are not kept. ``tables``, the tables the masks of
-    ``plan`` were built from (:class:`HealpixPlanTables`), are read instead of built again;
+    ``plan`` were built from (:class:`PlanTablesHealpix`), are read instead of built again;
     without them (``from_statistics``), every table is built here."""
     backend = _registry.backend_named(backend_name)
-    handed = tables or HealpixPlanTables(stencils={}, decimation={})
+    handed = tables or PlanTablesHealpix(stencils={}, decimation={})
     kernel = plan.bank()
     # The kernel is folded into the tables (_fold_kernel): the product with it is the identity.
     identity = backend.asarray(np.eye(2), dtype, device)
@@ -354,7 +367,7 @@ def build_healpix_wavelet_filters(
         )
 
     field_down, modulus_down = downsample_maps_of(plan, backend_name, dtype, device)
-    return HealpixWaveletFilters(
+    return WaveletFiltersHealpix(
         conv=tuple(conv(d) for d in plan.levels),
         down=tuple(down(d) for d in plan.wavelet_levels[:-1]),
         field_down=field_down,

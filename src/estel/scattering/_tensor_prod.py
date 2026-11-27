@@ -45,7 +45,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ..wavelets._operator import Box, _read_only, window_box
-from ..wavelets._tensor_prod import TensorProdWaveletPlan
+from ..wavelets._tensor_prod import WaveletPlanTensorProd
 
 Scale = tuple[int, ...]
 """A multi-index scale j = (j₀, …, j_{B-1}) (maths.md M-NOT-TP)."""
@@ -131,7 +131,7 @@ def arm_order(j3: Scale) -> tuple[Scale, ...]:
 
 
 def build_tensor_prod_loop(
-    wavelets: TensorProdWaveletPlan,
+    wavelets: WaveletPlanTensorProd,
     pairs_12: tuple[tuple[int, int], ...],
     pairs_34: tuple[tuple[int, int], ...],
     n_channels: int,
