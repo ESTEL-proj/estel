@@ -19,7 +19,7 @@ from numpy.typing import NDArray
 
 from estel import Data, Data1D, Data2D
 from estel.data._masks import build_mask_maps
-from estel.scattering._plan import PlanarPlan, build_plan
+from estel.scattering._plan import STPlanSingleDomain, build_plan
 from estel.wavelets._banks_cartesian import smoothing_kernel_cartesian
 from estel.wavelets._operator import MeanWeights, border_width_cartesian
 
@@ -30,13 +30,13 @@ def _data(ndim: int, n: int, pbc: bool, mask: NDArray[np.bool_] | None = None) -
     return GEOMETRIES[ndim](np.zeros((n,) * ndim), mask=mask, pbc=pbc)
 
 
-def _plan(data: Data, J: int, L: int = 4) -> PlanarPlan:  # noqa: N803
+def _plan(data: Data, J: int, L: int = 4) -> STPlanSingleDomain:  # noqa: N803
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-13, tested on its own below
         return build_plan(data, J, L)
 
 
-def _all_means(plan: PlanarPlan) -> list[MeanWeights]:
+def _all_means(plan: STPlanSingleDomain) -> list[MeanWeights]:
     return [plan.moments, *plan.first_layer.values(), *plan.s3.values(), *plan.s4.values()]
 
 

@@ -168,7 +168,7 @@ def require_page_references(
     must name a documented object: an unresolved one is a warning, so an error in `make docs`.
 
     nitpicky would check the docstrings too, which cite private names (``_build_filters``,
-    ``PlanarPlan``) that the site does not document. Runs after intersphinx (priority 900)."""
+    ``STPlanSingleDomain``) that the site does not document. Runs after intersphinx (priority 900)."""
     source = Path((node.source or "").partition(":")[0])
     if node.get("refdomain") == "py" and source.suffix == ".md" and source.is_relative_to(HERE):
         logger.warning(

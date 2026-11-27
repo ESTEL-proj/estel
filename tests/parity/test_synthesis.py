@@ -41,7 +41,7 @@ import estel
 from estel import Data2D, DataHealpix, _config
 from estel.backend._protocol import Backend
 from estel.data._cartesian import nyquist_filter
-from estel.scattering._plan import PlanarPlan
+from estel.scattering._plan import STPlanSingleDomain
 from estel.synthesis._api import _maps_setup
 from tests.parity._compare import PARITY_RTOL, assert_parity, load_fixture, read_manifest
 
@@ -154,7 +154,7 @@ def test_operators_and_start_with_the_spectrum(
     target = Data2D(backend.asarray(fixture["target"], "float64"), pbc=True)
     setup = _maps_setup(backend, target, (1, 1, *target.shape[2:]), True, True, {"J": J})
     for operator in (setup.target_op, setup.running_op):
-        spectrum = cast(PlanarPlan, operator.plan).spectrum
+        spectrum = cast(STPlanSingleDomain, operator.plan).spectrum
         assert spectrum is not None
         assert operator.J == J
         assert (spectrum.J, spectrum.n_bins, spectrum.Jmin, spectrum.method) == (

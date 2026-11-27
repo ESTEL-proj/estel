@@ -63,10 +63,10 @@ from ..data._moments import cov_sum_valid, divide, gram_sum, modulus, standardiz
 from ..spectra._estimators import spectrum_floats
 from ..statistics._layout import gather_loop, loop_gather, spectrum_pairs
 from ..wavelets._operator import WaveletOperatorSingleDomain
-from ._filters import PlanarFilters, window
+from ._filters import STFiltersSingleDomain, window
 
 if TYPE_CHECKING:
-    from ._plan import ChannelPairs, PlanarPlan
+    from ._plan import ChannelPairs, STPlanSingleDomain
 
 S1_EPSILON = 1e-8
 """ε of the cross S1 terms, ``z / (|z| + ε)^(1/2)`` (maths.md M-S1, OP-16)."""
@@ -191,7 +191,9 @@ def gram_sums(v: Any, band: Any, with_s3: bool, with_s4: bool) -> tuple[Any, Any
 # ---------------------------------------------------------------------- the loop
 
 
-def scattering_values(data: Data, plan: PlanarPlan, filters: PlanarFilters) -> ScatteringValues:
+def scattering_values(
+    data: Data, plan: STPlanSingleDomain, filters: STFiltersSingleDomain
+) -> ScatteringValues:
     """The statistics of ``data`` without normalisation (maths.md M-MOM, M-W1, M-S1 to M-S4, and
     M-PS-2D when the plan holds the power spectrum), STL's ``ST_Operator`` with
     ``norm="vanilla"``.
@@ -272,8 +274,8 @@ def scattering_values(data: Data, plan: PlanarPlan, filters: PlanarFilters) -> S
 def _second_layer(
     backend: Backend,
     wavelets: WaveletOperatorSingleDomain,
-    plan: PlanarPlan,
-    filters: PlanarFilters,
+    plan: STPlanSingleDomain,
+    filters: STFiltersSingleDomain,
     j3: int,
     moduli: dict[int, Any],
     w: Any,

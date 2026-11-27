@@ -25,7 +25,7 @@ from numpy.typing import NDArray
 from estel import Data2D, STOperator, STStatistics, _config
 from estel._spec import cartesian as spec
 from estel.backend import _registry
-from estel.scattering._plan import PlanarPlan, build_plan
+from estel.scattering._plan import STPlanSingleDomain, build_plan
 from estel.statistics import _grid, _layout, _normalization, _statistics
 from estel.statistics._arrays import constant
 from estel.statistics._statistics import statistics_of
@@ -58,7 +58,7 @@ def _matrix(config: dict[str, Any]) -> NDArray[np.bool_] | None:
     return None if matrix is None else np.array(matrix, dtype=bool)
 
 
-def _plan(name: str, field: str = "field", **options: Any) -> PlanarPlan:
+def _plan(name: str, field: str = "field", **options: Any) -> STPlanSingleDomain:
     """The plan of configuration ``name`` with the spectrum, on its field ``field``."""
     config = _configs()[name]
     arrays = _arrays()

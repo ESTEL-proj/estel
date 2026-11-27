@@ -46,7 +46,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 if TYPE_CHECKING:
-    from ..scattering._plan import PlanarPlan, TensorProdPlan
+    from ..scattering._plan import STPlanSingleDomain, STPlanTensorProd
 
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4", "PS")
 """The families of ESTEL 1.0.0, in STL's order (``to_flatten``, M-FLAT): PS last, held only when
@@ -352,7 +352,7 @@ def _family(
     )
 
 
-def base_grids(plan: PlanarPlan) -> tuple[FamilyGrid, ...]:
+def base_grids(plan: STPlanSingleDomain) -> tuple[FamilyGrid, ...]:
     """The layout of the statistics without normalisation (maths.md M-MOM, M-S1 to M-S4,
     M-CHAN, OP-3): what the scattering loop computes, from the plan alone, by chunks. Real
     entries are mean, var, the auto S1 and S2, and the diagonal of S4 (c1 = c2, j1 = j2,
@@ -441,7 +441,7 @@ def spectrum_grid(n_bins: int, pairs: NDArray[np.bool_]) -> FamilyGrid:
     )
 
 
-def auto_scales(plan: PlanarPlan) -> NDArray[np.bool_]:
+def auto_scales(plan: STPlanSingleDomain) -> NDArray[np.bool_]:
     """``(Nc, J)``: where the auto S2 exists, so where the normalisation scale sigma_c(j, l) of
     M-NORM is defined: the channels with auto statistics, at the scales with valid pixels."""
     present = np.array(
@@ -506,7 +506,7 @@ def _from_rows(
     )
 
 
-def tensor_prod_grids(plan: TensorProdPlan) -> tuple[FamilyGrid, ...]:
+def tensor_prod_grids(plan: STPlanTensorProd) -> tuple[FamilyGrid, ...]:
     """The layout of the statistics of a tensor product without normalisation (maths.md
     M-S-TP, M-IDX-TP, M-LP, M-CHAN), from the plan alone, by chunks (Part III, §19.4; task
     T3.6): the chunks are the channel pairs crossed with the Cartesian product of the index
@@ -610,7 +610,7 @@ def tensor_prod_grids(plan: TensorProdPlan) -> tuple[FamilyGrid, ...]:
     )
 
 
-def tensor_prod_auto_scales(plan: TensorProdPlan) -> NDArray[np.bool_]:
+def tensor_prod_auto_scales(plan: STPlanTensorProd) -> NDArray[np.bool_]:
     """``(Nc, J'_0, …, J'_{B-1})``: where the normalisation scale sigma_c(j, l) of M-NORM-TP is
     defined: the channels with auto statistics, at every scale of S1 and S2, the low-pass
     scales included. Its size is that of the channels and the scales, not of the full grid."""

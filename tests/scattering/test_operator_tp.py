@@ -23,7 +23,7 @@ import estel
 from estel import Data1D, Data2D, DataTensorProd, STOperator, STOperatorTensorProd, _config
 from estel.backend import _registry
 from estel.functional import _scattering
-from estel.scattering._plan import TensorProdPlan
+from estel.scattering._plan import STPlanTensorProd
 from estel.statistics._layout import tensor_prod_gather, tensor_prod_layout
 from estel.wavelets._operator_tensor_prod import WaveletOperatorTensorProd
 from tests.parity._compare import assert_parity
@@ -121,7 +121,7 @@ def test_a_wrong_reference_is_refused_before_the_loop(monkeypatch: pytest.Monkey
     operator = STOperatorTensorProd(data, [2, 1])
     other = STOperatorTensorProd(data, [1, 1]).apply(data)
     planar = STOperator(Data2D(_field((1, 1, 16, 16)), pbc=True), 2, compute_PS=False)
-    planar_stats = planar.apply(Data2D(_field((1, 1, 16, 16)), pbc=True))
+    stats_single_domain = planar.apply(Data2D(_field((1, 1, 16, 16)), pbc=True))
 
     def no_loop(name: str) -> Any:
         raise AssertionError("the loop ran before the reference was checked")
@@ -130,7 +130,7 @@ def test_a_wrong_reference_is_refused_before_the_loop(monkeypatch: pytest.Monkey
     with pytest.raises(ValueError, match=r"J = \[1, 1\] \(the operator has \[2, 1\]\)"):
         operator.apply(data, ref=other, norm="ref")
     with pytest.raises(ValueError, match=r"comes from planar statistics"):
-        operator.apply(data, ref=planar_stats, norm="ref")
+        operator.apply(data, ref=stats_single_domain, norm="ref")
     with pytest.raises(ValueError, match=r'norm="ref" needs a reference'):
         operator.apply(data, norm="ref")
 
@@ -147,17 +147,17 @@ def test_parts_of_another_geometry_are_refused(case: str) -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # OP-34 on these small blocks
         of_product = STOperatorTensorProd(product, [1, 1])
-    of_planar = STOperator(planar, 1, compute_PS=False)
+    of_single_domain = STOperator(planar, 1, compute_PS=False)
     if case == "wavelets":
         plan = of_product.plan
-        assert isinstance(plan, TensorProdPlan)
+        assert isinstance(plan, STPlanTensorProd)
         with pytest.raises(TypeError, match=r"WaveletOperatorTensorProd takes a DataTensorProd"):
             WaveletOperatorTensorProd.from_parts(planar, plan.wavelets)
         return
     data, plan, filters = (
-        (planar, of_planar.plan, of_product.filters)
+        (planar, of_single_domain.plan, of_product.filters)
         if case.startswith("planar")
-        else (product, of_product.plan, of_planar.filters)
+        else (product, of_product.plan, of_single_domain.filters)
     )
     with pytest.raises(TypeError, match=r"the plan and the filters come from different operators"):
         estel.functional.scattering(data, plan, filters)
@@ -205,7 +205,7 @@ def test_warnings_of_the_lowpass_filter_and_of_the_borders() -> None:
         operator = STOperatorTensorProd(data, [2, 3])
     assert record[0].filename == __file__
     plan = operator.plan
-    assert isinstance(plan, TensorProdPlan)
+    assert isinstance(plan, STPlanTensorProd)
     assert plan.lowpass_blocks == (True, False)
     assert tuple(operator.apply(data).full_grid("S1").shape[3:]) == (3, 3, 4, 2)
     open_data = DataTensorProd(_field((1, 1, 8, 8, 8)), [Data2D, Data1D], pbc=[False, False])
@@ -219,7 +219,7 @@ def test_warnings_of_the_lowpass_filter_and_of_the_borders() -> None:
 
 
 def test_tables_of_the_loop_grow_with_the_chunks() -> None:
-    """The index and denominator tables of the loop, in the plan (``TensorProdPlan.loop``), and
+    """The index and denominator tables of the loop, in the plan (``STPlanTensorProd.loop``), and
     of its gather (``tensor_prod_gather``)
     hold one entry per chunk of a segment, and the pack of S4 one row per kind of chunk, never
     one per coefficient (issue #23, decisions, point 4): here 2D + 1D + 1D, 16⁴, J = (2, 2, 2),
@@ -232,7 +232,7 @@ def test_tables_of_the_loop_grow_with_the_chunks() -> None:
         warnings.simplefilter("ignore", UserWarning)
         operator = STOperatorTensorProd(data, [2, 2, 2])
     plan = operator.plan
-    assert isinstance(plan, TensorProdPlan)
+    assert isinstance(plan, STPlanTensorProd)
     loop = plan.loop
     n_chunks = sum(
         s.s3_rows.size + s.s4_rows.size + s.s3_denominators.size + s.s4_denominators.size

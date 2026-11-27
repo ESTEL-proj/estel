@@ -1,8 +1,8 @@
 """The static description of the scattering loop of a tensor product (Part II, §12.6; maths.md
 M-W1-TP, M-LP, M-IDX-TP, M-S-TP, M-BORDER-TP; maths_step2.md M-GRAM; task T3.2).
 
-Built once, in NumPy, with the plan (:func:`build_tensor_prod_loop`, called by
-``_plan.build_tensor_prod_statistics_plan``) and held by it (``TensorProdPlan.loop``): the index
+Built once, in NumPy, with the plan (:func:`build_loop_tensor_prod`, called by
+``_plan.build_statistics_plan_tensor_prod``) and held by it (``STPlanTensorProd.loop``): the index
 sets, crop widths and mean denominators live in the plan (AGENTS.md). Never traced. It holds
 what the loop of ``_loop_tp.py`` reads besides the plan of each block:
 
@@ -18,7 +18,7 @@ what the loop of ``_loop_tp.py`` reads besides the plan of each block:
   of S3 and S4 at j3 in the compact layout of T3.6 (``tensor_prod_layout``), with their
   denominators, each the product of per-block counts of pixels (M-BORDER-TP);
 * **the gather**: the order of the channel pairs of the S1 and S2 segments; how the S4 chunks
-  are packed comes from the layout, with the filters (``_filters.build_tensor_prod_filters``).
+  are packed comes from the layout, with the filters (``_filters.build_filters_tensor_prod``).
 
 Every table grows with the number of chunks of a segment and of orientations, never with the
 number of coefficients, and nothing has the size of the full grid (decision 3 of T3.7; issue
@@ -47,16 +47,16 @@ from numpy.typing import NDArray
 from ..wavelets._operator import Box, _read_only, window_box
 from ..wavelets._operator_tensor_prod import WaveletPlanTensorProd
 
-Scale = tuple[int, ...]
+ScaleTensorProd = tuple[int, ...]
 """A multi-index scale j = (j₀, …, j_{B-1}) (maths.md M-NOT-TP)."""
 
 
 class FirstLayerScale(NamedTuple):
     """One scale j of S1 and S2 (maths.md M-W1-TP, M-LP, M-BORDER-TP)."""
 
-    scale: Scale
+    scale: ScaleTensorProd
     """j; j_a = J_a along a block taken at its low-pass scale."""
-    level: Scale
+    level: ScaleTensorProd
     """The level of W_j x, read from the plans of the blocks: the level of scale j_a, or
     ``lowpass_level`` along a block at its low-pass scale."""
     orientations: tuple[int, ...]
@@ -77,10 +77,10 @@ class FirstLayerScale(NamedTuple):
 class SecondLayerScale:
     """The second layer of one wavelet scale j3, at its level (maths.md M-S-TP; M-GRAM)."""
 
-    j3: Scale
-    level: Scale
+    j3: ScaleTensorProd
+    level: ScaleTensorProd
     """The level of j3, read from the plans of the blocks."""
-    arms: tuple[Scale, ...]
+    arms: tuple[ScaleTensorProd, ...]
     """The scales j2 ≤ j3 (componentwise), in the order the loop stacks them: sorted on the
     last block first (``_loop_tp``). The rows of the Gram matrix, with the orientations and
     channels of each arm."""
@@ -100,7 +100,7 @@ class SecondLayerScale:
 
 
 @dataclass(frozen=True, eq=False)
-class TensorProdLoop:
+class LoopTensorProd:
     """The static description of the scattering loop of a tensor product (this module)."""
 
     first_layer: tuple[FirstLayerScale, ...]
@@ -110,7 +110,7 @@ class TensorProdLoop:
     moments_denominator: float
     """The number of pixels of the field, the denominator of mean and var (no border)."""
 
-    def second(self, j3: Scale) -> SecondLayerScale:
+    def second(self, j3: ScaleTensorProd) -> SecondLayerScale:
         """The :class:`SecondLayerScale` of the wavelet scale ``j3``."""
         for found in self.second_layer:
             if found.j3 == j3:
@@ -118,32 +118,32 @@ class TensorProdLoop:
         raise KeyError(f"no wavelet scale {j3} in this plan.")
 
 
-def lexicographic(sizes: tuple[int, ...]) -> list[Scale]:
+def lexicographic(sizes: tuple[int, ...]) -> list[ScaleTensorProd]:
     """Every multi-index of ``sizes``, in lexicographic order, the last block fastest."""
     return [tuple(int(j) for j in index) for index in itertools.product(*(range(n) for n in sizes))]
 
 
-def arm_order(j3: Scale) -> tuple[Scale, ...]:
+def arm_order(j3: ScaleTensorProd) -> tuple[ScaleTensorProd, ...]:
     """The scales j2 ≤ j3 in the order the loop stacks them (``_loop_tp``): at block a, the
     arms already filtered along the blocks before a are concatenated over j2_a, so the last
     block varies slowest."""
     return tuple(sorted(lexicographic(tuple(j + 1 for j in j3)), key=lambda j: j[::-1]))
 
 
-def build_tensor_prod_loop(
+def build_loop_tensor_prod(
     wavelets: WaveletPlanTensorProd,
     pairs_12: tuple[tuple[int, int], ...],
     pairs_34: tuple[tuple[int, int], ...],
     n_channels: int,
-) -> TensorProdLoop:
-    """The :class:`TensorProdLoop` of the blocks ``wavelets`` (their low-pass flags included),
+) -> LoopTensorProd:
+    """The :class:`LoopTensorProd` of the blocks ``wavelets`` (their low-pass flags included),
     with the channel pairs of S1 and S2 and of S3 and S4 (M-CHAN): built once, with the plan
-    (``_plan.build_tensor_prod_statistics_plan``). A border too large for a block warns, from
+    (``_plan.build_statistics_plan_tensor_prod``). A border too large for a block warns, from
     the crops of the blocks (OP-13); the caller gives that warning once.
 
     The chunks of a segment follow the order of the compact layout of T3.6
     (``tensor_prod_layout``): the channel pairs, then the scales, in lexicographic order. The
-    filters check it against the layout when they are built (``build_tensor_prod_filters``)."""
+    filters check it against the layout when they are built (``build_filters_tensor_prod``)."""
     blocks = wavelets.blocks
     n_blocks, nc = len(blocks), n_channels
     J = wavelets.J  # noqa: N806 (maths.md notation)
@@ -162,7 +162,7 @@ def build_tensor_prod_loop(
     def border(a: int, history: tuple[int, ...], level: int) -> int:
         return blocks[a].border(history, level)
 
-    def precedes(j: Scale, k: Scale) -> bool:
+    def precedes(j: ScaleTensorProd, k: ScaleTensorProd) -> bool:
         return all(x <= y for x, y in zip(j, k, strict=True))
 
     ordered_12 = tuple(sorted(pairs_12))
@@ -202,10 +202,12 @@ def build_tensor_prod_loop(
         n_arms = len(arms)
         heads = lexicographic(tuple(j + 1 for j in j3))  # j ≤ j3, in the order of the layout
 
-        def arm_border(a: int, j2: int, level: Scale = level, j3: Scale = j3) -> int:
+        def arm_border(
+            a: int, j2: int, level: ScaleTensorProd = level, j3: ScaleTensorProd = j3
+        ) -> int:
             return border(a, (j2, j3[a]), level[a])
 
-        def band_border(a: int, level: Scale = level, j3: Scale = j3) -> int:
+        def band_border(a: int, level: ScaleTensorProd = level, j3: ScaleTensorProd = j3) -> int:
             return border(a, (j3[a],), level[a])
 
         arm_crops: list[NDArray[np.float64] | None] = []
@@ -254,7 +256,7 @@ def build_tensor_prod_loop(
                 s4_denominators=_read_only(s4_den, np.float64),
             )
         )
-    return TensorProdLoop(
+    return LoopTensorProd(
         first_layer=tuple(first),
         second_layer=tuple(second),
         moments_denominator=float(math.prod(wavelets.spatial_shape)),

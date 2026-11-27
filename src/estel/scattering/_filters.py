@@ -13,8 +13,8 @@ rather than baked in (Part I, §3.1, rules 4 and 7).
 
 ``STFilters`` is public as a name only (Part II, §12.6): users get it from an operator's
 ``filters`` and pass it to ``estel.functional.scattering``. It is the base class of the filters
-of each geometry: :class:`PlanarFilters`, whose fields are those of the private base class
-``_FilterFields``, and :class:`TensorProdFilters` (task T3.2). Each is a named tuple, so JAX
+of each geometry: :class:`STFiltersSingleDomain`, whose fields are those of the private base class
+``_FilterFields``, and :class:`STFiltersTensorProd` (task T3.2). Each is a named tuple, so JAX
 takes it as a pytree whose leaves are the arrays.
 """
 
@@ -32,10 +32,10 @@ from ..spectra._estimators import SpectrumFilters, build_spectrum_filters
 from ..statistics._layout import ChunkTables, loop_gather, tensor_prod_gather
 from ..wavelets._operator import MeanWeights, WaveletFilters
 from ..wavelets._operator_tensor_prod import build_wavelet_filters_tensor_prod
-from ._tensor_prod import Scale
+from ._tensor_prod import ScaleTensorProd
 
 if TYPE_CHECKING:
-    from ._plan import PlanarPlan, TensorProdPlan
+    from ._plan import STPlanSingleDomain, STPlanTensorProd
 
 
 class _FilterFields(NamedTuple):
@@ -78,8 +78,8 @@ class STFilters:
     Get it from ``STOperator.filters`` or ``STOperatorTensorProd.filters`` and pass it, with the
     operator's plan, to ``estel.functional.scattering``. Its arrays are on the operator's
     backend, dtype and device; it has no public field. The filters of each geometry are a
-    subclass, internal to ESTEL, and a named tuple: :class:`PlanarFilters` for single-domain data,
-    :class:`TensorProdFilters` for tensor products. Its one hook, :attr:`_any_array`, gives
+    subclass, internal to ESTEL, and a named tuple: :class:`STFiltersSingleDomain` for single-domain data,
+    :class:`STFiltersTensorProd` for tensor products. Its one hook, :attr:`_any_array`, gives
     their backend and dtype; the plan builds them (``STPlan._build_filters``; issue #144).
     """
 
@@ -92,7 +92,7 @@ class STFilters:
         raise NotImplementedError
 
 
-class PlanarFilters(_FilterFields, STFilters):
+class STFiltersSingleDomain(_FilterFields, STFilters):
     """The :class:`STFilters` of single-domain data, 1D, 2D and HEALPix (``STOperator.filters``),
     built by :func:`build_filters`; its fields are those of ``_FilterFields``."""
 
@@ -121,8 +121,8 @@ def window(weights: MeanWeights, array: Any) -> Any:
 
 
 def build_filters(
-    plan: PlanarPlan, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
-) -> PlanarFilters:
+    plan: STPlanSingleDomain, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
+) -> STFiltersSingleDomain:
     """The filters of ``plan`` on the backend ``backend_name``, cast once to ``dtype`` on
     ``device`` (Part I, §3.1, rules 4 and 7); ``tables``, those the plan was built with
     (``build_plan_with_tables``), go to the filters of its wavelets."""
@@ -137,7 +137,7 @@ def build_filters(
     def boolean(a: NDArray[Any]) -> Any:
         return backend.asarray(np.asarray(a, dtype=bool), "bool", device)
 
-    return PlanarFilters(
+    return STFiltersSingleDomain(
         wavelets=plan.wavelets._build_filters(backend_name, dtype, device, tables),
         valid=None if plan.mask is None else boolean(~plan.mask),
         moments=weights(plan.moments),
@@ -159,30 +159,30 @@ def build_filters(
 # ---------------------------------------------------------------------- tensor products
 
 
-class _TensorProdFilterFields(NamedTuple):
-    """The fields of :class:`TensorProdFilters`, internal to ESTEL."""
+class _FilterFieldsTensorProd(NamedTuple):
+    """The fields of :class:`STFiltersTensorProd`, internal to ESTEL."""
 
     wavelets: tuple[WaveletFilters, ...]
     """The arrays of the wavelet operator of each block: its bank and smoothing kernel."""
-    arm_crops: dict[Scale, tuple[Any, ...]]
+    arm_crops: dict[ScaleTensorProd, tuple[Any, ...]]
     """Per wavelet scale j3, per block, the crops of the arms along that block,
     ``(n_arms, *shape of the block)``, or ``None`` (``SecondLayerScale.arm_crops``)."""
-    band_crops: dict[Scale, tuple[Any, ...]]
+    band_crops: dict[ScaleTensorProd, tuple[Any, ...]]
     """Per wavelet scale j3, per block, the crop of the band map, or ``None``."""
-    s3_rows: dict[Scale, Any]
+    s3_rows: dict[ScaleTensorProd, Any]
     """Per j3, the rows of the S3 sums that are the chunks of its segment (int32)."""
-    s3_denominators: dict[Scale, Any]
+    s3_denominators: dict[ScaleTensorProd, Any]
     """Per j3, their denominators, in the operator's dtype."""
-    s4_rows: dict[Scale, Any]
-    s4_denominators: dict[Scale, Any]
+    s4_rows: dict[ScaleTensorProd, Any]
+    s4_denominators: dict[ScaleTensorProd, Any]
     s4_pack: ChunkTables
     """The tables of the packing of S4 into its floats (``statistics._layout.pack``)."""
 
 
-class TensorProdFilters(_TensorProdFilterFields, STFilters):
+class STFiltersTensorProd(_FilterFieldsTensorProd, STFilters):
     """The :class:`STFilters` of a tensor product (Part II, §12.6; task T3.2): what
     ``STOperatorTensorProd.filters`` gives. Backend arrays in the operator's dtype, built once
-    from the plan (:func:`build_tensor_prod_filters`); a named tuple, so that JAX takes it as a
+    from the plan (:func:`build_filters_tensor_prod`); a named tuple, so that JAX takes it as a
     pytree whose leaves are the arrays. Its tables grow with the chunks of the segments and
     with the pixels of one block, never with the coefficients."""
 
@@ -193,9 +193,9 @@ class TensorProdFilters(_TensorProdFilterFields, STFilters):
         return self.wavelets[0]._any_array
 
 
-def build_tensor_prod_filters(
-    plan: TensorProdPlan, backend_name: str, dtype: FloatDType, device: Any
-) -> TensorProdFilters:
+def build_filters_tensor_prod(
+    plan: STPlanTensorProd, backend_name: str, dtype: FloatDType, device: Any
+) -> STFiltersTensorProd:
     """The filters of the tensor-product plan ``plan`` on the backend ``backend_name``, cast
     once to ``dtype`` on ``device`` (Part I, §3.1, rules 4 and 7)."""
     backend = _registry.backend_named(backend_name)
@@ -211,7 +211,7 @@ def build_tensor_prod_filters(
 
     second = loop.second_layer
     pack = tensor_prod_gather(plan)
-    return TensorProdFilters(
+    return STFiltersTensorProd(
         wavelets=build_wavelet_filters_tensor_prod(plan.wavelets, backend_name, dtype, device),
         arm_crops={s.j3: tuple(real(c) for c in s.arm_crops) for s in second},
         band_crops={s.j3: tuple(real(c) for c in s.band_crops) for s in second},

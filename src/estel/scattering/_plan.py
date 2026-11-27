@@ -75,8 +75,8 @@ T2.19).
 
 **Public and opaque.** ``STPlan`` is public as a name only (Part II, §12.6): users get it
 from an operator's ``plan`` and pass it to ``estel.functional.scattering``, and it has no public
-field. It is the base class of the plan of each geometry: :class:`PlanarPlan`, whose fields are
-those of the private base class ``_PlanFields``, and :class:`TensorProdPlan` (task T3.2), both
+field. It is the base class of the plan of each geometry: :class:`STPlanSingleDomain`, whose fields are
+those of the private base class ``_PlanFields``, and :class:`STPlanTensorProd` (task T3.2), both
 read by ESTEL only.
 
 A mean with no pixel left is where STL divides by zero, and its coefficient is NaN (M-MEAN,
@@ -124,15 +124,15 @@ from ..wavelets._operator import (
 )
 from ..wavelets._operator_tensor_prod import WaveletPlanTensorProd, build_wavelet_plan_tensor_prod
 from ._filters import (
-    PlanarFilters,
     STFilters,
-    TensorProdFilters,
+    STFiltersSingleDomain,
+    STFiltersTensorProd,
     build_filters,
-    build_tensor_prod_filters,
+    build_filters_tensor_prod,
 )
 from ._loop import ScatteringValues, scattering_values
-from ._loop_tp import tensor_prod_values
-from ._tensor_prod import TensorProdLoop, build_tensor_prod_loop
+from ._loop_tp import values_tensor_prod
+from ._tensor_prod import LoopTensorProd, build_loop_tensor_prod
 
 ChannelPair = tuple[int, int]
 
@@ -179,7 +179,7 @@ class SpectrumPlan:
     bins", "Choice of estimator"; tasks T4.4, T4.1): how many bins, J, J_min, the estimator
     chosen at construction, and the spatial shape whose bins, windows and borders it reads
     (:meth:`bins`, ``spectra._bins.log_gaussian_bins``, built once in NumPy). Hashable. In the
-    plan of ``STOperator`` its channel pairs are those of the plan (``PlanarPlan.pairs``): the
+    plan of ``STOperator`` its channel pairs are those of the plan (``STPlanSingleDomain.pairs``): the
     pairs c1 ≤ c2 of S1 and S2, one matrix for the scattering statistics and the spectrum
     (M-CHAN; decision on #148); σᴾˢ exists for the channels of ``pairs.auto`` (M-NORM, OP-30)."""
 
@@ -344,8 +344,8 @@ class STPlan(_SharedFields):
     Get it from ``STOperator.plan`` or ``STOperatorTensorProd.plan`` and pass it, with the
     operator's filters, to ``estel.functional.scattering``. It is immutable and hashable, so
     that JAX can take it as a static argument; it has no public field. The plan of each
-    geometry is a subclass, internal to ESTEL: :class:`PlanarPlan` for single-domain data (1D,
-    2D and HEALPix), :class:`TensorProdPlan` for tensor products (task T3.2). Two plans are
+    geometry is a subclass, internal to ESTEL: :class:`STPlanSingleDomain` for single-domain data (1D,
+    2D and HEALPix), :class:`STPlanTensorProd` for tensor products (task T3.2). Two plans are
     equal, and hash equal, when they are of one class and were built from the same parameters
     and the same static metadata of the data (geometry, spatial shape, ``pbc``, mask, number of
     channels; on HEALPix, ``depth`` and ``cell_ids``;
@@ -493,7 +493,7 @@ class _PlanFields:
     meta: tuple[Any, ...]
     """The static metadata of the data beyond the mask and ``pbc``, ``Data._meta()`` of the
     example: ``()`` for 1D and 2D data, ``(depth, cell_ids)`` for ``DataHealpix``. The data
-    given to the plan must have the same (:meth:`PlanarPlan._check_data`), and the files store it
+    given to the plan must have the same (:meth:`STPlanSingleDomain._check_data`), and the files store it
     (``Data._meta_content``). The equality and the hash of plans rest on the wavelet plan
     (``wavelets._key``, in ``_key``), which holds the same metadata; ``meta`` is what
     ``_check_data`` and the files read."""
@@ -505,14 +505,14 @@ class _PlanFields:
     writes it after the values of the loop, the last floats of the buffer (task T4.1)."""
 
 
-class PlanarPlan(_PlanFields, STPlan):
+class STPlanSingleDomain(_PlanFields, STPlan):
     """The :class:`STPlan` of single-domain data, 1D, 2D and HEALPix (``STOperator.plan``),
     built by :func:`build_plan`; its fields are those of ``_PlanFields``."""
 
     _operator_name: ClassVar[str] = "STOperator"
 
     def _check_data(self, data: Data, filters: STFilters) -> None:
-        if not isinstance(filters, PlanarFilters):
+        if not isinstance(filters, STFiltersSingleDomain):
             raise TypeError(_OTHER_OPERATORS)
         if data.mask is None or self.mask is None:
             same_mask = data.mask is None and self.mask is None
@@ -542,11 +542,11 @@ class PlanarPlan(_PlanFields, STPlan):
 
     def _build_filters(
         self, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
-    ) -> PlanarFilters:
+    ) -> STFiltersSingleDomain:
         return build_filters(self, backend_name, dtype, device, tables)
 
     def _values(self, data: Data, filters: STFilters) -> ScatteringValues:
-        return scattering_values(data, self, cast(PlanarFilters, filters))  # by _check_data
+        return scattering_values(data, self, cast(STFiltersSingleDomain, filters))  # by _check_data
 
     def _layout(self) -> Layout:
         return base_layout(self)
@@ -605,7 +605,7 @@ def build_plan(
     n_bins: int | None = None,
     Jmin: int = 0,  # noqa: N803 (STL's name)
     spectrum_method: str = "auto",
-) -> PlanarPlan:
+) -> STPlanSingleDomain:
     """The plan of :func:`build_plan_with_tables`, without the tables of its wavelets."""
     return build_plan_with_tables(
         data,
@@ -633,8 +633,8 @@ def build_plan_with_tables(
     n_bins: int | None = None,
     Jmin: int = 0,  # noqa: N803 (STL's name)
     spectrum_method: str = "auto",
-) -> tuple[PlanarPlan, Any]:
-    """The :class:`PlanarPlan` of a scattering transform with ``J`` scales and ``L``
+) -> tuple[STPlanSingleDomain, Any]:
+    """The :class:`STPlanSingleDomain` of a scattering transform with ``J`` scales and ``L``
     orientations on data with the geometry, spatial shape, ``pbc``, mask and number of channels
     of ``data``; by default J and L are those of the geometry (M-DEF, M-DEF-1D) and the kernel
     size that of the wavelets of the geometry (``kernel_size=None``).
@@ -655,7 +655,7 @@ def build_plan_with_tables(
     their defaults (decision on #148).
 
     Beside the plan, the NumPy tables its wavelets were built with
-    (:func:`build_wavelet_plan_with_tables`), for :meth:`PlanarPlan._build_filters` of the same
+    (:func:`build_wavelet_plan_with_tables`), for :meth:`STPlanSingleDomain._build_filters` of the same
     operator (``tables=``; task T5.7): a value, not part of the plan.
     """
     if not isinstance(data, Data):
@@ -701,7 +701,7 @@ def build_plan_with_tables(
     s3 = {(j2, j3): weights[("S3", j2, j3)] for j2, j3 in s3_pairs if ("S3", j2, j3) in weights}
     s4 = {t: weights[("S4", *t)] for t in s4_triples if ("S4", *t) in weights}
 
-    plan = PlanarPlan(
+    plan = STPlanSingleDomain(
         geometry=wavelets.geometry,
         J=wavelets.J,
         L=wavelets.L,
@@ -818,19 +818,19 @@ def _spectrum(
 
 # ---------------------------------------------------------------------- tensor products
 
-LOWPASS_TP = ("ST", None)
+LOWPASS_TENSOR_PROD = ("ST", None)
 """The values of ``lowpass`` of a tensor product in ESTEL 1.0.0 (maths.md M-LP): ``"ST"``, the
 low-pass filter of each block where it exists, or ``None``. ESTEL 1.0.0 has no tensor-product
 spectrum, so STL's ``"PS"`` and ``("ST", "PS")`` are not taken."""
 
 
 @dataclass(frozen=True, eq=False)
-class TensorProdPlan(STPlan):
+class STPlanTensorProd(STPlan):
     """The static description of the statistics of a tensor product (maths.md M-NOT-TP, M-LP,
     M-IDX-TP, M-CHAN; Part II, §12.6; task T3.6): what the compact layout, the normalisation and
     the files need, and the static description of the loop of task T3.2 (:attr:`loop`).
 
-    Built by :func:`build_tensor_prod_statistics_plan` from the plan of the wavelet operator of
+    Built by :func:`build_statistics_plan_tensor_prod` from the plan of the wavelet operator of
     the tensor product (``WaveletPlanTensorProd``, task T3.1); NumPy only, immutable and
     hashable. Its index sets are those of each block (M-IDX-TP): the index set of the tensor
     product is their Cartesian product, which the layout enumerates chunk by chunk, never as a
@@ -856,7 +856,7 @@ class TensorProdPlan(STPlan):
     spatial_shape: tuple[int, ...]
     """The spatial shape of the data at full resolution, the axes of every block in order."""
     lowpass: str | None
-    """``"ST"`` or ``None`` (:data:`LOWPASS_TP`)."""
+    """``"ST"`` or ``None`` (:data:`LOWPASS_TENSOR_PROD`)."""
     lowpass_blocks: tuple[bool, ...]
     """Whether each block has a low-pass filter (M-LP): ``lowpass="ST"`` and every size of the
     block divisible by 2^J_a."""
@@ -868,7 +868,7 @@ class TensorProdPlan(STPlan):
     """The channel pairs of each family (M-CHAN)."""
     standardize: bool
     """Whether each map is standardised before the transform (M-MOM, M-STD)."""
-    loop: TensorProdLoop
+    loop: LoopTensorProd
     """The static description of the loop (``_tensor_prod``; task T3.2): per scale, the
     windows and denominators of S1 and S2; per wavelet scale j3, the arms, the crops of the
     blocks, and the rows and denominators of the chunks of S3 and S4. Determined by the other
@@ -897,7 +897,7 @@ class TensorProdPlan(STPlan):
         return orientations_at(scale, self.J, self.L)
 
     def _check_data(self, data: Data, filters: STFilters) -> None:
-        if not isinstance(filters, TensorProdFilters):
+        if not isinstance(filters, STFiltersTensorProd):
             raise TypeError(_OTHER_OPERATORS)
         # A DataTensorProd (isinstance), whose blocks L2 reads without importing its class
         # (Part I, §2.4).
@@ -918,12 +918,12 @@ class TensorProdPlan(STPlan):
 
     def _build_filters(
         self, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
-    ) -> TensorProdFilters:
+    ) -> STFiltersTensorProd:
         # A tensor product builds no tables with its plan: ``tables`` is None.
-        return build_tensor_prod_filters(self, backend_name, dtype, device)
+        return build_filters_tensor_prod(self, backend_name, dtype, device)
 
     def _values(self, data: Data, filters: STFilters) -> ScatteringValues:
-        return tensor_prod_values(data, self, cast(TensorProdFilters, filters))  # by _check_data
+        return values_tensor_prod(data, self, cast(STFiltersTensorProd, filters))  # by _check_data
 
     def _layout(self) -> Layout:
         return tensor_prod_layout(self)
@@ -962,7 +962,7 @@ class TensorProdPlan(STPlan):
         return content, {}
 
 
-def build_tensor_prod_statistics_plan(
+def build_statistics_plan_tensor_prod(
     data: Data,
     J: Any = None,  # noqa: N803 (maths.md notation)
     L: Any = None,  # noqa: N803
@@ -972,13 +972,13 @@ def build_tensor_prod_statistics_plan(
     cross_matrix: Any = None,
     standardize: bool = False,
     stacklevel: int = 1,
-) -> TensorProdPlan:
-    """The :class:`TensorProdPlan` of a ``DataTensorProd``, with one J and one L per block
+) -> STPlanTensorProd:
+    """The :class:`STPlanTensorProd` of a ``DataTensorProd``, with one J and one L per block
     (M-DATA-TP, M-DEF-TP: a list, an entry ``None`` giving the default of the block). The values
     of ``data`` are not read. ``lowpass`` is ``"ST"`` (STL's default) or ``None`` (M-LP);
     ``cross_matrix`` and ``standardize`` are those of
     :func:`build_plan`. The static description of the loop, its index tables, crop widths and
-    mean denominators, is built here too (:attr:`TensorProdPlan.loop`).
+    mean denominators, is built here too (:attr:`STPlanTensorProd.loop`).
 
     Warns once, as STL does, for each block whose sizes are not divisible by 2^J_a: it has no
     low-pass filter (M-LP, OP-34); and once for the plan when a border is too large for a block
@@ -989,7 +989,7 @@ def build_tensor_prod_statistics_plan(
             f"the statistics of a tensor product take a DataTensorProd, got "
             f"{type(data).__name__}; for 1D, 2D and HEALPix data, use build_plan."
         )
-    if isinstance(lowpass, bool) or lowpass not in LOWPASS_TP:
+    if isinstance(lowpass, bool) or lowpass not in LOWPASS_TENSOR_PROD:
         raise ValueError(
             f'lowpass={lowpass!r}: pass "ST" (the low-pass filter of each block, the default) '
             'or None (maths.md M-LP); ESTEL 1.0.0 has no tensor-product spectrum, so "PS" is '
@@ -1006,7 +1006,7 @@ def build_tensor_prod_statistics_plan(
     # gives the first of these warnings, once, as the planar plan does (mean_weights).
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        loop = build_tensor_prod_loop(
+        loop = build_loop_tensor_prod(
             wavelets,
             tuple({(c, c) for c in pairs.auto} | set(pairs.cross)),
             pairs.ordered,
@@ -1016,7 +1016,7 @@ def build_tensor_prod_statistics_plan(
         warnings.warn(caught[0].message, stacklevel=stacklevel + 1)
     flags = list(wavelets.lowpass_blocks)
     scales = tuple(range(block.J) for block in wavelets.blocks)
-    return TensorProdPlan(
+    return STPlanTensorProd(
         geometry=type(data),
         wavelets=wavelets,
         block_geometries=tuple(b.geometry for b in wavelets.blocks),

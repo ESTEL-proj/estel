@@ -40,13 +40,13 @@ from ..functional._scattering import apply_operator
 from ..statistics._arrays import dtype_name
 from ..statistics._normalization import _NormReference
 from ..statistics._statistics import STStatistics
-from ._filters import PlanarFilters, STFilters, TensorProdFilters
+from ._filters import STFilters, STFiltersSingleDomain, STFiltersTensorProd
 from ._plan import (
-    PlanarPlan,
     STPlan,
-    TensorProdPlan,
+    STPlanSingleDomain,
+    STPlanTensorProd,
     build_plan_with_tables,
-    build_tensor_prod_statistics_plan,
+    build_statistics_plan_tensor_prod,
     spectrum_2d_only,
 )
 
@@ -103,14 +103,14 @@ class STOperator:
         1.0.0.
     """
 
-    _plan: PlanarPlan | TensorProdPlan
-    _filters: PlanarFilters | TensorProdFilters
+    _plan: STPlanSingleDomain | STPlanTensorProd
+    _filters: STFiltersSingleDomain | STFiltersTensorProd
     _backend: str
     _dtype: FloatDType
     _device: Any
     _engine: str
     _reference: _NormReference | None
-    _plan_type: ClassVar[type[PlanarPlan] | type[TensorProdPlan]] = PlanarPlan
+    _plan_type: ClassVar[type[STPlanSingleDomain] | type[STPlanTensorProd]] = STPlanSingleDomain
     """The plan of the operator's geometry, which :meth:`from_statistics` takes."""
     _other_statistics: ClassVar[str] = (
         "these are the statistics of a tensor product, which STOperator does not compute: use "
@@ -173,7 +173,7 @@ class STOperator:
 
     def _setup(
         self,
-        plan: PlanarPlan | TensorProdPlan,
+        plan: STPlanSingleDomain | STPlanTensorProd,
         backend: str,
         dtype: FloatDType,
         device: Any,
@@ -268,7 +268,7 @@ class STOperator:
         return stats
 
     def __repr__(self) -> str:
-        plan = _plan_of(self, PlanarPlan)
+        plan = _plan_of(self, STPlanSingleDomain)
         return (
             f"STOperator(J={plan.J}, L={plan.L}, compute_PS={plan.spectrum is not None}, "
             f"standardize={plan.standardize}, "
@@ -319,7 +319,7 @@ class STOperatorTensorProd(STOperator):
         1.0.0.
     """
 
-    _plan_type = TensorProdPlan
+    _plan_type = STPlanTensorProd
     _other_statistics = (
         "these are the statistics of single-domain data: use STOperator.from_statistics(stats)."
     )
@@ -350,7 +350,7 @@ class STOperatorTensorProd(STOperator):
                     type(data).__name__, "Pass compute_PS=False, or leave it to None."
                 )
             )
-        plan = build_tensor_prod_statistics_plan(
+        plan = build_statistics_plan_tensor_prod(
             data,
             J,
             L,
@@ -367,10 +367,10 @@ class STOperatorTensorProd(STOperator):
     @property
     def lowpass(self) -> str | None:
         """``"ST"`` or ``None`` (maths.md M-LP)."""
-        return _plan_of(self, TensorProdPlan).lowpass
+        return _plan_of(self, STPlanTensorProd).lowpass
 
     def __repr__(self) -> str:
-        plan = _plan_of(self, TensorProdPlan)
+        plan = _plan_of(self, STPlanTensorProd)
         names = ", ".join(g.__name__ for g in plan.block_geometries)
         return (
             f"STOperatorTensorProd(J={list(plan.J)}, L={list(plan.L)}, "
@@ -381,7 +381,7 @@ class STOperatorTensorProd(STOperator):
         )
 
 
-_P = TypeVar("_P", PlanarPlan, TensorProdPlan)
+_P = TypeVar("_P", STPlanSingleDomain, STPlanTensorProd)
 
 
 def _plan_of(operator: STOperator, kind: type[_P]) -> _P:
@@ -407,7 +407,7 @@ def _as_numpy(matrix: Any) -> Any:
     return matrix if name is None else _registry.backend_named(name).to_numpy(matrix)
 
 
-def _warn_channels_without_auto(plan: PlanarPlan | TensorProdPlan) -> None:
+def _warn_channels_without_auto(plan: STPlanSingleDomain | STPlanTensorProd) -> None:
     """STL's warning of the channels without auto statistics (maths.md M-CHAN, OP-30), given
     once, at construction, which knows the channel pairs; the normalisation is chosen later, at
     each call, so the warning says what happens if the statistics are normalised. It covers
