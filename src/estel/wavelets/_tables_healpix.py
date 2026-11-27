@@ -60,9 +60,9 @@ the pixel axis of a map ``x`` of shape ``(..., Npix)`` whose pixels are ``cell_i
       z = gather_weighted(x, -1, index, weight)       # (..., nnz, 1)
       y = segment_sum(z[..., 0], -1, segment_ids, len(cell_ids_out))   # (..., Npix_coarse)
 
-``tests/geometry/test_healpix_geometry.py`` checks each geometry function against healpy (in the
+``tests/geometry/test_geometry_healpix.py`` checks each geometry function against healpy (in the
 tests only, Part I, §1.5) and the rotations against M-CONV-HEALPIX, step 2;
-``tests/parity/test_healpix_tables.py`` checks the tables, as operators (OP-92), against STL's
+``tests/parity/test_tables_healpix.py`` checks the tables, as operators (OP-92), against STL's
 fixtures (T5.3).
 """
 

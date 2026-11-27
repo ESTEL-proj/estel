@@ -1,7 +1,7 @@
 """Parity of ``STOperator`` on HEALPix data with STL ``HealpixUpdate`` (task T5.6, issue #167;
 maths.md §4 "Scattering loop", M-DATA-HEALPIX, M-MASK-HEALPIX; section 1 from M-MEAN to M-FLAT).
 
-The fixture ``statistics_hpx`` (T5.3, STL ``HealpixUpdate`` at ``90eb1a9``) holds, for each
+The fixture ``statistics_healpix`` (T5.3, STL ``HealpixUpdate`` at ``90eb1a9``) holds, for each
 configuration: STL's statistics without normalisation (``vanilla``), with ``norm="store_ref"``
 on a target field (``store``) and the reference its operator stored (``var_ref``, ``s2_ref``),
 the statistics of a second field with ``norm="load_ref"`` and that reference (``load``), the
@@ -18,7 +18,7 @@ The configurations compared with STL are the full skies, ``full_8``, ``full_16_c
 operator (OP-102), with ``ref_batch_mean=True``. The partial skies ``disc_16`` and
 ``disc_nan_16`` are not compared with STL, whose values at the edge of a partial sky are set by
 its rounding (OP-110; decision 3 of the maintainer on #26 and #165): they are compared with the
-oracle (``tests/spec/test_healpix_scattering.py``).
+oracle (``tests/spec/test_scattering_healpix.py``).
 
 Tiers (Part I, §5.4; decision 7 on #167): ``full_8`` in the fast tier, in float32 too
 (``dtype``), the representative parity case of HEALPix. Slow: the two configurations of
@@ -43,7 +43,7 @@ from estel import DataHealpix, STOperator, STStatistics, _config
 from estel.backend._protocol import DType
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
-CASE = "statistics_hpx"
+CASE = "statistics_healpix"
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
 REDUCED = {
     "iso": ("S1", "S2", "S3", "S4"),
@@ -53,7 +53,7 @@ REDUCED = {
     "iso_angular_scale": ("S3", "S4"),
 }
 COMPARED_WITH_STL = ("full_8", "full_16_cross", "nan_16")
-"""The configurations of ``statistics_hpx`` compared with STL: every full sky (OP-110)."""
+"""The configurations of ``statistics_healpix`` compared with STL: every full sky (OP-110)."""
 MARKS = {
     "full_8": (pytest.mark.dtype,),
     "full_16_cross": (pytest.mark.slow,),  # nside 16: three operators over the budget

@@ -7,7 +7,7 @@ The oracle has its own geometry, written from maths.md §4 (T5.4); ESTEL applies
 ported from ``TorchGeometry`` (T5.1). Both apply the partial-sky rule of M-CONV-HEALPIX with the
 threshold of OP-110, so the discs are compared on every row, unlike STL's fixtures. The maps
 and the pixels are those of STL's fixtures (T5.3), so the domains are the ones of
-``tests/parity/test_healpix_operator.py``. Compared with ``assert_parity`` in the run's dtype.
+``tests/parity/test_operator_healpix.py``. Compared with ``assert_parity`` in the run's dtype.
 
 A disagreement is a finding about ``docs/maths.md``, the oracle or the port: report the
 coefficients on an issue, change nothing to make a test pass.
@@ -36,7 +36,7 @@ DOMAINS = [
     pytest.param("full_16", marks=pytest.mark.slow),
     pytest.param("disc_16", marks=pytest.mark.slow),
 ]
-"""The domains of ``operators_hpx``. Slow: ``nside`` 16, the oracle's naive tables and
+"""The domains of ``operators_healpix``. Slow: ``nside`` 16, the oracle's naive tables and
 decimation take about 0.3 s, over the budget with ESTEL's (decision 4 on #165)."""
 
 
@@ -51,12 +51,12 @@ def _numpy(x: Any) -> NDArray[Any]:
 
 @functools.cache
 def _operators() -> dict[str, NDArray[Any]]:
-    return load_fixture("operators_hpx")
+    return load_fixture("operators_healpix")
 
 
 @functools.cache
 def _statistics() -> dict[str, NDArray[Any]]:
-    return load_fixture("statistics_hpx")
+    return load_fixture("statistics_healpix")
 
 
 def _domain(name: str) -> tuple[int, NDArray[np.int64] | None, NDArray[np.float64]]:
@@ -139,7 +139,7 @@ def test_masks_equal_the_oracle_at_nside_8(sky: str, dtype: DType) -> None:
 @pytest.mark.parametrize("dtype", ["float64"])  # the masks are float64 in every dtype
 @pytest.mark.parametrize("name", ["nan_16", "disc_nan_16"])
 def test_masks_equal_the_oracle_on_the_masked_configurations(name: str, dtype: DType) -> None:
-    """The two masked configurations of ``statistics_hpx``, ``nside`` 16, J = 3.
+    """The two masked configurations of ``statistics_healpix``, ``nside`` 16, J = 3.
 
     Slow: ``nside`` 16, the oracle's naive tables (decision 4 on #165)."""
     fixture = _statistics()

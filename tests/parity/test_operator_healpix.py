@@ -2,10 +2,10 @@
 #166; maths.md M-CONV-HEALPIX, M-DOWN-HEALPIX, M-MASK-HEALPIX, OP-110).
 
 Through the operator the scattering loop will use (``apply``, ``downsample``, the masks of the
-plan), against the fixtures of T5.3: the responses of ``operators_hpx`` to 3 random maps, and the
-static masks and reweighting maps of ``statistics_hpx``. ``tests/parity/test_healpix_tables.py``
-checks the tables of T5.1 alone, applied in NumPy; this module checks their application by the
-hooks, on the backend and in the run's dtype.
+plan), against the fixtures of T5.3: the responses of ``operators_healpix`` to 3 random maps, and
+the static masks and reweighting maps of ``statistics_healpix``.
+``tests/parity/test_tables_healpix.py`` checks the tables of T5.1 alone, applied in NumPy; this
+module checks their application by the hooks, on the backend and in the run's dtype.
 
 The full skies are compared on every row; the discs on every (gauge, pixel) row that is not
 ill-conditioned (maths.md OP-110; decision 3 on #165): STL's values there are set by rounding.
@@ -26,7 +26,7 @@ from estel.backend._protocol import DType
 from estel.wavelets._operator import WaveletOperatorSingleDomain, build_wavelet_plan
 from estel.wavelets._operator_healpix import WaveletPlanHealpix
 from tests.parity._compare import assert_parity, load_fixture
-from tests.parity.test_healpix_tables import EXCLUDED_ROWS, _well_conditioned_rows
+from tests.parity.test_tables_healpix import EXCLUDED_ROWS, _well_conditioned_rows
 
 DOMAINS = [
     pytest.param("full_8", marks=pytest.mark.dtype),
@@ -34,7 +34,7 @@ DOMAINS = [
     "full_16",
     "disc_16",
 ]
-"""The domains of ``operators_hpx``; the representative cases of ``nside`` 8 also run in
+"""The domains of ``operators_healpix``; the representative cases of ``nside`` 8 also run in
 float32 in the fast tier (``dtype``), those of ``nside`` 16 in float64 there."""
 
 
@@ -49,16 +49,16 @@ def _numpy(x: Any) -> NDArray[Any]:
 
 @functools.cache
 def _operators() -> dict[str, NDArray[Any]]:
-    return load_fixture("operators_hpx")
+    return load_fixture("operators_healpix")
 
 
 @functools.cache
 def _statistics() -> dict[str, NDArray[Any]]:
-    return load_fixture("statistics_hpx")
+    return load_fixture("statistics_healpix")
 
 
 def _operator(name: str, J: int) -> WaveletOperatorSingleDomain:  # noqa: N803
-    """The operator of a domain of ``operators_hpx``, on its 3 maps as 3 batch elements."""
+    """The operator of a domain of ``operators_healpix``, on its 3 maps as 3 batch elements."""
     fixture = _operators()
     ids = fixture[f"{name}_cell_ids"].astype(np.int64)
     maps = fixture[f"{name}_maps"][:, None]  # (3, 1, Npix)

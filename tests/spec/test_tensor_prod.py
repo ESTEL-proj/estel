@@ -1,16 +1,16 @@
 """The oracle of tensor products against STL's parity fixtures (task T3.3, issue #126; maths.md
 section 3; Part I, §4.2 and §5.1; Part II, §12.11 and §14.3).
 
-The fixtures of T3.4 (``scattering_tp``, ``statistics_tp``, STL `2D+1D` at ``8f51143``) hold
-STL's statistics of tensor-product fields. The oracle ``spec_apply_tensor_prod`` runs on the same
-fields, with the parameters the manifest records, and every stored array is compared with
-``assert_parity``: same full-grid shape, NaN at the same positions, values within the float64
-tolerances of Part II, §14.3 (for ``mean``, atol = 0.1 x rtol x sqrt(max(var))). The oracle
+The fixtures of T3.4 (``scattering_tensor_prod``, ``statistics_tensor_prod``, STL `2D+1D` at
+``8f51143``) hold STL's statistics of tensor-product fields. The oracle ``spec_apply_tensor_prod``
+runs on the same fields, with the parameters the manifest records, and every stored array is
+compared with ``assert_parity``: same full-grid shape, NaN at the same positions, values within the
+float64 tolerances of Part II, §14.3 (for ``mean``, atol = 0.1 x rtol x sqrt(max(var))). The oracle
 brings the field to the level of a scale in every block first, STL interleaves the
 downsamplings and the block convolutions (M-W1-TENSORPROD): the difference is rounding.
 
-Every test runs in the fast tier, except case D of ``scattering_tp`` (three blocks), which runs
-in the full tier.
+Every test runs in the fast tier, except case D of ``scattering_tensor_prod`` (three blocks), which
+runs in the full tier.
 
 A disagreement is a finding about ``docs/maths.md`` or about the oracle: do not change the
 oracle, a fixture or a tolerance to make a test pass; report the M- ID, the configuration and
@@ -64,7 +64,7 @@ def _parameters(case: str) -> dict[str, Any]:
 
 def _scattering_runs() -> list[Any]:
     out = []
-    for name, config in _parameters("scattering_tp")["configs"].items():
+    for name, config in _parameters("scattering_tensor_prod")["configs"].items():
         for lowpass in config["lowpass"]:
             marks = (pytest.mark.slow,) if name in SLOW else ()
             out.append(pytest.param(name, lowpass, id=f"{name}-{MODES[lowpass]}", marks=marks))
@@ -74,15 +74,15 @@ def _scattering_runs() -> list[Any]:
 @pytest.mark.parametrize(("name", "lowpass"), _scattering_runs())
 def test_scattering_equals_the_fixture(name: str, lowpass: str | None) -> None:
     """``mean``, ``var``, S1 to S4 as stored (S1 and S2 only with ``lowpass=None``), and the
-    moments of the standardisation, of each configuration of ``scattering_tp``, without
+    moments of the standardisation, of each configuration of ``scattering_tensor_prod``, without
     normalisation.
 
     Slow: case D, three blocks, about 0.8 s of CPU locally and over 1 s on CI.
     """
-    parameters = _parameters("scattering_tp")
+    parameters = _parameters("scattering_tensor_prod")
     config = parameters["configs"][name]
     case = parameters["cases"][config["case"]]
-    arrays = _arrays("scattering_tp")
+    arrays = _arrays("scattering_tensor_prod")
     prefix = f"{name}_{MODES[lowpass]}"
     out = spec.spec_apply_tensor_prod(
         arrays[f"{name}_field"],
@@ -105,12 +105,12 @@ def test_scattering_equals_the_fixture(name: str, lowpass: str | None) -> None:
 
 
 def test_normalised_statistics_equal_the_fixture() -> None:
-    """The three runs of ``statistics_tp`` (``norm="self"``, ``norm="ref"`` with its reference,
-    ``norm="self"`` with ``ref_batch_mean``), their references and the two flat vectors: the
-    real one from ``spec_apply_tensor_prod(..., flatten=True)``, the complex one from
+    """The three runs of ``statistics_tensor_prod`` (``norm="self"``, ``norm="ref"`` with its
+    reference, ``norm="self"`` with ``ref_batch_mean``), their references and the two flat vectors:
+    the real one from ``spec_apply_tensor_prod(..., flatten=True)``, the complex one from
     ``spec_flatten``."""
-    parameters = _parameters("statistics_tp")
-    arrays = _arrays("statistics_tp")
+    parameters = _parameters("statistics_tensor_prod")
+    arrays = _arrays("statistics_tensor_prod")
     options = {
         "blocks": [AXES[block] for block in parameters["blocks"]],
         "pbc": parameters["pbc"],

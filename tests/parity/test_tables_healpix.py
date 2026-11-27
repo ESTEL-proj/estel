@@ -1,7 +1,7 @@
 """Parity of the HEALPix geometry tables with STL, as operators (task T5.1, issue #26; maths.md
 M-CONV-HEALPIX, M-WAV-HEALPIX, M-DOWN-HEALPIX, OP-92).
 
-The fixture ``operators_hpx`` (T5.3) holds STL's convolution and decimation through STL's own
+The fixture ``operators_healpix`` (T5.3) holds STL's convolution and decimation through STL's own
 entry points, on the sphere, without geometry cache and with the kernel in float64 (OP-45,
 OP-46): the dense matrices at ``nside`` 4, and the responses to 3 random maps at ``nside`` 8 and
 16, on the full sky and on a disc that crosses the equator. The tables are applied here as T5.5
@@ -36,7 +36,7 @@ from estel.wavelets._tables_healpix import (
 )
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
-CASE = "operators_hpx"
+CASE = "operators_healpix"
 DOMAINS = ["full_8", "disc_8", "full_16", "disc_16"]
 _ILL_CONDITIONED = 1e-12
 """A weight below this is at the level of rounding (decision on issue #26, point 1)."""

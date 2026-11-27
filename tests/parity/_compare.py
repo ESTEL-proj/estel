@@ -8,8 +8,8 @@ with `assert_parity`:
     expected = load_fixture("bump_steerable_kernel_2d")["kernel"]
     assert_parity(actual, expected, dtype)
 
-The tensor-product fixtures (``scattering_tp``, ``statistics_tp``) store their grids packed:
-``full_grid(arrays, key)`` rebuilds STL's full grid, NaN outside its finite entries.
+The tensor-product fixtures (``scattering_tensor_prod``, ``statistics_tensor_prod``) store their
+grids packed: ``full_grid(arrays, key)`` rebuilds STL's full grid, NaN outside its finite entries.
 
 `tests/parity/fixtures/` is protected: only a maintainer regenerates it. A failing comparison is
 reported in an issue, with the coefficients it names; never regenerate the fixture or loosen the

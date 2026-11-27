@@ -3,7 +3,7 @@
 M-LP, M-IDX-TENSORPROD, OP-8, OP-13, OP-34, OP-41, OP-82, OP-83).
 
 The values are compared with STL in ``tests/parity/test_tensor_prod.py`` and with the oracle in
-``tests/spec/test_tensor_prod_operator.py``; these tests check the operator itself: a tensor
+``tests/spec/test_operator_tensor_prod.py``; these tests check the operator itself: a tensor
 product of one block with ``lowpass=None`` gives the statistics of the plain geometry (OP-82),
 ``estel.functional.scattering`` is ``apply``, ``from_statistics`` rebuilds the operator, a wrong
 reference is refused before the loop, and the arguments are validated at construction with

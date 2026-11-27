@@ -6,7 +6,7 @@ Each geometry function of ``estel.wavelets._tables_healpix`` against healpy (``p
 imported by ESTEL (Part I, §1.5). The rotations against the formula of M-CONV-HEALPIX, step 2; the
 kernel against M-WAV-HEALPIX; the search of the decimation's candidates against a brute-force
 search; the layout of the tables and the validation of the arguments. Equality with STL's tables, as
-operators (OP-92), is in ``tests/parity/test_healpix_tables.py``.
+operators (OP-92), is in ``tests/parity/test_tables_healpix.py``.
 """
 
 from __future__ import annotations

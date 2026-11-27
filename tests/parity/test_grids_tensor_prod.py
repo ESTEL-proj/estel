@@ -1,8 +1,8 @@
 """The finite positions of STL's tensor-product statistics (task T3.4, issue #127; maths.md
 M-IDX-TENSORPROD, M-LP, M-CHAN, §3.9).
 
-The fixtures ``scattering_tp`` and ``statistics_tp`` (STL `2D+1D`) store S1 to S4, raw or
-normalised, and the reference ``S2_ref_sqrt_chan_diag`` as packed grids: their finite entries
+The fixtures ``scattering_tensor_prod`` and ``statistics_tensor_prod`` (STL `2D+1D`) store S1 to S4,
+raw or normalised, and the reference ``S2_ref_sqrt_chan_diag`` as packed grids: their finite entries
 and the mask of their finite positions (``full_grid``). For each of them, these tests rebuild
 the mask from the rules of maths.md alone, with the parameters the manifest records:
 
@@ -63,7 +63,7 @@ def _geometry(case: dict[str, Any], lowpass: str | None) -> dict[str, Any]:
 def _grids() -> list[tuple[str, str, dict[str, Any], int, list[list[bool]]]]:
     """(fixture, key, geometry, Nb, cross matrix) for each packed grid of the two fixtures."""
     out = []
-    scattering = _parameters("scattering_tp")
+    scattering = _parameters("scattering_tensor_prod")
     for name, config in scattering["configs"].items():
         case = scattering["cases"][config["case"]]
         nc = config["Nc"]
@@ -72,8 +72,10 @@ def _grids() -> list[tuple[str, str, dict[str, Any], int, list[list[bool]]]]:
             mode = "st" if lowpass == "ST" else "none"
             for family in GRIDS if lowpass == "ST" else ("S1", "S2"):
                 key = f"{name}_{mode}_{family}"
-                out.append(("scattering_tp", key, _geometry(case, lowpass), config["Nb"], matrix))
-    statistics = _parameters("statistics_tp")
+                out.append(
+                    ("scattering_tensor_prod", key, _geometry(case, lowpass), config["Nb"], matrix)
+                )
+    statistics = _parameters("statistics_tensor_prod")
     geometry = _geometry(statistics, statistics["lowpass"])
     nc = statistics["Nc"]
     matrix = np.triu(np.ones((nc, nc), dtype=bool)).tolist()
@@ -82,7 +84,7 @@ def _grids() -> list[tuple[str, str, dict[str, Any], int, list[list[bool]]]]:
         for family in families:
             # M-NORM-TENSORPROD: with the batch mean, the reference has one map.
             nb = 1 if (run, family) == ("store_batch_mean", "s2_ref") else statistics["Nb"]
-            out.append(("statistics_tp", f"{run}_{family}", geometry, nb, matrix))
+            out.append(("statistics_tensor_prod", f"{run}_{family}", geometry, nb, matrix))
     return out
 
 

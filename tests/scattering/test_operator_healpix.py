@@ -1,8 +1,8 @@
 """``STOperator`` on HEALPix data (task T5.6, issue #167; Part II, §12.6, §12.7; maths.md §4
 "Scattering loop", M-DATA-HEALPIX, M-DEF-HEALPIX, OP-3).
 
-Values are compared with STL in ``tests/parity/test_healpix_statistics.py`` and with the oracle
-in ``tests/spec/test_healpix_scattering.py``. These tests run on the run's backend and dtype, at
+Values are compared with STL in ``tests/parity/test_statistics_healpix.py`` and with the oracle
+in ``tests/spec/test_scattering_healpix.py``. These tests run on the run's backend and dtype, at
 ``nside`` 2 to 8, and check what parity does not: the defaults of M-DEF-HEALPIX, the power spectrum
 left out and refused with LF24 (decision 2 on #167), the data ``apply`` refuses (another partial
 sky of the same size: decision 4), the advice of the OP-3 messages, the statistics through a

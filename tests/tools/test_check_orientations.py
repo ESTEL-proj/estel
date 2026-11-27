@@ -24,7 +24,7 @@ def test_repository_passes() -> None:
         pytest.param('PARAMETERS = {"J": 5, "L": 4}\n', id="dictionary"),
         pytest.param('@pytest.mark.parametrize("L", [1, 2, 3, 4])\ndef f(L): ...\n', id="param"),
         pytest.param("op = STOperator(data_1d, L=2)\n", id="1d"),
-        pytest.param("op = STOperator(tp, J=[3, 2], L=[4, 2])\n", id="per-block"),
+        pytest.param("op = STOperator(tensor_prod, J=[3, 2], L=[4, 2])\n", id="per-block"),
         pytest.param("op = STOperator(data, L=n_orientations)\n", id="variable"),
         pytest.param('@pytest.mark.parametrize("n", [8, 16])\ndef f(n): ...\n', id="other-name"),
         pytest.param('x = {"N": 64, "K": 8}\nf(J=6)\n', id="other-keys"),
@@ -62,7 +62,7 @@ def test_allowed_forms_pass(source: str) -> None:
             id="param-pytest-param",
         ),
         pytest.param(
-            "op = STOperator(tp, J=[3, 2], L=[8, 2])\n",
+            "op = STOperator(tensor_prod, J=[3, 2], L=[8, 2])\n",
             1,
             "keyword argument L=[8, 2]",
             id="per-block",

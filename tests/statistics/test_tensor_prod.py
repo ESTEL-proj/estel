@@ -3,11 +3,12 @@ issue #137; maths.md M-IDX-TENSORPROD, M-LP, M-S-TENSORPROD, M-NORM-TENSORPROD, 
 §12.7; Part III, §19.4 to §19.6).
 
 These tests, written before the operator of tensor products (T3.2), take the raw statistics from the
-parity fixtures of T3.4 (``scattering_tp``), or from the oracle ``spec_apply_tensor_prod(...,
-norm="none")`` on the fields of ``statistics_tp``, which stores only normalised values, place
-them in the layout of the plan (``layout_tensor_prod``), and read them back through
-``STStatistics``: the positions of every family, the normalisation, its references and the two
-flat vectors are compared with the fixtures, in float64, with the tolerances of Part II, §14.3.
+parity fixtures of T3.4 (``scattering_tensor_prod``), or from the oracle
+``spec_apply_tensor_prod(..., norm="none")`` on the fields of ``statistics_tensor_prod``, which
+stores only normalised values, place them in the layout of the plan (``layout_tensor_prod``), and
+read them back through ``STStatistics``: the positions of every family, the normalisation, its
+references and the two flat vectors are compared with the fixtures, in float64, with the tolerances
+of Part II, §14.3.
 """
 
 from __future__ import annotations
@@ -95,22 +96,22 @@ def _numpy(x: Any) -> NDArray[Any]:
 def _scattering_runs() -> list[Any]:
     return [
         pytest.param(name, lowpass, id=f"{name}-{MODES[lowpass]}")
-        for name, config in _parameters("scattering_tp")["configs"].items()
+        for name, config in _parameters("scattering_tensor_prod")["configs"].items()
         for lowpass in config["lowpass"]
     ]
 
 
 @pytest.mark.parametrize(("name", "lowpass"), _scattering_runs())
 def test_positions_equal_the_fixture(name: str, lowpass: str | None) -> None:
-    """For every configuration of ``scattering_tp``, the layout built from the per-block index
-    sets holds a coefficient exactly where STL's full grid is finite, family by family: the
+    """For every configuration of ``scattering_tensor_prod``, the layout built from the per-block
+    index sets holds a coefficient exactly where STL's full grid is finite, family by family: the
     values placed in the buffer come back through ``full_grid`` with STL's shapes and NaN at
     the same positions (Part II, §14.3). S3 and S4 of ``lowpass=None`` are those of ``"ST"``
     (maths.md M-LP)."""
-    parameters = _parameters("scattering_tp")
+    parameters = _parameters("scattering_tensor_prod")
     config = parameters["configs"][name]
     case = parameters["cases"][config["case"]]
-    arrays = _arrays("scattering_tp")
+    arrays = _arrays("scattering_tensor_prod")
     matrix = config.get("cross_matrix")
     plan = _plan(
         arrays[f"{name}_field"],
@@ -134,11 +135,11 @@ def test_positions_equal_the_fixture(name: str, lowpass: str | None) -> None:
 
 @cache
 def _statistics_tensor_prod() -> dict[str, Any]:
-    """The three runs of ``statistics_tp`` (``norm="self"``, ``norm="ref"`` by its reference,
-    ``norm="self"`` with ``ref_batch_mean``), from the raw statistics of the oracle on the
-    fixture's fields."""
-    parameters = _parameters("statistics_tp")
-    arrays = _arrays("statistics_tp")
+    """The three runs of ``statistics_tensor_prod`` (``norm="self"``, ``norm="ref"`` by its
+    reference, ``norm="self"`` with ``ref_batch_mean``), from the raw statistics of the oracle on
+    the fixture's fields."""
+    parameters = _parameters("statistics_tensor_prod")
+    arrays = _arrays("statistics_tensor_prod")
     blocks, pbc, J = parameters["blocks"], parameters["pbc"], parameters["J"]  # noqa: N806
 
     def run(key: str, norm: str, ref: Any = None, batch_mean: bool = False) -> STStatistics:
@@ -164,11 +165,11 @@ def _statistics_tensor_prod() -> dict[str, Any]:
 
 
 def test_normalisation_equals_the_fixture() -> None:
-    """``statistics_tp``: the normalised statistics of the three runs, their references
+    """``statistics_tensor_prod``: the normalised statistics of the three runs, their references
     (``var_ref``, ``S2_ref_sqrt_chan_diag``) and the real and complex flat vectors equal STL's
     (maths.md M-NORM-TENSORPROD, M-FLAT). S1 and S2 are normalised at every scale, the low-pass
     scales included, S3 and S4 by the wavelet scales of the reference only."""
-    arrays = _arrays("statistics_tp")
+    arrays = _arrays("statistics_tensor_prod")
     for run, stats in _statistics_tensor_prod().items():
         var_ref = arrays[
             "store_batch_mean_var_ref" if run == "store_batch_mean" else "store_var_ref"

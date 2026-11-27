@@ -129,7 +129,8 @@ def test_bump_steerable_kernel_1d_fixture() -> None:
 
 
 def _packed(grid: NDArray[Any]) -> dict[str, NDArray[Any]]:
-    """``grid`` packed as the tensor-product cases pack it (``pack_grid`` of scattering_tp)."""
+    """``grid`` packed as the tensor-product cases pack it (``pack_grid`` of
+    scattering_tensor_prod)."""
     finite = np.isfinite(grid)
     return {
         "S": grid[finite],

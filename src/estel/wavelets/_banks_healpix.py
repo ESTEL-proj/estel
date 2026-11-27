@@ -8,7 +8,7 @@ November 2026: no cast through float32, unlike healpix-analyse's ``HealPixConv.s
 `HealpixUpdate` ``90eb1a9`` (``WaveletOperatorHealpixKernel_torch._wavelet_kernel``): one complex
 kernel on the K x K stencil of M-CONV-HEALPIX, the same at every level and for every gauge; the
 orientations are the gauges of the stencil (``_tables_healpix.stencils_healpix``), not
-rotations of the kernel. ``tests/parity/test_healpix_tables.py`` checks it against STL's.
+rotations of the kernel. ``tests/parity/test_tables_healpix.py`` checks it against STL's.
 """
 
 from __future__ import annotations

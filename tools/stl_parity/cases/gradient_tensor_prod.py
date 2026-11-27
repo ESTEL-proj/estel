@@ -56,7 +56,7 @@ PARAMETERS: dict[str, Any] = {
 
 def input_field(shape: tuple[int, ...], nb: int, nc: int, seed: int) -> NDArray[np.float64]:
     """Seeded Gaussian fields, ``(Nb, Nc, *shape)``, each channel correlated with the previous
-    one so that the cross statistics are not small (as in ``scattering_tp``)."""
+    one so that the cross statistics are not small (as in ``scattering_tensor_prod``)."""
     rng = np.random.default_rng(seed)
     noise = rng.standard_normal((nb, nc, *shape))
     channels = [noise[:, 0]]

@@ -11,7 +11,7 @@ Two kinds of checks, under the decisions of the maintainer on #165:
   over 1 s of CPU on CI, which the first test of each worker would otherwise carry. The
   interpolation weights are compared as linear functionals (the weight of each pixel, summed
   over the 4 slots), since a zero weight may sit on another pixel (OP-92).
-- **The oracle against the fixtures of T5.3** (``operators_hpx``, ``statistics_hpx``, STL
+- **The oracle against the fixtures of T5.3** (``operators_healpix``, ``statistics_healpix``, STL
   ``HealpixUpdate`` at ``90eb1a9``), with ``assert_parity``: same shapes, NaN at the same
   positions, the float64 tolerances of Part II, §14.3.
 
@@ -78,7 +78,7 @@ POLE_DISTANCE = 1e-6
 """The colatitude of the points that probe the limit of the gauge ``"cosmo"`` at the poles: the
 u axis is then within about that distance of its limit."""
 ILL_CONDITIONED = {"full_8": 0, "disc_8": 16, "full_16": 0, "disc_16": 14}
-"""The number of ill-conditioned (gauge, pixel) rows of each domain of ``operators_hpx``,
+"""The number of ill-conditioned (gauge, pixel) rows of each domain of ``operators_healpix``,
 left out of the comparison with STL (OP-110)."""
 
 
@@ -249,7 +249,7 @@ def test_mirror_through_the_equator_conjugates_the_convolution() -> None:
 
 @cache
 def _operators() -> dict[str, NDArray[Any]]:
-    return load_fixture("operators_hpx")
+    return load_fixture("operators_healpix")
 
 
 def test_kernel_equals_the_fixture() -> None:
@@ -357,11 +357,11 @@ def test_decimation_equals_the_fixture(name: str) -> None:
 
 @cache
 def _statistics() -> dict[str, NDArray[Any]]:
-    return load_fixture("statistics_hpx")
+    return load_fixture("statistics_healpix")
 
 
 def _configs() -> dict[str, dict[str, Any]]:
-    configs: dict[str, dict[str, Any]] = read_manifest()["statistics_hpx.npz"]["parameters"][
+    configs: dict[str, dict[str, Any]] = read_manifest()["statistics_healpix.npz"]["parameters"][
         "configs"
     ]
     return configs
@@ -419,7 +419,7 @@ def test_statistics_equal_the_fixture(name: str) -> None:
     """Section 1 on this geometry: the statistics without normalisation (``vanilla``), with
     ``norm="self"`` (``store``) and those of a second field with ``norm="ref"`` (``load``), the
     reference, the reductions and the vectors of every full-sky configuration of
-    ``statistics_hpx``, the NaN at the same positions; the partial skies ``disc_16`` and
+    ``statistics_healpix``, the NaN at the same positions; the partial skies ``disc_16`` and
     ``disc_nan_16`` are left to T5.6 (OP-110, see the module docstring). The masked configuration
     runs on the fields with their NaN and the mask given, as STL builds its operator. The
     statistics are also computed through the whole of ``spec_apply_healpix`` with ``norm="self"``,

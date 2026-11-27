@@ -38,7 +38,7 @@ sky (`DataHealpix.pbc`; a partial sky is not a case), in the NESTED ordering, ru
 `DataHealpix`, with its missing pixels in discs of the angular radii `mask_discs` (in degrees),
 centred on directions drawn by a seeded draw, without overlap. Like a tensor product it is
 measured on **ESTEL only**: its check against STL is replaced by the parity tests of HEALPix
-(task T5.6, `tests/parity/test_healpix_statistics.py`), its results say so (`check`), and STL's
+(task T5.6, `tests/parity/test_statistics_healpix.py`), its results say so (`check`), and STL's
 HEALPix times come with the benchmark of step 2 (LF62). It is compared with `main`, and with
 `--compare`, only when that commit has `STOperator` on HEALPix data (T5.6). Its masks make the
 operator build its tables for the support test as well as for the filters, so that path is

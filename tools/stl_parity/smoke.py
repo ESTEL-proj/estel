@@ -84,17 +84,17 @@ def _scattering(data: Any, j: int | list[int] = J) -> Any:
     return data.get_ST_op(J=j).apply(data)
 
 
-def _planar_2d() -> Any:
+def _statistics_2d() -> Any:
     data_2d = _stl("STL_2D_Kernel_Torch", "STL_2D_Kernel_Torch")
     return _scattering(data_2d(array=_field((32, 32), seed=0), pbc=True))
 
 
-def _planar_1d() -> Any:
+def _statistics_1d() -> Any:
     data_1d = _stl("STL_1D_Kernel_Torch", "STL_1D_Kernel_Torch")
     return _scattering(data_1d(array=_field((64,), seed=1), pbc=True))
 
 
-def _tensor_product() -> Any:
+def _statistics_tensor_prod() -> Any:
     tensor_prod = _stl("Tensor_Product_Kernel_Torch", "STL_TensorProd_Kernel_Torch")
     data_2d = _stl("STL_2D_Kernel_Torch", "STL_2D_Kernel_Torch")
     data_1d = _stl("STL_1D_Kernel_Torch", "STL_1D_Kernel_Torch")
@@ -129,16 +129,16 @@ def _cross_spectrum(method: str) -> Callable[[], Any]:
 
 CASES: dict[str, dict[str, Callable[[], Any]]] = {
     "master": {
-        "2D statistics": _planar_2d,
+        "2D statistics": _statistics_2d,
         **{
             f"2D cross spectrum, {method}": _cross_spectrum(method)
             for method in ("fft", "pbc_mask", "nan_mask", "pbc_nan_mask")
         },
     },
     "2d1d": {
-        "1D statistics": _planar_1d,
-        "2D statistics": _planar_2d,
-        "2D+1D statistics": _tensor_product,
+        "1D statistics": _statistics_1d,
+        "2D statistics": _statistics_2d,
+        "2D+1D statistics": _statistics_tensor_prod,
     },
     "healpix": {"HEALPix statistics": _healpix},
 }

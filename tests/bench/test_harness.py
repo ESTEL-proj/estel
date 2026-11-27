@@ -134,17 +134,17 @@ def test_harness_measures_and_checks_a_tiny_case(
     assert results_path(tmp_path, "2026-11-17", "machine").name == "2026-11-17-machine-2.json"
 
 
-def test_harness_measures_a_tiny_tensor_product(
+def test_harness_measures_tiny_tensor_prod_data(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A tensor-product case (task T3.2): ``[2D, 1D]``, 8 x 8 x 8, J = (1, 1), measured on
     ESTEL only, its seeded inputs read back with their blocks."""
     monkeypatch.setattr(_config, "_dtype", "float32")
     case = Case(
-        name="tiny-tp", shape=(8, 8, 8), channels=1, J=(1, 1), L=(4, 2), pbc=(True, True),
+        name="tiny-tensor-prod", shape=(8, 8, 8), channels=1, J=(1, 1), L=(4, 2), pbc=(True, True),
         seed=1, target_seed=2, blocks=("2D", "1D"),
     )  # fmt: skip
-    path = tmp_path / "tiny-tp.npz"
+    path = tmp_path / "tiny-tensor-prod.npz"
     digest = write_inputs(case, "float32", path)
     inputs = read_inputs(path)
     assert (inputs.case, inputs.digest) == (case, digest)

@@ -8,7 +8,7 @@ run with STL's settings (M-SYN-LBFGS): ``synthesis_2d`` without the power spectr
 mid-level ``optimize_from_maps`` (T6.1), and ``synthesis_ps_2d`` with it, from the user-level
 ``synthesize_from_maps``, whose operators are those of M-SYN-OPS: J = 4, 9 bins and the
 ``fft`` estimator (T4.5). A third (STL ``HealpixUpdate``, T5.3) holds a full HEALPix sky at
-``nside`` 16, J = 3, L = 4, one channel: ``synthesis_hpx``, from the mid-level
+``nside`` 16, J = 3, L = 4, one channel: ``synthesis_healpix``, from the mid-level
 ``optimize_from_maps`` without the pre-filter and without the spectrum (OP-77), on the sphere
 and with the kernel in float64 (M-SYN-OPS, HEALPix), with the start STL used, which is not the
 first draw after its seed (OP-99). ESTEL synthesises from the same target and the same start,
@@ -90,13 +90,13 @@ def test_healpix_synthesis_follows_stl(backend: Backend, monkeypatch: pytest.Mon
     gradient, take about 6 s (8.5 s of CPU); the comparison runs in the full tier, beside those
     of T6.1 and T4.5.
     """
-    _follows_stl(backend, monkeypatch, "synthesis_hpx", "#169")
+    _follows_stl(backend, monkeypatch, "synthesis_healpix", "#169")
 
 
 def _follows_stl(backend: Backend, monkeypatch: pytest.MonkeyPatch, case: str, issue: str) -> None:
     monkeypatch.setattr(_config, "_dtype", "float64")
     fixture = load_fixture(case)
-    healpix = case.endswith("_hpx")
+    healpix = case.endswith("_healpix")
     # An array is a 2D field; a HEALPix target is given as a DataHealpix (decision 2 on #169).
     target = DataHealpix(fixture["target"]) if healpix else fixture["target"]
     p: dict[str, Any] = read_manifest()[f"{case}.npz"]["parameters"]
@@ -129,7 +129,7 @@ def _follows_stl(backend: Backend, monkeypatch: pytest.MonkeyPatch, case: str, i
         f"regenerate the fixture or loosen the tolerance: report it on issue {issue}."
     )
     assert result.manifest["L"] == p["L"]
-    # synthesis_hpx records prefilter_Nyquist=False (OP-77); the 2D fixtures ran with STL's
+    # synthesis_healpix records prefilter_Nyquist=False (OP-77); the 2D fixtures ran with STL's
     # default, True, which their manifest entries do not record.
     assert result.manifest["prefilter_nyquist"] == p.get("prefilter_Nyquist", True)
     field = backend.to_numpy(result.field)

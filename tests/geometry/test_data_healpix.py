@@ -2,8 +2,8 @@
 issue #166; maths.md M-DATA-HEALPIX, M-MASK-HEALPIX; Part II, §12.4).
 
 The hooks are checked here for their shapes, dtypes, errors and the rules that need no
-reference; their values against the oracle are in ``tests/spec/test_healpix_operator.py`` and
-against STL's fixtures in ``tests/parity/test_healpix_operator.py``.
+reference; their values against the oracle are in ``tests/spec/test_operator_healpix.py`` and
+against STL's fixtures in ``tests/parity/test_operator_healpix.py``.
 """
 
 from __future__ import annotations

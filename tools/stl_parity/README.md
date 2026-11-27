@@ -16,17 +16,17 @@ the statistics without normalisation of the scattering loop of T2.4 (`scattering
 the flat vectors of `to_flatten` (`statistics_2d.py` on `master`, `statistics_1d.py` on `2D+1D`),
 the loss of the first 20 iterations of a periodic synthesis of T6.1 (`synthesis_2d.py` on
 `master`), and the tensor products of T3.4 (on `2D+1D`): the statistics without normalisation
-(`scattering_tp.py`), the normalisations and flat vectors (`statistics_tp.py`) and the gradient
-of the synthesis loss (`gradient_tp.py`). The 2D power spectrum of T4.3 has three cases on
+(`scattering_tensor_prod.py`), the normalisations and flat vectors (`statistics_tensor_prod.py`) and the gradient
+of the synthesis loss (`gradient_tensor_prod.py`). The 2D power spectrum of T4.3 has three cases on
 `master`: the spectrum operator, its four estimators, its automatic choice, its bins and the
 options kept on #148 (`spectrum_2d.py`); the statistics with the spectrum, its reference and the
 flat vectors (`statistics_ps_2d.py`); and the loss of the first 20 iterations of a periodic
 synthesis with the spectrum in the loss (`synthesis_ps_2d.py`). HEALPix has three cases on
 `HealpixUpdate` (T5.3): healpix-analyse's convolution and decimation as dense matrices at `nside`
-4 and as responses to random maps at `nside` 8 and 16, full sky and a disc (`operators_hpx.py`);
+4 and as responses to random maps at `nside` 8 and 16, full sky and a disc (`operators_healpix.py`);
 the statistics, their normalisations and reductions, with the masks and reweighting maps of the
-masked configurations (`statistics_hpx.py`); and the loss of the first 20 iterations of a
-full-sky synthesis, without the band limit and the spectrum (`synthesis_hpx.py`). They share the
+masked configurations (`statistics_healpix.py`); and the loss of the first 20 iterations of a
+full-sky synthesis, without the band limit and the spectrum (`synthesis_healpix.py`). They share the
 settings of [`cases/_healpix.py`](cases/_healpix.py): the sphere, healpix-analyse's geometry
 cache disabled, and the kernel of `HealPixConv` kept in float64 by a run-time replacement of its
 `set_kernel` (Part II, §14.2; maths.md OP-45, OP-46).
@@ -104,7 +104,7 @@ compared with ESTEL on every PR, in float64, without Docker.
   `cases/` whose name starts with `_` is a helper, not a case: `make parity-fixtures` skips it,
   and the cases import it by its path (`_healpix.py`).
 - **Packed grids.** The full grids of tensor-product statistics are mostly NaN, and S4 alone
-  would take megabytes (issue #127). So `scattering_tp` and `statistics_tp` store S1 to S4 (and
+  would take megabytes (issue #127). So `scattering_tensor_prod` and `statistics_tensor_prod` store S1 to S4 (and
   the S2 reference) packed, as three arrays:
   - `<key>`: the finite entries, in the row-major order of STL's full grid;
   - `<key>_shape`: the shape of the grid (int64);
@@ -113,7 +113,7 @@ compared with ESTEL on every PR, in float64, without Docker.
 
   These two suffixes are the only arrays that are not float64 or complex128.
   `full_grid(arrays, key)` of [`tests/parity/_compare.py`](../../tests/parity/_compare.py)
-  rebuilds the grid, NaN elsewhere. With `lowpass=None`, `scattering_tp` stores no S3 or S4: it
+  rebuilds the grid, NaN elsewhere. With `lowpass=None`, `scattering_tensor_prod` stores no S3 or S4: it
   asserts that STL's are bit for bit those of `"ST"`. The example,
   [`cases/bump_steerable_kernel_2d.py`](cases/bump_steerable_kernel_2d.py), stores the 2D
   bump-steerable kernels of STL `master`.
