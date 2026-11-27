@@ -149,7 +149,10 @@ estel/                             # one repository for Python and Rust (Part IV
 │   │                              # TorchGeometry), _pixels_healpix.py, _operator_healpix.py,
 │   │                              # _operator_tensor_prod.py, _checks.py (the checks of every
 │   │                              # geometry)
-│   ├── scattering/                # _plan.py, operator.py, operator_tensor_prod.py
+│   ├── scattering/                # _plan.py, _filters.py, _operator.py (STOperator and
+│   │                              # STOperatorTensorProd), _loop.py (what both loops share,
+│   │                              # the hook _global_sum), _loop_single_domain.py,
+│   │                              # _tensor_prod.py, _loop_tensor_prod.py
 │   ├── statistics/                # _statistics.py, _grid.py, _reductions.py, _normalization.py,
 │   │                              # _layout.py (the compact layout, T2.15)
 │   ├── spectra/                   # operator.py, _estimators.py (2D), _bins.py
