@@ -184,7 +184,7 @@ def check(root: Path) -> list[Hit]:
 # The names of the published HEALPix convention (Górski et al. 2005, ApJ 622, 759), never a
 # code source (Part I, §1.5, F23). They carry no geometry word; listed so that no rule ever
 # asks to rename them.
-HEALPIX_CONVENTION = frozenset({"nest2xyf", "xyf2nest", "xyf2ang", "ring2nest"})
+CONVENTION_HEALPIX = frozenset({"nest2xyf", "xyf2nest", "xyf2ang", "ring2nest"})
 
 # Package names (Part I, §1.5 and §1.6), as imported and as installed.
 PACKAGES = frozenset({"healpix_analyse", "healpy", "healpix_geo", "healpix-geo", "optax"})
@@ -193,7 +193,6 @@ PACKAGES = frozenset({"healpix_analyse", "healpy", "healpix_geo", "healpix-geo",
 # interface of the parity cases (tools/stl_parity/run_case.py reads them), and, computed, the
 # fixtures of every conftest.py.
 FIXED_BY_PROGRAM = frozenset({"pytestmark", "STL_ENV", "PARAMETERS", "run"})
-PARITY_CASES = "tools/stl_parity/cases/"
 
 # History (rule 7): what was done, with the names of the time. Part IV, §22 is the part of
 # docs/transfer/part4.md under its heading; the others are whole files or directories.
@@ -477,6 +476,7 @@ def module_name(rel: str) -> str | None:
 
 
 CHECKED_ROOTS = ("src/estel/", "tests/", "tools/", "bench/")
+PACKAGE_ROOT = "src/estel/"
 
 
 @dataclass
@@ -561,7 +561,7 @@ def definitions(module: str, tree: ast.Module, *, is_test: bool) -> list[Definit
 
 def _is_exempt(name: str) -> bool:
     return (
-        name in HEALPIX_CONVENTION
+        name in CONVENTION_HEALPIX
         or name in PACKAGES
         or name in STL_NAMES
         or (name.startswith("__") and name.endswith("__"))
@@ -578,8 +578,6 @@ def check_definitions(
     for definition in definitions(module, tree, is_test=is_test):
         name = definition.qualname.rsplit(".", 1)[-1]
         if name in FIXED_BY_PROGRAM or name in fixtures or definition.kind == "fixture":
-            continue
-        if rel.startswith(PARITY_CASES) and "." not in definition.qualname and name.isupper():
             continue
         if _is_exempt(name):
             continue
@@ -601,7 +599,7 @@ def check_definitions(
 def check_paths(files: list[str]) -> Iterator[Violation]:
     directories: dict[str, str] = {}
     for rel in files:
-        if is_history(rel) or rel in INSTRUMENTS:
+        if is_history(rel):
             continue
         parts = rel.split("/")
         for depth in range(1, len(parts)):
@@ -788,7 +786,7 @@ def _check_maths_id(rel: str, number: int, identifier: str, written: str) -> Ite
         )
 
 
-# ------------------------------------------------------------------ rule 3
+# ------------------------------------------------------------------ the code: rule 3 and done rows
 
 
 @dataclass
@@ -798,6 +796,12 @@ class ModuleInfo:
     defined: set[str] = field(default_factory=set)
     # name -> (module it comes from, its name there), for names imported into the module.
     imported: dict[str, tuple[str, str]] = field(default_factory=dict)
+    # Every definition (qualified name -> line), as check_definitions sees them.
+    qualnames: dict[str, int] = field(default_factory=dict)
+    # (module, name, line): a name imported from a module of the code, or read through it.
+    uses: list[tuple[str, str, int]] = field(default_factory=list)
+    # (module, line): a module imported, as a whole or by a name it might hold.
+    imports: list[tuple[str, int]] = field(default_factory=list)
 
 
 def _absolute(module: str, is_package: bool, level: int, target: str | None) -> str:
@@ -809,49 +813,35 @@ def _absolute(module: str, is_package: bool, level: int, target: str | None) -> 
     return ".".join([*base, target] if target else base)
 
 
-def check_rule3(modules: dict[str, ModuleInfo]) -> Iterator[Violation]:
-    for info in modules.values():
+def index_code(modules: dict[str, ModuleInfo]) -> None:
+    """Fill each module's definitions, imports and uses (the names it reads from others)."""
+    for module, info in modules.items():
+        is_test = info.rel.startswith("tests/")
+        info.qualnames = {
+            d.qualname: d.line for d in definitions(module, info.tree, is_test=is_test)
+        }
         for statement in info.tree.body:
             if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
                 info.defined.add(statement.name)
             info.defined.update(_targets(statement))
-
-    def origin(module: str, name: str, depth: int = 0) -> str | None:
-        info = modules.get(module)
-        if info is None or depth > 10:
-            return None
-        if name in info.defined:
-            return module
-        if name in info.imported:
-            return origin(*info.imported[name], depth + 1)
-        return None
-
-    for module, info in modules.items():
         is_package = info.rel.endswith("__init__.py")
-        for node in ast.walk(info.tree):
-            if isinstance(node, ast.ImportFrom):
-                source = _absolute(module, is_package, node.level, node.module)
-                for alias in node.names:
-                    info.imported[alias.asname or alias.name] = (source, alias.name)
-
-    for module, info in modules.items():
-        if not info.rel.startswith(CHECKED_ROOTS):
-            continue
-        is_package = info.rel.endswith("__init__.py")
-        aliases: dict[str, str] = {}  # a local name bound to a module of estel
-        uses: list[tuple[str, str, int]] = []  # (module, name, line)
+        aliases: dict[str, str] = {}  # a local name bound to a module
         for node in ast.walk(info.tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
+                    info.imports.append((alias.name, node.lineno))
                     if alias.asname:
                         aliases[alias.asname] = alias.name
             elif isinstance(node, ast.ImportFrom):
                 source = _absolute(module, is_package, node.level, node.module)
+                info.imports.append((source, node.lineno))
                 for alias in node.names:
+                    info.imported[alias.asname or alias.name] = (source, alias.name)
+                    info.imports.append((f"{source}.{alias.name}", node.lineno))
                     if f"{source}.{alias.name}" in modules:
                         aliases[alias.asname or alias.name] = f"{source}.{alias.name}"
                     else:
-                        uses.append((source, alias.name, node.lineno))
+                        info.uses.append((source, alias.name, node.lineno))
         for node in ast.walk(info.tree):
             if isinstance(node, ast.Attribute):
                 chain = []
@@ -865,12 +855,32 @@ def check_rule3(modules: dict[str, ModuleInfo]) -> Iterator[Violation]:
                     target, name = dotted.rsplit(".", 1)
                     target = head + target[len(value.id) :]
                     if target in modules and target != module:
-                        uses.append((target, name, node.lineno))
+                        info.uses.append((target, name, node.lineno))
+
+
+def check_rule3(modules: dict[str, ModuleInfo]) -> Iterator[Violation]:
+    """Rule 3, in the package only: in tests/, tools/ and bench/, rules 1, 2 and 10 apply."""
+
+    def origin(module: str, name: str, depth: int = 0) -> str | None:
+        info = modules.get(module)
+        if info is None or depth > 10:
+            return None
+        if name in info.defined:
+            return module
+        if name in info.imported:
+            return origin(*info.imported[name], depth + 1)
+        return None
+
+    for module, info in modules.items():
+        if not info.rel.startswith(PACKAGE_ROOT):
+            continue
         importer = path_geometries(info.rel)
         seen = set()
-        for source, name, line in uses:
+        for source, name, line in info.uses:
             home = origin(source, name)
             if home is None or home == module or (home, name) in seen:
+                continue
+            if not modules[home].rel.startswith(PACKAGE_ROOT):
                 continue
             seen.add((home, name))
             geometries = path_geometries(modules[home].rel)
@@ -984,13 +994,15 @@ def read_texts(root: Path, files: list[str]) -> dict[str, str]:
     return texts
 
 
-def collect(root: Path, texts: dict[str, str] | None = None) -> list[Violation]:
+def collect(
+    root: Path, texts: dict[str, str] | None = None
+) -> tuple[list[Violation], dict[str, ModuleInfo]]:
+    """Every violation of the rule, and the index of the code (for the rows done)."""
     files = tracked_files(root)
     texts = read_texts(root, files) if texts is None else texts
     found: list[Violation] = list(check_paths(files))
     modules: dict[str, ModuleInfo] = {}
     fixtures: set[str] = set()
-    trees: dict[str, ast.Module] = {}
     for rel, text in texts.items():
         module = module_name(rel)
         if module and rel.startswith(CHECKED_ROOTS):
@@ -998,7 +1010,6 @@ def collect(root: Path, texts: dict[str, str] | None = None) -> list[Violation]:
                 tree = ast.parse(text)
             except SyntaxError:
                 continue
-            trees[rel] = tree
             modules[module] = ModuleInfo(rel, tree)
             if rel.endswith("conftest.py"):
                 fixtures.update(
@@ -1006,18 +1017,15 @@ def collect(root: Path, texts: dict[str, str] | None = None) -> list[Violation]:
                     for n in tree.body
                     if isinstance(n, ast.FunctionDef) and "fixture" in _decorators(n)
                 )
-    for rel, tree in trees.items():
-        if rel in INSTRUMENTS:
-            continue
-        module = module_name(rel)
-        assert module is not None
-        found += check_definitions(rel, module, tree, fixtures)
+    index_code(modules)
+    for module, info in modules.items():
+        found += check_definitions(info.rel, module, info.tree, fixtures)
     for rel, text in texts.items():
         if is_history(rel) or rel in INSTRUMENTS:
             continue
         found += check_text(rel, text)
-    found += check_rule3({m: i for m, i in modules.items() if i.rel not in INSTRUMENTS})
-    return found
+    found += check_rule3(modules)
+    return found, modules
 
 
 @dataclass
@@ -1155,57 +1163,181 @@ def check_done_rows(root: Path, rows: list[Row], files: list[str]) -> list[str]:
 
 
 BACKTICKS_RE = re.compile(r"`+([^`]+)`+")
+MATHS_ID_SCAN_RE = re.compile(r"(?<![\w-])M-[A-Z0-9]+(?:-[A-Z0-9]+)*(?![\w-])")
 
 
-def check_done_occurrences(rows: list[Row], texts: dict[str, str]) -> list[str]:
-    """A row done (not reintroduced): its old name occurs nowhere outside history.
+def _is_distinctive(name: str) -> bool:
+    """A name that cannot be an English word: an underscore, or an inner capital letter."""
+    return "_" in name or any(c.isupper() for c in name.lstrip("_")[1:])
 
-    In Python, as a name of the code or in backticks in a comment or a string; elsewhere, in
-    backticks; a maths ID anywhere.
+
+def _done_message(where: str, found: str, row: Row, what: str = "occurs") -> str:
+    return (
+        f"{where}: `{found}` {what}, but its row is done ({row.task}: {row.old} -> {row.new}). "
+        "Rename it as the row says"
+        + (
+            "; to give the old name a new meaning, add a reintroduce row (rule 6)."
+            if row.kind == "rename"
+            else "."
+        )
+    )
+
+
+def check_done_occurrences(
+    rows: list[Row], texts: dict[str, str], modules: dict[str, ModuleInfo]
+) -> list[str]:
+    """A row done: its old name occurs nowhere outside history, matched by what it names.
+
+    In the code, a definition is matched where it is defined (its module, or the modules that
+    module became), imported from there, or read through that module; a module where it is
+    imported. Elsewhere (prose, comments, strings): its qualified forms, and its bare name when
+    no other definition has that name, in backticks, or anywhere if it cannot be an English
+    word. A maths ID anywhere. A done reintroduce row lets the name back as defined in the
+    module it names, and imported from there; a definition of it elsewhere still fails.
     """
     pending = {r.bare for r in rows if not r.done and r.kind != "reintroduce"}
     back = {r.old for r in rows if r.kind == "reintroduce" and r.done}
-    names: dict[str, Row] = {}
+    renamed_modules: dict[str, set[str]] = defaultdict(set)
     for row in rows:
-        if not row.done or row.kind == "reintroduce" or row.old in back or "#" in row.old:
+        if ":" not in row.old and "#" not in row.old and "/" not in row.old:
+            renamed_modules[row.old] |= set(row.new.replace(",", " ").split())
+    # Every bare name defined in the code (definitions and modules), with where.
+    defined: dict[str, set[str]] = defaultdict(set)
+    for module, info in modules.items():
+        defined[module.rsplit(".", 1)[-1]].add(module)
+        for qualname in info.qualnames:
+            defined[qualname.rsplit(".", 1)[-1]].add(module)
+
+    errors: list[str] = []
+    ids: dict[str, Row] = {}
+    anywhere: dict[str, Row] = {}  # prose forms matched anywhere
+    quoted: dict[str, Row] = {}  # prose forms matched in backticks only
+    for row in rows:
+        if not row.done or row.kind == "reintroduce" or "#" in row.old:
             continue
-        name = row.old if row.old.startswith("M-") else row.bare
-        if name and name not in pending:
-            names.setdefault(name, row)
-    if not names:
+        if row.old.startswith("M-"):
+            ids[row.old] = row
+            continue
+        lifted = row.old in back
+        if ":" in row.old:
+            module, qualname = row.old.split(":", 1)
+            homes = {module} | renamed_modules.get(module, set())
+            name = qualname.rsplit(".", 1)[-1]
+            errors += _done_in_code(row, homes, qualname, modules, lifted)
+            forms = {f"{h.rsplit('.', 1)[-1]}.{qualname}" for h in homes}
+            forms |= {f"{h}.{qualname}" for h in homes}
+            if "." in qualname:
+                forms.add(qualname)
+        elif "/" in row.old:
+            homes, name = {row.old}, row.bare
+            forms = {row.old, row.old.rsplit("/", 1)[-1]}
+        else:
+            homes, name = {row.old}, row.bare
+            parts = row.old.split(".")
+            forms = {".".join(parts[i:]) for i in range(len(parts) - 1)}
+            forms |= {"/".join(parts[i:]) + ".py" for i in range(len(parts))}
+            if not lifted:
+                for info in modules.values():
+                    lines = sorted(
+                        {
+                            line
+                            for imported, line in info.imports
+                            if imported == row.old or imported.startswith(row.old + ".")
+                        }
+                    )
+                    errors += [
+                        _done_message(f"{info.rel}:{line}", row.old, row, "is imported")
+                        for line in lines
+                    ]
+        if lifted:
+            continue
+        for form in forms:
+            anywhere.setdefault(form, row)
+        ambiguous = name in pending or any(m not in homes for m in defined.get(name, ()))
+        if not ambiguous:
+            (anywhere if _is_distinctive(name) else quoted).setdefault(name, row)
+    errors += _done_in_prose(texts, ids, anywhere, quoted)
+    errors += _reintroduced_elsewhere(rows, modules, renamed_modules)
+    return errors
+
+
+def _done_in_code(
+    row: Row, homes: set[str], qualname: str, modules: dict[str, ModuleInfo], lifted: bool
+) -> list[str]:
+    """A definition row done: not defined in its modules, not imported from them, nor read
+    through them (all allowed again once its reintroduce row is done)."""
+    if lifted:
         return []
-    pattern = re.compile(
-        r"(?<![\w-])("
-        + "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True))
-        + r")(?![\w-])"
-    )
     errors = []
+    name = qualname.rsplit(".", 1)[-1]
+    for home in sorted(homes):
+        info = modules.get(home)
+        if info and qualname in info.qualnames:
+            errors.append(
+                _done_message(f"{info.rel}:{info.qualnames[qualname]}", name, row, "is defined")
+            )
+    if "." in qualname:
+        return errors  # a method or a field: matched where it is defined, and in prose
+    for info in modules.values():
+        for source, used, line in info.uses:
+            if used == name and source in homes:
+                errors.append(_done_message(f"{info.rel}:{line}", f"{source}.{name}", row))
+    return errors
+
+
+def _reintroduced_elsewhere(
+    rows: list[Row], modules: dict[str, ModuleInfo], renamed_modules: dict[str, set[str]]
+) -> list[str]:
+    """A name reintroduced (rule 6) is defined in the module its row names, and nowhere else."""
+    errors = []
+    for row in rows:
+        if row.kind != "reintroduce" or not row.done or ":" not in row.old:
+            continue
+        module, qualname = row.old.split(":", 1)
+        homes = {module} | renamed_modules.get(module, set())
+        for other, info in modules.items():
+            if other not in homes and qualname in info.qualnames:
+                errors.append(
+                    f"{info.rel}:{info.qualnames[qualname]}: `{qualname}` is defined here, but "
+                    f"its reintroduce row ({row.task}) brings it back in {module} only (rule 6): "
+                    "use that one, or another name."
+                )
+    return errors
+
+
+def _alternation(names: dict[str, Row]) -> re.Pattern[str] | None:
+    if not names:
+        return None
+    ordered = sorted(names, key=len, reverse=True)
+    return re.compile(r"(?<![\w.\-/])(" + "|".join(re.escape(n) for n in ordered) + r")(?![\w])")
+
+
+def _done_in_prose(
+    texts: dict[str, str], ids: dict[str, Row], anywhere: dict[str, Row], quoted: dict[str, Row]
+) -> list[str]:
+    errors = []
+    any_re, quoted_re = _alternation(anywhere), _alternation({**anywhere, **quoted})
+    ids_re = _alternation(ids)
     for rel, text in texts.items():
         if is_history(rel) or rel in INSTRUMENTS:
             continue
         skip = _skipped_lines(rel, text.split("\n"))
         for number, segment, is_code in _segments(rel, text):
-            if number in skip:
+            if number in skip or is_code:
                 continue
-            spans = [segment] if is_code else BACKTICKS_RE.findall(segment)
-            if not is_code:
-                spans += [m.group(0) for m in MATHS_ID_SCAN_RE.finditer(segment)]
-            for span in spans:
-                for match in pattern.finditer(span.replace("\\_", "_")):
-                    row = names[match.group(1)]
-                    errors.append(
-                        f"{rel}:{number}: `{match.group(1)}` occurs, but its row is done "
-                        f"({row.task}: {row.old} -> {row.new}). Rename it as the row says"
-                        + (
-                            "; to give the old name a new meaning, add a reintroduce row (rule 6)."
-                            if row.kind == "rename"
-                            else "."
-                        )
-                    )
+            segment = segment.replace("\\_", "_")
+            found: dict[str, Row] = {}
+            if ids_re:
+                found |= {m.group(1): ids[m.group(1)] for m in ids_re.finditer(segment)}
+            if any_re:
+                found |= {m.group(1): anywhere[m.group(1)] for m in any_re.finditer(segment)}
+            if quoted_re:
+                for span in BACKTICKS_RE.findall(segment):
+                    for m in quoted_re.finditer(span):
+                        found[m.group(1)] = {**anywhere, **quoted}[m.group(1)]
+            for form, row in found.items():
+                errors.append(_done_message(f"{rel}:{number}", form, row))
     return errors
-
-
-MATHS_ID_SCAN_RE = re.compile(r"(?<![\w-])M-[A-Z0-9]+(?:-[A-Z0-9]+)*(?![\w-])")
 
 
 def run(root: Path, *, report: bool = False, strict: bool = False) -> tuple[int, list[str]]:
@@ -1216,13 +1348,15 @@ def run(root: Path, *, report: bool = False, strict: bool = False) -> tuple[int,
     errors += check_contracts(root)
     files = tracked_files(root)
     texts = read_texts(root, files)
-    violations = collect(root, texts)
+    violations, modules = collect(root, texts)
     outcome = evaluate(violations, rows, strict=strict)
     errors += outcome.failures
     errors += check_done_rows(root, rows, files)
     reported = {line.split(": ", 1)[0] for line in outcome.failures}
     errors += [
-        e for e in check_done_occurrences(rows, texts) if e.split(": ", 1)[0] not in reported
+        e
+        for e in check_done_occurrences(rows, texts, modules)
+        if e.split(": ", 1)[0] not in reported
     ]
     for task in sorted(outcome.pending, key=lambda t: int(t.split(".")[1])):
         covered = outcome.covered.get(task, [])

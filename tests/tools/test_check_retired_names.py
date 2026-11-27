@@ -225,6 +225,24 @@ def test_names_that_follow_the_rule_pass(tmp_path: Path) -> None:
         pytest.param({"docs/guide.md": "On planar data.\n"}, "rule 10", id="rule10-prose"),
         pytest.param({"docs/guide.md": "A single geometry.\n"}, "rule 10", id="rule10-phrase"),
         pytest.param({"tests/x.py": 'CASES = ["planar-wide"]\n'}, "rule 10", id="rule10-label"),
+        pytest.param(
+            {
+                "src/estel/wavelets/_pixels_healpix.py": "def nest2pix():\n    pass\n",
+                "src/estel/scattering/_loop.py": (
+                    "from estel.wavelets._pixels_healpix import nest2pix\n"
+                ),
+            },
+            "rule 3",
+            id="rule3-not-a-convention-name",
+        ),
+        pytest.param(
+            {"tools/stl_parity/cases/c.py": "HPX_SIZE = 4\n"}, "rule 2", id="parity-case-constant"
+        ),
+        pytest.param(
+            {"tools/prove_unchanged.py": "def case_2d_mask():\n    pass\n"},
+            "rule 1",
+            id="the-instruments-follow-the-rule",
+        ),
     ],
 )
 def test_a_violation_with_no_row_fails(
@@ -256,8 +274,29 @@ def test_a_violation_with_no_row_fails(
         ),
         pytest.param({"tools/x.py": 'HEALPIX_ANALYSE_VERSION = "1"\n'}, id="rule7-package"),
         pytest.param(
-            {"src/estel/wavelets/_pixels_healpix.py": "def nest2xyf():\n    pass\n"},
+            {
+                "src/estel/wavelets/_pixels_healpix.py": "def nest2xyf():\n    pass\n",
+                "src/estel/scattering/_loop.py": (
+                    "from estel.wavelets._pixels_healpix import nest2xyf\n"
+                ),
+            },
             id="rule7-healpix-convention",
+        ),
+        pytest.param(
+            {
+                "src/estel/data/_healpix.py": "def stencils():\n    return 0\n",
+                "tests/scattering/test_loop.py": "from estel.data._healpix import stencils\n",
+                "bench/cases.py": "from estel.data import _healpix\nx = _healpix.stencils()\n",
+            },
+            id="rule3-package-only",
+        ),
+        pytest.param(
+            {
+                "tools/stl_parity/cases/c.py": (
+                    "STL_ENV = 1\nPARAMETERS = {}\n\n\ndef run():\n    pass\n"
+                )
+            },
+            id="rule7-parity-interface",
         ),
         pytest.param(
             {
@@ -349,3 +388,105 @@ def test_the_contracts_lose_no_module(tmp_path: Path, module: str, fails: bool) 
     assert (status == 1) == fails, output
     if fails:
         assert module in output
+
+
+COLLISIONS = {
+    # The oracle's own Scale, a _data of the benchmark, attributes _data and _buffer: other
+    # definitions than those of the rows done below.
+    "src/estel/_spec/tensor_prod.py": "Scale = tuple[int, ...]\n",
+    "bench/_estel.py": "_data = 1\n",
+    "src/estel/wavelets/_operator.py": (
+        "class W:\n    def __init__(self):\n        self._data = 1\n"
+    ),
+    "src/estel/statistics/_statistics.py": "class STStatistics:\n    _buffer: int = 0\n",
+    "src/estel/scattering/_tensor_prod.py": "class ScaleTensorProd:\n    pass\n",
+    "tests/spectra/test_stoperator.py": "def _data_2d():\n    pass\n",
+    "docs/guide.md": "A `Scale` of the oracle; the `_data` of `W`; `STStatistics._buffer`.\n",
+}
+COLLISION_ROWS = table(
+    row("estel.scattering._tensor_prod:Scale", "ScaleTensorProd", "T7.7", done=True),
+    row("tests.spectra.test_stoperator:_data", "_data_2d", "T7.9", done=True),
+    row("tests.statistics.test_tensor_prod:_buffer", "_buffer_tensor_prod", "T7.8", done=True),
+)
+
+
+def test_a_row_done_ignores_other_definitions_of_its_name(tmp_path: Path) -> None:
+    status, output = names(tmp_path, {**COLLISIONS, **COLLISION_ROWS})
+    assert status == 0, output
+
+
+@pytest.mark.parametrize(
+    ("change", "where"),
+    [
+        pytest.param(
+            {"src/estel/scattering/_tensor_prod.py": "class Scale:\n    pass\n"},
+            "src/estel/scattering/_tensor_prod.py:1",
+            id="defined-in-its-module",
+        ),
+        pytest.param(
+            {
+                "src/estel/scattering/_filters.py": (
+                    "from estel.scattering._tensor_prod import Scale\n"
+                )
+            },
+            "src/estel/scattering/_filters.py:1",
+            id="imported-from-its-module",
+        ),
+        pytest.param(
+            {
+                "src/estel/scattering/_filters.py": (
+                    "from . import _tensor_prod\nx = _tensor_prod.Scale\n"
+                )
+            },
+            "src/estel/scattering/_filters.py:2",
+            id="read-through-its-module",
+        ),
+        pytest.param(
+            {"docs/other.md": "See _tensor_prod.Scale.\n"},
+            "docs/other.md:1",
+            id="qualified-in-prose",
+        ),
+        pytest.param(
+            {"tests/spectra/test_stoperator.py": "def _data():\n    pass\n"},
+            "tests/spectra/test_stoperator.py:1",
+            id="a-test-helper",
+        ),
+    ],
+)
+def test_a_row_done_fails_on_its_own_old_name(
+    tmp_path: Path, change: dict[str, str], where: str
+) -> None:
+    status, output = names(tmp_path, {**COLLISIONS, **change, **COLLISION_ROWS})
+    assert status == 1
+    assert f"{where}: " in output
+    assert "its row is done" in output
+
+
+def test_prose_names_that_are_no_words_are_matched_outside_backticks(tmp_path: Path) -> None:
+    files = {
+        "src/estel/wavelets/_operator.py": "class WaveletPlanSingleDomain:\n    pass\n",
+        "docs/guide.md": "The WaveletPlan holds.\n",
+    }
+    rename = row(
+        "estel.wavelets._operator:WaveletPlan", "WaveletPlanSingleDomain", "T7.5", done=True
+    )
+    status, output = names(tmp_path, {**files, **table(rename)})
+    assert status == 1
+    assert "docs/guide.md:1: `WaveletPlan`" in output
+
+
+def test_a_reintroduced_name_is_defined_in_its_module_only(tmp_path: Path) -> None:
+    rows = table(
+        row("estel.wavelets._operator:WaveletPlan", "WaveletPlanSingleDomain", "T7.5", done=True),
+        row("estel.wavelets._operator:WaveletPlan", "root", "T7.5", done=True, kind="reintroduce"),
+    )
+    files = {
+        "src/estel/wavelets/_operator.py": "class WaveletPlan:\n    pass\n",
+        "src/estel/scattering/_plan.py": "from estel.wavelets._operator import WaveletPlan\n",
+    }
+    assert names(tmp_path, {**files, **rows})[0] == 0
+    elsewhere = {**files, "src/estel/data/_base.py": "class WaveletPlan:\n    pass\n"}
+    status, output = names(tmp_path / "elsewhere", {**elsewhere, **rows})
+    assert status == 1
+    assert "src/estel/data/_base.py:1" in output
+    assert "brings it back in estel.wavelets._operator only" in output

@@ -28,7 +28,8 @@ Exit status (the verdict):
   the cause and states it;
 * 2: a difference beyond the tolerance, a dump that differs, an output on one side only, or a
   case that fails on one side only: the task stops, and the maintainer decides;
-* 3: the proof could not run (a git or environment error).
+* 3: the proof could not run (a git or environment error), or a case raised on both trees
+  and is not in ``EXPECTED_FAILURES``: that case proved nothing.
 
 Usage::
 
@@ -78,7 +79,7 @@ VERDICTS = {
     EQUAL: "every output bitwise equal",
     WITHIN: "differences within the parity tolerance (Part II, §14.3): locate and state the cause",
     BEYOND: "differences beyond the parity tolerance: stop, the maintainer decides",
-    ERROR: "a case could not run on either tree: the proof is incomplete",
+    ERROR: "a case did not run on both trees: the proof is incomplete",
 }
 
 # One thread, on CPU, the same hash seed: the environment of every case.
@@ -242,6 +243,17 @@ def canonical_dump(value: Any, names: Names, _seen: frozenset[int] = frozenset()
         if array.dtype == object:
             digest = repr(canonical_dump(array.tolist(), names, _seen))
         return ("array", array.dtype.str, array.shape, digest)
+    if isinstance(value, slice):
+        return (
+            "slice",
+            tuple(canonical_dump(v, names, _seen) for v in (value.start, value.stop, value.step)),
+        )
+    if isinstance(value, range):
+        return ("range", value.start, value.stop, value.step)
+    if isinstance(value, np.dtype):
+        return ("dtype", value.str, value.descr)  # the byte order is part of .str
+    if value is Ellipsis:
+        return ("ellipsis",)
     if isinstance(value, np.generic):
         return ("scalar", value.dtype.str, value.tobytes().hex())
     if isinstance(value, type):
@@ -280,10 +292,19 @@ def canonical_dump(value: Any, names: Names, _seen: frozenset[int] = frozenset()
         )
         return ("dataclass", cls, fields)
     attributes: dict[str, Any] = {}
+    has_slots = False
     for klass in type(value).__mro__:
-        for slot in getattr(klass, "__slots__", ()):
+        slots = getattr(klass, "__slots__", ())
+        has_slots = has_slots or bool(slots)
+        for slot in (slots,) if isinstance(slots, str) else slots:
             if hasattr(value, slot):
                 attributes[slot] = getattr(value, slot)
+    if not has_slots and not hasattr(value, "__dict__"):
+        raise TypeError(
+            f"canonical_dump: no canonical form for {type(value).__module__}."
+            f"{type(value).__qualname__} ({value!r:.80}): it has no fields to compare. Add its "
+            "type to canonical_dump (tools/prove_unchanged.py), with what makes two values equal."
+        )
     attributes.update(getattr(value, "__dict__", {}))
     return (
         "object",
@@ -410,7 +431,7 @@ def case_1d(ctx: Context) -> None:
     _apply(ctx, "1d", operator, data)
 
 
-def case_2d_periodic(ctx: Context) -> None:
+def case_periodic_2d(ctx: Context) -> None:
     from estel import Data2D
 
     data = Data2D(_field((1, 1, 16, 16)), pbc=True)
@@ -427,7 +448,7 @@ def _mask_2d(size: int) -> Any:
     return mask
 
 
-def case_2d_mask(ctx: Context) -> None:
+def case_mask_2d(ctx: Context) -> None:
     from estel import Data2D
 
     data = Data2D(_field((1, 1, 32, 32)), mask=_mask_2d(32), pbc=False)
@@ -440,7 +461,7 @@ def _sky(depth: int, n: int | None = None) -> Any:
     return _field((1, 1, n if n is not None else 12 * 4**depth))
 
 
-def case_healpix_full(ctx: Context) -> None:
+def case_full_healpix(ctx: Context) -> None:
     from estel import DataHealpix
 
     data = DataHealpix(_sky(2))
@@ -449,7 +470,7 @@ def case_healpix_full(ctx: Context) -> None:
     _apply(ctx, "healpix", operator, data)
 
 
-def case_healpix_partial(ctx: Context) -> None:
+def case_partial_healpix(ctx: Context) -> None:
     import numpy as np
 
     from estel import DataHealpix
@@ -460,7 +481,7 @@ def case_healpix_partial(ctx: Context) -> None:
     _apply(ctx, "healpix-partial", operator, data)
 
 
-def case_healpix_mask(ctx: Context) -> None:
+def case_mask_healpix(ctx: Context) -> None:
     import numpy as np
 
     from estel import DataHealpix
@@ -483,11 +504,11 @@ def _tensor_prod(ctx: Context, lowpass: str | None) -> None:
     _apply(ctx, name, operator, data)
 
 
-def case_tensor_prod_st(ctx: Context) -> None:
+def case_st_tensor_prod(ctx: Context) -> None:
     _tensor_prod(ctx, "ST")
 
 
-def case_tensor_prod_none(ctx: Context) -> None:
+def case_none_tensor_prod(ctx: Context) -> None:
     _tensor_prod(ctx, None)
 
 
@@ -635,23 +656,37 @@ def case_oracle(ctx: Context) -> None:
         "oracle/healpix-partial",
         spec_apply_hpx(_sky(3, 80), nside=8, cell_ids=np.arange(80), J=2),
     )
-    ctx.record(
-        "oracle/tensor-prod",
-        spec_tensor_prod(
-            _field((1, 1, 16, 16, 8)), [2, 1], [True, True], [2, 2], lowpass="ST", norm="self"
-        ),
-    )
+    hole = np.zeros(192, dtype=bool)
+    hole[[5, 6, 70]] = True
+    ctx.record("oracle/healpix-mask", spec_apply_hpx(_sky(2), nside=4, mask=hole, J=2))
+    for lowpass in ("ST", None):
+        ctx.record(
+            f"oracle/tensor-prod-{lowpass}",
+            spec_tensor_prod(
+                _field((1, 1, 16, 16, 8)),
+                [2, 1],
+                [True, True],
+                [2, 2],
+                lowpass=lowpass,
+                norm="self",
+            ),
+        )
+    spec_spectra = names.resolve("estel._spec.spectra:spec_spectra")
+    ctx.record("oracle/spectrum-auto", spec_spectra(_field((1, 1, 32, 32)), True, J=3))
+    masked = _field((1, 1, 32, 32))
+    masked[..., _mask_2d(32)] = np.nan
+    ctx.record("oracle/spectrum-masked", spec_spectra(masked, False, J=3, method="nan_mask"))
 
 
 CASES: dict[str, Callable[[Context], None]] = {
     "1d": case_1d,
-    "2d-periodic": case_2d_periodic,
-    "2d-mask": case_2d_mask,
-    "healpix-full": case_healpix_full,
-    "healpix-partial": case_healpix_partial,
-    "healpix-mask": case_healpix_mask,
-    "tensor-prod-st": case_tensor_prod_st,
-    "tensor-prod-none": case_tensor_prod_none,
+    "2d-periodic": case_periodic_2d,
+    "2d-mask": case_mask_2d,
+    "healpix-full": case_full_healpix,
+    "healpix-partial": case_partial_healpix,
+    "healpix-mask": case_mask_healpix,
+    "tensor-prod-st": case_st_tensor_prod,
+    "tensor-prod-none": case_none_tensor_prod,
     "spectrum-auto": case_spectrum_auto,
     "spectrum-masked": case_spectrum_masked,
     "cross": case_cross,
@@ -661,6 +696,15 @@ CASES: dict[str, Callable[[Context], None]] = {
     "synthesis-healpix": case_synthesis_healpix,
     "files": case_files,
     "oracle": case_oracle,
+}
+# The cases expected to raise, on both trees, with why: any other case that raises on both trees
+# proved nothing, and the verdict says so (status 3).
+EXPECTED_FAILURES: dict[tuple[str, str], str] = {
+    ("synthesis-2d", "jax"): "syntheses need L-BFGS, which only PyTorch provides in step 1 (LF1)",
+    (
+        "synthesis-healpix",
+        "jax",
+    ): "syntheses need L-BFGS, which only PyTorch provides in step 1 (LF1)",
 }
 # The oracle is NumPy only, in float64: one run per tree.
 NUMPY_ONLY = frozenset({"oracle"})
@@ -838,9 +882,14 @@ class _Canonical(ast.NodeTransformer):
     visit_ClassDef = _strip  # noqa: N815
 
 
-def function_bodies(src: Path, names: Names) -> dict[str, str]:
-    """Every function and method of ``src/estel/``, by its name of ``main``: its AST dump."""
-    bare = names.bare_back()
+def function_bodies(src: Path, names: Names, kept: frozenset[str] = frozenset()) -> dict[str, str]:
+    """Every function and method of ``src/estel/``, by its name of ``main``: its AST dump.
+
+    ``kept``: names defined on ``main`` (:func:`defined_names`), never mapped back. A row
+    whose new name is also an old one (a hook ``_planar_conv`` moved to the method ``_conv``
+    of ``DataCartesian``) would otherwise map every call of the existing ``_conv`` back.
+    """
+    bare = {new: old for new, old in names.bare_back().items() if new not in kept}
     modules = dict(names.module_back)
     bodies: dict[str, str] = {}
     for path in sorted((src / "estel").rglob("*.py")):
@@ -855,6 +904,15 @@ def function_bodies(src: Path, names: Names) -> dict[str, str]:
             clean = _Canonical(bare, modules).visit(node)
             bodies[canonical] = ast.dump(clean, include_attributes=False)
     return bodies
+
+
+def defined_names(bodies: dict[str, str]) -> frozenset[str]:
+    """Every module, class and function name of :func:`function_bodies`."""
+    found: set[str] = set()
+    for name in bodies:
+        module, _, qualname = name.partition(":")
+        found |= set(module.split(".")) | set(qualname.split("."))
+    return frozenset(found)
 
 
 def _functions(body: list[ast.stmt], prefix: str) -> Iterator[tuple[str, ast.AST]]:
@@ -958,7 +1016,24 @@ def compare_runs(base: dict[Job, Any], branch: dict[Job, Any]) -> list[Differenc
             )
             continue
         differences += compare_outputs(job.label, a["outputs"], b["outputs"], job.dtype)
+        raised = a["outputs"].get("error")
+        if raised is not None and raised == b["outputs"].get("error"):
+            reason = EXPECTED_FAILURES.get((job.case, job.backend))
+            detail = f"raised {raised[1][1]} on both trees"
+            if reason:
+                differences.append(Difference(job.label, EQUAL, f"{detail}, as expected: {reason}"))
+            else:
+                differences.append(
+                    Difference(
+                        job.label, ERROR, f"{detail}: the case did not run, so it proves nothing"
+                    )
+                )
     return differences
+
+
+def imported_from(where: str, tree: Path) -> bool:
+    """Whether the ``estel`` a worker imported (its ``__file__``) is that of ``tree``."""
+    return Path(where).resolve().is_relative_to((tree / "src").resolve())
 
 
 def _git(*args: str, cwd: Path) -> str:
@@ -993,14 +1068,15 @@ def prove(base_ref: str, cases: list[str], workers: int) -> int:
             expected = base_tree if side == "main" else REPO
             for job, result in runs.items():
                 where = result.get("estel", "")
-                if where and not where.startswith(str(expected.resolve())):
+                if where and not imported_from(where, expected):
                     print(f"prove_unchanged: {job.label} on {side} imported estel from {where}")
                     return ERROR
         differences = compare_runs(base_runs, branch_runs)
-        bodies = compare_bodies(
-            function_bodies(base_tree / "src", Names(read_table(base_tree))),
-            function_bodies(REPO / "src", Names(read_table(REPO))),
+        main_bodies = function_bodies(base_tree / "src", Names(read_table(base_tree)))
+        branch_bodies = function_bodies(
+            REPO / "src", Names(read_table(REPO)), defined_names(main_bodies)
         )
+        bodies = compare_bodies(main_bodies, branch_bodies)
     finally:
         subprocess.run(
             ["git", "worktree", "remove", "--force", str(base_tree)], cwd=REPO, check=False
@@ -1018,8 +1094,9 @@ def report(
     n_outputs = sum(len(r.get("outputs", {})) for r in runs.values())
     status = max((d.status for d in differences), default=EQUAL)
     for difference in differences:
-        level = {WITHIN: "within", BEYOND: "BEYOND", ERROR: "ERROR"}[difference.status]
-        print(f"  {level} {difference.where}: {difference.detail}")
+        level = {EQUAL: "expected", WITHIN: "within", BEYOND: "BEYOND", ERROR: "ERROR"}
+        print(f"  {level[difference.status]} {difference.where}: {difference.detail}")
+    n_differ = sum(d.status != EQUAL for d in differences)
     print("prove_unchanged: bodies compared by AST, modulo the table (listed for review):")
     for kind, listed in bodies.items():
         print(f"  {kind}: {len(listed)}")
@@ -1027,7 +1104,7 @@ def report(
             print(f"    {name}")
     print(
         f"prove_unchanged: {len(runs)} runs per tree, {n_outputs} outputs; "
-        f"{len(differences)} differ. Verdict {status}: {VERDICTS[status]}. "
+        f"{n_differ} differ. Verdict {status}: {VERDICTS[status]}. "
         f"Wall time {seconds:.0f} s."
     )
     return status

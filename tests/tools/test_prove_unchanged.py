@@ -17,6 +17,7 @@ import pytest
 from prove_unchanged import (
     BEYOND,
     EQUAL,
+    ERROR,
     WITHIN,
     Job,
     Names,
@@ -25,7 +26,9 @@ from prove_unchanged import (
     compare_bodies,
     compare_outputs,
     compare_runs,
+    defined_names,
     function_bodies,
+    imported_from,
     report,
 )
 
@@ -198,3 +201,74 @@ def test_the_verdict_is_the_worst_difference(capsys: pytest.CaptureFixture[str])
     beyond = compare_outputs("c", {"x": values}, {"x": values + 1}, "float64")
     assert report({}, within + beyond, no_bodies, 1.0) == BEYOND
     assert "Verdict 2" in capsys.readouterr().out
+
+
+def _raised(kind: str) -> dict[str, Any]:
+    return {"outputs": {"error": ("dump", ("raises", kind))}}
+
+
+def test_a_case_that_raises_on_both_trees_proves_nothing_unless_expected() -> None:
+    expected = Job("synthesis-2d", "jax", "float64")
+    unexpected = Job("2d-periodic", "jax", "float64")
+    runs = {expected: _raised("NotImplementedError"), unexpected: _raised("ValueError")}
+    differences = {d.where: d for d in compare_runs(runs, runs)}
+    assert differences[expected.label].status == EQUAL
+    assert "as expected" in differences[expected.label].detail
+    assert differences[unexpected.label].status == ERROR
+
+
+@pytest.mark.parametrize(
+    ("a", "b"),
+    [
+        pytest.param(slice(0, 3), slice(1, 4), id="slice"),
+        pytest.param(np.dtype("<f8"), np.dtype(">f8"), id="dtype-byte-order"),
+        pytest.param(range(3), range(4), id="range"),
+    ],
+)
+def test_value_types_are_dumped_by_their_value(a: Any, b: Any) -> None:
+    assert canonical_dump(a, NO_NAMES) == canonical_dump(a, NO_NAMES)
+    assert canonical_dump(a, NO_NAMES) != canonical_dump(b, NO_NAMES)
+
+
+def test_an_opaque_object_is_refused() -> None:
+    with pytest.raises(TypeError, match="no canonical form"):
+        canonical_dump(object(), NO_NAMES)
+
+
+def test_the_tree_of_the_imported_estel_is_checked(tmp_path: Path) -> None:
+    tree = tmp_path / "estel"
+    assert imported_from(str(tree / "src/estel/__init__.py"), tree)
+    assert not imported_from(str(tmp_path / "estel-other/src/estel/__init__.py"), tree)
+    assert not imported_from(str(tmp_path / ".venv/estel/__init__.py"), tree)
+
+
+MOVED = """
+class DataHealpix:
+    def _conv(self, x):
+        return x
+
+
+def scatter(data, x):
+    return data._conv(x)
+"""
+
+
+def test_a_new_name_that_main_already_has_is_not_mapped_back(tmp_path: Path) -> None:
+    base_source = MOVED + "\n\ndef _planar_conv(data, x):\n    return x + 1\n"
+    branch_source = (
+        MOVED + "\n\nclass DataCartesian:\n    def _conv(self, x):\n        return x + 1\n"
+    )
+    move = Row(
+        "estel.data._planar:_planar_conv",
+        "estel.data._planar:DataCartesian._conv",
+        "move",
+        "T7.4",
+        True,
+    )
+    write(tmp_path / "main", {"src/estel/data/_planar.py": base_source})
+    write(tmp_path / "branch", {"src/estel/data/_planar.py": branch_source})
+    base = function_bodies(tmp_path / "main/src", NO_NAMES)
+    branch = function_bodies(tmp_path / "branch/src", Names([move]), defined_names(base))
+    listed = compare_bodies(base, branch)
+    assert "estel.data._planar:scatter" not in listed["differ"]
+    assert "estel.data._planar:DataHealpix._conv" not in listed["differ"]
