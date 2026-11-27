@@ -128,8 +128,8 @@ class SynthesisResult:
     def n_evals(self) -> int:
         """The evaluations of the loss counted by L-BFGS in the run: those of its line
         searches and the first, at the start (OP-74). The cap ⌊5 x ``max_iter`` / 4⌋ is
-        checked between iterations only, as in PyTorch and STL, so a run can exceed it by the
-        evaluations of its last iteration."""
+        checked between iterations only, as in PyTorch (M-SYN-LBFGS), so a run can exceed it by
+        the evaluations of its last iteration."""
         return self._n_evals
 
     @property
@@ -185,58 +185,58 @@ def synthesize_from_maps(
     resume_from: str | os.PathLike[str] | None = None,
 ) -> SynthesisResult:
     """Synthesise ``n_batch`` fields whose statistics match those of the target maps (maths.md
-    section 5; STL's ``synthesize_from_maps``).
+    section 5).
 
     Parameters
     ----------
-    target:
+    target : Data or array_like
         The target maps: an ``estel.Data2D``, periodic and without missing values, or an array
         of shape ``(N1, N2)``, ``(Nc, N1, N2)`` or ``(Nb, Nc, N1, N2)``, taken as periodic 2D
         data; or an ``estel.DataHealpix`` of the full sky, without ``cell_ids`` and without
         missing values. Non-periodic, partial-sky and masked targets come later (LF47).
-    n_batch:
+    n_batch : int
         The number of fields synthesised. With ``mean_field=False`` it must be the target's Nb.
-    running_shape:
+    running_shape : tuple of int or None
         On 2D data, the spatial shape ``(N1, N2)`` of the synthesised fields; by default the
         target's. HEALPix fields are synthesised at the target's depth: ``running_shape``
         raises there (OP-101).
-    init:
+    init : str or array_like
         ``"gaussian"`` (the default): a Gaussian white noise drawn with ``seed``; or an array
         that broadcasts to ``(n_batch, Nc, *spatial)``, in the standardised units of the target.
         Either is then pre-filtered on 2D data (M-SYN-INIT, M-SYN-NYQ); HEALPix fields have no
         pre-filter in 1.0.0 (OP-77).
-    mean_field:
+    mean_field : bool
         Compare the statistics averaged over the batch (True, the default), so that
         ``n_batch`` may differ from the target's Nb; or map by map (M-SYN-TARGET, M-SYN-LOSS).
-    compute_PS:
+    compute_PS : bool or None
         Whether the 2D power spectrum enters the loss, as the last family of its vector
         (M-SYN-OPS, M-SYN-LOSS), by the rule of ``STOperator``: ``None`` (the default) puts it
-        in on 2D data, as STL's ``synthesize_from_maps`` for periodic fields, and leaves it out
-        on HEALPix data, which have no spectrum in 1.0.0 (OP-77, LF24); True puts it in, on 2D
-        data only; False leaves it out, as STL's ``optimize_from_maps``. With the spectrum,
-        both operators take J and the number of bins: the smaller of the defaults of the
-        target and of the synthesised fields, each from its own size, whatever J; J_min is 0
-        and the estimator ``fft``.
-    max_iter:
+        in on 2D data, whose fields are periodic, and leaves it out on HEALPix data, which have
+        no spectrum in 1.0.0 (OP-77, LF24); True puts it in, on 2D data only; False leaves it
+        out. With the spectrum, both operators take J and the number of bins: the smaller of
+        the defaults of the target and of the synthesised fields, each from its own size,
+        whatever J; J_min is 0 and the estimator ``fft``.
+    max_iter : int
         The iterations of L-BFGS of the whole run, those before ``resume_from`` included; the
         evaluations of the loss are capped at ⌊5 x ``max_iter`` / 4⌋ (M-SYN-LBFGS, OP-74).
-    history_size:
-        The correction pairs L-BFGS keeps: 50, STL's (decision of the maintainer on #28).
-    lr:
-        The step size of L-BFGS: 1.0, STL's.
-    seed:
-        The seed of the Gaussian start (Part I, §3.1, rule 5). ESTEL has no global seed; STL's
-        default seed is 26, and its draws differ from ESTEL's (OP-55).
-    st_kwargs:
-        Options of the scattering operators: ``J`` only, as in STL, by default the smaller of
-        the default J of the target and of the synthesised fields (max(1, depth - 1) on HEALPix
-        data, M-DEF-HEALPIX); L and the channel pairs are the defaults (M-SYN-OPS). Any other key
+    history_size : int
+        The correction pairs L-BFGS keeps: 50 by default (M-SYN-LBFGS; decision of the
+        maintainer on #28).
+    lr : float
+        The step size of L-BFGS: 1.0 by default (M-SYN-LBFGS).
+    seed : int
+        The seed of the Gaussian start (Part I, §3.1, rule 5). ESTEL has no global seed
+        (OP-55).
+    st_kwargs : mapping or None
+        Options of the scattering operators: ``J`` only, by default the smaller of the default
+        J of the target and of the synthesised fields (max(1, depth - 1) on HEALPix data,
+        M-DEF-HEALPIX); L and the channel pairs are the defaults (M-SYN-OPS). Any other key
         raises an error.
-    checkpoint_every, checkpoint_dir:
+    checkpoint_every, checkpoint_dir
         Write a checkpoint to ``checkpoint_dir`` every ``checkpoint_every`` iterations, and at
         the end of the run: ``checkpoint_000010.npz`` after 10 iterations (maths.md §5.8).
         Give both or neither.
-    resume_from:
+    resume_from : str, os.PathLike or None
         A checkpoint file: the run continues from it with the same trajectory, on the same
         device, up to ``max_iter`` iterations in all. The target and the settings must be those
         of the run that wrote it. With ``max_iter`` reached, the checkpoint is the result.
@@ -389,7 +389,7 @@ def synthesize_from_stats(
     resume_from: str | os.PathLike[str] | None = None,
 ) -> SynthesisResult:
     """Synthesise ``n_batch`` periodic fields whose statistics match ``stats`` (maths.md
-    section 5; STL's ``synthesize_from_stats``).
+    section 5).
 
     ``stats`` are the statistics of 2D data or of a full HEALPix sky, computed with
     ``norm="self"``, not reduced, holding exactly the families ``mean``, ``var``, S1 to S4, and,

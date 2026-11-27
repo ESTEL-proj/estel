@@ -356,6 +356,7 @@ class Data2D(DataCartesian):
     """
 
     ndim: ClassVar[int] = 2
+    """The number of spatial axes of the array, 2."""
     _nan_threshold: ClassVar[float] = 0.33
     _geometry: ClassVar[str] = "2d"
     _block_tensor_prod: ClassVar[bool] = True
@@ -377,6 +378,7 @@ class Data1D(DataCartesian):
     """
 
     ndim: ClassVar[int] = 1
+    """The number of spatial axes of the array, 1."""
     _nan_threshold: ClassVar[float] = 0.5
     _geometry: ClassVar[str] = "1d"
     _block_tensor_prod: ClassVar[bool] = True

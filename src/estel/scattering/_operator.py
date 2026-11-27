@@ -60,46 +60,46 @@ class STOperator:
 
     Parameters
     ----------
-    data:
+    data : Data
         An example of the data, ``estel.Data1D``, ``estel.Data2D`` or ``estel.DataHealpix``: its
         geometry, spatial shape, ``pbc``, mask and number of channels fix the operator, and on
         HEALPix its ``depth`` and ``cell_ids``; its values are not read.
-    J:
+    J : int or None
         The number of scales; by default ⌊log₂ min N⌋ - 2 (M-DEF, M-DEF-1D). The spatial sizes
         must be divisible by 2^(J-1) (OP-8). On HEALPix, max(1, depth - 1), with
         1 ≤ J ≤ depth + 1 (M-DEF-HEALPIX).
-    L:
+    L : int or None
         The number of orientations; by default 4 in 2D and 1 in 1D. In 1D, L is 1 or 2 (the
         second filter is the conjugate of the first, M-WAV-1D). On HEALPix, the number of gauges,
         4 by default (M-DEF-HEALPIX).
-    standardize:
+    standardize : bool
         Remove the mean and divide by the standard deviation of each map before the transform
-        (M-STD), True by default (OP-120; STL: False, whose values ``standardize=False``
-        gives); both values are kept with the statistics. A map of zero variance then has NaN
-        statistics.
-    cross_matrix:
+        (M-STD), True by default (OP-120); both values are kept with the statistics. A map of
+        zero variance then has NaN statistics. ``standardize=False`` transforms the map as it
+        is.
+    cross_matrix : array_like or None
         A boolean ``(Nc, Nc)`` array: the diagonal entry of a channel asks for its auto
         statistics, the entry ``[c1, c2]``, c1 < c2, for the cross statistics of the pair; the
         entries below the diagonal are ignored. By default every pair, the upper
         triangle (M-CHAN, M-DEF). Every channel must appear in at least one pair (OP-30).
-    compute_PS:
+    compute_PS : bool or None
         Whether the statistics hold the 2D power spectrum, the family ``"PS"`` (maths.md §1.9):
         True by default for 2D data, unavailable for 1D data (LF23) and HEALPix data (LF24) in
         1.0.0, where ``None`` (the default) leaves it out and True raises. It is computed
         on the field after the standardisation, with the channel pairs of ``cross_matrix``,
         over the band of the operator's J, given or by default: the centres of its scales 0 to
         J - 1 (maths.md §1.9, "Range"); it needs even sizes (OP-20) and J ≥ 2 + Jmin (OP-93).
-    n_bins:
+    n_bins : int or None
         The number of bins of the spectrum: by default max(4, round(3 (J - 1 - Jmin))).
-    Jmin:
+    Jmin : int
         J_min of the spectrum, 0 by default, with 0 ≤ Jmin ≤ J - 2.
-    spectrum_method:
+    spectrum_method : str
         The estimator of the spectrum: ``"auto"`` (the default) chooses it from ``pbc`` and the
         missing pixels of ``data``; or ``"fft"``, ``"pbc_mask"``, ``"nan_mask"`` or
         ``"pbc_nan_mask"`` (maths.md §1.9). ``n_bins``,
         ``Jmin`` and ``spectrum_method`` act only with the spectrum: another value than their
         default without it raises, naming LF23 or LF24 on data without a spectrum.
-    engine:
+    engine : str
         The engine that runs the computation (Part II, §9.4): ``"python"``, the only engine of
         1.0.0.
     """
@@ -281,8 +281,8 @@ class STOperator:
 
 class STOperatorTensorProd(STOperator):
     """The scattering operator of a tensor product of Cartesian geometries: the scattering
-    statistics mean, var and S1 to S4 with multi-index scales (maths.md §3; Part II, §12.6;
-    task T3.2), STL's ``ST_Operator_TensorProd``.
+    statistics mean, var and S1 to S4 with multi-index scales (maths.md §3, M-S-TENSORPROD;
+    Part II, §12.6; task T3.2).
 
     A subclass of :class:`STOperator` (Part I, §2.3; Part II, §12.6): it redefines its
     construction (J and L per block, ``lowpass``), ``lowpass``, ``__repr__`` and the plan that
@@ -295,28 +295,28 @@ class STOperatorTensorProd(STOperator):
 
     Parameters
     ----------
-    data:
+    data : Data
         An example of the data, an ``estel.DataTensorProd``: its blocks, their sizes and
         ``pbc``, and its number of channels fix the operator; its values are not read.
-    J:
+    J : sequence or None
         One number of scales per block, as a list, for example ``[4, 3]``; an entry ``None``,
         or ``J=None``, gives the default of the block, ⌊log₂ min N⁽ᵃ⁾⌋ - 2 (M-DEF-TENSORPROD). The
         sizes of block a must be divisible by 2^(J_a - 1) (OP-8).
-    L:
+    L : sequence or None
         One number of orientations per block, as a list; by default 4 for a 2D block and 2
         for a 1D block, which takes 1 or 2 (M-DATA-TENSORPROD).
-    lowpass:
+    lowpass : str or None
         ``"ST"`` (the default): each block whose sizes are divisible by 2^J_a has a low-pass
         filter, its scale J_a in S1 and S2, and the scale with the low-pass filter in every
         block is centred (M-LP); a block whose sizes are not warns and has none (OP-34).
-        ``None``: no low-pass filter. ESTEL 1.0.0 has no tensor-product spectrum, so STL's
-        ``"PS"`` is not taken.
-    standardize, cross_matrix:
+        ``None``: no low-pass filter. ESTEL 1.0.0 has no tensor-product spectrum, so the
+        low-pass bin of the spectrum, ``"PS"``, is not taken (M-LP).
+    standardize, cross_matrix
         As for :class:`STOperator` (M-STD, M-CHAN): ``standardize`` True by default (OP-120).
-    compute_PS:
+    compute_PS : bool or None
         ``None`` (the default) or ``False``: tensor products have no power spectrum in ESTEL
         1.0.0 (LF23).
-    engine:
+    engine : str
         The engine that runs the computation (Part II, §9.4): ``"python"``, the only engine of
         1.0.0.
     """

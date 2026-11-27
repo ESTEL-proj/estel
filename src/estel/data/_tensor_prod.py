@@ -47,20 +47,20 @@ class DataTensorProd(Data):
 
     Parameters
     ----------
-    array:
+    array : array_like
         The data, real-valued, as for :class:`estel.Data`: the spatial axes of the blocks, in
         block order, with no axis between them. An array with the spatial axes only is
         promoted to ``(1, 1, *spatial)``, one with a single leading axis to
         ``(1, Nc, *spatial)``; the result is ``(Nb, Nc, *spatial)``.
-    blocks:
+    blocks : sequence of type
         The geometries of the blocks, in axis order: a list of ``estel.Data2D`` and
         ``estel.Data1D``, in any order, for example ``[Data2D, Data1D]`` for space and time.
         A single block is accepted (maths.md OP-82).
-    mask:
+    mask : None
         Not supported: missing values in tensor products come after 1.0.0 (LF8). Given, it
         raises. Its place is that of ``Data2D(array, mask=None, *, pbc)``, so that LF8 can
         fill it without changing the signature.
-    pbc:
+    pbc : sequence of bool
         Keyword only, as for ``Data2D``: one boolean per block, written explicitly, ``True``
         (periodic) or ``False`` (maths.md OP-4).
     """
