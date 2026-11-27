@@ -32,7 +32,8 @@ import pytest
 from numpy.typing import NDArray
 
 from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
-from estel._spec import planar as spec
+from estel._spec import cartesian as spec
+from estel._spec import common
 from estel.scattering._plan import PlanarPlan
 from tests.parity._compare import assert_parity
 
@@ -162,7 +163,7 @@ def _check_case(
     mask_st = np.arange(expected["vector"].size) % 3 == 0
     assert_parity(
         np.asarray(raw.to_vector(mask_st)),
-        spec.spec_flatten(expected, flatten_complex=True, mask_st=mask_st),
+        common.spec_flatten(expected, flatten_complex=True, mask_st=mask_st),
     )
     if standardize:
         assert raw._standardization is not None
@@ -170,11 +171,11 @@ def _check_case(
             assert_parity(np.asarray(removed), expected[key])
 
     # norm="self": the reference, and the statistics divided by it (M-NORM).
-    reference = spec.spec_reference(expected, ref_batch_mean)
+    reference = common.spec_reference(expected, ref_batch_mean)
     assert stored._reference is not None
     assert_parity(np.asarray(stored._reference.var), reference["var"])
     assert_parity(np.asarray(stored._reference.s2_sqrt), reference["sigma"])
-    normalized = spec.spec_normalize(expected, reference)
+    normalized = common.spec_normalize(expected, reference)
     _compare(stored, normalized, scale)
     # norm="ref": a second field, normalised by the reference of the first.
     _compare(loaded, oracle(other, norm="ref", ref=reference), scale)
@@ -199,12 +200,12 @@ def _reduced(normalized: dict[str, Any], chain: dict[str, Any]) -> dict[str, Any
     out = normalized
     iso = bool(chain.get("iso"))
     if iso:
-        out = spec.spec_iso(out)
+        out = common.spec_iso(out)
     if chain.get("angular_fourier"):
-        out = spec.spec_angular_fourier(out, chain.get("angular_harmonics"), after_iso=iso)
+        out = common.spec_angular_fourier(out, chain.get("angular_harmonics"), after_iso=iso)
     if chain.get("scale_cosine"):
-        out = spec.spec_scale_cosine(out, chain.get("scale_harmonics"), chain.get("dj"))
-    return {**out, "vector": spec.spec_flatten(out, flatten_complex=True)}
+        out = common.spec_scale_cosine(out, chain.get("scale_harmonics"), chain.get("dj"))
+    return {**out, "vector": common.spec_flatten(out, flatten_complex=True)}
 
 
 @pytest.mark.parametrize("pbc", [True, False], ids=["periodic", "open"])

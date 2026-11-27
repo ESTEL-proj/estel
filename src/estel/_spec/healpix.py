@@ -3,9 +3,9 @@
 A second implementation of the mathematics, written to be read against ``docs/maths.md`` rather
 than to be fast (Part I, §4.2): float64, NumPy and the standard library only, nothing from the
 rest of ``estel``. The statistics of HEALPix data are those of section 1 on this geometry
-(§4, "Scattering loop"), so this module calls the planar oracle (``planar.py``) for the means,
-the moments, the standardisation, the normalisation, the reductions and the flattening, with one
-pixel axis (``ndim=1``) and no border.
+(§4, "Scattering loop"), so this module calls the oracle of what every geometry shares
+(``common.py``) for the means, the moments, the standardisation, the normalisation, the
+reductions and the flattening, with one pixel axis (``ndim=1``) and no border.
 
 **Its own geometry** (Part IV, §22, row of 24 November 2026, "The HEALPix geometry of the
 oracle"; F23). The NESTED pixel centres, the ring structure, the bilinear interpolation, the
@@ -28,7 +28,7 @@ pixels. healpy is a test-only cross-check (Part I, §1.5), never imported here.
   M-MASK-HPX, reads a 0 rather than a NaN (OP-102).
 - Angles are colatitude θ ∈ [0, π] and longitude φ ∈ [0, 2π), on the unit sphere: the oracle
   computes on the sphere only (OP-45).
-- The statistics are STL's full grids, as in ``planar.py``.
+- The statistics are STL's full grids, as in ``common.py``.
 
 Every public function lists the ``M-`` IDs it implements; ``tools/check_maths_ids.py`` checks
 the mapping in both directions. The angular spectrum (LF24) and the syntheses (section 5) have
@@ -44,7 +44,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from . import planar
+from . import common
 
 Array = NDArray[Any]
 Mask = NDArray[np.bool_] | None
@@ -717,13 +717,13 @@ def spec_scattering_healpix(
     loop"): M-W1, M-S1 to M-S4 and M-CHAN, on the convolution of M-CONV-HPX with the wavelet of
     M-WAV-HPX and the decimation of M-DOWN-HPX.
 
-    As in ``planar.spec_scattering``, with one pixel axis and no border: every mean is taken at
+    As in ``cartesian.spec_scattering``, with one pixel axis and no border: every mean is taken at
     the level of its arguments, over the pixels left by the union of their two masks. The
     invalid pixels of the field are set to 0 first, and those of every decimated level hold 0
     (``spec_downsample_healpix``), so that no NaN enters a convolution (OP-102).
     """
     nb, nc = x.shape[:2]
-    pairs = planar._channel_pairs(cross_matrix, nc)
+    pairs = common._channel_pairs(cross_matrix, nc)
     levels = spec_levels_healpix(nside, cell_ids, J, L, K)
     masks = spec_masks_healpix(levels, invalid)
     kernel = spec_wavelet_healpix(K)
@@ -754,7 +754,7 @@ def spec_scattering_healpix(
     mask2 = masks["layer2"]
 
     def mean(a: Array, m: Mask) -> Array:
-        return planar.spec_valid_mean(a, 1, m)
+        return common.spec_valid_mean(a, 1, m)
 
     s1 = np.full((nb, nc, nc, J, L), np.nan, dtype=np.complex128)
     s2 = np.full((nb, nc, nc, J, L), np.nan, dtype=np.complex128)
@@ -772,21 +772,21 @@ def spec_scattering_healpix(
                     if c1 == c2:
                         first, second = np.abs(z1), np.abs(z1) ** 2
                     else:
-                        r1 = z1 / np.sqrt(np.abs(z1) + planar.S1_EPSILON)
-                        r2 = z2 / np.sqrt(np.abs(z2) + planar.S1_EPSILON)
+                        r1 = z1 / np.sqrt(np.abs(z1) + common.S1_EPSILON)
+                        r2 = z2 / np.sqrt(np.abs(z2) + common.S1_EPSILON)
                         first, second = r1 * np.conj(r2), z1 * np.conj(z2)
                     s1[:, c1, c2, j, ell] = mean(first, mask1[j])
                     s2[:, c1, c2, j, ell] = mean(second, mask1[j])
             for a, b in orders:
                 for j3 in range(J):
                     for j2 in range(j3 + 1):
-                        union = planar._union(mask2[j2, j3], mask1[j3])
+                        union = common._union(mask2[j2, j3], mask1[j3])
                         for l2 in range(L):
                             for l3 in range(L):
                                 product = v[j2, j3][:, a, l2, l3] * np.conj(w[j3][:, b, l3])
                                 s3[:, a, b, j2, j3, l2, l3] = mean(product, union)
                         for j1 in range(j2 + 1):
-                            union = planar._union(mask2[j1, j3], mask2[j2, j3])
+                            union = common._union(mask2[j1, j3], mask2[j2, j3])
                             for l1 in range(L):
                                 for l2 in range(L):
                                     for l3 in range(L):
@@ -851,22 +851,22 @@ def spec_apply_healpix(
 
     out: Statistics = {}
     if standardize:  # 2
-        x, out["mean_pre_std"], out["std_pre_std"] = planar.spec_standardize(x, 1, invalid)
-    out["mean"], out["var"] = planar.spec_moments(x, 1, invalid)  # 3
+        x, out["mean_pre_std"], out["std_pre_std"] = common.spec_standardize(x, 1, invalid)
+    out["mean"], out["var"] = common.spec_moments(x, 1, invalid)  # 3
     out.update(  # 4
         spec_scattering_healpix(x, nside, ids, n_scales, n_gauges, invalid, cross_matrix)
     )
     out["reference"] = None
     if norm != "none":  # 5
-        reference = planar.spec_reference(out, ref_batch_mean) if norm == "self" else ref
+        reference = common.spec_reference(out, ref_batch_mean) if norm == "self" else ref
         assert reference is not None
-        out = {**planar.spec_normalize(out, reference), "reference": reference}
+        out = {**common.spec_normalize(out, reference), "reference": reference}
     if iso:  # 6
-        out = planar.spec_iso(out)
+        out = common.spec_iso(out)
     if angular_fourier:
-        out = planar.spec_angular_fourier(out, angular_harmonics, after_iso=iso)
+        out = common.spec_angular_fourier(out, angular_harmonics, after_iso=iso)
     if scale_cosine:
-        out = planar.spec_scale_cosine(out, scale_harmonics, dj)
+        out = common.spec_scale_cosine(out, scale_harmonics, dj)
     if flatten:  # 7
-        out["vector"] = planar.spec_flatten(out, flatten_complex=True)
+        out["vector"] = common.spec_flatten(out, flatten_complex=True)
     return out

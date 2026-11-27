@@ -32,7 +32,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel._spec import planar
+from estel._spec import cartesian, common
 from estel._spec import spectra as spec
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
@@ -141,9 +141,9 @@ def test_statistics_with_the_spectrum_equal_the_fixture(name: str) -> None:
     }
     target, other = arrays[f"{name}_field"], arrays[f"{name}_ref_field"]
 
-    store = planar.spec_apply(target, 2, pbc, mask, config["J"], 4, norm="self", **options)
+    store = cartesian.spec_apply(target, 2, pbc, mask, config["J"], 4, norm="self", **options)
     reference = store["reference"]
-    load = planar.spec_apply(
+    load = cartesian.spec_apply(
         other, 2, pbc, mask, config["J"], 4, norm="ref", ref=reference, **options
     )
 
@@ -151,14 +151,14 @@ def test_statistics_with_the_spectrum_equal_the_fixture(name: str) -> None:
         mask is not None, pbc, config.get("spectrum_method", "auto")
     )
     assert method == spec.METHODS[int(arrays[f"{name}_ps_method"][0])]
-    x, _ = planar.spec_data(target, 2, J, mask, pbc)
+    x, _ = cartesian.spec_data(target, 2, J, mask, pbc)
     raw = spec.spec_spectra_2d(x, pbc, J, Jmin, config.get("n_bins"), method, cross_matrix)
     assert raw["bins"]["n_bins"] == n_bins
     assert_parity(raw["PS"], arrays[f"{name}_raw_PS"])
 
     for prefix, out, field in (("store", store, target), ("load", load, other)):
-        data, invalid = planar.spec_data(field, 2, J, mask, pbc)
-        _, var = planar.spec_moments(data, 2, invalid)
+        data, invalid = cartesian.spec_data(field, 2, J, mask, pbc)
+        _, var = common.spec_moments(data, 2, invalid)
         for family in FAMILIES:
             scale = float(np.sqrt(np.nanmax(var))) if family == "mean" else None
             assert_parity(out[family], arrays[f"{name}_{prefix}_{family}"], scale=scale)
@@ -167,10 +167,10 @@ def test_statistics_with_the_spectrum_equal_the_fixture(name: str) -> None:
     assert_parity(reference["sigma_PS"], arrays[f"{name}_ps_ref"])
 
     vectors = {
-        "vector": planar.spec_flatten(store),
-        "vector_real": planar.spec_flatten(store, flatten_complex=True),
-        "vector_batch_mean": planar.spec_flatten(store, mean_along_batch=True),
-        "load_vector": planar.spec_flatten(load),
+        "vector": common.spec_flatten(store),
+        "vector_real": common.spec_flatten(store, flatten_complex=True),
+        "vector_batch_mean": common.spec_flatten(store, mean_along_batch=True),
+        "load_vector": common.spec_flatten(load),
     }
     for key, vector in vectors.items():
         assert_parity(vector, arrays[f"{name}_{key}"])
@@ -181,8 +181,8 @@ def test_statistics_without_the_spectrum_are_unchanged() -> None:
     and vector as with it, PS left out."""
     arrays = _arrays("statistics_ps_2d")
     field = arrays["periodic_J2_field"]
-    without = planar.spec_apply(field, 2, True, None, 2, 4, norm="self", flatten=True)
-    with_ps = planar.spec_apply(
+    without = cartesian.spec_apply(field, 2, True, None, 2, 4, norm="self", flatten=True)
+    with_ps = cartesian.spec_apply(
         field, 2, True, None, 2, 4, norm="self", flatten=True, compute_PS=True
     )
     assert "PS" not in without
@@ -203,11 +203,11 @@ def test_spectrum_is_computed_after_the_standardisation(masked: bool) -> None:
     pbc = _configs("statistics_ps_2d")[name]["pbc"]
     mask = arrays[f"{name}_mask"].astype(bool) if masked else None
     field = arrays[f"{name}_field"]
-    out = planar.spec_apply(
+    out = cartesian.spec_apply(
         field, 2, pbc, mask, None, 4, norm="none", standardize=True, compute_PS=True
     )
-    x, invalid = planar.spec_data(field, 2, 3, mask, pbc)
-    standardized, _, _ = planar.spec_standardize(x, 2, invalid)
+    x, invalid = cartesian.spec_data(field, 2, 3, mask, pbc)
+    standardized, _, _ = common.spec_standardize(x, 2, invalid)
     assert_parity(out["PS"], spec.spec_spectra_2d(standardized, pbc)["PS"])
 
 
@@ -286,19 +286,19 @@ def _observed_on_the_edge() -> NDArray[np.float64]:
             id="pbc-none",
         ),
         pytest.param(
-            lambda: planar.spec_apply(np.zeros((16, 16)), 2, True, norm="none", Jmin=1),
+            lambda: cartesian.spec_apply(np.zeros((16, 16)), 2, True, norm="none", Jmin=1),
             "compute_PS=True",
             id="option-without-spectrum",
         ),
         pytest.param(
-            lambda: planar.spec_apply(
+            lambda: cartesian.spec_apply(
                 np.zeros((16, 16)), 2, True, J=1, norm="none", compute_PS=True
             ),
             "compute_PS=False",
             id="J-too-small",
         ),
         pytest.param(
-            lambda: planar.spec_apply(np.zeros(64), 1, True, norm="none", compute_PS=True),
+            lambda: cartesian.spec_apply(np.zeros(64), 1, True, norm="none", compute_PS=True),
             "2D data only",
             id="spectrum-of-1d-data",
         ),
@@ -318,7 +318,7 @@ def _observed_on_the_edge() -> NDArray[np.float64]:
             id="null-bin-of-pbc-nan-mask",
         ),
         pytest.param(
-            lambda: planar.spec_normalize(
+            lambda: common.spec_normalize(
                 {"PS": np.ones((1, 1, 1, 6))}, {"sigma_PS": np.ones((1, 1, 4))}
             ),
             "the same bins",

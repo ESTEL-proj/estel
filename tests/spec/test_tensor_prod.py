@@ -26,7 +26,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel._spec import planar
+from estel._spec import cartesian, common
 from estel._spec import tensor_prod as spec
 from tests.parity._compare import assert_parity, full_grid, load_fixture, read_manifest
 
@@ -141,7 +141,7 @@ def test_normalised_statistics_equal_the_fixture() -> None:
         if run != "load":
             assert_parity(out["reference"]["var"], arrays[f"{run}_var_ref"])
             assert_parity(out["reference"]["sigma"], full_grid(arrays, f"{run}_s2_ref"))
-    assert_parity(planar.spec_flatten(store, flatten_complex=False), arrays["vector_complex"])
+    assert_parity(common.spec_flatten(store, flatten_complex=False), arrays["vector_complex"])
     assert_parity(store["vector"], arrays["vector_real"])
 
 
@@ -157,7 +157,7 @@ def test_one_block_equals_the_cartesian_oracle(
     field = np.random.default_rng(12).standard_normal((2, *shape))
     out = spec.spec_apply_tensor_prod(field, [ndim], [pbc], [2], lowpass=None, norm="self")
     assert out["L"] == [4 if ndim == 2 else 2]
-    expected = planar.spec_apply(field, ndim, pbc, None, 2, out["L"][0], norm="self")
+    expected = cartesian.spec_apply(field, ndim, pbc, None, 2, out["L"][0], norm="self")
     for family in ("mean", "var", *GRIDS):
         assert_parity(out[family], expected[family])
 

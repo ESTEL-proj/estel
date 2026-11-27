@@ -22,8 +22,8 @@ over pixels and Fourier modes are NumPy operations.
 - Sizes are even (OP-20), ``pbc`` a boolean (OP-4).
 
 The spectrum within the scattering statistics (its reference, its normalisation and its place in
-the flattened vectors) is in ``planar`` (``spec_apply``, ``spec_reference``, ``spec_normalize``,
-``spec_flatten``), which calls ``spec_spectra_2d``.
+the flattened vectors) is in ``cartesian`` (``spec_apply``, which calls ``spec_spectra_2d``) and
+``common`` (``spec_reference``, ``spec_normalize``, ``spec_flatten``).
 """
 
 from __future__ import annotations

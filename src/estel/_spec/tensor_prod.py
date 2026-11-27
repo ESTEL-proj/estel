@@ -3,8 +3,9 @@
 A second implementation of the mathematics, written to be read against ``docs/maths.md`` rather
 than to be fast (Part I, §4.2): float64, NumPy and the standard library only, nothing from the
 rest of ``estel``. The entries of sections 1 and 2 apply block by block (§3, "Source"), so this
-module calls the planar oracle (``planar.py``) along the axes of one block at a time: it moves
-them to the end, applies the planar function, and moves them back.
+module calls the Cartesian oracle (``cartesian.py``) along the axes of one block at a time: it
+moves them to the end, applies the Cartesian function, and moves them back. The moments, the
+standardisation, the reference and the flattening are those of ``common.py``.
 
 **Conventions.**
 
@@ -40,7 +41,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from . import planar
+from . import cartesian, common
 
 Array = NDArray[Any]
 Statistics = dict[str, Any]
@@ -102,7 +103,7 @@ def spec_level_tensor_prod(
     """
     for a, n_axes in enumerate(blocks):
         for _ in range(steps[a]):
-            down = functools.partial(planar.spec_downsample, ndim=n_axes, pbc=pbc[a])
+            down = functools.partial(cartesian.spec_downsample, ndim=n_axes, pbc=pbc[a])
             y = spec_along_block_tensor_prod(y, blocks, a, down)
     return y
 
@@ -124,7 +125,7 @@ def spec_defaults_tensor_prod(
     return {
         "J": [math.floor(math.log2(min(block))) - 2 for block in sizes],
         "L": [ORIENTATIONS[n_axes] for n_axes in blocks],
-        "K": planar.KERNEL_SIZE,
+        "K": cartesian.KERNEL_SIZE,
         "lowpass": "ST",
         "norm": "self",
         "ref_batch_mean": False,
@@ -290,14 +291,14 @@ def spec_wavelet_transform_tensor_prod(
         if not wavelet[a]:
             y = np.expand_dims(y, position)
             continue
-        psi = planar._wavelets(n_axes, L[a], planar.KERNEL_SIZE)
+        psi = cartesian._wavelets(n_axes, L[a], cartesian.KERNEL_SIZE)
         y = np.stack(
             [
                 spec_along_block_tensor_prod(
                     y,
                     blocks,
                     a,
-                    functools.partial(planar.spec_correlate, kernel=psi[ell], pbc=pbc[a]),
+                    functools.partial(cartesian.spec_correlate, kernel=psi[ell], pbc=pbc[a]),
                 )
                 for ell in range(L[a])
             ],
@@ -346,7 +347,7 @@ def spec_border_tensor_prod(
     pass filter is not a convolution in this count (OP-81).
     """
     return [
-        planar.spec_border(history, level, periodic)
+        cartesian.spec_border(history, level, periodic)
         for history, level, periodic in zip(histories, levels, pbc, strict=True)
     ]
 
@@ -415,7 +416,7 @@ def spec_scattering_tensor_prod(
     blocks = _check_blocks(blocks)
     n_blocks, n_spatial = len(blocks), sum(blocks)
     nb, nc = x.shape[:2]
-    pairs = planar._channel_pairs(cross_matrix, nc)
+    pairs = common._channel_pairs(cross_matrix, nc)
     sets = spec_index_sets_tensor_prod(J, lowpass)
     extended = [j_a + int(lp) for j_a, lp in zip(J, lowpass, strict=True)]
     n_orient = math.prod(L)
@@ -459,8 +460,8 @@ def spec_scattering_tensor_prod(
                         first = np.abs(z1)
                         second = np.abs(z1) ** 2
                     else:
-                        r1 = z1 / np.sqrt(np.abs(z1) + planar.S1_EPSILON)
-                        r2 = z2 / np.sqrt(np.abs(z2) + planar.S1_EPSILON)
+                        r1 = z1 / np.sqrt(np.abs(z1) + common.S1_EPSILON)
+                        r2 = z2 / np.sqrt(np.abs(z2) + common.S1_EPSILON)
                         first = r1 * np.conj(r2)
                         second = z1 * np.conj(z2)
                     s1[_at(c1, c2, *j, *ell)] = spec_mean_tensor_prod(first, blocks, border1[j])
@@ -507,7 +508,7 @@ def spec_normalize_tensor_prod(
     """The statistics divided by the reference, as M-NORM with multi-indices. Implements
     M-NORM-TP.
 
-    The reference is that of M-NORM (``planar.spec_reference``): ``sigma``, ``(Nr, Nc, *J',
+    The reference is that of M-NORM (``common.spec_reference``): ``sigma``, ``(Nr, Nc, *J',
     *L)``, the square root of the channel diagonal of S2, low-pass scales included. ``mean`` is
     not normalised; ``var`` is divided by ``var_ref``; S1 and S2 at every scale of J_all, by
     √(sigma_{c1} sigma_{c2}) and sigma_{c1} sigma_{c2} at the same scale and orientation; S3 by
@@ -521,7 +522,7 @@ def spec_normalize_tensor_prod(
     orientations = sigma.shape[2 + n_blocks :]
     ones = (1,) * n_blocks
     wavelet = list(itertools.product(*(range(n) for n in J)))
-    s1, s2, s3, s4 = (np.array(stats[k]) for k in planar.SCATTERING)
+    s1, s2, s3, s4 = (np.array(stats[k]) for k in common.SCATTERING)
     with np.errstate(invalid="ignore"):  # NaN where no coefficient or no sigma exists
         for c1 in range(nc):
             for c2 in range(nc):
@@ -602,17 +603,17 @@ def spec_apply_tensor_prod(
     # Every pixel of every block, as one axis, for the means of M-MOM and M-STD.
     flat = x.reshape(*x.shape[:2], -1)
     if standardize:  # 2
-        flat, out["mean_pre_std"], out["std_pre_std"] = planar.spec_standardize(flat, 1)
+        flat, out["mean_pre_std"], out["std_pre_std"] = common.spec_standardize(flat, 1)
         x = flat.reshape(x.shape)
-    out["mean"], out["var"] = planar.spec_moments(flat, 1)  # 3
+    out["mean"], out["var"] = common.spec_moments(flat, 1)  # 3
     out.update(  # 4
         spec_scattering_tensor_prod(x, blocks, n_scales, n_orient, periodic, flags, cross_matrix)
     )
     out["reference"] = None
     if norm != "none":  # 5
-        reference = planar.spec_reference(out, ref_batch_mean) if norm == "self" else ref
+        reference = common.spec_reference(out, ref_batch_mean) if norm == "self" else ref
         assert reference is not None
         out = {**spec_normalize_tensor_prod(out, reference, n_scales), "reference": reference}
     if flatten:  # 6
-        out["vector"] = planar.spec_flatten(out, flatten_complex=True)
+        out["vector"] = common.spec_flatten(out, flatten_complex=True)
     return out

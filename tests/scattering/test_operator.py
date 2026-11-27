@@ -20,7 +20,7 @@ import pytest
 from numpy.typing import NDArray
 
 from estel import Data, Data1D, Data2D, STOperator, STStatistics, _config
-from estel._spec import planar as spec
+from estel._spec import cartesian as spec
 from estel.backend._protocol import Backend, DType
 from estel.scattering._plan import PlanarPlan, channel_pairs
 

@@ -26,7 +26,7 @@ import pytest
 from numpy.typing import NDArray
 
 from estel import Data2D, STOperator, _config
-from estel._spec import planar as spec
+from estel._spec import cartesian as spec
 from estel._spec import spectra
 from estel.backend import _registry
 from estel.backend._protocol import DType

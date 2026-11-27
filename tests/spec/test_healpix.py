@@ -47,8 +47,8 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
+from estel._spec import common
 from estel._spec import healpix as spec
-from estel._spec import planar
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
 pytestmark = pytest.mark.maths(
@@ -438,8 +438,8 @@ def test_statistics_equal_the_fixture(name: str) -> None:
         "standardize": False,  # as STL computed the fixture (OP-120)
     }
     vanilla = spec.spec_apply_healpix(expected("field"), norm="none", **options)
-    reference = planar.spec_reference(vanilla, config["norm_batch_mean"])
-    stored = planar.spec_normalize(vanilla, reference)
+    reference = common.spec_reference(vanilla, config["norm_batch_mean"])
+    stored = common.spec_normalize(vanilla, reference)
     loaded = spec.spec_apply_healpix(expected("ref_field"), norm="ref", ref=reference, **options)
     assert_parity(reference["var"], expected("var_ref"))
     assert_parity(reference["sigma"], expected("s2_ref"))
@@ -447,16 +447,16 @@ def test_statistics_equal_the_fixture(name: str) -> None:
         raw_var = (
             vanilla["var"] if kind == "vanilla" else expected(f"{kind}_var") * expected("var_ref")
         )
-        for family in planar.FAMILIES:
+        for family in common.FAMILIES:
             scale = float(np.sqrt(np.max(raw_var))) if family == "mean" else None
             assert_parity(stats[family], expected(f"{kind}_{family}"), scale=scale)
 
     def reduce(iso: bool, angular: bool, scale: bool) -> dict[str, Any]:
-        out = planar.spec_iso(stored) if iso else stored
+        out = common.spec_iso(stored) if iso else stored
         if angular:
-            out = planar.spec_angular_fourier(out, config["harmonics_angle"], after_iso=iso)
+            out = common.spec_angular_fourier(out, config["harmonics_angle"], after_iso=iso)
         if scale:
-            out = planar.spec_scale_cosine(out, config["harmonics_scale"], config["dj"])
+            out = common.spec_scale_cosine(out, config["harmonics_scale"], config["dj"])
         return out
 
     reductions = {
@@ -468,17 +468,17 @@ def test_statistics_equal_the_fixture(name: str) -> None:
     }
     for key, chain in reductions.items():
         reduced = reduce(*chain)
-        for family in planar.SCATTERING if key == "iso" else ("S3", "S4"):
+        for family in common.SCATTERING if key == "iso" else ("S3", "S4"):
             assert_parity(reduced[family], expected(f"{key}_{family}"))
-    assert_parity(planar.spec_flatten(stored, flatten_complex=True), expected("vector"))
+    assert_parity(common.spec_flatten(stored, flatten_complex=True), expected("vector"))
     reduced = reduce(True, True, True)
-    assert_parity(planar.spec_flatten(reduced, flatten_complex=True), expected("vector_reduced"))
+    assert_parity(common.spec_flatten(reduced, flatten_complex=True), expected("vector_reduced"))
 
     # The whole of apply (M-ORDER) with norm="self", the reductions and the flattening.
     self_options = {**options, "norm": "self", "ref_batch_mean": config["norm_batch_mean"]}
     applied = spec.spec_apply_healpix(expected("field"), flatten=True, **self_options)
     assert_parity(applied["reference"]["sigma"], expected("s2_ref"))
-    for family in planar.FAMILIES:
+    for family in common.FAMILIES:
         scale = float(np.sqrt(np.max(vanilla["var"]))) if family == "mean" else None
         assert_parity(applied[family], expected(f"store_{family}"), scale=scale)
     assert_parity(applied["vector"], expected("vector"))
