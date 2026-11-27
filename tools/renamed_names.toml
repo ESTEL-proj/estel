@@ -101,6 +101,7 @@ row = [
     { old = "estel.wavelets._operator:WaveletFilters", new = "WaveletFiltersCartesian", kind = "rename", task = "T7.5", done = true, note = "by script, its absence checked (rule 6)" },
     { old = "estel.wavelets._operator:WaveletPlan", new = "the abstract root of the wavelet plans", kind = "reintroduce", task = "T7.5", done = true, note = "in a later commit (rule 6)" },
     { old = "estel.wavelets._operator:WaveletPlan", new = "WaveletPlanSingleDomain", kind = "rename", task = "T7.5", done = true, note = "by script, its absence checked (rule 6; Part II, §15.2, T7.5)" },
+    { old = "estel.wavelets._operator:WaveletPlan", new = "WaveletPlanCartesian", kind = "split", task = "T7.5", done = true, note = "its instances, the plans of 1D and 2D data and of the blocks of tensor products: WaveletPlanSingleDomain is abstract (decision on #196)" },
     { old = "estel.wavelets._tensor_prod:TensorProdWaveletPlan", new = "WaveletPlanTensorProd", kind = "rename", task = "T7.5", done = true },
     { old = "estel.wavelets._tensor_prod:build_tensor_prod_wavelet_filters", new = "build_wavelet_filters_tensor_prod", kind = "rename", task = "T7.5", done = true },
     { old = "estel.wavelets._tensor_prod:build_tensor_prod_wavelet_plan", new = "build_wavelet_plan_tensor_prod", kind = "rename", task = "T7.5", done = true },
