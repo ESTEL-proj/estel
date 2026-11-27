@@ -1,6 +1,6 @@
 """Parity case: the convolution and the decimation of STL `HealpixUpdate` on HEALPix data, as
-operators (Part II, §14.2; task T5.3, issue #164, decision 3; maths.md M-CONV-HPX, M-WAV-HPX,
-M-DOWN-HPX, OP-92).
+operators (Part II, §14.2; task T5.3, issue #164, decision 3; maths.md M-CONV-HEALPIX,
+M-WAV-HEALPIX, M-DOWN-HEALPIX, OP-92).
 
 STL's HEALPix wavelet operator (``WaveletOperatorHealpixKernel_torch``) convolves with
 healpix-analyse's ``HealPixConv`` (the wavelet kernel, L = 4 gauges) and decimates with its
@@ -12,7 +12,7 @@ STL's own entry points, ``apply(data, 0)`` and ``downsample(data, 1)``, with the
 It stores:
 
 * ``kernel``: STL's wavelet kernel, ``(1, 1, 25)`` complex, the K x K = 5 x 5 stencil flattened
-  as in M-CONV-HPX; the convolution holds its real and imaginary parts in float64, checked bit
+  as in M-CONV-HEALPIX; the convolution holds its real and imaginary parts in float64, checked bit
   for bit (``_healpix.check_kernel_float64``);
 * at ``nside`` 4, full sky, the dense matrices: ``conv_4``, ``(L, Npix, Npix)`` complex, with
   ``conv_4[g, k, n]`` the response at pixel k and gauge g to the unit map at pixel n, and

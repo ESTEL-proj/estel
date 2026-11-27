@@ -49,8 +49,9 @@ MANIFEST = "MANIFEST.json"
 # The STL-Dev branch of each environment of the image (Dockerfile; Part II, §9.1).
 BRANCHES = {"master": "master", "2d1d": "2D+1D", "healpix": "HealpixUpdate"}
 FLOAT64_DTYPES = (np.dtype(np.float64), np.dtype(np.complex128))
-# The packed grids of the tensor-product cases (scattering_tp, statistics_tp; issue #127): the
-# shape of a full grid (int64) and its mask of finite positions, packed with np.packbits (uint8).
+# The packed grids of the tensor-product cases (scattering_tensor_prod, statistics_tensor_prod;
+# issue #127): the shape of a full grid (int64) and its mask of finite positions, packed with
+# np.packbits (uint8).
 LAYOUT_DTYPES = (np.dtype(np.int64), np.dtype(np.uint8))
 # A fixed timestamp for every member of the archive, so that the bytes depend on the arrays only.
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)

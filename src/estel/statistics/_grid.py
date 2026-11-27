@@ -29,8 +29,8 @@ the scales of S3 by ``(k, a)`` and those of S4 by ``(k, a, b)`` (M-RED-ISO, M-RE
 M-RED-SCALE). The batch axis comes first in every array and is not named.
 
 In a tensor product (:func:`grids_tensor_prod`; task T3.6) each scale and orientation axis is
-one axis per block, ``j[0]``, ``j[1]`` … (maths.md M-S-TP); ``select`` takes the channels only,
-naming the blocks being LF44.
+one axis per block, ``j[0]``, ``j[1]`` … (maths.md M-S-TENSORPROD); ``select`` takes the channels
+only, naming the blocks being LF44.
 """
 
 from __future__ import annotations
@@ -469,9 +469,9 @@ def _product_rows_tensor_prod(
     pairs: Sequence[tuple[int, int]], per_block: Sequence[Sequence[tuple[int, ...]]]
 ) -> NDArray[np.int32]:
     """``(n, 2 + k · B)``: the channel pairs crossed with the Cartesian product of the index
-    sets of the blocks (M-IDX-TP), each a tuple of k scales; the scales of a chunk are written
-    filter by filter, each with one axis per block. One row per chunk: never a table the size
-    of the full grid."""
+    sets of the blocks (M-IDX-TENSORPROD), each a tuple of k scales; the scales of a chunk are
+    written filter by filter, each with one axis per block. One row per chunk: never a table the
+    size of the full grid."""
     n_blocks = len(per_block)
     k = len(per_block[0][0]) if per_block and per_block[0] else 0
     scales = [
@@ -508,12 +508,12 @@ def _from_rows_tensor_prod(
 
 def grids_tensor_prod(plan: STPlanTensorProd) -> tuple[FamilyGrid, ...]:
     """The layout of the statistics of a tensor product without normalisation (maths.md
-    M-S-TP, M-IDX-TP, M-LP, M-CHAN), from the plan alone, by chunks (Part III, §19.4; task
-    T3.6): the chunks are the channel pairs crossed with the Cartesian product of the index
-    sets of the blocks, never read from an array the size of the full grid.
+    M-S-TENSORPROD, M-IDX-TENSORPROD, M-LP, M-CHAN), from the plan alone, by chunks (Part III,
+    §19.4; task T3.6): the chunks are the channel pairs crossed with the Cartesian product of the
+    index sets of the blocks, never read from an array the size of the full grid.
 
-    The axes are those of STL's full grid (M-S-TP), with one scale and one orientation axis per
-    block: ``(c1, c2, j[0] … , l[0] …)`` for S1 and S2, ``(c1, c2, j2[0] …, j3[0] …, l2[0] …,
+    The axes are those of STL's full grid (M-S-TENSORPROD), with one scale and one orientation axis
+    per block: ``(c1, c2, j[0] … , l[0] …)`` for S1 and S2, ``(c1, c2, j2[0] …, j3[0] …, l2[0] …,
     l3[0] …)`` for S3, and likewise ``j1``, ``j2``, ``j3``, ``l1``, ``l2``, ``l3`` for S4. A chunk
     of S1 or S2 at a scale with the low-pass filter of a block holds orientation 0 only along
     that block (M-LP). Real entries are mean, var, the auto S1 and S2, and the diagonal of S4
@@ -616,8 +616,8 @@ def grids_tensor_prod(plan: STPlanTensorProd) -> tuple[FamilyGrid, ...]:
 
 
 def auto_scales_tensor_prod(plan: STPlanTensorProd) -> NDArray[np.bool_]:
-    """``(Nc, J'_0, …, J'_{B-1})``: where the normalisation scale sigma_c(j, l) of M-NORM-TP is
-    defined: the channels with auto statistics, at every scale of S1 and S2, the low-pass
+    """``(Nc, J'_0, …, J'_{B-1})``: where the normalisation scale sigma_c(j, l) of M-NORM-TENSORPROD
+    is defined: the channels with auto statistics, at every scale of S1 and S2, the low-pass
     scales included. Its size is that of the channels and the scales, not of the full grid."""
     auto = np.isin(np.arange(plan.n_channels), plan.pairs.auto)
     present = np.array(

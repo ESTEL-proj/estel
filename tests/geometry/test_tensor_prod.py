@@ -1,6 +1,7 @@
 """Tensor products of planar geometries: ``DataTensorProd`` and the wavelet operator composed
-from those of its blocks (task T3.1; Part II, §12.4, §12.5; maths.md M-NOT-TP, M-DATA-TP,
-M-W1-TP, M-BORDER-TP, M-DEF-TP; OP-4, OP-8, OP-41, OP-82, OP-83).
+from those of its blocks (task T3.1; Part II, §12.4, §12.5; maths.md M-NOT-TENSORPROD,
+M-DATA-TENSORPROD, M-W1-TENSORPROD, M-BORDER-TENSORPROD, M-DEF-TENSORPROD; OP-4, OP-8, OP-41, OP-82,
+OP-83).
 
 The hooks of a tensor product act on one block, along its axes, without moving any: they are
 compared with the plain geometry applied to the same field with the block's axes moved here,
@@ -82,7 +83,7 @@ def _smoothing(backend: Backend, geometry: type[DataCartesian], dtype: DType) ->
 # ---------------------------------------------------------------------- one block (OP-82)
 
 
-@pytest.mark.maths("M-DATA-TP", "M-W1-TP", "M-BORDER-TP")
+@pytest.mark.maths("M-DATA-TENSORPROD", "M-W1-TENSORPROD", "M-BORDER-TENSORPROD")
 @pytest.mark.parametrize("pbc", [True, False])
 @pytest.mark.parametrize("geometry", [Data2D, Data1D])
 def test_one_block_hooks_equal_the_plain_geometry(
@@ -153,7 +154,7 @@ def _product(
 
 
 @pytest.mark.dtype
-@pytest.mark.maths("M-NOT-TP", "M-W1-TP")
+@pytest.mark.maths("M-NOT-TENSORPROD", "M-W1-TENSORPROD")
 @pytest.mark.parametrize("block", [0, 1])
 @pytest.mark.parametrize(("blocks", "pbc"), CASES)
 def test_block_hooks_equal_the_plain_geometry_with_its_axes_moved(
@@ -187,7 +188,7 @@ def test_block_hooks_equal_the_plain_geometry_with_its_axes_moved(
     )
 
 
-@pytest.mark.maths("M-W1-TP")
+@pytest.mark.maths("M-W1-TENSORPROD")
 @pytest.mark.parametrize(("filtered", "downsampled"), [(0, 1), (1, 0)])
 @pytest.mark.parametrize(("blocks", "pbc"), CASES)
 def test_filtering_and_downsampling_along_different_blocks_commute(
@@ -199,7 +200,7 @@ def test_filtering_and_downsampling_along_different_blocks_commute(
     downsampled: int,
 ) -> None:
     """Filtering along one block and downsampling along another act on different axes and
-    commute, to rounding, with circular and replicate padding (M-W1-TP)."""
+    commute, to rounding, with circular and replicate padding (M-W1-TENSORPROD)."""
     product = _product(backend, dtype, blocks, pbc)
     operator = _operator(product, dtype, [2, 2])
     x = product.array
@@ -213,13 +214,13 @@ def test_filtering_and_downsampling_along_different_blocks_commute(
     _assert_close(backend, filtered_first, downsampled_first, dtype)
 
 
-@pytest.mark.maths("M-W1-TP")
+@pytest.mark.maths("M-W1-TENSORPROD")
 @pytest.mark.parametrize(("block", "geometry", "n_orientations"), [(0, Data2D, 4), (1, Data1D, 2)])
 def test_the_kernels_of_the_blocks_are_those_of_the_cartesian_operators(
     backend: Backend, dtype: DType, block: int, geometry: type[Data], n_orientations: int
 ) -> None:
     """The kernels of a ``[2D, 1D]`` operator are bit for bit those of the 2D operator and of
-    the 1D operator with L = 2 (M-W1-TP)."""
+    the 1D operator with L = 2 (M-W1-TENSORPROD)."""
     product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[True, True])
     operator = _operator(product, dtype)
     assert operator.filters is not None
@@ -233,15 +234,16 @@ def test_the_kernels_of_the_blocks_are_those_of_the_cartesian_operators(
     )
 
 
-@pytest.mark.maths("M-W1-TP")
+@pytest.mark.maths("M-W1-TENSORPROD")
 def test_the_second_kernel_of_a_1d_block_is_the_conjugate_of_the_first() -> None:
-    """With L = 2 in a 1D block, the second kernel is the conjugate of the first (M-W1-TP)."""
+    """With L = 2 in a 1D block, the second kernel is the conjugate of the first
+    (M-W1-TENSORPROD)."""
     product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[True, True])
     bank = WaveletOperatorTensorProd(product).plan.blocks[1].bank()
     np.testing.assert_array_equal(bank[1], np.conj(bank[0]))
 
 
-@pytest.mark.maths("M-W1-TP")
+@pytest.mark.maths("M-W1-TENSORPROD")
 @pytest.mark.parametrize(
     ("blocks", "spatial", "orientations"),
     [
@@ -257,7 +259,7 @@ def test_the_orientation_axes_follow_the_channels_in_block_order(
     orientations: tuple[int, int],
 ) -> None:
     """The product of the block convolutions, block 0 first, is ``(Nb, Nc, L₀, L₁, *spatial)``
-    (M-W1-TP): entry ``[:, c, l₀, l₁]`` is the convolution by ψ⁽¹⁾_{l₁} along block 1 of the
+    (M-W1-TENSORPROD): entry ``[:, c, l₀, l₁]`` is the convolution by ψ⁽¹⁾_{l₁} along block 1 of the
     convolution by ψ⁽⁰⁾_{l₀} along block 0 of channel c, built here from the hooks of the
     data."""
     n_batch, n_channels = 2, 3
@@ -281,7 +283,7 @@ def test_the_orientation_axes_follow_the_channels_in_block_order(
     _assert_close(backend, both, expected, dtype)
 
 
-@pytest.mark.maths("M-NOT-TP")
+@pytest.mark.maths("M-NOT-TENSORPROD")
 def test_the_operator_of_a_tensor_prod_is_a_wavelet_operator() -> None:
     """It gives the members its root declares: the multi-index levels and their shapes; its
     means are weighted block by block, so mean_weights raises and says so."""
@@ -290,11 +292,13 @@ def test_the_operator_of_a_tensor_prod_is_a_wavelet_operator() -> None:
     assert isinstance(operator, WaveletOperator)
     assert operator.levels == ((0, 0), (1, 0))
     assert [operator.level_shape(d) for d in operator.levels] == [(8, 8, 4), (4, 4, 4)]
-    with pytest.raises(NotImplementedError, match=r"M-BORDER-TP.*estel\.STOperatorTensorProd"):
+    with pytest.raises(
+        NotImplementedError, match=r"M-BORDER-TENSORPROD.*estel\.STOperatorTensorProd"
+    ):
         operator.mean_weights({})
 
 
-@pytest.mark.maths("M-BORDER-TP")
+@pytest.mark.maths("M-BORDER-TENSORPROD")
 def test_the_crop_is_the_outer_product_of_the_crops_of_the_blocks() -> None:
     """Block by block, the border of each block along its axes; a border too large for a block
     is reduced, with one warning for the operator (OP-13)."""
@@ -316,10 +320,10 @@ def test_the_crop_is_the_outer_product_of_the_crops_of_the_blocks() -> None:
     np.testing.assert_array_equal(reduced, np.multiply.outer(expected, expected))
 
 
-# ---------------------------------------------------------------------- data (M-DATA-TP)
+# ---------------------------------------------------------------------- data (M-DATA-TENSORPROD)
 
 
-@pytest.mark.maths("M-DATA-TP")
+@pytest.mark.maths("M-DATA-TENSORPROD")
 @pytest.mark.parametrize(
     ("shape", "promoted"),
     [((16, 16, 16), (1, 1, 16, 16, 16)), ((3, 16, 16, 16), (1, 3, 16, 16, 16))],
@@ -358,17 +362,17 @@ def test_the_pytree_holds_the_array_only() -> None:
     assert (rebuilt.blocks, rebuilt.pbc) == (product.blocks, product.pbc)
 
 
-@pytest.mark.maths("M-DATA-TP", "M-DEF-TP")
+@pytest.mark.maths("M-DATA-TENSORPROD", "M-DEF-TENSORPROD")
 @pytest.mark.parametrize(
     ("shape", "expected"),
     [((8,), 1), ((12,), 1), ((16,), 2), ((31,), 2), ((32,), 3), ((64,), 4), ((32, 8), 1)],
 )
 def test_default_scales_of_a_block(shape: tuple[int, ...], expected: int) -> None:
-    """The rule of planar data, block by block (M-DEF-TP), one implementation."""
+    """The rule of planar data, block by block (M-DEF-TENSORPROD), one implementation."""
     assert default_scales_of_cartesian(shape) == expected
 
 
-@pytest.mark.maths("M-DATA-TP", "M-DEF-TP")
+@pytest.mark.maths("M-DATA-TENSORPROD", "M-DEF-TENSORPROD")
 def test_defaults_of_a_32x32x8_field() -> None:
     product = DataTensorProd(np.zeros((32, 32, 8)), [Data2D, Data1D], pbc=[True, True])
     operator = WaveletOperatorTensorProd(product)
@@ -396,7 +400,7 @@ def _valid_array() -> NDArray[np.float64]:
         ([Data2D, Data1D], [True, 1], TypeError, r"pbc\[1\].*written explicitly"),
     ],
 )
-@pytest.mark.maths("M-DATA-TP")
+@pytest.mark.maths("M-DATA-TENSORPROD")
 def test_blocks_and_pbc_are_checked(
     blocks: Any, pbc: Any, error: type[Exception], match: str
 ) -> None:
@@ -408,7 +412,7 @@ class _DataSubclass2D(Data2D):
     """A subclass of Data2D: it inherits the capability of a block without declaring it."""
 
 
-@pytest.mark.maths("M-DATA-TP")
+@pytest.mark.maths("M-DATA-TENSORPROD")
 @pytest.mark.parametrize(
     ("block", "accepted"),
     [
@@ -431,20 +435,21 @@ def test_the_blocks_are_the_classes_that_declare_the_capability(
         return
     message = (
         f"DataTensorProd: block 0 is {block!r}; each block is the class estel.Data2D or "
-        "estel.Data1D, not an instance (maths.md M-DATA-TP). HEALPix blocks come later (LF9). "
-        "Pass the classes, for example blocks=[estel.Data2D, estel.Data1D] for space and time."
+        "estel.Data1D, not an instance (maths.md M-DATA-TENSORPROD). HEALPix blocks come later "
+        "(LF9). Pass the classes, for example blocks=[estel.Data2D, estel.Data1D] for space and "
+        "time."
     )
     with pytest.raises(TypeError, match=f"^{re.escape(message)}$"):
         DataTensorProd(np.zeros((16, 16)), [block], pbc=[True])
 
 
-@pytest.mark.maths("M-DATA-TP")
+@pytest.mark.maths("M-DATA-TENSORPROD")
 def test_the_shape_is_checked() -> None:
     with pytest.raises(ValueError, match=r"accepted shapes are \(N0_1, N0_2, N1\)"):
         DataTensorProd(np.zeros((16, 16)), [Data2D, Data1D], pbc=[True, True])
 
 
-@pytest.mark.maths("M-DATA-TP")
+@pytest.mark.maths("M-DATA-TENSORPROD")
 def test_missing_values_raise_and_name_lf8() -> None:
     """Data with a NaN, or given a mask, raise at construction (OP-41)."""
     values = _valid_array()
@@ -470,7 +475,7 @@ def test_missing_values_raise_and_name_lf8() -> None:
         (None, [0, 2], ValueError, r"L\[0\]=0.*at least 1"),
     ],
 )
-@pytest.mark.maths("M-DATA-TP", "M-DEF-TP")
+@pytest.mark.maths("M-DATA-TENSORPROD", "M-DEF-TENSORPROD")
 def test_the_arguments_of_the_operator_are_checked(
     J: Any,  # noqa: N803 (maths.md notation)
     L: Any,  # noqa: N803
@@ -484,7 +489,7 @@ def test_the_arguments_of_the_operator_are_checked(
         WaveletOperatorTensorProd(product, J, L)
 
 
-@pytest.mark.maths("M-DATA-TP", "M-DEF-TP")
+@pytest.mark.maths("M-DATA-TENSORPROD", "M-DEF-TENSORPROD")
 def test_defaults_that_do_not_hold_raise() -> None:
     """A block too small for its default J, and a default J the sizes cannot take (OP-83,
     OP-8): construction fails with a message that says what to pass."""
@@ -545,7 +550,7 @@ def _block_convolution(
 
 
 @pytest.mark.slow
-@pytest.mark.maths("M-W1-TP")
+@pytest.mark.maths("M-W1-TENSORPROD")
 def test_jit_takes_tensor_prod_data(backend: Backend, dtype: DType) -> None:
     """``backend.jit`` (``jax.jit`` on JAX, the identity on PyTorch) of a function of a
     ``DataTensorProd``: the blocks are static, the array the only leaf.
@@ -564,7 +569,7 @@ def test_jit_takes_tensor_prod_data(backend: Backend, dtype: DType) -> None:
 
 @jax_only
 @pytest.mark.slow
-@pytest.mark.maths("M-W1-TP")
+@pytest.mark.maths("M-W1-TENSORPROD")
 def test_vmap_maps_a_function_of_tensor_prod_data(backend: Backend, dtype: DType) -> None:
     """``jax.vmap`` over a stack of fields, a ``DataTensorProd`` whose leaf has one more
     leading axis: each field gives the block convolutions of that field alone.

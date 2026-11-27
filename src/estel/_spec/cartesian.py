@@ -144,14 +144,14 @@ def spec_data(
 
 
 def _pad(a: Array, ndim: int, before: int, after: int, pbc: bool) -> Array:
-    """``a`` padded on its spatial axes: circular if ``pbc``, replicate otherwise (M-CONV-2D)."""
+    """``a`` padded on its spatial axes: circular if ``pbc``, replicate otherwise (M-CONV)."""
     widths = [(0, 0)] * (a.ndim - ndim) + [(before, after)] * ndim
     return np.pad(a, widths, mode="wrap" if pbc else "edge")
 
 
 def spec_correlate_cartesian(a: Array, kernel: Array, pbc: bool) -> Array:
     """The filtering of ``a`` by ``kernel`` along its last axes, one per axis of the kernel.
-    Implements M-CONV-2D, and the filtering of M-WAV-1D.
+    Implements M-CONV, and the filtering of M-WAV-1D.
 
     A cross-correlation, the kernel not flipped: ``(w ⋆ a)[n] = Σ_m w[m] ã[n + m - p]``, with
     p = ⌊K/2⌋ and ã the array padded by p pixels on each side, circular if ``pbc`` and

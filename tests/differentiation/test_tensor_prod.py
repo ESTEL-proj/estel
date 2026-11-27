@@ -1,5 +1,5 @@
 """Derivatives of the statistics of tensor products (task T3.2, issue #23; Part I, §3.2.2;
-maths.md M-S-TP, M-LP, M-NORM-TP).
+maths.md M-S-TENSORPROD, M-LP, M-NORM-TENSORPROD).
 
 The function differentiated is ``estel.functional.scattering`` on a ``DataTensorProd``, seen as
 a real function of the data array: ``to_vector`` of its statistics with ``norm="self"``, so that
@@ -25,7 +25,7 @@ from estel import Data1D, Data2D, DataTensorProd, STOperatorTensorProd
 from estel.backend._protocol import Backend
 from tests.differentiation.test_scattering import ATOL, RTOL, _central_difference
 
-pytestmark = pytest.mark.maths("M-S-TP", "M-LP", "M-NORM-TP")
+pytestmark = pytest.mark.maths("M-S-TENSORPROD", "M-LP", "M-NORM-TENSORPROD")
 
 
 def _function(backend: Backend) -> tuple[Any, Any]:

@@ -1,12 +1,13 @@
 """Spec parity of the wavelet operator of HEALPix data: ``DataHealpix`` and its
 ``WaveletOperatorSingleDomain`` against the oracle ``estel._spec.healpix`` (task T5.5, issue #166;
-maths.md M-CONV-HPX, M-WAV-HPX, M-DOWN-HPX, M-MASK-HPX, M-DEF-HPX; Part I, §4.2).
+maths.md M-CONV-HEALPIX, M-WAV-HEALPIX, M-DOWN-HEALPIX, M-MASK-HEALPIX, M-DEF-HEALPIX; Part I,
+§4.2).
 
 The oracle has its own geometry, written from maths.md §4 (T5.4); ESTEL applies the tables
-ported from ``TorchGeometry`` (T5.1). Both apply the partial-sky rule of M-CONV-HPX with the
+ported from ``TorchGeometry`` (T5.1). Both apply the partial-sky rule of M-CONV-HEALPIX with the
 threshold of OP-110, so the discs are compared on every row, unlike STL's fixtures. The maps
 and the pixels are those of STL's fixtures (T5.3), so the domains are the ones of
-``tests/parity/test_healpix_operator.py``. Compared with ``assert_parity`` in the run's dtype.
+``tests/parity/test_operator_healpix.py``. Compared with ``assert_parity`` in the run's dtype.
 
 A disagreement is a finding about ``docs/maths.md``, the oracle or the port: report the
 coefficients on an issue, change nothing to make a test pass.
@@ -35,7 +36,7 @@ DOMAINS = [
     pytest.param("full_16", marks=pytest.mark.slow),
     pytest.param("disc_16", marks=pytest.mark.slow),
 ]
-"""The domains of ``operators_hpx``. Slow: ``nside`` 16, the oracle's naive tables and
+"""The domains of ``operators_healpix``. Slow: ``nside`` 16, the oracle's naive tables and
 decimation take about 0.3 s, over the budget with ESTEL's (decision 4 on #165)."""
 
 
@@ -50,12 +51,12 @@ def _numpy(x: Any) -> NDArray[Any]:
 
 @functools.cache
 def _operators() -> dict[str, NDArray[Any]]:
-    return load_fixture("operators_hpx")
+    return load_fixture("operators_healpix")
 
 
 @functools.cache
 def _statistics() -> dict[str, NDArray[Any]]:
-    return load_fixture("statistics_hpx")
+    return load_fixture("statistics_healpix")
 
 
 def _domain(name: str) -> tuple[int, NDArray[np.int64] | None, NDArray[np.float64]]:
@@ -71,7 +72,7 @@ def _data(nside: int, cell_ids: Any, values: Any, mask: Any = None) -> DataHealp
 
 
 @pytest.mark.dtype
-@pytest.mark.maths("M-CONV-HPX", "M-WAV-HPX")
+@pytest.mark.maths("M-CONV-HEALPIX", "M-WAV-HEALPIX")
 @pytest.mark.parametrize("name", DOMAINS)
 def test_convolution_equals_the_oracle(name: str, dtype: DType) -> None:
     """Every (gauge, pixel) row, the edge of the discs included: ESTEL and the oracle apply the
@@ -88,7 +89,7 @@ def test_convolution_equals_the_oracle(name: str, dtype: DType) -> None:
 
 
 @pytest.mark.dtype
-@pytest.mark.maths("M-DOWN-HPX")
+@pytest.mark.maths("M-DOWN-HEALPIX")
 @pytest.mark.parametrize("name", DOMAINS)
 def test_decimation_equals_the_oracle(name: str, dtype: DType) -> None:
     """Slow: at ``nside`` 16 only, the oracle's naive decimation (decision 4 on #165)."""
@@ -100,7 +101,7 @@ def test_decimation_equals_the_oracle(name: str, dtype: DType) -> None:
 
 
 def _check_masks(plan: Any, levels: Any, invalid: NDArray[np.bool_]) -> None:
-    """The masks and reweighting maps of the plan equal the oracle's (M-MASK-HPX): every
+    """The masks and reweighting maps of the plan equal the oracle's (M-MASK-HEALPIX): every
     family, on the pixels of its level; the masks exactly, the maps to the float64 parity
     tolerance (they are static, in float64, whatever the run's dtype)."""
     masks, expected = plan.masks, spec.spec_masks_healpix(levels, invalid)
@@ -120,7 +121,7 @@ def _check_masks(plan: Any, levels: Any, invalid: NDArray[np.bool_]) -> None:
         np.testing.assert_array_equal(layer, expected["layer2"][j2, j3])
 
 
-@pytest.mark.maths("M-MASK-HPX", "M-MASK", "M-DOWN-MASK")
+@pytest.mark.maths("M-MASK-HEALPIX", "M-MASK", "M-DOWN-MASK")
 @pytest.mark.parametrize("dtype", ["float64"])  # the masks are float64 in every dtype
 @pytest.mark.parametrize("sky", ["full", "disc"])
 def test_masks_equal_the_oracle_at_nside_8(sky: str, dtype: DType) -> None:
@@ -134,11 +135,11 @@ def test_masks_equal_the_oracle_at_nside_8(sky: str, dtype: DType) -> None:
 
 
 @pytest.mark.slow
-@pytest.mark.maths("M-MASK-HPX", "M-MASK", "M-DOWN-MASK")
+@pytest.mark.maths("M-MASK-HEALPIX", "M-MASK", "M-DOWN-MASK")
 @pytest.mark.parametrize("dtype", ["float64"])  # the masks are float64 in every dtype
 @pytest.mark.parametrize("name", ["nan_16", "disc_nan_16"])
 def test_masks_equal_the_oracle_on_the_masked_configurations(name: str, dtype: DType) -> None:
-    """The two masked configurations of ``statistics_hpx``, ``nside`` 16, J = 3.
+    """The two masked configurations of ``statistics_healpix``, ``nside`` 16, J = 3.
 
     Slow: ``nside`` 16, the oracle's naive tables (decision 4 on #165)."""
     fixture = _statistics()
@@ -150,11 +151,11 @@ def test_masks_equal_the_oracle_on_the_masked_configurations(name: str, dtype: D
     _check_masks(plan, spec.spec_levels_healpix(16, cell_ids, 3), invalid)
 
 
-@pytest.mark.maths("M-DEF-HPX", "M-MASK-HPX")
+@pytest.mark.maths("M-DEF-HEALPIX", "M-MASK-HEALPIX")
 @pytest.mark.parametrize("nside", [1, 2, 4, 8, 16, 32])
 def test_defaults_and_no_border(nside: int) -> None:
-    """J, L and K of M-DEF-HPX; no border (β = 0) on a full sky and on a partial sky, so the
-    weights of every mean are its valid pixels (M-MASK-HPX, OP-50)."""
+    """J, L and K of M-DEF-HEALPIX; no border (β = 0) on a full sky and on a partial sky, so the
+    weights of every mean are its valid pixels (M-MASK-HEALPIX, OP-50)."""
     defaults = spec.spec_defaults_healpix(nside)
     data = DataHealpix(np.zeros(12 * nside * nside))
     plan = build_wavelet_plan(data)

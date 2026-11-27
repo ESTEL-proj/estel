@@ -1,6 +1,6 @@
 """Parity case: the gradient of the synthesis loss of STL `2D+1D` on a tensor product (Part II,
 §14.3 "Gradients"; task T3.4, issue #127, decisions of the maintainer, second version; maths.md
-M-SYN-LOSS, M-NORM-TP, M-FLAT).
+M-SYN-LOSS, M-NORM-TENSORPROD, M-FLAT).
 
 On case C of maths.md §3 (a 16 x 16 periodic 2D block and an 8-sample open 1D block, STL's
 default J = (2, 1), L = (4, 2), ``lowpass="ST"``), with two maps of two channels, computes the
@@ -56,7 +56,7 @@ PARAMETERS: dict[str, Any] = {
 
 def input_field(shape: tuple[int, ...], nb: int, nc: int, seed: int) -> NDArray[np.float64]:
     """Seeded Gaussian fields, ``(Nb, Nc, *shape)``, each channel correlated with the previous
-    one so that the cross statistics are not small (as in ``scattering_tp``)."""
+    one so that the cross statistics are not small (as in ``scattering_tensor_prod``)."""
     rng = np.random.default_rng(seed)
     noise = rng.standard_normal((nb, nc, *shape))
     channels = [noise[:, 0]]

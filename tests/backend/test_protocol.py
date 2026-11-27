@@ -47,8 +47,8 @@ SECTIONS = ("Shapes:", "Dtypes:", "Values:", "Gradients:", "Edge cases:")
 
 # Primitives whose values enter the statistics, and the maths entries they must cite.
 VALUE_CONTRACTS = {
-    "pad": {"M-CONV-2D", "M-DOWN"},
-    "conv_axes": {"M-CONV-2D", "M-DOWN"},
+    "pad": {"M-CONV", "M-DOWN"},
+    "conv_axes": {"M-CONV", "M-DOWN"},
     "segment_sum": {"M-PS-2D"},
     "scatter_to_grid": {"M-CHAN"},
     "xp": {"M-MEAN", "M-PS-2D", "M-RED-ANG"},

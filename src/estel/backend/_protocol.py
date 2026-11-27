@@ -188,7 +188,7 @@ class Backend(Protocol):
             * ``"zeros"``: ``y[i] = x[i - before]`` inside, 0 outside.
 
             The scattering transform pads by ``⌊K/2⌋`` on each side, circular if ``pbc=True``
-            and replicate otherwise (M-CONV-2D), and by 2 before and 3 after for the
+            and replicate otherwise (M-CONV), and by 2 before and 3 after for the
             smoothing kernel s (M-SMOOTH-2D, M-DOWN). Complex arrays are padded like their
             real and imaginary parts.
         Gradients:
@@ -229,14 +229,14 @@ class Backend(Protocol):
 
             with ``n``, ``m`` and ``s·n`` multi-indices over the d axes. Padding is a
             separate call to :meth:`pad`. Padding by ``⌊K/2⌋`` then correlating gives the
-            filtering of M-CONV-2D (M-W1); padding by (2, 3) then correlating with the
+            filtering of M-CONV (M-W1); padding by (2, 3) then correlating with the
             smoothing kernel at stride 2 gives one downsampling step (M-DOWN). This is a
             correlation, not a convolution (OP-1): it reproduces STL.
         Gradients:
             Bilinear in ``x`` and ``k``; differentiable with respect to both, to any order.
         Edge cases:
             Complex ``x`` or ``k`` raises ``TypeError``: a complex correlation is two real
-            calls, made in L1 (M-CONV-2D; Part I, §3.1, rule 6). ``k.ndim < d``,
+            calls, made in L1 (M-CONV; Part I, §3.1, rule 6). ``k.ndim < d``,
             non-contiguous or repeated axes, a stride below 1, or ``N_i < K_i`` raise
             ``ValueError``.
         """

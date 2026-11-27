@@ -30,16 +30,16 @@ class DataCartesian(Data):
     §2.3.1): internal, never built itself. It holds what the two share, the construction from an
     array of the grid, the geometry hooks of filtering, downsampling and border crop, and their
     forms along the axes of one block of a tensor product (``DataTensorProd``, maths.md
-    M-NOT-TP); a subclass sets ``ndim`` and the threshold of M-DOWN-MASK."""
+    M-NOT-TENSORPROD); a subclass sets ``ndim`` and the threshold of M-DOWN-MASK."""
 
     ndim: ClassVar[int]
     """The number of spatial axes, a class constant that each subclass sets."""
 
     _block_tensor_prod: ClassVar[bool] = False
-    """Whether the class may be a block of a tensor product (maths.md M-DATA-TP), a capability
-    each class declares in its own body: ``DataTensorProd`` reads it there, never inherited, so
-    that ``Data1D`` and ``Data2D`` are the blocks of ESTEL 1.0.0, and neither ``DataCartesian``
-    nor a subclass of them. HEALPix blocks come later (LF9)."""
+    """Whether the class may be a block of a tensor product (maths.md M-DATA-TENSORPROD), a
+    capability each class declares in its own body: ``DataTensorProd`` reads it there, never
+    inherited, so that ``Data1D`` and ``Data2D`` are the blocks of ESTEL 1.0.0, and neither
+    ``DataCartesian`` nor a subclass of them. HEALPix blocks come later (LF9)."""
 
     # ------------------------------------------------------------------ construction
 
@@ -110,12 +110,12 @@ class DataCartesian(Data):
 
     @staticmethod
     def _padding_mode(pbc: bool) -> PadMode:
-        """Circular if ``pbc``, replicate otherwise (maths.md M-CONV-2D, M-DOWN)."""
+        """Circular if ``pbc``, replicate otherwise (maths.md M-CONV, M-DOWN)."""
         return "circular" if pbc else "replicate"
 
     def _conv(self, x: Any, tables: Any, level: int) -> Any:
         """Planar ``_conv``: pad by ⌊K/2⌋ on each side of every spatial axis, then correlate with
-        each kernel (maths.md M-CONV-2D, M-W1, OP-1). The ``tables`` are the kernel bank, and
+        each kernel (maths.md M-CONV, M-W1, OP-1). The ``tables`` are the kernel bank, and
         ``level`` does not matter: the planar kernels are the same at every level (M-WAV-2D,
         M-WAV-1D). The filtering itself is :meth:`_conv_along`, on the spatial axes.
         """
@@ -143,7 +143,7 @@ class DataCartesian(Data):
         """The planar filtering along ``axes`` of ``x``, contiguous and increasing, the
         ``cls.ndim`` axes of the geometry or of one block of a tensor product (Part II, §12.4):
         padded and correlated along these axes only, every other axis carried through, none moved
-        (maths.md M-CONV-2D; M-NOT-TP, the block convolution ⋆_a).
+        (maths.md M-CONV; M-NOT-TENSORPROD, the block convolution ⋆_a).
 
         A complex kernel on a real array is one real correlation, with the real and imaginary
         kernels stacked; on a complex array, four (Part I, §3.1, rule 6; T3.5).
@@ -218,7 +218,7 @@ class DataCartesian(Data):
     ) -> Any:
         """One planar downsampling step along ``axes`` of ``x``, contiguous and increasing, the
         axes of the geometry or of one block of a tensor product (maths.md M-DOWN, M-DOWN-MASK;
-        M-NOT-TP): every other axis is carried through, none moved.
+        M-NOT-TENSORPROD): every other axis is carried through, none moved.
 
         Invalid input pixels are set to 0 (selected out, so that a NaN there is never read and
         gives no NaN gradient, OP-27); the array is padded by ``(K-1)//2`` before and ``K//2``
@@ -277,8 +277,8 @@ class DataCartesian(Data):
         cls, shape: tuple[int, ...], level: int, border: int, *, owner: str
     ) -> NDArray[np.float64]:
         """0 on ``border`` pixels at both ends of every axis of the grid of full-resolution
-        ``shape`` taken at ``level``, 1 elsewhere (maths.md M-BORDER; M-BORDER-TP for one block of
-        a tensor product; STL ``_crop``).
+        ``shape`` taken at ``level``, 1 elsewhere (maths.md M-BORDER; M-BORDER-TENSORPROD for one
+        block of a tensor product; STL ``_crop``).
 
         As in STL, a border that leaves no pixel on the shortest axis (2·border ≥ its length) is
         reduced to ⌊(min N - 1)/2⌋, with a warning (OP-13). A border of 0 is never reduced.

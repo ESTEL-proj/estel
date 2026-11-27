@@ -1,13 +1,13 @@
 """Invariance of the statistics of tensor products under a permutation of the blocks (Part I,
-§5.1; task T3.2, issue #23; maths.md M-W1-TP, "Order of the blocks", M-S-TP).
+§5.1; task T3.2, issue #23; maths.md M-W1-TENSORPROD, "Order of the blocks", M-S-TENSORPROD).
 
 A tensor product ``[2D, 1D]`` of a field and the tensor product ``[1D, 2D]`` of the same field
 with its axes permuted are one transform: every statistic of the second is that of the first
 with its scale and orientation axes permuted block by block, within each group (j, or j2 and
 j3, or j1, j2 and j3; and the orientations alike). STL's order of the blocks only changes the
-rounding (maths.md M-W1-TP, "Checked": 1.0e-15), so the two sides are compared in float64 with
-the tolerances of Part II, §14.3. The fields are open in the 2D block and periodic in the 1D
-block, so that the borders of the blocks are permuted too (M-BORDER-TP), with the low-pass
+rounding (maths.md M-W1-TENSORPROD, "Checked": 1.0e-15), so the two sides are compared in float64
+with the tolerances of Part II, §14.3. The fields are open in the 2D block and periodic in the 1D
+block, so that the borders of the blocks are permuted too (M-BORDER-TENSORPROD), with the low-pass
 filter of every block and the centred scale (M-LP); and with ``norm="self"``, so that the
 normalisation is permuted with them.
 """
@@ -25,7 +25,7 @@ from estel.backend import _registry
 from tests.parity._compare import assert_parity
 
 pytestmark = [
-    pytest.mark.maths("M-W1-TP", "M-S-TP", "M-BORDER-TP", "M-LP"),
+    pytest.mark.maths("M-W1-TENSORPROD", "M-S-TENSORPROD", "M-BORDER-TENSORPROD", "M-LP"),
     pytest.mark.filterwarnings("ignore:.*too small for a border crop:UserWarning"),  # OP-13
 ]
 # The number of index groups (of scales, then of orientations) of each family.

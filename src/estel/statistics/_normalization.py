@@ -94,7 +94,7 @@ def spectrum_reference_of(spectrum: Any, pairs: Any) -> SpectrumReference:
 
 class BlocksTensorProd(NamedTuple):
     """What a normalisation reference of a tensor product must share with the statistics it
-    normalises (maths.md M-NORM-TP; task T3.6): the blocks, J, L and the low-pass flags; the
+    normalises (maths.md M-NORM-TENSORPROD; task T3.6): the blocks, J, L and the low-pass flags; the
     sizes and the periodicity of the blocks are free, as in M-NORM."""
 
     geometries: tuple[str, ...]
@@ -372,7 +372,7 @@ def self_reference(
     spectrum: SpectrumReference | None = None,
 ) -> _NormReference:
     """The reference of ``norm="self"``, from the statistics being normalised (M-NORM,
-    M-NORM-TP; STL ``to_norm(norm_type="self")``, ``_get_sqrt_chan_diag``): ``buffer`` in
+    M-NORM-TENSORPROD; STL ``to_norm(norm_type="self")``, ``_get_sqrt_chan_diag``): ``buffer`` in
     ``layout``, the layout of the loop. ``present`` is where sigma exists; ``blocks`` those of
     a tensor product, or ``None``; ``spectrum`` the channels and parameters of the power
     spectrum, whose σᴾˢ is read from the auto spectra of the buffer, or ``None`` without it."""
@@ -450,7 +450,7 @@ def as_constant(backend: Backend, reference: _NormReference) -> _NormReference:
 
 def _sigma_columns(name: str, k: int) -> tuple[tuple[int, int], tuple[int, int]]:
     """For a normalised family, the chunk column of the channel and the first chunk column of
-    the ``k`` scale axes of each of the two sigma of its divisor (M-NORM, M-NORM-TP):
+    the ``k`` scale axes of each of the two sigma of its divisor (M-NORM, M-NORM-TENSORPROD):
     sigma_{c1}(j, l) sigma_{c2}(j, l) for S1 and S2, sigma_{c1}(j2, l2) sigma_{c2}(j3, l3) for
     S3, sigma_{c1}(j1, l1) sigma_{c2}(j2, l2) for S4; ``k`` is 1, or the number of blocks."""
     second = 2 if name in ("S1", "S2") else 2 + k
@@ -552,7 +552,7 @@ def normalize(
     σᴾˢ_{c1}(b) σᴾˢ_{c2}(b) (maths.md §1.9). The reference broadcasts over the batch (Nr = 1)
     or matches it. ``layout`` is a layout of the loop (``_layout.layout_single_domain``,
     ``_layout.layout_tensor_prod``). In a tensor product the scales and orientations are
-    multi-indices, and S3 and S4 read the wavelet scales of the reference only (M-NORM-TP).
+    multi-indices, and S3 and S4 read the wavelet scales of the reference only (M-NORM-TENSORPROD).
     """
     present = reference.present
     if reference.blocks is not None:
@@ -716,7 +716,7 @@ def _divide_tensor_prod(
     factors: dict[str, Any],
 ) -> Any:
     """The buffer of the kept chunks of a tensor product divided by their divisors
-    (:func:`normalize`, M-NORM-TP), one orientation shape at a time: each factor is a row of
+    (:func:`normalize`, M-NORM-TENSORPROD), one orientation shape at a time: each factor is a row of
     sigma, read from its first float, its orientations along those of its filter."""
     xp = backend.xp
     n_ref = int(var.shape[0])
@@ -864,8 +864,8 @@ def check_reference_tensor_prod(
     reference: _NormReference, plan: STPlanTensorProd, n_batch: int, dtype: Any
 ) -> None:
     """Raise unless ``reference`` can normalise the statistics of the tensor product ``plan``
-    (maths.md M-NORM-TP, M-NORM; Part IV, R-Y03): it must come from a tensor product with the
-    same blocks, J, L, low-pass flags and number of channels, with a normalisation scale for
+    (maths.md M-NORM-TENSORPROD, M-NORM; Part IV, R-Y03): it must come from a tensor product with
+    the same blocks, J, L, low-pass flags and number of channels, with a normalisation scale for
     every channel the plan normalises; the sizes and the periodicity of the blocks are free, as
     in M-NORM. The batch and the dtype follow :func:`check_reference_single_domain`."""
     expected = blocks_tensor_prod(plan)
@@ -874,7 +874,7 @@ def check_reference_tensor_prod(
         raise ValueError(
             "the reference comes from single-domain statistics, and these are a tensor product: "
             "normalise with statistics of a tensor product with the same blocks, J, L and "
-            "low-pass flags (maths.md M-NORM-TP)."
+            "low-pass flags (maths.md M-NORM-TENSORPROD)."
         )
     n_channels = int(reference.present.shape[0])
     mismatches = [
@@ -892,7 +892,7 @@ def check_reference_tensor_prod(
         raise ValueError(
             f"the reference has {', '.join(mismatches)}: normalise with statistics of a tensor "
             "product with the same blocks, J, L, low-pass flags and channels; the sizes and the "
-            "periodicity of its blocks may differ (maths.md M-NORM-TP, M-LP)."
+            "periodicity of its blocks may differ (maths.md M-NORM-TENSORPROD, M-LP)."
         )
     with_scale = np.asarray(reference.present.reshape(n_channels, -1).any(axis=1), dtype=bool)
     missing = [c for c in plan.pairs.auto if not with_scale[c]]

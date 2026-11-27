@@ -1,22 +1,25 @@
 """Parity of ``STOperatorTensorProd`` with STL on tensor products (task T3.2, issue #23; Part II,
-§14.3, §14.4; maths.md M-DATA-TP, M-W1-TP, M-LP, M-IDX-TP, M-S-TP, M-BORDER-TP, M-NORM-TP,
-M-FLAT, M-SYN-LOSS; OP-30, OP-34, OP-42, OP-43, OP-81, OP-82).
+§14.3, §14.4; maths.md M-DATA-TENSORPROD, M-W1-TENSORPROD, M-LP, M-IDX-TENSORPROD, M-S-TENSORPROD,
+M-BORDER-TENSORPROD, M-NORM-TENSORPROD, M-FLAT, M-SYN-LOSS; OP-30, OP-34, OP-42, OP-43, OP-81,
+OP-82).
 
 The fixtures of T3.4 (STL `2D+1D` at ``8f51143``):
 
-* ``scattering_tp``: the vanilla statistics of every configuration, ``lowpass="ST"`` and
+* ``scattering_tensor_prod``: the vanilla statistics of every configuration, ``lowpass="ST"`` and
   ``None``; ESTEL's operator runs with ``norm="none"`` on the stored field, with the parameters
   the manifest records;
-* ``statistics_tp``: the normalised statistics of three runs (``norm="self"``, ``norm="ref"`` by
+* ``statistics_tensor_prod``: the normalised statistics of three runs (``norm="self"``,
+``norm="ref"`` by
   the first one's reference, ``norm="self"`` with ``ref_batch_mean``), their references and the
   two flat vectors; ESTEL's operators are built with STL's ``standardize=False``;
-* ``gradient_tp``: the synthesis loss of M-SYN-LOSS on a running field against a target and its
+* ``gradient_tensor_prod``: the synthesis loss of M-SYN-LOSS on a running field against a target and
+its
   gradient with respect to the field (Part II, §14.3, "Gradients").
 
 Every comparison is in float64, with the tolerances of Part II, §14.3: same full-grid shapes,
 NaN at the same positions, values within rtol 1e-10 and atol 0.1 x rtol x max|STL| (for
 ``mean``, its scale is the standard deviation of the data). STL interleaves the downsamplings
-and the block convolutions as ESTEL does (M-W1-TP); the second layer is summed as a Gram
+and the block convolutions as ESTEL does (M-W1-TENSORPROD); the second layer is summed as a Gram
 product (M-GRAM): the difference is rounding.
 """
 
@@ -37,7 +40,14 @@ from estel.synthesis._loss import flatten
 from tests.parity._compare import assert_parity, full_grid, load_fixture, read_manifest
 
 pytestmark = pytest.mark.maths(
-    "M-DATA-TP", "M-W1-TP", "M-LP", "M-IDX-TP", "M-S-TP", "M-BORDER-TP", "M-NORM-TP", "M-FLAT"
+    "M-DATA-TENSORPROD",
+    "M-W1-TENSORPROD",
+    "M-LP",
+    "M-IDX-TENSORPROD",
+    "M-S-TENSORPROD",
+    "M-BORDER-TENSORPROD",
+    "M-NORM-TENSORPROD",
+    "M-FLAT",
 )
 GEOMETRIES = {"2D": Data2D, "1D": Data1D}
 FAMILIES = ("var", "S1", "S2", "S3", "S4")
@@ -84,23 +94,23 @@ def _scattering_runs() -> list[Any]:
             id=f"{name}-{MODES[lowpass]}",
             marks=(pytest.mark.slow,) if name in SLOW else (),
         )
-        for name, config in _parameters("scattering_tp")["configs"].items()
+        for name, config in _parameters("scattering_tensor_prod")["configs"].items()
         for lowpass in config["lowpass"]
     ]
 
 
 @pytest.mark.parametrize(("name", "lowpass"), _scattering_runs())
 def test_statistics_equal_stl(name: str, lowpass: str | None) -> None:
-    """``scattering_tp``: mean, var and S1 to S4 of each configuration and low-pass setting,
-    and the moments removed by ``standardize``, equal STL's (S3 and S4 of ``lowpass=None`` are
-    those of ``"ST"``, maths.md M-LP).
+    """``scattering_tensor_prod``: mean, var and S1 to S4 of each configuration and low-pass
+    setting, and the moments removed by ``standardize``, equal STL's (S3 and S4 of ``lowpass=None``
+    are those of ``"ST"``, maths.md M-LP).
 
     Slow: case D, three blocks (2D + 1D + 1D), takes 1.5 s of CPU on one thread; it runs in the
     full tier only."""
-    parameters = _parameters("scattering_tp")
+    parameters = _parameters("scattering_tensor_prod")
     config = parameters["configs"][name]
     case = parameters["cases"][config["case"]]
-    arrays = _arrays("scattering_tp")
+    arrays = _arrays("scattering_tensor_prod")
     matrix = config.get("cross_matrix")
     data = _data(arrays[f"{name}_field"], case["blocks"], case["pbc"])
     stats = _operator(
@@ -129,13 +139,13 @@ def test_statistics_equal_stl(name: str, lowpass: str | None) -> None:
 
 
 def test_normalised_statistics_equal_stl() -> None:
-    """``statistics_tp``: the three runs, the references of the two ``norm="self"`` runs
+    """``statistics_tensor_prod``: the three runs, the references of the two ``norm="self"`` runs
     (``var_ref`` and ``S2_ref_sqrt_chan_diag``) and the real and complex flat vectors equal
-    STL's (maths.md M-NORM-TP, M-FLAT). As in STL, the first two runs are one operator, applied
-    with ``norm="self"`` then ``norm="ref"`` (STL's ``store_ref`` then ``load_ref``), whose stored
-    reference normalises the other field; the third is a new operator (task T2.19)."""
-    parameters = _parameters("statistics_tp")
-    arrays = _arrays("statistics_tp")
+    STL's (maths.md M-NORM-TENSORPROD, M-FLAT). As in STL, the first two runs are one operator,
+    applied with ``norm="self"`` then ``norm="ref"`` (STL's ``store_ref`` then ``load_ref``), whose
+    stored reference normalises the other field; the third is a new operator (task T2.19)."""
+    parameters = _parameters("statistics_tensor_prod")
+    arrays = _arrays("statistics_tensor_prod")
     blocks, pbc, J = parameters["blocks"], parameters["pbc"], parameters["J"]  # noqa: N806
     field, other = (_data(arrays[k], blocks, pbc) for k in ("field", "other_field"))
     operator = _operator(field, J)
@@ -162,12 +172,12 @@ def test_normalised_statistics_equal_stl() -> None:
 
 
 def test_gradient_of_the_loss_equals_stl() -> None:
-    """``gradient_tp``: the synthesis loss of M-SYN-LOSS (the target's statistics with
+    """``gradient_tensor_prod``: the synthesis loss of M-SYN-LOSS (the target's statistics with
     ``norm="self"`` and ``ref_batch_mean``, the running field's with the target's reference,
     both weighted, averaged over the batch and flattened in the complex form of M-FLAT) and its
     gradient with respect to the running field equal STL's (Part II, §14.3, "Gradients")."""
-    parameters = _parameters("gradient_tp")
-    arrays = _arrays("gradient_tp")
+    parameters = _parameters("gradient_tensor_prod")
+    arrays = _arrays("gradient_tensor_prod")
     blocks, pbc, J = parameters["blocks"], parameters["pbc"], parameters["J"]  # noqa: N806
     backend = _registry.current_backend()
     target = _data(arrays["target"], blocks, pbc)

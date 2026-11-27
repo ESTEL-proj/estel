@@ -2,7 +2,7 @@
 
 NumPy and the standard library only: the worker that measures STL in the parity container
 imports this module, and never ``estel``. The HEALPix cases, measured on ESTEL only, read the
-pixel centres from ``estel`` when their inputs are written, natively (:func:`_healpix_centres`).
+pixel centres from ``estel`` when their inputs are written, natively (:func:`_centres_healpix`).
 
 The inputs of a case are written once, by the process that runs the benchmark, and every
 measured process reads the same file (:func:`write_inputs`, :func:`read_inputs`): ESTEL and STL,
@@ -173,7 +173,7 @@ def input_mask(case: Case) -> NDArray[np.bool_] | None:
     if case.mask_seed is None:
         return None
     if case.healpix:
-        return _healpix_mask(case)
+        return _mask_healpix(case)
     rng = np.random.default_rng(case.mask_seed)
     missing = np.zeros(case.shape, dtype=bool)
     for side in case.mask_holes:
@@ -203,9 +203,9 @@ def input_field(case: Case, seed: int) -> NDArray[np.float64]:
     Each channel is correlated with the previous one, so that the cross statistics are not
     small. A tensor product has the same spectrum over all its axes."""
     if case.tensor_prod:
-        return _tensor_prod_field(case, seed)
+        return _field_tensor_prod(case, seed)
     if case.healpix:
-        return _healpix_field(case, seed)
+        return _field_healpix(case, seed)
     rng = np.random.default_rng(seed)
     noise = rng.standard_normal((case.channels, *case.shape))
     k = np.hypot(np.fft.fftfreq(case.shape[0])[:, None], np.fft.rfftfreq(case.shape[1])[None, :])
@@ -220,7 +220,7 @@ def input_field(case: Case, seed: int) -> NDArray[np.float64]:
     return field
 
 
-def _tensor_prod_field(case: Case, seed: int) -> NDArray[np.float64]:
+def _field_tensor_prod(case: Case, seed: int) -> NDArray[np.float64]:
     """:func:`input_field` on every axis of a tensor product: ``(1, Nc, *shape)``."""
     rng = np.random.default_rng(seed)
     noise = rng.standard_normal((case.channels, *case.shape))
@@ -242,11 +242,11 @@ def _tensor_prod_field(case: Case, seed: int) -> NDArray[np.float64]:
 
 # The field of a HEALPix case: a white noise averaged this many times over the pixels whose
 # centres lie within this many pixel sizes, √(4π / Npix), of each pixel centre.
-HEALPIX_AVERAGES = 3
-HEALPIX_AVERAGE_RADIUS = 2.0
+AVERAGES_HEALPIX = 3
+AVERAGE_RADIUS_HEALPIX = 2.0
 
 
-def _healpix_centres(case: Case) -> NDArray[np.float64]:
+def _centres_healpix(case: Case) -> NDArray[np.float64]:
     """The unit vectors of the pixel centres of a HEALPix case, NESTED, ``(Npix, 3)``: from
     ``estel``, imported here only, natively, where the inputs are written (the container never
     runs a HEALPix case)."""
@@ -256,13 +256,13 @@ def _healpix_centres(case: Case) -> NDArray[np.float64]:
     return np.stack([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)], axis=-1)
 
 
-def _healpix_mask(case: Case) -> NDArray[np.bool_]:
+def _mask_healpix(case: Case) -> NDArray[np.bool_]:
     """The missing pixels of a HEALPix case: discs of the angular radii ``mask_discs``, in
     degrees, centred on directions drawn uniformly on the sphere by a seeded draw, drawn again
     while a disc overlaps one already placed; a pixel is missing when its centre is in a disc."""
     assert case.mask_seed is not None
     rng = np.random.default_rng(case.mask_seed)
-    centres = _healpix_centres(case)
+    centres = _centres_healpix(case)
     placed: list[tuple[NDArray[np.float64], float]] = []
     missing = np.zeros(case.shape[0], dtype=bool)
     for degrees in case.mask_discs:
@@ -286,23 +286,23 @@ def _healpix_mask(case: Case) -> NDArray[np.bool_]:
     return missing
 
 
-def _healpix_field(case: Case, seed: int) -> NDArray[np.float64]:
+def _field_healpix(case: Case, seed: int) -> NDArray[np.float64]:
     """:func:`input_field` on a HEALPix full sky, ``(1, Nc, Npix)``: a Gaussian white noise
-    averaged :data:`HEALPIX_AVERAGES` times over the pixels within
-    :data:`HEALPIX_AVERAGE_RADIUS` pixel sizes of each pixel, standardised, then exponentiated
+    averaged :data:`AVERAGES_HEALPIX` times over the pixels within
+    :data:`AVERAGE_RADIUS_HEALPIX` pixel sizes of each pixel, standardised, then exponentiated
     as on 2D data. No spherical-harmonic transform and no healpy (Part I, §1.5)."""
     from estel.wavelets._tables_healpix import _cone_pairs, centres_lonlat
 
     n_pix = case.shape[0]
     lon, lat = centres_lonlat(np.arange(n_pix, dtype=np.int64), case.depth)
-    radius = HEALPIX_AVERAGE_RADIUS * np.sqrt(4 * np.pi / n_pix)
+    radius = AVERAGE_RADIUS_HEALPIX * np.sqrt(4 * np.pi / n_pix)
     rows, cols, _ = _cone_pairs(lon, lat, lon, lat, radius)
     counts = np.bincount(rows, minlength=n_pix)
     rng = np.random.default_rng(seed)
     noise = rng.standard_normal((case.channels, n_pix))
     red = []
     for channel in noise:
-        for _ in range(HEALPIX_AVERAGES):
+        for _ in range(AVERAGES_HEALPIX):
             channel = np.bincount(rows, weights=channel[cols], minlength=n_pix) / counts
         red.append((channel - channel.mean()) / channel.std())
     channels = [red[0]]

@@ -1,6 +1,6 @@
 """The scattering loop of a tensor product: STL's order, with a cache of prefixes, and the Gram
-form of the second layer (Part II, §12.6; maths.md M-W1-TP, M-LP, M-S-TP, M-BORDER-TP;
-maths_step2.md M-GRAM; task T3.2).
+form of the second layer (Part II, §12.6; maths.md M-W1-TENSORPROD, M-LP, M-S-TENSORPROD,
+M-BORDER-TENSORPROD; maths_step2.md M-GRAM; task T3.2).
 
 :func:`values_tensor_prod` is the counterpart of ``_loop_single_domain.values_single_domain``
 for a ``DataTensorProd``: the data, the plan and the filters in, the statistics without
@@ -12,8 +12,8 @@ read from its module at each call so that a replaced hook reaches this loop too)
 by the hooks of Part II, §12.6: the index sets and levels are multi-indices, and the first and
 the second layer apply the block convolutions one block after the other.
 
-**The first layer** follows STL (M-W1-TP, "How STL reaches it"): the field is downsampled along
-block 0 to the level of j₀ and filtered along block 0; the complex result is downsampled along
+**The first layer** follows STL (M-W1-TENSORPROD, "How STL reaches it"): the field is downsampled
+along block 0 to the level of j₀ and filtered along block 0; the complex result is downsampled along
 block 1 to the level of j₁ and filtered along block 1; and so on. The result of the blocks
 0 … a is kept, and serves every scale that starts with (j₀, …, j_a): the cache of prefixes is
 the recursion of :func:`_first_layer`, depth first, in lexicographic order. Along a block taken
@@ -21,7 +21,7 @@ at its low-pass scale, the map is brought to the level of the low-pass filter
 (``WaveletOperatorTensorProd.lowpass``, M-LP) and nothing is filtered; at the scale with the
 low-pass filter in every block, the real field X is centred, X - ⟨X⟩ (OP-42).
 
-**The second layer** follows STL too (M-S-TP, "How STL reaches the second layer"): for each
+**The second layer** follows STL too (M-S-TENSORPROD, "How STL reaches the second layer"): for each
 j3, the moduli U_{j2}, j2 ≤ j3, are brought along block 0 to the level of j3₀ and filtered
 along block 0, the complex results are downsampled along block 1 and filtered along block 1,
 and so on; the result of the blocks 0 … a serves every j3 that starts with (j3₀, …, j3_a). At
@@ -29,7 +29,8 @@ block a, the arms that are at one level in every later block are concatenated, s
 convolution filters them all; at the last block they form, for each band orientation l3, the
 rows of the Gram matrix A of M-GRAM, and the sums of every S4 of j3 are A A^H, those of every
 S3 the product of A with the band map, after each map is set to zero outside its window, block
-by block (``_tensor_prod``). The rows outside M-IDX-TP (j1 not ≤ j2) are computed and not read.
+by block (``_tensor_prod``). The rows outside M-IDX-TENSORPROD (j1 not ≤ j2) are computed and not
+read.
 
 **Orientations.** Each block convolution puts its orientation right after the batch axis
 (``WaveletOperatorTensorProd.convolve``), so that the maps of one band orientation are one
@@ -74,8 +75,8 @@ def values_tensor_prod(
     data: Data, plan: STPlanTensorProd, filters: STFiltersTensorProd
 ) -> ScatteringValues:
     """The statistics of ``data``, a ``DataTensorProd``, without normalisation (maths.md
-    M-MOM, M-S-TP), STL's ``ST_Operator_TensorProd`` with ``norm="vanilla"`` and no spectrum, in
-    the compact buffer of ``layout_tensor_prod(plan)``. Pure."""
+    M-MOM, M-S-TENSORPROD), STL's ``ST_Operator_TensorProd`` with ``norm="vanilla"`` and no
+    spectrum, in the compact buffer of ``layout_tensor_prod(plan)``. Pure."""
     backend = _registry.backend_named(data.backend)
     xp = backend.xp
     loop = plan.loop
@@ -146,8 +147,8 @@ def _first_layer(
     backend: Backend, wavelets: WaveletOperatorTensorProd, plan: STPlanTensorProd, x: Any
 ) -> list[tuple[ScaleTensorProd, Any]]:
     """W_j x for every scale j of S1 and S2, in lexicographic order, with STL's cache of
-    prefixes (M-W1-TP): the map filtered along the blocks 0 … a - 1 is downsampled along block
-    a level by level, filtered at each wavelet scale of block a, and, when the block has a
+    prefixes (M-W1-TENSORPROD): the map filtered along the blocks 0 … a - 1 is downsampled along
+    block a level by level, filtered at each wavelet scale of block a, and, when the block has a
     low-pass filter, brought to its level (M-LP)."""
     blocks = plan.wavelets.blocks
     n_blocks = len(blocks)
@@ -241,7 +242,7 @@ def _second_layer_grams(
     j2 ≤ j3 in the order of ``SecondLayerScale.arms``, each with its orientations (in reverse
     block order) and channels; the band orientations l3 in reverse block order too.
 
-    STL's order and cache of prefixes (M-S-TP): at block a, with the scales j3₀ … j3_{a-1}
+    STL's order and cache of prefixes (M-S-TENSORPROD): at block a, with the scales j3₀ … j3_{a-1}
     fixed, the arms are grouped by their levels in the later blocks; for each j3_a, the group
     already brought to the previous scale is downsampled one more step along block a, the arms
     with j2_a = j3_a are appended, and the group is filtered along block a at once."""

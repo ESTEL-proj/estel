@@ -91,7 +91,7 @@ field, ``(j,)`` for first-layer data, ``(j2, j3)`` for second-layer data (STL's
 Level = tuple[int, ...]
 """A level of any geometry, as a tuple: ``(d,)`` for single-domain data, the multi-index
 d = (d₀, …, d_{B-1}) of a tensor product, the field downsampled d_a times along block a
-(maths.md M-NOT, M-NOT-TP; the segments of ``statistics._layout``)."""
+(maths.md M-NOT, M-NOT-TENSORPROD; the segments of ``statistics._layout``)."""
 
 LowpassRealization = Literal["smoothing_cascade"]
 
@@ -149,9 +149,9 @@ def default_scales_of_cartesian(
 ) -> int:
     """J = ⌊log₂ min N⌋ - 2 on a grid of full-resolution shape ``spatial``, at least 1: the
     default of planar data (maths.md M-DEF, M-DEF-1D) and of each block of a tensor product
-    (M-DATA-TP, M-DEF-TP), one rule. ``name`` (J, or J_a for block a) and ``what`` name the
-    number of scales and the grid in the message; ``tensor_prod`` makes it cite M-DEF-TP
-    instead of M-DEF."""
+    (M-DATA-TENSORPROD, M-DEF-TENSORPROD), one rule. ``name`` (J, or J_a for block a) and ``what``
+    name the number of scales and the grid in the message; ``tensor_prod`` makes it cite
+    M-DEF-TENSORPROD instead of M-DEF."""
     smallest = min(spatial)
     n = math.floor(math.log2(smallest)) - 2
     if n < 1:
@@ -463,13 +463,13 @@ def build_wavelet_plan_with_tables(
     ``KERNEL_SIZE_HEALPIX`` for ``DataHealpix``, 5 for both.
 
     ``None`` (the default) means the wavelet of the geometry: ``"bump_steerable"`` for 1D
-    and 2D data (M-WAV-2D, M-WAV-1D), ``"healpix"`` for ``DataHealpix`` (M-WAV-HPX). Each
+    and 2D data (M-WAV-2D, M-WAV-1D), ``"healpix"`` for ``DataHealpix`` (M-WAV-HEALPIX). Each
     geometry accepts ``None`` and its own name only: 1D and 2D data ``"bump_steerable"``,
     ``DataHealpix`` ``"healpix"``; another name raises a ``ValueError`` that lists them.
 
     HEALPix data get a ``WaveletPlanHealpix`` (``_operator_healpix``), with their own defaults
-    and rules (maths.md M-DEF-HPX, M-MASK-HPX): the plan of each geometry is chosen here, once,
-    and everything after it goes through the hooks of the plan and of its filters.
+    and rules (maths.md M-DEF-HEALPIX, M-MASK-HEALPIX): the plan of each geometry is chosen here,
+    once, and everything after it goes through the hooks of the plan and of its filters.
 
     Beside the plan, the NumPy tables built with it, a value that only its own
     :meth:`WaveletPlanSingleDomain._build_filters` reads (``tables=``), so that the operator
@@ -744,8 +744,8 @@ class WaveletOperator(ABC):
     It declares what generic code calls on any wavelet operator: its static part and its arrays,
     the levels and their shapes, the convolution by the wavelets, the downsampling, the low-pass
     filter and the weights of the means. A level is an int for single-domain data and a tuple of
-    ints, one per block, for a tensor product (maths.md M-NOT, M-NOT-TP); the arguments after a
-    level say where an operation acts: none for single-domain data, the block for a tensor
+    ints, one per block, for a tensor product (maths.md M-NOT, M-NOT-TENSORPROD); the arguments
+    after a level say where an operation acts: none for single-domain data, the block for a tensor
     product. Every operator is immutable; the pure functions modify nothing and depend on no array
     value.
     """
@@ -786,7 +786,7 @@ class WaveletOperator(ABC):
 
     @abstractmethod
     def apply(self, x: Any, j: Any, *args: Any, **kwargs: Any) -> Any:
-        """ψ_j ⋆ x, the convolution by the wavelets at scale ``j`` (maths.md M-W1, M-W1-TP):
+        """ψ_j ⋆ x, the convolution by the wavelets at scale ``j`` (maths.md M-W1, M-W1-TENSORPROD):
         complex, with the orientations of the wavelets. Pure."""
 
     @abstractmethod
@@ -822,12 +822,12 @@ class WaveletOperatorSingleDomain(WaveletOperator):
         operator; its values are not read.
     J:
         The number of scales; by default ⌊log₂ min N⌋ - 2 (M-DEF, M-DEF-1D), max(1, depth - 1)
-        on HEALPix (M-DEF-HPX).
+        on HEALPix (M-DEF-HEALPIX).
     L:
         The number of orientations; by default 4 in 2D, 1 in 1D, 4 gauges on HEALPix.
     wavelet:
         ``None`` (the default), the wavelet of the geometry: ``"bump_steerable"`` for 1D and 2D
-        data (M-WAV-2D, M-WAV-1D), ``"healpix"`` for ``DataHealpix`` (M-WAV-HPX). 1D and 2D
+        data (M-WAV-2D, M-WAV-1D), ``"healpix"`` for ``DataHealpix`` (M-WAV-HEALPIX). 1D and 2D
         data accept ``None`` or ``"bump_steerable"``, ``DataHealpix`` ``None`` or
         ``"healpix"``; another name raises a ``ValueError`` that lists them.
     """
@@ -1128,10 +1128,11 @@ def _check_scales_cartesian(
 ) -> int:
     """J as an int, :func:`default_scales_of_cartesian` if ``value`` is None: at least 1, and every
     size of the grid of full-resolution shape ``spatial`` divisible by 2^(J-1). One rule for planar
-    data (maths.md M-DATA-2D, M-DATA-1D, OP-8) and for each block of a tensor product (M-DATA-TP,
-    OP-8, OP-83). ``name`` is J, or J_a for block a; ``label`` the argument as the caller wrote it,
-    J or J[a]; ``what`` the grid; ``tensor_prod`` makes the messages cite the rules of tensor
-    products (M-DEF-TP, M-DATA-TP) instead of those of planar data."""
+    data (maths.md M-DATA-2D, M-DATA-1D, OP-8) and for each block of a tensor product
+    (M-DATA-TENSORPROD, OP-8, OP-83). ``name`` is J, or J_a for block a; ``label`` the argument as
+    the caller wrote it, J or J[a]; ``what`` the grid; ``tensor_prod`` makes the messages cite the
+    rules of tensor products (M-DEF-TENSORPROD, M-DATA-TENSORPROD) instead of those of planar
+    data."""
     default_rule, size_rule = _rules_cartesian(tensor_prod)
     if value is None:
         n = default_scales_of_cartesian(spatial, name, what, tensor_prod=tensor_prod)
@@ -1160,4 +1161,4 @@ def _check_scales_cartesian(
 def _rules_cartesian(tensor_prod: bool) -> tuple[str, str]:
     """The maths IDs of the default J and of the sizes, for planar data or for a block of a
     tensor product, cited by the messages of :func:`_check_scales_cartesian`."""
-    return ("M-DEF-TP", "M-DATA-TP") if tensor_prod else ("M-DEF", "M-DATA-2D")
+    return ("M-DEF-TENSORPROD", "M-DATA-TENSORPROD") if tensor_prod else ("M-DEF", "M-DATA-2D")

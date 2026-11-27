@@ -1,6 +1,6 @@
 """Spec parity of ``STOperator`` on HEALPix data: ESTEL against the oracle ``spec_apply_healpix``
-(task T5.6, issue #167; maths.md §4 "Scattering loop", M-DATA-HPX, M-MASK-HPX, M-DEF-HPX;
-section 1 from M-MEAN to M-FLAT; Part I, §4.2).
+(task T5.6, issue #167; maths.md §4 "Scattering loop", M-DATA-HEALPIX, M-MASK-HEALPIX,
+M-DEF-HEALPIX; section 1 from M-MEAN to M-FLAT; Part I, §4.2).
 
 ESTEL's ``STOperator`` and the oracle run on the same inputs, in float64, and every family is
 compared with ``assert_parity``: same full-grid shape, NaN at the same positions, values within
@@ -9,8 +9,8 @@ its scale). The helper's messages name STL as the expected side: here it is the 
 
 Two kinds of cases, under decision 7 of the maintainer on #167:
 
-- **The partial skies of the fixtures,** ``disc_16`` and ``disc_nan_16`` of ``statistics_hpx``,
-  in full, as the full skies are compared with STL (``tests/parity/test_healpix_statistics.py``):
+- **The partial skies of the fixtures,** ``disc_16`` and ``disc_nan_16`` of ``statistics_healpix``,
+  in full, as the full skies are compared with STL (``tests/parity/test_statistics_healpix.py``):
   the statistics without normalisation, with ``norm="self"`` and its reference, those of the
   second field with ``norm="ref"``, the five chains of reductions and the two vectors. They are
   not compared with STL, whose values at the edge of a partial sky are set by its rounding, but
@@ -44,7 +44,7 @@ from tests.parity._compare import assert_parity, load_fixture, read_manifest
 
 FAMILIES = ("mean", "var", "S1", "S2", "S3", "S4")
 pytestmark = pytest.mark.maths(
-    "M-DATA-HPX", "M-MASK-HPX", "M-DEF-HPX", "M-MEAN", "M-MOM", "M-STD", "M-W1", "M-S1",
+    "M-DATA-HEALPIX", "M-MASK-HEALPIX", "M-DEF-HEALPIX", "M-MEAN", "M-MOM", "M-STD", "M-W1", "M-S1",
     "M-S2", "M-S3", "M-S4", "M-CHAN", "M-ORDER", "M-NORM", "M-RED-ISO", "M-RED-ANG",
     "M-RED-SCALE", "M-FLAT",
 )  # fmt: skip
@@ -117,7 +117,7 @@ def _check(
     reference, ``norm="ref"`` on ``other``, and each chain of reductions with its vector. The
     oracle runs twice, on the target without normalisation and on ``other`` with
     ``norm="ref"``; the rest is derived from the first result, function by function. ``mask``
-    ``None`` with NaN in a single map lets both infer it (M-DATA-HPX)."""
+    ``None`` with NaN in a single map lets both infer it (M-DATA-HEALPIX)."""
     options: dict[str, Any] = {"cross_matrix": cross_matrix, "standardize": standardize}
     sky: dict[str, Any] = {"depth": depth, "cell_ids": cell_ids}
     data, second = DataHealpix(target, mask=mask, **sky), DataHealpix(other, mask=mask, **sky)
@@ -183,18 +183,20 @@ def test_options_equal_the_oracle(sky: str, option: str) -> None:
 
 @functools.cache
 def _statistics() -> dict[str, NDArray[Any]]:
-    return load_fixture("statistics_hpx")
+    return load_fixture("statistics_healpix")
 
 
 def _configuration(name: str) -> dict[str, Any]:
-    config: dict[str, Any] = read_manifest()["statistics_hpx.npz"]["parameters"]["configs"][name]
+    config: dict[str, Any] = read_manifest()["statistics_healpix.npz"]["parameters"]["configs"][
+        name
+    ]
     return config
 
 
 @pytest.mark.slow
 @pytest.mark.parametrize("name", ["disc_16", "disc_nan_16"])
 def test_partial_skies_equal_the_oracle(name: str) -> None:
-    """The partial skies of ``statistics_hpx`` in full: the statistics of the three
+    """The partial skies of ``statistics_healpix`` in full: the statistics of the three
     normalisations, the reference, the five chains of STL's reductions and the two vectors
     (decision 3 on #26 and #165). ``disc_nan_16`` holds NaN in a single map, and its mask is
     inferred by both from them.

@@ -15,7 +15,7 @@ import pytest
 
 from estel import DataHealpix
 
-pytestmark = pytest.mark.maths("M-DATA-HPX")
+pytestmark = pytest.mark.maths("M-DATA-HEALPIX")
 
 
 def test_partition_none_is_the_whole_map() -> None:

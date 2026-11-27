@@ -14,7 +14,7 @@ any port of them:
   runs to the north-east and y to the north-west from the southern corner);
 * the NESTED ordering of §5.2, the interleaved bits of x and y within a face:
   :func:`nest2xyf` and :func:`xyf2nest`, with the usual bit-spreading masks;
-* the bilinear interpolation on the rings, step 3 of M-CONV-HPX in ESTEL's ``docs/maths.md``:
+* the bilinear interpolation on the rings, step 3 of M-CONV-HEALPIX in ESTEL's ``docs/maths.md``:
   :func:`interpolation_ring`, exactly as written there.
 
 Every function is vectorised NumPy: integers int64, floats float64, ``depth`` = log2(nside)
@@ -100,7 +100,7 @@ def _ring_info(
     ring: NDArray[np.int64], nside: int
 ) -> tuple[NDArray[np.int64], NDArray[np.int64], NDArray[np.float64]]:
     """For rings r = 1 … 4 nside - 1: the RING index of their first pixel, their number of
-    pixels N_r, and the longitude φ_r of their first pixel (M-CONV-HPX, step 3)."""
+    pixels N_r, and the longitude φ_r of their first pixel (M-CONV-HEALPIX, step 3)."""
     n_pix = 12 * nside * nside
     south_ring = 4 * nside - ring
     count = 4 * np.minimum(np.minimum(ring, south_ring), nside)
@@ -211,7 +211,7 @@ def _ring_pair(
     ring: NDArray[np.int64], phi: NDArray[np.float64], nside: int
 ) -> tuple[NDArray[np.int64], NDArray[np.int64], NDArray[np.float64]]:
     """The two RING pixels of ring r whose longitudes enclose φ, and the fraction t - ⌊t⌋, with
-    t = (φ - φ_r) N_r / 2π (M-CONV-HPX, step 3, on a ring)."""
+    t = (φ - φ_r) N_r / 2π (M-CONV-HEALPIX, step 3, on a ring)."""
     start, count, phi0 = _ring_info(ring, nside)
     t = (phi - phi0) * count / (2.0 * math.pi)
     k = np.floor(t)
@@ -224,7 +224,8 @@ def _ring_pair(
 def interpolation_ring(
     theta: ArrayLike, phi: ArrayLike, depth: int
 ) -> tuple[NDArray[np.int64], NDArray[np.float64]]:
-    """The 4 RING pixels and bilinear weights of points (θ, φ), φ in [0, 2π) (M-CONV-HPX, step 3).
+    """The 4 RING pixels and bilinear weights of points (θ, φ), φ in [0, 2π) (M-CONV-HEALPIX, step
+    3).
 
     Between rings r and r + 1 (θ_r <= θ < θ_{r + 1}): the two pixels of each ring that enclose
     φ, linear in longitude on each ring and linear in colatitude between them. Above ring 1 or

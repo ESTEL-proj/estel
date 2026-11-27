@@ -272,7 +272,7 @@ def _masked() -> np.ndarray:
 
 def _partial_sky() -> DataHealpix:
     """The first 48 pixels of ``nside`` 4, the base pixels 0 to 2 in the NESTED ordering: a
-    partial sky, ``pbc`` False (M-DATA-HPX)."""
+    partial sky, ``pbc`` False (M-DATA-HEALPIX)."""
     return DataHealpix(_sky()[0, 0, :48], depth=DEPTH, cell_ids=np.arange(48))
 
 
@@ -545,7 +545,7 @@ def test_healpix_from_maps(
     backend: Backend, n_channels: int, mean_field: bool, n_batch: int, shape: tuple[int, ...]
 ) -> None:
     """A full sky (issue #169, decisions 1 to 8): the default J is max(1, depth - 1) of
-    M-DEF-HPX, 1 at ``nside`` 4, where the rule of 2D data would give 5; no spectrum in the loss
+    M-DEF-HEALPIX, 1 at ``nside`` 4, where the rule of 2D data would give 5; no spectrum in the loss
     with ``compute_PS=None`` and no pre-filter (OP-77); the result de-standardised, its batch
     axis dropped for one field and its channel axis kept, as for every ``Data`` target
     (M-SYN-OUT, OP-75)."""

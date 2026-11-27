@@ -1,6 +1,6 @@
 """Parity case: the normalised statistics of STL `2D+1D` on tensor products, and their flat
 vectors (Part II, §14.2, §14.4; task T3.4, issue #127, decisions of the maintainer, second
-version; maths.md M-NORM-TP, M-NORM, M-FLAT, M-IDX-TP, M-LP).
+version; maths.md M-NORM-TENSORPROD, M-NORM, M-FLAT, M-IDX-TENSORPROD, M-LP).
 
 On case C of maths.md §3 (a 16 x 16 periodic 2D block and an 8-sample open 1D block, STL's
 default J = (2, 1), L = (4, 2), ``lowpass="ST"``), with two maps of two channels, runs STL's
@@ -18,7 +18,7 @@ It stores ``field`` and ``other_field``, ``(Nb, Nc, 16, 16, 8)``, and for each r
 (``store``, ``load``, ``store_batch_mean``):
 
 * ``<run>_mean`` and ``<run>_var``, ``(Nb, Nc)``;
-* S1 to S4, packed as in ``scattering_tp`` (``pack_grid``): ``<run>_<family>`` the finite
+* S1 to S4, packed as in ``scattering_tensor_prod`` (``pack_grid``): ``<run>_<family>`` the finite
   entries in row-major order, ``<run>_<family>_shape`` and ``<run>_<family>_mask`` (the finite
   positions packed with ``np.packbits``);
 * for ``store`` and ``store_batch_mean``, the reference the operator stored: ``<run>_var_ref``
@@ -68,7 +68,7 @@ def pack_grid(key: str, grid: NDArray[Any]) -> dict[str, NDArray[Any]]:
 
 def input_field(shape: tuple[int, ...], nb: int, nc: int, seed: int) -> NDArray[np.float64]:
     """Seeded Gaussian fields, ``(Nb, Nc, *shape)``, each channel correlated with the previous
-    one so that the cross statistics are not small (as in ``scattering_tp``)."""
+    one so that the cross statistics are not small (as in ``scattering_tensor_prod``)."""
     rng = np.random.default_rng(seed)
     noise = rng.standard_normal((nb, nc, *shape))
     channels = [noise[:, 0]]

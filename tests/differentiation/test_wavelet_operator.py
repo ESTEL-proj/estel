@@ -91,7 +91,7 @@ def test_jvp_and_hvp_of_apply_and_downsample_match_finite_differences(
 
 
 def _layers_tensor_prod(backend: Backend) -> tuple[Any, Callable[[Any], Any]]:
-    """Two layers of the pyramid of a ``[2D, 1D]`` field, block by block (maths.md M-W1-TP):
+    """Two layers of the pyramid of a ``[2D, 1D]`` field, block by block (maths.md M-W1-TENSORPROD):
     the block convolutions at level (0, 0), the modulus, a downsampling along each block, then
     the block convolutions at level (1, 1); not periodic in block 0, periodic in block 1."""
     field = np.random.default_rng(0).standard_normal((1, 2, 8, 8, 8)) + 0.2
@@ -114,7 +114,7 @@ def _layers_tensor_prod(backend: Backend) -> tuple[Any, Callable[[Any], Any]]:
 
 
 @pytest.mark.slow
-@pytest.mark.maths("M-W1-TP", "M-NOT-TP")
+@pytest.mark.maths("M-W1-TENSORPROD", "M-NOT-TENSORPROD")
 def test_jvp_and_hvp_of_the_tensor_prod_operator_match_finite_differences(
     backend: Backend,
 ) -> None:
@@ -152,8 +152,8 @@ def _layers_healpix(backend: Backend) -> tuple[Any, Callable[[Any], Any]]:
     """Two layers of the pyramid of a HEALPix field, ``nside`` 4 with one missing pixel, the
     smallest map whose first layer keeps valid pixels through a masked decimation (at ``nside``
     2 the stencil covers most of the sphere, and one missing pixel invalidates the whole first
-    layer): ψ ⋆ D(|ψ ⋆ x|) and D(x), as :func:`_two_layers` (maths.md M-CONV-HPX, M-DOWN-HPX,
-    M-MASK-HPX; task T5.5)."""
+    layer): ψ ⋆ D(|ψ ⋆ x|) and D(x), as :func:`_two_layers` (maths.md M-CONV-HEALPIX,
+    M-DOWN-HEALPIX, M-MASK-HEALPIX; task T5.5)."""
     mask = np.zeros(192, dtype=bool)
     mask[70] = True
     field = np.random.default_rng(0).standard_normal((1, 2, 192)) + 0.2
@@ -169,7 +169,7 @@ def _layers_healpix(backend: Backend) -> tuple[Any, Callable[[Any], Any]]:
     return data.array, function
 
 
-@pytest.mark.maths("M-CONV-HPX", "M-DOWN-HPX", "M-MASK-HPX")
+@pytest.mark.maths("M-CONV-HEALPIX", "M-DOWN-HEALPIX", "M-MASK-HEALPIX")
 def test_jvp_and_hvp_of_the_healpix_operator_match_finite_differences(backend: Backend) -> None:
     """The hooks of ``DataHealpix`` (``gather_weighted``, ``segment_sum``), through its wavelet
     operator, differentiated to second order, as for the planar operator (issue #166,

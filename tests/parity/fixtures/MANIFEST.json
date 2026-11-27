@@ -340,8 +340,8 @@
     },
     "sha256": "6e8c3d9841ab52539022d37cbaa06a46f9b352a8fb0e03565b7945f2a4b5e9c6"
   },
-  "gradient_tp.npz": {
-    "case": "tools/stl_parity/cases/gradient_tp.py",
+  "gradient_tensor_prod.npz": {
+    "case": "tools/stl_parity/cases/gradient_tensor_prod.py",
     "stl_branch": "2D+1D",
     "stl_commit": "8f51143c5f8ebc259328830f246894d7031acae5",
     "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
@@ -1093,8 +1093,8 @@
     },
     "sha256": "055bb25c139a01f4d6432bc1e99044f4c3474072c0ab947074e05ff383b0ce4e"
   },
-  "operators_hpx.npz": {
-    "case": "tools/stl_parity/cases/operators_hpx.py",
+  "operators_healpix.npz": {
+    "case": "tools/stl_parity/cases/operators_healpix.py",
     "stl_branch": "HealpixUpdate",
     "stl_commit": "90eb1a954e71abb7af621b10e70b0456e8a86b4e",
     "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
@@ -3053,8 +3053,8 @@
     },
     "sha256": "cd01a1964c7a4b5bac861ae5802f159be1a7bf0d25f819dedc1b7a993dee121c"
   },
-  "scattering_tp.npz": {
-    "case": "tools/stl_parity/cases/scattering_tp.py",
+  "scattering_tensor_prod.npz": {
+    "case": "tools/stl_parity/cases/scattering_tensor_prod.py",
     "stl_branch": "2D+1D",
     "stl_commit": "8f51143c5f8ebc259328830f246894d7031acae5",
     "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
@@ -9239,8 +9239,8 @@
     },
     "sha256": "06e747371cbc9139d5bdd92edfbab9aaaf2eb943348f78872987d150653c29bd"
   },
-  "statistics_hpx.npz": {
-    "case": "tools/stl_parity/cases/statistics_hpx.py",
+  "statistics_healpix.npz": {
+    "case": "tools/stl_parity/cases/statistics_healpix.py",
     "stl_branch": "HealpixUpdate",
     "stl_commit": "90eb1a954e71abb7af621b10e70b0456e8a86b4e",
     "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
@@ -13233,8 +13233,8 @@
     },
     "sha256": "893dc5fe4406fb4c6e47fa59be94f51ad2e3a7b953e1a1e95aa00ca514dda6f7"
   },
-  "statistics_tp.npz": {
-    "case": "tools/stl_parity/cases/statistics_tp.py",
+  "statistics_tensor_prod.npz": {
+    "case": "tools/stl_parity/cases/statistics_tensor_prod.py",
     "stl_branch": "2D+1D",
     "stl_commit": "8f51143c5f8ebc259328830f246894d7031acae5",
     "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
@@ -13674,8 +13674,8 @@
     },
     "sha256": "099d17b51f41e08c3e400c5d8167996b7e01b938b4a8371bc80799a164bd47c0"
   },
-  "synthesis_hpx.npz": {
-    "case": "tools/stl_parity/cases/synthesis_hpx.py",
+  "synthesis_healpix.npz": {
+    "case": "tools/stl_parity/cases/synthesis_healpix.py",
     "stl_branch": "HealpixUpdate",
     "stl_commit": "90eb1a954e71abb7af621b10e70b0456e8a86b4e",
     "image_id": "sha256:b9005e58949c40858cd4b696727d7532d2302285acdf7e8257a9df3bc217ef86",
