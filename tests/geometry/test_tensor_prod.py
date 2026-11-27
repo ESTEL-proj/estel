@@ -10,18 +10,20 @@ in the test. Run on the backend and dtype of the test run; tolerances of Part I,
 
 from __future__ import annotations
 
+import re
 import warnings
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from estel import Data, Data1D, Data2D, DataTensorProd, STOperator
+from estel import Data, Data1D, Data2D, DataHealpix, DataTensorProd, STOperator
 from estel._config import FloatDType, default_device
 from estel.backend._protocol import Backend, DType
 from estel.data._base import DownsampleWeights
+from estel.data._cartesian import DataCartesian
 from estel.wavelets._banks import smoothing_kernel
 from estel.wavelets._operator import WaveletOperator, default_scales_of, wavelet_bank
 from estel.wavelets._tensor_prod import (
@@ -36,7 +38,7 @@ jax_only = pytest.mark.skipif(backend_name() != "jax", reason="names JAX's vmap"
 
 TOLERANCES = {"float32": (1e-4, 1e-6), "float64": (1e-10, 1e-12)}
 COMPLEX: dict[str, DType] = {"float32": "complex64", "float64": "complex128"}
-SIZES = {Data2D: (16, 16), Data1D: (8,)}
+SIZES: dict[type[Data], tuple[int, ...]] = {Data2D: (16, 16), Data1D: (8,)}
 
 
 def _field(shape: tuple[int, ...], seed: int = 0) -> NDArray[np.float64]:
@@ -51,7 +53,7 @@ def _assert_close(backend: Backend, actual: Any, expected: Any, dtype: str) -> N
     np.testing.assert_allclose(got, want, rtol=rtol, atol=atol * scale)
 
 
-def _bank(backend: Backend, geometry: type[Data2D] | type[Data1D], dtype: str) -> Any:
+def _bank(backend: Backend, geometry: type[DataCartesian], dtype: str) -> Any:
     return backend.asarray(
         wavelet_bank(geometry.ndim, 4 if geometry is Data2D else 2), COMPLEX[dtype]
     )
@@ -69,9 +71,7 @@ def _operator(
     return TensorProdWaveletOperator.from_parts(product, plan, filters)
 
 
-def _smoothing(
-    backend: Backend, geometry: type[Data2D] | type[Data1D], dtype: DType
-) -> DownsampleWeights:
+def _smoothing(backend: Backend, geometry: type[DataCartesian], dtype: DType) -> DownsampleWeights:
     return DownsampleWeights(backend.asarray(smoothing_kernel(geometry.ndim), dtype))
 
 
@@ -211,7 +211,7 @@ def test_filtering_and_downsampling_along_different_blocks_commute(
 
 @pytest.mark.maths("M-W1-TP")
 @pytest.mark.parametrize(("block", "geometry", "n_orientations"), [(0, Data2D, 4), (1, Data1D, 2)])
-def test_the_kernels_of_the_blocks_are_those_of_the_planar_operators(
+def test_the_kernels_of_the_blocks_are_those_of_the_cartesian_operators(
     backend: Backend, dtype: DType, block: int, geometry: type[Data], n_orientations: int
 ) -> None:
     """The kernels of a ``[2D, 1D]`` operator are bit for bit those of the 2D operator and of
@@ -387,6 +387,40 @@ def test_blocks_and_pbc_are_checked(
         DataTensorProd(_valid_array(), blocks, pbc=pbc)
 
 
+class _DataSubclass2D(Data2D):
+    """A subclass of Data2D: it inherits the capability of a block without declaring it."""
+
+
+@pytest.mark.maths("M-DATA-TP")
+@pytest.mark.parametrize(
+    ("block", "accepted"),
+    [
+        (Data2D, True),
+        (Data1D, True),
+        (DataCartesian, False),
+        (_DataSubclass2D, False),
+        (DataHealpix, False),
+    ],
+)
+def test_the_blocks_are_the_classes_that_declare_the_capability(
+    block: type[Data], accepted: bool
+) -> None:
+    """The capability of a block (``DataCartesian._block_tensor_prod``, Part I, §2.3.1) accepts
+    the classes accepted before it, Data2D and Data1D, and refuses the others with the same
+    message."""
+    if accepted:
+        array = np.zeros((16,) * cast(int, block.ndim))
+        assert DataTensorProd(array, [block], pbc=[True]).blocks == (block,)
+        return
+    message = (
+        f"DataTensorProd: block 0 is {block!r}; each block is the class estel.Data2D or "
+        "estel.Data1D, not an instance (maths.md M-DATA-TP). HEALPix blocks come later (LF9). "
+        "Pass the classes, for example blocks=[estel.Data2D, estel.Data1D] for space and time."
+    )
+    with pytest.raises(TypeError, match=f"^{re.escape(message)}$"):
+        DataTensorProd(np.zeros((16, 16)), [block], pbc=[True])
+
+
 @pytest.mark.maths("M-DATA-TP")
 def test_the_shape_is_checked() -> None:
     with pytest.raises(ValueError, match=r"accepted shapes are \(N0_1, N0_2, N1\)"):
@@ -468,7 +502,7 @@ def test_hooks_need_a_block(backend: Backend, dtype: DType) -> None:
         product._crop_weights(0, 0, block=2)
 
 
-def test_scattering_operators_of_planar_data_refuse_a_tensor_product() -> None:
+def test_scattering_operators_of_single_domain_data_refuse_tensor_prod_data() -> None:
     product = DataTensorProd(np.zeros((16, 16, 8)), [Data2D, Data1D], pbc=[True, True])
     with pytest.raises(TypeError, match=r"a tensor product is STOperatorTensorProd"):
         STOperator(product)
@@ -495,7 +529,7 @@ def _block_convolution(
 
 @pytest.mark.slow
 @pytest.mark.maths("M-W1-TP")
-def test_jit_takes_a_tensor_product(backend: Backend, dtype: DType) -> None:
+def test_jit_takes_tensor_prod_data(backend: Backend, dtype: DType) -> None:
     """``backend.jit`` (``jax.jit`` on JAX, the identity on PyTorch) of a function of a
     ``DataTensorProd``: the blocks are static, the array the only leaf.
 
@@ -514,7 +548,7 @@ def test_jit_takes_a_tensor_product(backend: Backend, dtype: DType) -> None:
 @jax_only
 @pytest.mark.slow
 @pytest.mark.maths("M-W1-TP")
-def test_vmap_maps_a_function_of_a_tensor_product(backend: Backend, dtype: DType) -> None:
+def test_vmap_maps_a_function_of_tensor_prod_data(backend: Backend, dtype: DType) -> None:
     """``jax.vmap`` over a stack of fields, a ``DataTensorProd`` whose leaf has one more
     leading axis: each field gives the block convolutions of that field alone.
 

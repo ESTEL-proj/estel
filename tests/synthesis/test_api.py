@@ -23,7 +23,7 @@ import pytest
 import estel
 from estel import Data1D, Data2D, DataHealpix, STOperator, _config
 from estel.backend._protocol import Backend
-from estel.data._planar import nyquist_filter
+from estel.data._cartesian import nyquist_filter
 from estel.statistics._arrays import device_of
 from estel.synthesis import _checkpoints
 from estel.synthesis._api import _maps_setup, _running_data, _start

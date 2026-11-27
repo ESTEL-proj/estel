@@ -170,7 +170,7 @@ source_modules = [
     "estel.functional",
 ]
 forbidden_modules = [
-    "estel.data._planar",
+    "estel.data._cartesian",
     "estel.data._healpix",
     "estel.data._tensor_prod",
 ]

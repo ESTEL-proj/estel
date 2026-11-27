@@ -19,8 +19,8 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
+from estel.data._cartesian import Data1D, Data2D
 from estel.data._masks import MaskMaps, build_mask_maps
-from estel.data._planar import Data1D, Data2D
 from estel.wavelets._banks import smoothing_kernel
 from tests.parity._compare import assert_parity, load_fixture, read_manifest
 

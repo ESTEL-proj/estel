@@ -40,7 +40,7 @@ import pytest
 import estel
 from estel import Data2D, DataHealpix, _config
 from estel.backend._protocol import Backend
-from estel.data._planar import nyquist_filter
+from estel.data._cartesian import nyquist_filter
 from estel.scattering._plan import PlanarPlan
 from estel.synthesis._api import _maps_setup
 from tests.parity._compare import PARITY_RTOL, assert_parity, load_fixture, read_manifest

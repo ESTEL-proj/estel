@@ -4,8 +4,8 @@ M-DATA-TP).
 A tensor-product field is one array whose spatial axes are those of its blocks, in block order:
 ``(Nb, Nc, *N⁽⁰⁾, …, *N⁽ᴮ⁻¹⁾)``, for example ``[Data2D, Data1D]`` for space and time. The
 object **composes** the geometries of its blocks: a static description per block
-(:class:`BlockSpec`: its class, its axes, its ``pbc``), never a class created at run time nor
-an assignment to ``__class__`` (Part I, §2.4).
+(:class:`BlockSpecTensorProd`: its class, its axes, its ``pbc``), never a class created at run
+time nor an assignment to ``__class__`` (Part I, §2.4).
 
 Its geometry hooks ``_conv``, ``_downsample`` and ``_crop_weights`` act on one block at a time,
 named by ``block=a``: they dispatch to the geometry of that block, along that block's own axes
@@ -27,18 +27,14 @@ from numpy.typing import NDArray
 
 from ..backend import _registry
 from ._base import Data, DownsampleWeights, _promote_spatial, _to_backend
-from ._planar import Data1D, Data2D
-
-BLOCK_GEOMETRIES: tuple[type[Data], ...] = (Data2D, Data1D)
-"""The geometries a block of a tensor product may have in 1.0.0 (maths.md M-DATA-TP);
-HEALPix blocks come later (LF9)."""
+from ._cartesian import DataCartesian
 
 
-class BlockSpec(NamedTuple):
+class BlockSpecTensorProd(NamedTuple):
     """The static description of one block of a tensor product: hashable, compared by value,
     so that it is pytree metadata (Part I, §2.3)."""
 
-    geometry: type[Data2D] | type[Data1D]
+    geometry: type[DataCartesian]
     """The geometry of the block, ``Data2D`` or ``Data1D``."""
     axes: tuple[int, ...]
     """The axes of the block in the array ``(Nb, Nc, *spatial)``, contiguous and increasing."""
@@ -73,7 +69,7 @@ class DataTensorProd(Data):
 
     __slots__ = ("_blocks",)
 
-    _blocks: tuple[BlockSpec, ...]
+    _blocks: tuple[BlockSpecTensorProd, ...]
 
     def __init__(
         self,
@@ -107,13 +103,17 @@ class DataTensorProd(Data):
         specs = []
         first = 2
         for geometry, flag in zip(geometries, flags, strict=True):
-            specs.append(BlockSpec(geometry, tuple(range(first, first + geometry.ndim)), flag))
+            specs.append(
+                BlockSpecTensorProd(geometry, tuple(range(first, first + geometry.ndim)), flag)
+            )
             first += geometry.ndim
         self._set_blocks(values, tuple(specs), backend_name)
 
     # ------------------------------------------------------------------ construction
 
-    def _set_blocks(self, array: Any, blocks: tuple[BlockSpec, ...], backend: str) -> None:
+    def _set_blocks(
+        self, array: Any, blocks: tuple[BlockSpecTensorProd, ...], backend: str
+    ) -> None:
         # The pbc of the mother class is one boolean; a tensor product has one per block, held
         # by its blocks, and no mask (LF8).
         object.__setattr__(self, "_array", array)
@@ -123,7 +123,9 @@ class DataTensorProd(Data):
         object.__setattr__(self, "_blocks", blocks)
 
     @classmethod
-    def _from_blocks(cls, array: Any, blocks: tuple[BlockSpec, ...], backend: str) -> Data:
+    def _from_blocks(
+        cls, array: Any, blocks: tuple[BlockSpecTensorProd, ...], backend: str
+    ) -> Data:
         """A new object from parts already validated: no conversion, no check of values, so
         that it works inside traced code."""
         new = cls.__new__(cls)
@@ -154,7 +156,7 @@ class DataTensorProd(Data):
         return tuple(b.pbc for b in self._blocks)
 
     @property
-    def _block_specs(self) -> tuple[BlockSpec, ...]:
+    def _block_specs(self) -> tuple[BlockSpecTensorProd, ...]:
         """The static description of each block: its geometry, its axes and its ``pbc``."""
         return self._blocks
 
@@ -236,7 +238,7 @@ class DataTensorProd(Data):
             owner=f"DataTensorProd._crop_weights (block {block})",
         )
 
-    def _spec(self, block: object, hook: str) -> BlockSpec:
+    def _spec(self, block: object, hook: str) -> BlockSpecTensorProd:
         n = len(self._blocks)
         if block is None:
             raise TypeError(
@@ -271,8 +273,9 @@ class DataTensorProd(Data):
 # ---------------------------------------------------------------------- validation
 
 
-def _check_blocks(blocks: object) -> tuple[type[Data2D] | type[Data1D], ...]:
-    """The geometries of the blocks: a non-empty list of ``Data2D`` and ``Data1D``."""
+def _check_blocks(blocks: object) -> tuple[type[DataCartesian], ...]:
+    """The geometries of the blocks: a non-empty list of ``Data2D`` and ``Data1D``, the classes
+    that declare the capability of a block, ``_block_tensor_prod``, in their own body."""
     example = "for example blocks=[estel.Data2D, estel.Data1D] for space and time"
     if isinstance(blocks, str) or not isinstance(blocks, Sequence):
         raise TypeError(
@@ -282,7 +285,15 @@ def _check_blocks(blocks: object) -> tuple[type[Data2D] | type[Data1D], ...]:
     if not blocks:
         raise ValueError(f"DataTensorProd(blocks=[]): pass at least one block, {example}.")
     for index, block in enumerate(blocks):
-        if not any(block is g for g in BLOCK_GEOMETRIES):
+        # The capability is read in the body of the class itself, never inherited: Data2D and
+        # Data1D, and neither DataCartesian nor a subclass of them (Part I, §2.3.1). Any class
+        # of data may declare it (LF9: DataHealpix).
+        accepted = (
+            isinstance(block, type)
+            and issubclass(block, Data)
+            and block.__dict__.get("_block_tensor_prod", False) is True
+        )
+        if not accepted:
             raise TypeError(
                 f"DataTensorProd: block {index} is {block!r}; each block is the class "
                 "estel.Data2D or estel.Data1D, not an instance (maths.md M-DATA-TP). HEALPix "
@@ -312,7 +323,7 @@ def _check_pbc(pbc: object, n_blocks: int) -> tuple[bool, ...]:
     return tuple(bool(flag) for flag in pbc)
 
 
-def _accepted_shapes(geometries: tuple[type[Data2D] | type[Data1D], ...]) -> str:
+def _accepted_shapes(geometries: tuple[type[DataCartesian], ...]) -> str:
     """The shapes the constructor accepts, for error messages."""
     names: list[str] = []
     for index, geometry in enumerate(geometries):

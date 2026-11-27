@@ -169,7 +169,7 @@ def test_wavelet_plan_arguments(
         build_wavelet_plan(data, **kwargs)
 
 
-def test_planar_data_refuse_the_healpix_wavelet() -> None:
+def test_cartesian_data_refuse_the_healpix_wavelet() -> None:
     with pytest.raises(ValueError, match="bump_steerable"):
         build_wavelet_plan(Data1D(_field(16), pbc=True), wavelet="healpix")
 
@@ -265,14 +265,14 @@ def test_no_border_no_pre_filter_and_the_hooks_healpix_does_not_have() -> None:
         data._lowpass(data.array, None, 0)
     assert data._nyquist_filter(data.array) is data.array  # no pre-filter in 1.0.0 (OP-77)
     with pytest.raises(NotImplementedError, match="LF24"):
-        data._spectrum_geometry()
+        data._spectrum_grids()
 
 
 def test_the_hooks_check_their_tables_and_shapes() -> None:
     data = DataHealpix(_field(48))
-    with pytest.raises(TypeError, match="HealpixConvTables"):
+    with pytest.raises(TypeError, match="ConvTablesHealpix"):
         data._conv(data.array, object(), 0)
-    with pytest.raises(TypeError, match="HealpixDownTables"):
+    with pytest.raises(TypeError, match="DownTablesHealpix"):
         data._downsample(data.array, DownsampleWeights(object()), 0)
     with pytest.raises(ValueError, match="12 pixels of level 1"):
         data._conv(data.array, object(), 1)

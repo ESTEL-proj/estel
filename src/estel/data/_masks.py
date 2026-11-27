@@ -120,7 +120,7 @@ REWEIGHT_FLOOR = 1e-8
 pixel has f ≤ τ < 1, so 1 - f ≥ 1 - τ (0.5 or more for every geometry of 1.0.0); it is kept so
 that the rule of M-MASK-HPX is written once, and it changes no planar or HEALPix value."""
 
-HEALPIX_SUPPORT_THRESHOLD = 1e-12
+SUPPORT_THRESHOLD_HEALPIX = 1e-12
 """Above it, the support of a HEALPix pixel touches an invalid pixel (maths.md M-MASK-HPX); and
 an interpolation weight below it counts as absent in the stencils of a partial sky (M-CONV-HPX,
 OP-110; ``estel.wavelets._healpix_geometry``): one threshold, defined here."""

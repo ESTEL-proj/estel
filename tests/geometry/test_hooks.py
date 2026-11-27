@@ -187,7 +187,7 @@ def test_pre_filter_of_syntheses_is_the_hook_of_2d_data(backend: Backend) -> Non
     """``_nyquist_filter`` (Part II, §12.4): the filter of M-SYN-NYQ on 2D data; on 1D data,
     which have no synthesis in ESTEL 1.0.0, the hook of the mother class, whose error says what
     to synthesise instead."""
-    from estel.data._planar import nyquist_filter
+    from estel.data._cartesian import nyquist_filter
 
     x = backend.asarray(np.random.default_rng(0).standard_normal((1, 1, 8, 8)), "float64")
     data = Data2D(x, pbc=True)
