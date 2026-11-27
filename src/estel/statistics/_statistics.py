@@ -218,7 +218,8 @@ class STStatistics:
                 raise ValueError(
                     f"full_grid({family!r}): the full-grid view of this tensor product would take "
                     f"{size / 1024**3:.2f} GiB ({n_batch} batch element(s), shape "
-                    f"{grid.shape}), more than the {_FULL_GRID_LIMIT_TENSOR_PROD / 1024**3:.0f} GiB that "
+                    f"{grid.shape}), more than the "
+                    f"{_FULL_GRID_LIMIT_TENSOR_PROD / 1024**3:.0f} GiB that "
                     "full_grid builds for a tensor product. Use to_vector(), which holds the "
                     "coefficients alone, or select(family=..., channel=(a, b)) to reduce the "
                     "view first (Part II, §12.7; LF65)."

@@ -28,9 +28,10 @@ from layouts and the plan (Part III, §19.6, §19.9), applied with a few generic
 differentiable to any order on every backend. Each acts chunk by chunk, with tables that grow
 with the number of chunks and of orientations, never with the number of coefficients:
 
-* :func:`gather_single_domain`: from the sums of the scattering loop (:func:`loop_sums_single_domain`),
-  each of which is a chunk, to the buffer of :func:`layout_single_domain` (the floats before the
-  power spectrum, the last family when the plan has it);
+* :func:`gather_single_domain`: from the sums of the scattering loop
+  (:func:`loop_sums_single_domain`), each of which is a chunk, to the buffer of
+  :func:`layout_single_domain` (the floats before the power spectrum, the last family when the
+  plan has it);
 * :class:`FloatMap`: from one buffer to another, family by family: a copy, or the chunks of a
   family read as dense arrays ``(Nb, n_chunks, n_orientations, 2)`` (re, im; :func:`unpack`),
   gathered or combined across chunks, transformed on their orientations, and written back
@@ -693,8 +694,9 @@ def gather_loop_single_domain(
     backend: Backend, sums: Sequence[Any], gather: LoopGatherSingleDomain, takes: Any
 ) -> Any:
     """The buffer ``(Nb, n_floats)`` from the divided sums of the loop, each a real ``(Nb, m)``
-    array in the order of ``loop_sums_single_domain``: their chunks concatenated in the order of the buffer.
-    ``takes`` holds :attr:`LoopGatherSingleDomain.takes` as integer arrays of the backend."""
+    array in the order of ``loop_sums_single_domain``: their chunks concatenated in the order of
+    the buffer. ``takes`` holds :attr:`LoopGatherSingleDomain.takes` as integer arrays of the
+    backend."""
     xp = backend.xp
     pieces: list[Any] = []
     for source, start, stop, take in gather.pieces.tolist():

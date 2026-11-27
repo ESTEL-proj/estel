@@ -114,8 +114,9 @@ def first_layer_sums(
     w: Any, u: Any, weights: Any, denominator: float, pairs: ChannelPairs, axes: tuple[int, ...]
 ) -> list[_Sum]:
     """The sums of the S1 and S2 means of one scale (M-S1, M-S2, M-CHAN, OP-16), in the order of
-    ``loop_sums_single_domain``: S1 of the auto channels, every channel at once, then of the cross pairs, pair
-    by pair; then S2 alike. ``w`` is the first-layer map W_j x and ``u`` its modulus,
+    ``loop_sums_single_domain``: S1 of the auto channels, every channel at once, then of the
+    cross pairs, pair by pair; then S2 alike. ``w`` is the first-layer map W_j x and ``u`` its
+    modulus,
     ``(Nb, L, Nc, *spatial)``, ``weights`` the window of the means (``window_single_domain``).
     Shared by the loops of planar data and of tensor products, whose orientations are flattened into
     L."""
