@@ -142,7 +142,7 @@ estel/                             # one repository for Python and Rust (Part IV
 │   ├── engines/                   # _protocol.py, _registry.py (reserved);
 │   │   │                          # python.py: the Python engine
 │   │   └── rust.py                # (step 2, LF3) adapter to the estel-rust wheel
-│   ├── data/                      # _base.py (Data), _planar.py, _healpix.py,
+│   ├── data/                      # _base.py (Data), _cartesian.py, _healpix.py,
 │   │                              # _tensor_prod.py, _masks.py
 │   ├── wavelets/                  # _operator.py, _banks.py, _healpix_bank.py,
 │   │                              # _healpix_geometry.py (ported from TorchGeometry)
@@ -231,7 +231,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 
 ### 12.4 Data classes
 
-`estel/data/`. The mother class holds all shared logic; subclasses override only the **G** hooks. Those of filtering and downsampling (`_conv`, `_downsample`, `_crop_weights`, `_lowpass`) are called by `WaveletOperator` only (§12.5; Part I, §2.3); `_nyquist_filter` and `_spectrum_geometry` serve the syntheses and the spectra.
+`estel/data/`. The mother class `Data` holds the shared logic, and `DataCartesian` (`_cartesian.py`) what 1D and 2D data share (Part I, §2.3.1); subclasses override only the **G** hooks. Those of filtering and downsampling (`_conv`, `_downsample`, `_crop_weights`, `_lowpass`) are called by `WaveletOperator` only (§12.5; Part I, §2.3); `_nyquist_filter` and `_spectrum_grids` serve the syntheses and the spectra.
 
 | Function | Tag | Purpose | Origin |
 | --- | --- | --- | --- |
@@ -243,16 +243,16 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `mean_valid(x, weights, axes)`, `cov_valid(x, y, weights, axes)` | I | Weighted means over valid pixels, one implementation for every geometry; the denominators are precomputed in the plan. `cov_valid` returns the raw second moment in 1.0.0, as STL; it accepts optional first moments, used by the centred covariances of step 2 (LF33) | `mean`, `cov`, `square_mean` of each wavelet operator (three copies) |
 | `standardize`, `unstandardize` | I |  | `standardize` |
 | `propagate_mask_conv(mask, footprint)` | I | An output is masked when its kernel footprint touches a masked input | `_build_reweighting_maps…`, `_find_mask` |
-| `_spatial_axes()` | G | Axes the geometry acts on | the `# conv_dims dependant` markers |
+| `DataCartesian._spatial_axes()` | G | Axes the geometry acts on | the `# conv_dims dependant` markers |
 | `_conv(x, tables, level)` | G | Filtering by the wavelets at `level`, with the static tables of that level given by `WaveletOperator`. Planar: `pad` + `conv_axes` with the kernel bank, the same at every level. HEALPix: `gather_weighted` with the stencils of the level, ported from `TorchGeometry` | `apply` of each wavelet operator |
 | `_downsample(x, weights, level)` | G | One step from `level` to `level + 1`, with the static weights of the step given by `WaveletOperator`. Planar: strided normalised convolution with the smoothing kernel. HEALPix: decimation with `gather_weighted`, then parent binning with `segment_sum` | `_downsample_tensor`, `_down_one_level`, `_downsample_masked` |
 | `_crop_weights(level, border)` | G | Planar: removal of non-periodic borders, widths from the plan. HEALPix: identity | `_crop`, `_get_crop_border_size_*` |
 | `_lowpass(x, plan, block)` | G | Applies the low-pass filter described by the plan. In 1.0.0, as in STL: the data downsampled J times, returned unchanged, since the low-pass filter is the cascade of the smoothing kernels. Later: the smoothing kernel at level J−1 without the final downsampling, or a dedicated kernel (LF6, Part III §20.10) | `Tensor_Product_Kernel_Torch.lowpass` |
 | `_nyquist_filter(x)` | G | Pre-filter before synthesis | `apply_nyquist_filter`, `apply_bandlimit` |
-| `_spectrum_geometry()` | G | 2D: FFT frequency grids. Other geometries: later (LF23, LF24) | `CS_operator_*` initialisation |
-| `Data1D`, `Data2D` | F | Explicit planar classes sharing `_planar.py`, differing by `ndim` | `STL_1D_Kernel_Torch`, `STL_2D_Kernel_Torch` |
+| `_spectrum_grids()` | G | 2D: FFT frequency grids. Other geometries: later (LF10, LF24) | `CS_operator_*` initialisation |
+| `Data1D`, `Data2D` | F | Explicit Cartesian classes under `DataCartesian` (`_cartesian.py`), which holds their hooks; they differ by `ndim` | `STL_1D_Kernel_Torch`, `STL_2D_Kernel_Torch` |
 | `DataHealpix(array, mask=None, *, depth=None, cell_ids=None, partition=None)` | F | The data and the mask first, the options keyword-only, as `Data1D` and `Data2D` (rule A10). NESTED ordering, one pixel axis; partial sky through `cell_ids`, strictly increasing (maths OP-90), and refused when they cover the whole sphere at the given `depth`, 12 · 4^depth of them: a full sky is given without `cell_ids` (rule A6); `depth`, not `nside` (rule A4), inferred from the number of pixels on a full sky and required with `cell_ids` (OP-91). No `pbc` argument: `pbc` is a read-only property, True on a full sky and False with `cell_ids` (M-DATA-HPX). The mask is read from the NaN of a single map, or given (OP-26). `partition` is reserved, `None` only (§9.4, LF34) | `STL_Healpix_Kernel_Torch` |
-| `DataTensorProd(array, blocks, mask=None, *, pbc)` | F | `blocks = (Data1D, Data2D, …)` in axis order. It **composes** block geometries (`BlockSpec`: class, axes, pbc) instead of creating classes at run time: one array, all blocks on the same backend | `STL_TensorProd_Kernel_Torch`, `DimHandler` |
+| `DataTensorProd(array, blocks, mask=None, *, pbc)` | F | `blocks = (Data1D, Data2D, …)` in axis order. It **composes** block geometries (`BlockSpecTensorProd`: class, axes, pbc; a block is a class that declares the capability `_block_tensor_prod`, `Data1D` and `Data2D` in 1.0.0) instead of creating classes at run time: one array, all blocks on the same backend | `STL_TensorProd_Kernel_Torch`, `DimHandler` |
 | `DataTensorProd._conv`, `_downsample`, `_crop_weights` | G | Dispatch to the geometry of each block, applied along that block's own axes, without `swapaxes`: STL's `swapaxes` showed no gain beyond the noise (T3.5; Part III, §19.14) | `_as_data_class_of`, `_from_data_class_of` |
 
 ### 12.5 Wavelets
