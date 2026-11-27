@@ -840,7 +840,7 @@ def spec_apply(
     2. standardisation, if asked (M-STD);
     3. ``mean`` and ``var`` (M-MOM);
     4. the scattering statistics S1 to S4 (M-S1 to M-S4);
-    5. the power spectrum, if asked (``compute_PS``, 2D only; M-PS-2D): ``spectra.spec_spectra``
+    5. the power spectrum, if asked (``compute_PS``, 2D only; M-PS-2D): ``spectra.spec_spectra_2d``
        on the field at full resolution, after the standardisation, with the J of the operator,
        the pairs of ``cross_matrix``, ``Jmin``, ``n_bins`` and ``spectrum_method`` (the
        automatic choice by default, from ``pbc`` and the NaN of the field), under ``"PS"``;
@@ -890,7 +890,7 @@ def spec_apply(
     out["mean"], out["var"] = spec_moments(x, ndim, invalid)  # 3
     out.update(spec_scattering(x, ndim, n_scales, n_orient, pbc, invalid, cross_matrix))  # 4
     if compute_PS:  # 5
-        out["PS"] = spectra.spec_spectra(
+        out["PS"] = spectra.spec_spectra_2d(
             x, pbc, n_scales, Jmin, n_bins, spectrum_method, cross_matrix
         )["PS"]
     out["reference"] = None

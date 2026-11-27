@@ -3,7 +3,7 @@ issue #137; maths.md M-IDX-TP, M-LP, M-S-TP, M-NORM-TP, M-FLAT; Part II, §12.7;
 §19.4 to §19.6).
 
 These tests, written before the operator of tensor products (T3.2), take the raw statistics from the
-parity fixtures of T3.4 (``scattering_tp``), or from the oracle ``spec_tensor_prod(...,
+parity fixtures of T3.4 (``scattering_tp``), or from the oracle ``spec_apply_tensor_prod(...,
 norm="none")`` on the fields of ``statistics_tp``, which stores only normalised values, place
 them in the layout of the plan (``tensor_prod_layout``), and read them back through
 ``STStatistics``: the positions of every family, the normalisation, its references and the two
@@ -136,7 +136,7 @@ def _statistics_tp() -> dict[str, Any]:
     blocks, pbc, J = parameters["blocks"], parameters["pbc"], parameters["J"]  # noqa: N806
 
     def run(key: str, norm: str, ref: Any = None, batch_mean: bool = False) -> STStatistics:
-        raw = spec.spec_tensor_prod(
+        raw = spec.spec_apply_tensor_prod(
             arrays[key],
             [AXES[b] for b in blocks],
             pbc,

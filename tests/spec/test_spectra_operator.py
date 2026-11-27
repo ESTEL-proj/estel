@@ -27,7 +27,7 @@ from numpy.typing import NDArray
 
 from estel import Data2D, STOperator, _config
 from estel._spec import planar as spec
-from estel._spec import spectra as spec_spectra
+from estel._spec import spectra
 from estel.backend import _registry
 from estel.backend._protocol import DType
 from tests.parity._compare import assert_parity
@@ -57,7 +57,7 @@ def _hole(shape: tuple[int, int]) -> NDArray[np.bool_]:
 
 
 CASES: dict[str, tuple[tuple[int, int], bool, bool, dict[str, Any]]] = {
-    # name: (spatial shape, pbc, masked, options of the oracle's spec_spectra)
+    # name: (spatial shape, pbc, masked, options of the oracle's spec_spectra_2d)
     "periodic-auto": ((16, 16), True, False, {}),
     "open-auto-rect": ((16, 24), False, False, {}),
     "periodic-mask-auto": ((16, 16), True, True, {}),
@@ -70,13 +70,13 @@ CASES: dict[str, tuple[tuple[int, int], bool, bool, dict[str, Any]]] = {
 
 
 NAMES = {"method": "spectrum_method", "Jmin": "Jmin", "n_bins": "n_bins"}
-"""The options of ``STOperator`` named by those of ``spec_spectra``."""
+"""The options of ``STOperator`` named by those of ``spec_spectra_2d``."""
 
 
 @pytest.mark.parametrize("name", list(CASES))
 def test_spectrum_equals_the_oracle(name: str, dtype: DType) -> None:
     """``STOperator`` at its default J, with L = 1, without standardisation and with
-    ``norm="none"``, equals ``spec_spectra``
+    ``norm="none"``, equals ``spec_spectra_2d``
     at its default J: the estimator chosen and the spectrum of every pair c₁ ≤ c₂, NaN below the
     diagonal."""
     shape, pbc, masked, options = CASES[name]
@@ -89,11 +89,11 @@ def test_spectrum_equals_the_oracle(name: str, dtype: DType) -> None:
             data,
             None,
             1,
-            standardize=False,  # spec_spectra takes the field as it is
+            standardize=False,  # spec_spectra_2d takes the field as it is
             **{NAMES[key]: value for key, value in options.items()},
         )
     oracle_field = field if mask is None else np.where(mask, np.nan, field)
-    expected = spec_spectra.spec_spectra(oracle_field, pbc, **options)
+    expected = spectra.spec_spectra_2d(oracle_field, pbc, **options)
     assert operator._plan.spectrum.method == expected["method"]  # type: ignore[union-attr]
     stats = operator.apply(data, norm="none")
     assert_parity(_numpy(stats.full_grid("PS")), expected["PS"], dtype)

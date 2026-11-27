@@ -1,4 +1,4 @@
-"""Spec parity of ``STOperator`` on HEALPix data: ESTEL against the oracle ``spec_apply_hpx``
+"""Spec parity of ``STOperator`` on HEALPix data: ESTEL against the oracle ``spec_apply_healpix``
 (task T5.6, issue #167; maths.md §4 "Scattering loop", M-DATA-HPX, M-MASK-HPX, M-DEF-HPX;
 section 1 from M-MEAN to M-FLAT; Part I, §4.2).
 
@@ -131,7 +131,7 @@ def _check(
         loaded = operator.apply(second, norm="ref")
 
     def oracle(array: NDArray[np.float64], **more: Any) -> dict[str, Any]:
-        return spec.spec_apply_hpx(array, 1 << depth, cell_ids, mask, J, 4, **options, **more)
+        return spec.spec_apply_healpix(array, 1 << depth, cell_ids, mask, J, 4, **options, **more)
 
     expected = oracle(target, norm="none", flatten=True)
     scale = float(np.sqrt(np.nanmax(expected["var"])))

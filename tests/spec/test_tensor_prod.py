@@ -2,7 +2,7 @@
 section 3; Part I, §4.2 and §5.1; Part II, §12.11 and §14.3).
 
 The fixtures of T3.4 (``scattering_tp``, ``statistics_tp``, STL `2D+1D` at ``8f51143``) hold
-STL's statistics of tensor-product fields. The oracle ``spec_tensor_prod`` runs on the same
+STL's statistics of tensor-product fields. The oracle ``spec_apply_tensor_prod`` runs on the same
 fields, with the parameters the manifest records, and every stored array is compared with
 ``assert_parity``: same full-grid shape, NaN at the same positions, values within the float64
 tolerances of Part II, §14.3 (for ``mean``, atol = 0.1 x rtol x sqrt(max(var))). The oracle
@@ -84,7 +84,7 @@ def test_scattering_equals_the_fixture(name: str, lowpass: str | None) -> None:
     case = parameters["cases"][config["case"]]
     arrays = _arrays("scattering_tp")
     prefix = f"{name}_{MODES[lowpass]}"
-    out = spec.spec_tensor_prod(
+    out = spec.spec_apply_tensor_prod(
         arrays[f"{name}_field"],
         [AXES[block] for block in case["blocks"]],
         case["pbc"],
@@ -107,7 +107,7 @@ def test_scattering_equals_the_fixture(name: str, lowpass: str | None) -> None:
 def test_normalised_statistics_equal_the_fixture() -> None:
     """The three runs of ``statistics_tp`` (``norm="self"``, ``norm="ref"`` with its reference,
     ``norm="self"`` with ``ref_batch_mean``), their references and the two flat vectors: the
-    real one from ``spec_tensor_prod(..., flatten=True)``, the complex one from
+    real one from ``spec_apply_tensor_prod(..., flatten=True)``, the complex one from
     ``spec_flatten``."""
     parameters = _parameters("statistics_tp")
     arrays = _arrays("statistics_tp")
@@ -118,13 +118,13 @@ def test_normalised_statistics_equal_the_fixture() -> None:
         "lowpass": parameters["lowpass"],
         "standardize": False,  # as STL computed the fixture (OP-120)
     }
-    store = spec.spec_tensor_prod(arrays["field"], norm="self", flatten=True, **options)
+    store = spec.spec_apply_tensor_prod(arrays["field"], norm="self", flatten=True, **options)
     runs = {
         "store": store,
-        "load": spec.spec_tensor_prod(
+        "load": spec.spec_apply_tensor_prod(
             arrays["other_field"], norm="ref", ref=store["reference"], **options
         ),
-        "store_batch_mean": spec.spec_tensor_prod(
+        "store_batch_mean": spec.spec_apply_tensor_prod(
             arrays["field"], norm="self", ref_batch_mean=True, **options
         ),
     }
@@ -149,11 +149,13 @@ def test_normalised_statistics_equal_the_fixture() -> None:
     ("ndim", "shape", "pbc"),
     [pytest.param(2, (16, 16), True, id="2d"), pytest.param(1, (16,), False, id="1d")],
 )
-def test_one_block_equals_the_planar_oracle(ndim: int, shape: tuple[int, ...], pbc: bool) -> None:
+def test_one_block_equals_the_cartesian_oracle(
+    ndim: int, shape: tuple[int, ...], pbc: bool
+) -> None:
     """With ``lowpass=None``, a tensor product of one block is the planar geometry (OP-82):
     same families, same full grids, the 1D block with its tensor default L = 2."""
     field = np.random.default_rng(12).standard_normal((2, *shape))
-    out = spec.spec_tensor_prod(field, [ndim], [pbc], [2], lowpass=None, norm="self")
+    out = spec.spec_apply_tensor_prod(field, [ndim], [pbc], [2], lowpass=None, norm="self")
     assert out["L"] == [4 if ndim == 2 else 2]
     expected = planar.spec_apply(field, ndim, pbc, None, 2, out["L"][0], norm="self")
     for family in ("mean", "var", *GRIDS):
@@ -180,7 +182,7 @@ def test_invalid_data_raise(array: NDArray[Any], J: Any, L: Any, match: str) -> 
     """A NaN in the data (OP-41, OP-80), a size not divisible by 2^(J_a - 1) (OP-8), and a J or
     L that is not a list, a NumPy integer included (OP-83), raise a ``ValueError``."""
     with pytest.raises(ValueError, match=match):
-        spec.spec_data_tp(array, [2, 1], [True, True], J, L)
+        spec.spec_data_tensor_prod(array, [2, 1], [True, True], J, L)
 
 
 def test_caller_lists_and_defaults() -> None:
@@ -188,7 +190,9 @@ def test_caller_lists_and_defaults() -> None:
     default of the block (M-DEF-TP)."""
     field = np.random.default_rng(13).standard_normal((8, 8, 8))
     scales, orientations = [None, 1], [None, None]
-    x, n_scales, n_orient, _ = spec.spec_data_tp(field, [2, 1], [True, False], scales, orientations)
+    x, n_scales, n_orient, _ = spec.spec_data_tensor_prod(
+        field, [2, 1], [True, False], scales, orientations
+    )
     assert scales == [None, 1]
     assert orientations == [None, None]
     assert (x.shape, n_scales, n_orient) == ((1, 1, 8, 8, 8), [1, 1], [4, 2])

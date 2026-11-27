@@ -414,7 +414,7 @@ def spec_conv_tables(
     return index, weight
 
 
-def spec_wavelet_hpx(K: int = KERNEL_SIZE) -> Array:  # noqa: N803
+def spec_wavelet_healpix(K: int = KERNEL_SIZE) -> Array:  # noqa: N803
     """The HEALPix wavelet on the flattened stencil, ``(K²,)``, complex. Implements M-WAV-HPX.
 
     ψ[u, v] = exp(-(u² + v²)/2) exp(iπu/2) on the offsets of the stencil, u along its second
@@ -429,7 +429,7 @@ def spec_wavelet_hpx(K: int = KERNEL_SIZE) -> Array:  # noqa: N803
     return out
 
 
-def spec_conv_hpx(x: Array, tables: tuple[Array, Array], kernel: Array) -> Array:
+def spec_conv_healpix(x: Array, tables: tuple[Array, Array], kernel: Array) -> Array:
     """The convolution of ``x``, ``(..., Npix)``, real: ``(..., L, Npix)``, complex. Implements
     M-CONV-HPX, step 4.
 
@@ -443,7 +443,7 @@ def spec_conv_hpx(x: Array, tables: tuple[Array, Array], kernel: Array) -> Array
     return out
 
 
-def spec_support_hpx(invalid: Mask, tables: tuple[Array, Array]) -> Mask:
+def spec_support_healpix(invalid: Mask, tables: tuple[Array, Array]) -> Mask:
     """The invalid pixels of data convolved on this geometry, from those of its input.
     Implements M-MASK-HPX (the support of a layer).
 
@@ -461,7 +461,7 @@ def spec_support_hpx(invalid: Mask, tables: tuple[Array, Array]) -> Mask:
 # ---------------------------------------------------------------------- decimation
 
 
-def spec_decimation_hpx(nside: int, cell_ids: Any = None) -> tuple[Array, Array]:
+def spec_decimation_healpix(nside: int, cell_ids: Any = None) -> tuple[Array, Array]:
     """One step of the decimation, from the pixels ``cell_ids`` of ``nside`` (the full sky by
     default) to their parents at ``nside / 2``: the matrix ``(Ncoarse, Nfine)`` and the coarse
     ``cell_ids``. Implements M-DOWN-HPX.
@@ -496,16 +496,16 @@ def spec_decimation_hpx(nside: int, cell_ids: Any = None) -> tuple[Array, Array]
     return matrix, coarse
 
 
-def spec_reweighting_hpx(fraction: Array, invalid: NDArray[np.bool_]) -> Array:
+def spec_reweighting_healpix(fraction: Array, invalid: NDArray[np.bool_]) -> Array:
     """The reweighting map of a decimated level: 1 / (1 - f), with 1 - f not below 10⁻⁸, and 0
     on the invalid pixels. Implements M-MASK-HPX (the reweighting maps)."""
     out: Array = np.where(invalid, 0.0, 1.0 / np.maximum(1.0 - fraction, REWEIGHT_FLOOR))
     return out
 
 
-def spec_downsample_hpx(x: Array, matrix: Array, invalid: Mask = None) -> tuple[Array, Mask]:
+def spec_downsample_healpix(x: Array, matrix: Array, invalid: Mask = None) -> tuple[Array, Mask]:
     """One decimation step of ``x``, ``(..., Nfine)``, with the matrix of
-    ``spec_decimation_hpx``: the result and its invalid pixels. Implements M-DOWN-HPX, and
+    ``spec_decimation_healpix``: the result and its invalid pixels. Implements M-DOWN-HPX, and
     M-DOWN-MASK with this step (M-MASK-HPX).
 
     Without a mask, ``x @ matrixᵀ``; a complex array is decimated part by part, which this
@@ -519,13 +519,13 @@ def spec_downsample_hpx(x: Array, matrix: Array, invalid: Mask = None) -> tuple[
     fraction = matrix @ invalid.astype(np.float64)
     invalid_out: NDArray[np.bool_] = fraction > NAN_THRESHOLD
     down = np.where(invalid, 0.0, x) @ matrix.T
-    return down * spec_reweighting_hpx(fraction, invalid_out), invalid_out
+    return down * spec_reweighting_healpix(fraction, invalid_out), invalid_out
 
 
 # ---------------------------------------------------------------------- data and defaults
 
 
-def spec_defaults_hpx(nside: int) -> dict[str, Any]:
+def spec_defaults_healpix(nside: int) -> dict[str, Any]:
     """The default parameters for HEALPix data of ``nside``. Implements M-DEF-HPX.
 
     The sphere (OP-45) and the tables in float64 (OP-46) are ESTEL's decisions, not STL's
@@ -550,7 +550,7 @@ def spec_defaults_hpx(nside: int) -> dict[str, Any]:
     }
 
 
-def spec_data_hpx(
+def spec_data_healpix(
     array: Any,
     nside: int | None = None,
     cell_ids: Any = None,
@@ -624,7 +624,7 @@ def _levels(nside: int, ids: bytes, J: int, L: int, K: int) -> tuple[dict[str, A
             "conv": spec_conv_tables(nside, cell_ids, L, K),
         }
         if d < J - 1:
-            level["down"], cell_ids = spec_decimation_hpx(nside, cell_ids)
+            level["down"], cell_ids = spec_decimation_healpix(nside, cell_ids)
             nside //= 2
         levels.append(level)
     for level in levels:
@@ -634,7 +634,7 @@ def _levels(nside: int, ids: bytes, J: int, L: int, K: int) -> tuple[dict[str, A
     return tuple(levels)
 
 
-def spec_levels_hpx(
+def spec_levels_healpix(
     nside: int,
     cell_ids: Any,
     J: int,  # noqa: N803
@@ -653,7 +653,7 @@ def spec_levels_hpx(
     return _levels(nside, ids.tobytes(), J, L, K)
 
 
-def spec_masks_hpx(levels: tuple[dict[str, Any], ...], invalid: Mask) -> dict[str, Any]:
+def spec_masks_healpix(levels: tuple[dict[str, Any], ...], invalid: Mask) -> dict[str, Any]:
     """The static masks and reweighting maps of the scattering, on the pixels of their level.
     Implements M-MASK-HPX, with M-MASK.
 
@@ -680,28 +680,28 @@ def spec_masks_hpx(levels: tuple[dict[str, Any], ...], invalid: Mask) -> dict[st
             return None, None
         fraction = levels[d]["down"] @ mask.astype(np.float64)
         down = fraction > NAN_THRESHOLD
-        return down, spec_reweighting_hpx(fraction, down)
+        return down, spec_reweighting_healpix(fraction, down)
 
     for d in range(1, n_levels):
         mask, reweight = step(out["field"][-1], d - 1)
         out["field"].append(mask)
         out["reweight_field"].append(reweight)
     for j in range(n_levels):
-        out["layer1"].append(spec_support_hpx(out["field"][j], levels[j]["conv"]))
+        out["layer1"].append(spec_support_healpix(out["field"][j], levels[j]["conv"]))
     for j in range(n_levels):
         mask = out["layer1"][j]
         for j3 in range(j, n_levels):
             if j3 > j:
                 mask, out["reweight_down1"][j3, j] = step(mask, j3 - 1)
                 out["down1"][j3, j] = mask
-            out["layer2"][j, j3] = spec_support_hpx(mask, levels[j3]["conv"])
+            out["layer2"][j, j3] = spec_support_healpix(mask, levels[j3]["conv"])
     return out
 
 
 # ---------------------------------------------------------------------- scattering statistics
 
 
-def spec_scattering_hpx(
+def spec_scattering_healpix(
     x: Array,
     nside: int,
     cell_ids: Any,
@@ -720,23 +720,23 @@ def spec_scattering_hpx(
     As in ``planar.spec_scattering``, with one pixel axis and no border: every mean is taken at
     the level of its arguments, over the pixels left by the union of their two masks. The
     invalid pixels of the field are set to 0 first, and those of every decimated level hold 0
-    (``spec_downsample_hpx``), so that no NaN enters a convolution (OP-102).
+    (``spec_downsample_healpix``), so that no NaN enters a convolution (OP-102).
     """
     nb, nc = x.shape[:2]
     pairs = planar._channel_pairs(cross_matrix, nc)
-    levels = spec_levels_hpx(nside, cell_ids, J, L, K)
-    masks = spec_masks_hpx(levels, invalid)
-    kernel = spec_wavelet_hpx(K)
+    levels = spec_levels_healpix(nside, cell_ids, J, L, K)
+    masks = spec_masks_healpix(levels, invalid)
+    kernel = spec_wavelet_healpix(K)
 
     # Layer 0: the field at each level (M-DOWN-HPX, M-DOWN-MASK).
     field = [x if invalid is None else np.where(invalid, 0.0, x)]
     for d in range(1, J):
         field.append(
-            spec_downsample_hpx(field[-1], levels[d - 1]["down"], masks["field"][d - 1])[0]
+            spec_downsample_healpix(field[-1], levels[d - 1]["down"], masks["field"][d - 1])[0]
         )
 
     # Layer 1: W_j x and U_j x at level j, [b, c, g, k] (M-W1).
-    w = [spec_conv_hpx(field[j], levels[j]["conv"], kernel) for j in range(J)]
+    w = [spec_conv_healpix(field[j], levels[j]["conv"], kernel) for j in range(J)]
     u = [np.abs(w_j) for w_j in w]
     mask1 = masks["layer1"]
 
@@ -746,9 +746,11 @@ def spec_scattering_hpx(
         modulus, modulus_invalid = u[j], mask1[j]
         for j3 in range(j, J):
             if j3 > j:
-                modulus = spec_downsample_hpx(modulus, levels[j3 - 1]["down"], modulus_invalid)[0]
+                modulus = spec_downsample_healpix(modulus, levels[j3 - 1]["down"], modulus_invalid)[
+                    0
+                ]
                 modulus_invalid = masks["down1"][j3, j]
-            v[j, j3] = spec_conv_hpx(modulus, levels[j3]["conv"], kernel)
+            v[j, j3] = spec_conv_healpix(modulus, levels[j3]["conv"], kernel)
     mask2 = masks["layer2"]
 
     def mean(a: Array, m: Mask) -> Array:
@@ -798,7 +800,7 @@ def spec_scattering_hpx(
 # ---------------------------------------------------------------------- apply
 
 
-def spec_apply_hpx(
+def spec_apply_healpix(
     array: Any,
     nside: int | None = None,
     cell_ids: Any = None,
@@ -825,7 +827,7 @@ def spec_apply_hpx(
     1. promotion to ``(Nb, Nc, Npix)``, ``nside`` and ``cell_ids`` (M-DATA-HPX);
     2. standardisation, if asked (M-STD);
     3. ``mean`` and ``var``, the plain means over the valid pixels (M-MOM);
-    4. the scattering statistics S1 to S4 (``spec_scattering_hpx``);
+    4. the scattering statistics S1 to S4 (``spec_scattering_healpix``);
     5. normalisation (M-NORM): ``"self"``, ``"ref"`` with ``ref``, the ``"reference"`` of other
        statistics, or ``"none"``;
     6. the reductions asked for, in the order ``iso``, ``angular_fourier``, ``scale_cosine``;
@@ -834,8 +836,8 @@ def spec_apply_hpx(
     J and L default to M-DEF-HPX; ``standardize`` is True by default (M-DEF-HPX, OP-120). There
     is no spectrum (LF24).
     """
-    x, invalid, nside, ids = spec_data_hpx(array, nside, cell_ids, mask)  # 1
-    defaults = spec_defaults_hpx(nside)
+    x, invalid, nside, ids = spec_data_healpix(array, nside, cell_ids, mask)  # 1
+    defaults = spec_defaults_healpix(nside)
     n_scales = defaults["J"] if J is None else J
     n_gauges = defaults["L"] if L is None else L
     if norm not in ("self", "ref", "none"):
@@ -852,7 +854,7 @@ def spec_apply_hpx(
         x, out["mean_pre_std"], out["std_pre_std"] = planar.spec_standardize(x, 1, invalid)
     out["mean"], out["var"] = planar.spec_moments(x, 1, invalid)  # 3
     out.update(  # 4
-        spec_scattering_hpx(x, nside, ids, n_scales, n_gauges, invalid, cross_matrix)
+        spec_scattering_healpix(x, nside, ids, n_scales, n_gauges, invalid, cross_matrix)
     )
     out["reference"] = None
     if norm != "none":  # 5

@@ -229,10 +229,10 @@ def test_mirror_through_the_equator_conjugates_the_convolution() -> None:
     )
     x = np.random.default_rng(3).normal(size=theta.size)
     tables = spec.spec_conv_tables(nside)
-    kernel = spec.spec_wavelet_hpx()
+    kernel = spec.spec_wavelet_healpix()
     y, y_mirrored = (
-        spec.spec_conv_hpx(x, tables, kernel),
-        spec.spec_conv_hpx(x[mirror], tables, kernel),
+        spec.spec_conv_healpix(x, tables, kernel),
+        spec.spec_conv_healpix(x[mirror], tables, kernel),
     )
     off = np.abs(theta - math.pi / 2) > 1e-9
     np.testing.assert_allclose(y_mirrored[:, off], np.conj(y[:, mirror][:, off]), atol=MIRROR_ATOL)
@@ -249,7 +249,7 @@ def _operators() -> dict[str, NDArray[Any]]:
 
 def test_kernel_equals_the_fixture() -> None:
     """M-WAV-HPX: the kernel, its sum, the sum of its moduli and its two symmetries."""
-    kernel = spec.spec_wavelet_hpx()
+    kernel = spec.spec_wavelet_healpix()
     assert_parity(kernel, _operators()["kernel"].reshape(-1))
     assert abs(kernel.sum()) < ROUNDING_ATOL
     assert np.abs(kernel).sum() == pytest.approx(1.0, abs=ROUNDING_ATOL)
@@ -263,10 +263,10 @@ def test_dense_operators_equal_the_fixture() -> None:
     operator, and the decimation from ``nside`` 4 to 2, full sky."""
     fixture = _operators()
     tables = spec.spec_conv_tables(4)
-    kernel = spec.spec_wavelet_hpx()
-    dense = np.stack([spec.spec_conv_hpx(e, tables, kernel) for e in np.eye(192)], axis=-1)
+    kernel = spec.spec_wavelet_healpix()
+    dense = np.stack([spec.spec_conv_healpix(e, tables, kernel) for e in np.eye(192)], axis=-1)
     assert_parity(dense, fixture["conv_4"])
-    matrix, coarse = spec.spec_decimation_hpx(4)
+    matrix, coarse = spec.spec_decimation_healpix(4)
     assert_parity(matrix, fixture["down_4"])
     assert np.array_equal(coarse, fixture["down_4_cell_ids"].astype(np.int64))
     np.testing.assert_allclose(matrix.sum(axis=1), 1.0, rtol=0, atol=ROUNDING_ATOL)
@@ -294,7 +294,7 @@ def _domain(name: str) -> None:
     cell_ids = fixture[f"{name}_cell_ids"].astype(np.int64)
     maps = fixture[f"{name}_maps"]
     tables = spec.spec_conv_tables(nside, cell_ids)
-    actual = spec.spec_conv_hpx(maps, tables, spec.spec_wavelet_hpx())
+    actual = spec.spec_conv_healpix(maps, tables, spec.spec_wavelet_healpix())
     kept = ~_ill_conditioned(nside, cell_ids)
     assert int((~kept).sum()) == ILL_CONDITIONED[name]
     assert_parity(actual[:, kept], fixture[f"{name}_conv"][:, kept])
@@ -304,9 +304,9 @@ def _decimation(name: str) -> None:
     fixture = _operators()
     nside = int(name.rsplit("_", 1)[1])
     cell_ids = fixture[f"{name}_cell_ids"].astype(np.int64)
-    matrix, coarse = spec.spec_decimation_hpx(nside, cell_ids)
+    matrix, coarse = spec.spec_decimation_healpix(nside, cell_ids)
     assert np.array_equal(coarse, fixture[f"{name}_down_cell_ids"].astype(np.int64))
-    down, _ = spec.spec_downsample_hpx(fixture[f"{name}_maps"], matrix)
+    down, _ = spec.spec_downsample_healpix(fixture[f"{name}_maps"], matrix)
     assert_parity(down, fixture[f"{name}_down"])
 
 
@@ -378,8 +378,8 @@ def test_masks_equal_the_fixture(name: str) -> None:
     """
     fixture, config = _statistics(), _configs()[name]
     nside, _, cell_ids = _cell_ids(name)
-    levels = spec.spec_levels_hpx(nside, cell_ids, config["J"])
-    masks = spec.spec_masks_hpx(levels, fixture[f"{name}_mask"].astype(bool))
+    levels = spec.spec_levels_healpix(nside, cell_ids, config["J"])
+    masks = spec.spec_masks_healpix(levels, fixture[f"{name}_mask"].astype(bool))
 
     def same(mask: Any, key: str) -> None:
         assert np.array_equal(np.asarray(mask, dtype=np.float64), fixture[f"{name}_{key}"]), key
@@ -417,7 +417,7 @@ def test_statistics_equal_the_fixture(name: str) -> None:
     ``statistics_hpx``, the NaN at the same positions; the partial skies ``disc_16`` and
     ``disc_nan_16`` are left to T5.6 (OP-110, see the module docstring). The masked configuration
     runs on the fields with their NaN and the mask given, as STL builds its operator. The
-    statistics are also computed through the whole of ``spec_apply_hpx`` with ``norm="self"``,
+    statistics are also computed through the whole of ``spec_apply_healpix`` with ``norm="self"``,
     the reductions and the flattening.
 
     Slow: the oracle loops over the coefficients of J = 3 at ``nside`` 16 (decision 4 on #165).
@@ -437,10 +437,10 @@ def test_statistics_equal_the_fixture(name: str) -> None:
         "L": 4,
         "standardize": False,  # as STL computed the fixture (OP-120)
     }
-    vanilla = spec.spec_apply_hpx(expected("field"), norm="none", **options)
+    vanilla = spec.spec_apply_healpix(expected("field"), norm="none", **options)
     reference = planar.spec_reference(vanilla, config["norm_batch_mean"])
     stored = planar.spec_normalize(vanilla, reference)
-    loaded = spec.spec_apply_hpx(expected("ref_field"), norm="ref", ref=reference, **options)
+    loaded = spec.spec_apply_healpix(expected("ref_field"), norm="ref", ref=reference, **options)
     assert_parity(reference["var"], expected("var_ref"))
     assert_parity(reference["sigma"], expected("s2_ref"))
     for kind, stats in (("vanilla", vanilla), ("store", stored), ("load", loaded)):
@@ -476,13 +476,13 @@ def test_statistics_equal_the_fixture(name: str) -> None:
 
     # The whole of apply (M-ORDER) with norm="self", the reductions and the flattening.
     self_options = {**options, "norm": "self", "ref_batch_mean": config["norm_batch_mean"]}
-    applied = spec.spec_apply_hpx(expected("field"), flatten=True, **self_options)
+    applied = spec.spec_apply_healpix(expected("field"), flatten=True, **self_options)
     assert_parity(applied["reference"]["sigma"], expected("s2_ref"))
     for family in planar.FAMILIES:
         scale = float(np.sqrt(np.max(vanilla["var"]))) if family == "mean" else None
         assert_parity(applied[family], expected(f"store_{family}"), scale=scale)
     assert_parity(applied["vector"], expected("vector"))
-    applied = spec.spec_apply_hpx(
+    applied = spec.spec_apply_healpix(
         expected("field"),
         iso=True,
         angular_fourier=True,
@@ -503,8 +503,8 @@ def test_statistics_equal_the_fixture(name: str) -> None:
 
 def test_defaults() -> None:
     """M-DEF-HPX: J = 1, 1, 2, 3, 4 for ``nside`` = 2, 4, 8, 16, 32, and the other defaults."""
-    assert [spec.spec_defaults_hpx(n)["J"] for n in (2, 4, 8, 16, 32)] == [1, 1, 2, 3, 4]
-    defaults = spec.spec_defaults_hpx(16)
+    assert [spec.spec_defaults_healpix(n)["J"] for n in (2, 4, 8, 16, 32)] == [1, 1, 2, 3, 4]
+    defaults = spec.spec_defaults_healpix(16)
     assert (defaults["L"], defaults["K"], defaults["gauge"], defaults["border"]) == (
         4,
         5,
@@ -521,38 +521,38 @@ def test_data_are_promoted_and_checked() -> None:
     read from the NaN of a single map only."""
     rng = np.random.default_rng(4)
     for shape in ((48,), (3, 48), (2, 3, 48)):
-        x, mask, nside, cell_ids = spec.spec_data_hpx(rng.normal(size=shape))
+        x, mask, nside, cell_ids = spec.spec_data_healpix(rng.normal(size=shape))
         assert x.shape == (1,) * (3 - len(shape)) + shape
         assert mask is None
         assert nside == 2
         assert np.array_equal(cell_ids, np.arange(48))
     with pytest.raises(ValueError, match="full sky"):
-        spec.spec_data_hpx(np.zeros(47))
+        spec.spec_data_healpix(np.zeros(47))
     with pytest.raises(ValueError, match="needs nside"):
-        spec.spec_data_hpx(np.zeros(3), cell_ids=[1, 2, 3])
+        spec.spec_data_healpix(np.zeros(3), cell_ids=[1, 2, 3])
     with pytest.raises(ValueError, match="strictly increasing"):
-        spec.spec_data_hpx(np.zeros(3), nside=4, cell_ids=[1, 3, 2])
+        spec.spec_data_healpix(np.zeros(3), nside=4, cell_ids=[1, 3, 2])
     disc = np.arange(48)
-    _, _, nside, _ = spec.spec_data_hpx(np.zeros(48), nside=4, cell_ids=disc)
+    _, _, nside, _ = spec.spec_data_healpix(np.zeros(48), nside=4, cell_ids=disc)
     assert nside == 4
     holes = rng.normal(size=192)
     holes[[3, 70]] = np.nan
-    x, mask, _, _ = spec.spec_data_hpx(holes)
+    x, mask, _, _ = spec.spec_data_healpix(holes)
     assert mask is not None
     assert np.flatnonzero(mask).tolist() == [3, 70]
     assert np.isnan(x[0, 0, [3, 70]]).all()
     with pytest.raises(ValueError, match="single map"):
-        spec.spec_data_hpx(np.stack([holes, holes]))
+        spec.spec_data_healpix(np.stack([holes, holes]))
 
 
 def test_support_of_a_partial_sky_mask() -> None:
     """M-MASK-HPX: a pixel is invalid after a convolution if its stencil reads an invalid pixel
     with a weight above 10⁻¹² in some gauge; without a mask, nothing is."""
     tables = spec.spec_conv_tables(4)
-    assert spec.spec_support_hpx(None, tables) is None
+    assert spec.spec_support_healpix(None, tables) is None
     invalid = np.zeros(192, dtype=bool)
     invalid[100] = True
-    support = spec.spec_support_hpx(invalid, tables)
+    support = spec.spec_support_healpix(invalid, tables)
     assert support is not None
     assert support[100]
     index, weight = tables

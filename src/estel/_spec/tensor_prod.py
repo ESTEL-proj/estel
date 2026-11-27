@@ -74,7 +74,7 @@ def _block_sizes(spatial: Sequence[int], blocks: Sequence[int]) -> list[tuple[in
 # ---------------------------------------------------------------------- notation
 
 
-def spec_along_block_tp(
+def spec_along_block_tensor_prod(
     y: Array, blocks: Sequence[int], a: int, function: Callable[[Array], Array]
 ) -> Array:
     """``function`` applied along the axes of block ``a`` of ``y`` only. Implements M-NOT-TP
@@ -91,7 +91,7 @@ def spec_along_block_tp(
     return out
 
 
-def spec_level_tp(
+def spec_level_tensor_prod(
     y: Array, blocks: Sequence[int], steps: Sequence[int], pbc: Sequence[bool]
 ) -> Array:
     """``y`` downsampled ``steps[a]`` times along block a, for every block. Implements M-NOT-TP
@@ -103,14 +103,16 @@ def spec_level_tp(
     for a, n_axes in enumerate(blocks):
         for _ in range(steps[a]):
             down = functools.partial(planar.spec_downsample, ndim=n_axes, pbc=pbc[a])
-            y = spec_along_block_tp(y, blocks, a, down)
+            y = spec_along_block_tensor_prod(y, blocks, a, down)
     return y
 
 
 # ---------------------------------------------------------------------- data and defaults
 
 
-def spec_defaults_tp(blocks: Sequence[int], spatial_shape: Sequence[int]) -> dict[str, Any]:
+def spec_defaults_tensor_prod(
+    blocks: Sequence[int], spatial_shape: Sequence[int]
+) -> dict[str, Any]:
     """The default parameters of a tensor product with ``blocks`` and ``spatial_shape``.
     Implements M-DEF-TP.
 
@@ -131,7 +133,7 @@ def spec_defaults_tp(blocks: Sequence[int], spatial_shape: Sequence[int]) -> dic
     }
 
 
-def spec_data_tp(
+def spec_data_tensor_prod(
     array: Any,
     blocks: Sequence[int],
     pbc: Any,
@@ -165,7 +167,7 @@ def spec_data_tp(
             "pass data without NaN."
         )
     sizes = _block_sizes(x.shape[2:], blocks)
-    defaults = spec_defaults_tp(blocks, x.shape[2:])
+    defaults = spec_defaults_tensor_prod(blocks, x.shape[2:])
     parameters = {}
     for name, given in (("J", J), ("L", L)):
         if given is None:
@@ -210,7 +212,7 @@ def spec_data_tp(
 # ---------------------------------------------------------------------- low-pass filter
 
 
-def spec_lowpass_tp(
+def spec_lowpass_tensor_prod(
     blocks: Sequence[int],
     spatial_shape: Sequence[int],
     J: Sequence[int],  # noqa: N803
@@ -221,7 +223,7 @@ def spec_lowpass_tp(
     With ``lowpass="ST"``, block a has one only if each of its sizes is divisible by 2^J_a; with
     ``lowpass=None`` no block has one. Its scale is J_a, realised by the cascade of the
     smoothing kernels: the field at level J_a along the block, with no further computation
-    (``spec_first_layer_tp``).
+    (``spec_first_layer_tensor_prod``).
     """
     if lowpass not in LOWPASS:
         raise ValueError(f'lowpass={lowpass!r}: pass "ST" or None (M-LP).')
@@ -235,12 +237,12 @@ def spec_lowpass_tp(
 # ---------------------------------------------------------------------- index sets
 
 
-def spec_precedes_tp(j: Scale, j_prime: Scale) -> bool:
+def spec_precedes_tensor_prod(j: Scale, j_prime: Scale) -> bool:
     """j ≤ j': j_a ≤ j'_a in every block. Implements M-IDX-TP (the partial order)."""
     return all(a <= b for a, b in zip(j, j_prime, strict=True))
 
 
-def spec_index_sets_tp(J: Sequence[int], lowpass: Sequence[bool]) -> dict[str, list[Any]]:  # noqa: N803
+def spec_index_sets_tensor_prod(J: Sequence[int], lowpass: Sequence[bool]) -> dict[str, list[Any]]:  # noqa: N803
     """The index sets of the statistics, in lexicographic order (the last block fastest).
     Implements M-IDX-TP.
 
@@ -251,14 +253,14 @@ def spec_index_sets_tp(J: Sequence[int], lowpass: Sequence[bool]) -> dict[str, l
     extended = [j_a + int(lp) for j_a, lp in zip(J, lowpass, strict=True)]
     every = list(itertools.product(*(range(n) for n in extended)))
     wavelet = list(itertools.product(*(range(n) for n in J)))
-    pairs = [(j2, j3) for j3 in wavelet for j2 in wavelet if spec_precedes_tp(j2, j3)]
+    pairs = [(j2, j3) for j3 in wavelet for j2 in wavelet if spec_precedes_tensor_prod(j2, j3)]
     triples = [
         (j1, j2, j3)
         for j3 in wavelet
         for j2 in wavelet
-        if spec_precedes_tp(j2, j3)
+        if spec_precedes_tensor_prod(j2, j3)
         for j1 in wavelet
-        if spec_precedes_tp(j1, j2)
+        if spec_precedes_tensor_prod(j1, j2)
     ]
     return {"all": every, "wavelet": wavelet, "S3": pairs, "S4": triples}
 
@@ -266,7 +268,7 @@ def spec_index_sets_tp(J: Sequence[int], lowpass: Sequence[bool]) -> dict[str, l
 # ---------------------------------------------------------------------- first layer
 
 
-def spec_wavelet_transform_tp(
+def spec_wavelet_transform_tensor_prod(
     y: Array,
     blocks: Sequence[int],
     L: Sequence[int],  # noqa: N803
@@ -291,7 +293,7 @@ def spec_wavelet_transform_tp(
         psi = planar._wavelets(n_axes, L[a], planar.KERNEL_SIZE)
         y = np.stack(
             [
-                spec_along_block_tp(
+                spec_along_block_tensor_prod(
                     y,
                     blocks,
                     a,
@@ -304,7 +306,7 @@ def spec_wavelet_transform_tp(
     return y
 
 
-def spec_first_layer_tp(
+def spec_first_layer_tensor_prod(
     x: Array,
     blocks: Sequence[int],
     j: Scale,
@@ -317,23 +319,23 @@ def spec_first_layer_tp(
 
     The field is brought to level d = j in every block (j_a = J_a for the low-pass filter of
     block a, M-LP), then the block wavelets are applied in block order
-    (``spec_wavelet_transform_tp``). L'_a = L_a along a block at a wavelet scale, 1 along a
+    (``spec_wavelet_transform_tensor_prod``). L'_a = L_a along a block at a wavelet scale, 1 along a
     block at its low-pass scale. At the scale with the low-pass filter in every block, the
     result is the field X at level (J₀, …, J_{B-1}) centred, X - ⟨X⟩, the mean over all its
     pixels (OP-42). The modulus U_{j,l} = |W_{j,l}| is left to the caller.
     """
     wavelet = [j_a < J_a for j_a, J_a in zip(j, J, strict=True)]
-    level = spec_level_tp(x, blocks, j, pbc)
+    level = spec_level_tensor_prod(x, blocks, j, pbc)
     if not any(wavelet):
         axes = tuple(range(level.ndim - sum(blocks), level.ndim))
         level = level - level.mean(axis=axes, keepdims=True)
-    return spec_wavelet_transform_tp(level, blocks, L, pbc, wavelet)
+    return spec_wavelet_transform_tensor_prod(level, blocks, L, pbc, wavelet)
 
 
 # ---------------------------------------------------------------------- borders and means
 
 
-def spec_border_tp(
+def spec_border_tensor_prod(
     histories: Sequence[tuple[int, ...]], levels: Sequence[int], pbc: Sequence[bool]
 ) -> list[int]:
     """The border width of each block, from its own convolution history and level. Implements
@@ -349,7 +351,7 @@ def spec_border_tp(
     ]
 
 
-def spec_crop_tp(y: Array, blocks: Sequence[int], borders: Sequence[int]) -> Array:
+def spec_crop_tensor_prod(y: Array, blocks: Sequence[int], borders: Sequence[int]) -> Array:
     """``y`` without the border of each block, along the axes of that block. Implements
     M-BORDER-TP (the crop, and the reduction of a border too large, OP-13).
 
@@ -367,10 +369,10 @@ def spec_crop_tp(y: Array, blocks: Sequence[int], borders: Sequence[int]) -> Arr
     return out
 
 
-def spec_mean_tp(y: Array, blocks: Sequence[int], borders: Sequence[int]) -> Array:
+def spec_mean_tensor_prod(y: Array, blocks: Sequence[int], borders: Sequence[int]) -> Array:
     """The mean of ``y`` over the spatial axes of every block, after the crop of each block.
     Implements M-BORDER-TP and M-MEAN (without mask, LF8)."""
-    kept = spec_crop_tp(y, blocks, borders)
+    kept = spec_crop_tensor_prod(y, blocks, borders)
     n_spatial = sum(blocks)
     out: Array = kept.mean(axis=tuple(range(kept.ndim - n_spatial, kept.ndim)))
     return out
@@ -389,7 +391,7 @@ def _pixels(y: Array, n_spatial: int) -> Array:
     return y.reshape(*y.shape[: y.ndim - n_spatial], -1)
 
 
-def spec_scattering_tp(
+def spec_scattering_tensor_prod(
     x: Array,
     blocks: Sequence[int],
     J: Sequence[int],  # noqa: N803
@@ -401,11 +403,11 @@ def spec_scattering_tp(
     """The scattering statistics S1 to S4 of ``x``, ``(Nb, Nc, *spatial)``, in STL's full
     grids. Implements M-S-TP, with M-IDX-TP, M-LP, M-BORDER-TP and M-CHAN.
 
-    S1 and S2 (M-S1, M-S2) at every scale of J_all, on W_{j,l} of ``spec_first_layer_tp``: the
+    S1 and S2 (M-S1, M-S2) at every scale of J_all, on W_{j,l} of ``spec_first_layer_tensor_prod``: the
     centred field at the scale with the low-pass filter in every block, orientation 0 only along
     a block at its low-pass scale. S3 and S4 (M-S3, M-S4) on the wavelet scales only (OP-43):
     U_{j₂,l₂} at level j₂ is downsampled block by block to the level of j₃ (D_{j₂→j₃}), then
-    the block convolutions of scale j₃ are applied (``spec_wavelet_transform_tp``). Every mean
+    the block convolutions of scale j₃ are applied (``spec_wavelet_transform_tensor_prod``). Every mean
     is taken at the level of its arguments, over the pixels left by the larger of their two
     borders, block by block. S1 and S2 are filled for the pairs c1 ≤ c2 of ``cross_matrix``
     only; S3 and S4 for both orders of each pair. Everything is stored complex, and NaN where
@@ -415,14 +417,14 @@ def spec_scattering_tp(
     n_blocks, n_spatial = len(blocks), sum(blocks)
     nb, nc = x.shape[:2]
     pairs = planar._channel_pairs(cross_matrix, nc)
-    sets = spec_index_sets_tp(J, lowpass)
+    sets = spec_index_sets_tensor_prod(J, lowpass)
     extended = [j_a + int(lp) for j_a, lp in zip(J, lowpass, strict=True)]
     n_orient = math.prod(L)
 
     # Layer 1: W_j x at level j for every j of J_all, (Nb, Nc, *L', *spatial), and its borders.
-    w = {j: spec_first_layer_tp(x, blocks, j, J, L, pbc) for j in sets["all"]}
+    w = {j: spec_first_layer_tensor_prod(x, blocks, j, J, L, pbc) for j in sets["all"]}
     border1 = {
-        j: spec_border_tp(
+        j: spec_border_tensor_prod(
             [(j_a,) if j_a < J_a else () for j_a, J_a in zip(j, J, strict=True)], j, pbc
         )
         for j in sets["all"]
@@ -433,11 +435,11 @@ def spec_scattering_tp(
     v: dict[tuple[Scale, Scale], Array] = {}
     for j2, j3 in sets["S3"]:
         steps = [b - a for a, b in zip(j2, j3, strict=True)]
-        modulus = spec_level_tp(np.abs(w[j2]), blocks, steps, pbc)
-        v[j2, j3] = spec_wavelet_transform_tp(modulus, blocks, L, pbc, every_block)
+        modulus = spec_level_tensor_prod(np.abs(w[j2]), blocks, steps, pbc)
+        v[j2, j3] = spec_wavelet_transform_tensor_prod(modulus, blocks, L, pbc, every_block)
 
     def border2(j2: Scale, j3: Scale) -> list[int]:
-        return spec_border_tp(list(zip(j2, j3, strict=True)), j3, pbc)
+        return spec_border_tensor_prod(list(zip(j2, j3, strict=True)), j3, pbc)
 
     s1 = np.full((nb, nc, nc, *extended, *L), np.nan, dtype=np.complex128)
     s2 = np.full((nb, nc, nc, *extended, *L), np.nan, dtype=np.complex128)
@@ -462,24 +464,32 @@ def spec_scattering_tp(
                         r2 = z2 / np.sqrt(np.abs(z2) + planar.S1_EPSILON)
                         first = r1 * np.conj(r2)
                         second = z1 * np.conj(z2)
-                    s1[_at(c1, c2, *j, *ell)] = spec_mean_tp(first, blocks, border1[j])
-                    s2[_at(c1, c2, *j, *ell)] = spec_mean_tp(second, blocks, border1[j])
+                    s1[_at(c1, c2, *j, *ell)] = spec_mean_tensor_prod(first, blocks, border1[j])
+                    s2[_at(c1, c2, *j, *ell)] = spec_mean_tensor_prod(second, blocks, border1[j])
 
             # S3 and S4: the sums over pixels, every orientation at once, after the crop.
             # Orientations are flattened in row-major order (block 0 slowest), then unflattened.
             for a, b in orders:
                 for j2, j3 in sets["S3"]:
                     border = np.maximum(border2(j2, j3), border1[j3]).tolist()
-                    second_layer = _pixels(spec_crop_tp(v[j2, j3][:, a], blocks, border), n_spatial)
-                    first_layer = _pixels(spec_crop_tp(w[j3][:, b], blocks, border), n_spatial)
+                    second_layer = _pixels(
+                        spec_crop_tensor_prod(v[j2, j3][:, a], blocks, border), n_spatial
+                    )
+                    first_layer = _pixels(
+                        spec_crop_tensor_prod(w[j3][:, b], blocks, border), n_spatial
+                    )
                     second_layer = second_layer.reshape(nb, n_orient, n_orient, -1)
                     first_layer = first_layer.reshape(nb, n_orient, -1)
                     total = np.einsum("bikp,bkp->bik", second_layer, np.conj(first_layer))
                     s3[_at(a, b, *j2, *j3)] = (total / second_layer.shape[-1]).reshape(nb, *L, *L)
                 for j1, j2, j3 in sets["S4"]:
                     border = np.maximum(border2(j1, j3), border2(j2, j3)).tolist()
-                    left = _pixels(spec_crop_tp(v[j1, j3][:, a], blocks, border), n_spatial)
-                    right = _pixels(spec_crop_tp(v[j2, j3][:, b], blocks, border), n_spatial)
+                    left = _pixels(
+                        spec_crop_tensor_prod(v[j1, j3][:, a], blocks, border), n_spatial
+                    )
+                    right = _pixels(
+                        spec_crop_tensor_prod(v[j2, j3][:, b], blocks, border), n_spatial
+                    )
                     left = left.reshape(nb, n_orient, n_orient, -1)
                     right = right.reshape(nb, n_orient, n_orient, -1)
                     total = np.einsum("bikp,bjkp->bijk", left, np.conj(right))
@@ -490,7 +500,7 @@ def spec_scattering_tp(
 # ---------------------------------------------------------------------- normalisation
 
 
-def spec_normalize_tp(
+def spec_normalize_tensor_prod(
     stats: Statistics,
     reference: Statistics,
     J: Sequence[int],  # noqa: N803
@@ -547,7 +557,7 @@ def spec_normalize_tp(
 # ---------------------------------------------------------------------- apply
 
 
-def spec_tensor_prod(
+def spec_apply_tensor_prod(
     array: Any,
     blocks: Sequence[int],
     pbc: Any,
@@ -587,8 +597,8 @@ def spec_tensor_prod(
     if norm == "ref" and ref is None:
         raise ValueError('norm="ref" needs a reference (M-NORM).')
 
-    x, n_scales, n_orient, periodic = spec_data_tp(array, blocks, pbc, J, L)  # 1
-    flags = spec_lowpass_tp(blocks, x.shape[2:], n_scales, lowpass)
+    x, n_scales, n_orient, periodic = spec_data_tensor_prod(array, blocks, pbc, J, L)  # 1
+    flags = spec_lowpass_tensor_prod(blocks, x.shape[2:], n_scales, lowpass)
     out: Statistics = {"J": n_scales, "L": n_orient, "lowpass": flags}
     # Every pixel of every block, as one axis, for the means of M-MOM and M-STD.
     flat = x.reshape(*x.shape[:2], -1)
@@ -597,13 +607,13 @@ def spec_tensor_prod(
         x = flat.reshape(x.shape)
     out["mean"], out["var"] = planar.spec_moments(flat, 1)  # 3
     out.update(  # 4
-        spec_scattering_tp(x, blocks, n_scales, n_orient, periodic, flags, cross_matrix)
+        spec_scattering_tensor_prod(x, blocks, n_scales, n_orient, periodic, flags, cross_matrix)
     )
     out["reference"] = None
     if norm != "none":  # 5
         reference = planar.spec_reference(out, ref_batch_mean) if norm == "self" else ref
         assert reference is not None
-        out = {**spec_normalize_tp(out, reference, n_scales), "reference": reference}
+        out = {**spec_normalize_tensor_prod(out, reference, n_scales), "reference": reference}
     if flatten:  # 6
         out["vector"] = planar.spec_flatten(out, flatten_complex=True)
     return out

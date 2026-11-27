@@ -23,7 +23,7 @@ over pixels and Fourier modes are NumPy operations.
 
 The spectrum within the scattering statistics (its reference, its normalisation and its place in
 the flattened vectors) is in ``planar`` (``spec_apply``, ``spec_reference``, ``spec_normalize``,
-``spec_flatten``), which calls ``spec_spectra``.
+``spec_flatten``), which calls ``spec_spectra_2d``.
 """
 
 from __future__ import annotations
@@ -36,9 +36,9 @@ from numpy.typing import NDArray
 
 Array = NDArray[Any]
 
-METHODS = ("fft", "pbc_mask", "nan_mask", "pbc_nan_mask")
+METHODS_2D = ("fft", "pbc_mask", "nan_mask", "pbc_nan_mask")
 """The four estimators of §1.9, in the order of the fixtures of T4.3."""
-ENERGY_FRACTION = 0.60
+ENERGY_FRACTION_2D = 0.60
 """The fraction of the energy of g_b within the border β_b (§1.9; OP-21: not an option)."""
 
 
@@ -72,7 +72,7 @@ def spec_bessel_j0(x: Any) -> Array:
 # ---------------------------------------------------------------------- frequencies and bins
 
 
-def _check_shape(spatial_shape: tuple[int, ...]) -> tuple[int, int]:
+def _check_shape_2d(spatial_shape: tuple[int, ...]) -> tuple[int, int]:
     if len(spatial_shape) != 2:
         raise ValueError(
             f"the spatial shape {spatial_shape} is not 2D: the power spectrum is defined on 2D "
@@ -87,7 +87,7 @@ def _check_shape(spatial_shape: tuple[int, ...]) -> tuple[int, int]:
     return n1, n2
 
 
-def _radial_index(n1: int, n2: int) -> NDArray[np.int64]:
+def _radial_index_2d(n1: int, n2: int) -> NDArray[np.int64]:
     """``(N1, N2)``: the radial frequency k = round(|**k**|) of each mode of the full plane, in the
     layout of ``np.fft.fft2`` (k₁ = 0, 1, …, N₁/2 - 1, -N₁/2, …, -1, and likewise k₂). No tie
     occurs: a sum of two squares of integers is never the square of a half-integer."""
@@ -97,7 +97,7 @@ def _radial_index(n1: int, n2: int) -> NDArray[np.int64]:
     return out
 
 
-def spec_spectrum_bins(
+def spec_spectrum_bins_2d(
     spatial_shape: tuple[int, ...],
     J: int | None = None,  # noqa: N803 (maths.md notation)
     Jmin: int = 0,  # noqa: N803
@@ -115,9 +115,9 @@ def spec_spectrum_bins(
 
     Returns ``J``, ``Jmin``, ``n_bins``, ``N_max``, ``k_min``, ``k_max``, ``radial_k`` (the
     integers 0 … N_max), ``n_modes`` (N_k), ``centers`` (c_b), ``windows`` (W_b(k),
-    ``(n_b, N_max + 1)``), ``norm`` (Z_b) and ``borders`` (β_b in pixels, ``spec_borders``).
+    ``(n_b, N_max + 1)``), ``norm`` (Z_b) and ``borders`` (β_b in pixels, ``spec_borders_2d``).
     """
-    n1, n2 = _check_shape(spatial_shape)
+    n1, n2 = _check_shape_2d(spatial_shape)
     n_max = min(n1, n2) // 2
     j_ps = math.floor(math.log2(n_max)) - 1 if J is None else int(J)
     if not 0 <= Jmin <= j_ps - 2:
@@ -134,7 +134,7 @@ def spec_spectrum_bins(
 
     edges = np.linspace(math.log(k_min), math.log(k_max), n_b + 1)
     radial_k = np.arange(n_max + 1)
-    index = _radial_index(n1, n2)
+    index = _radial_index_2d(n1, n2)
     n_modes = np.array([np.count_nonzero(index == k) for k in radial_k], dtype=np.float64)
 
     centers = np.zeros(n_b)
@@ -160,11 +160,11 @@ def spec_spectrum_bins(
         "centers": centers,
         "windows": windows,
         "norm": norm,
-        "borders": spec_borders(windows),
+        "borders": spec_borders_2d(windows),
     }
 
 
-def spec_borders(windows: Array) -> NDArray[np.int64]:
+def spec_borders_2d(windows: Array) -> NDArray[np.int64]:
     """β_b, the border in pixels of each bin, from its window W_b(k), ``(n_b, N_max + 1)``.
     Implements M-PS-2D (the border of ``pbc_mask``).
 
@@ -197,7 +197,7 @@ def spec_borders(windows: Array) -> NDArray[np.int64]:
         borders[b] = next(
             rho
             for rho in range(n_max + 1)
-            if cumulative[rho] >= ENERGY_FRACTION * cumulative[n_max]
+            if cumulative[rho] >= ENERGY_FRACTION_2D * cumulative[n_max]
         )
     return borders
 
@@ -205,7 +205,7 @@ def spec_borders(windows: Array) -> NDArray[np.int64]:
 # ---------------------------------------------------------------------- choice of estimator
 
 
-def spec_spectrum_method(has_nan: bool, pbc: bool, method: str = "auto") -> str:
+def spec_spectrum_method_2d(has_nan: bool, pbc: bool, method: str = "auto") -> str:
     """The estimator of the spectrum. Implements M-PS-2D ("Choice of estimator").
 
     With ``method="auto"``: ``pbc_nan_mask`` for data with NaN and ``pbc=False``, ``nan_mask``
@@ -218,15 +218,15 @@ def spec_spectrum_method(has_nan: bool, pbc: bool, method: str = "auto") -> str:
         if has_nan:
             return "nan_mask" if pbc else "pbc_nan_mask"
         return "fft" if pbc else "pbc_mask"
-    if method not in METHODS:
-        raise ValueError(f'method={method!r}: pass "auto" or one of {METHODS} (M-PS-2D).')
+    if method not in METHODS_2D:
+        raise ValueError(f'method={method!r}: pass "auto" or one of {METHODS_2D} (M-PS-2D).')
     return method
 
 
 # ---------------------------------------------------------------------- estimators
 
 
-def _promote(array: Any) -> Array:
+def _promote_2d(array: Any) -> Array:
     x = np.asarray(array)
     if np.iscomplexobj(x):
         raise ValueError("the data must be real (M-DATA-2D); pass a real array.")
@@ -249,7 +249,7 @@ def _pairs(cross_matrix: Any, n_channels: int) -> NDArray[np.bool_]:
     return matrix
 
 
-def _hard_mask(n1: int, n2: int, border: int) -> Array:
+def _hard_mask_2d(n1: int, n2: int, border: int) -> Array:
     """M_b, the hard border mask: 1 where β ≤ n₁ < N₁ - β and β ≤ n₂ < N₂ - β, 0 elsewhere."""
     rows = (np.arange(n1) >= border) & (np.arange(n1) < n1 - border)
     cols = (np.arange(n2) >= border) & (np.arange(n2) < n2 - border)
@@ -257,7 +257,7 @@ def _hard_mask(n1: int, n2: int, border: int) -> Array:
     return out
 
 
-def spec_spectra(
+def spec_spectra_2d(
     array: Any,
     pbc: bool,
     J: int | None = None,  # noqa: N803 (maths.md notation)
@@ -269,8 +269,8 @@ def spec_spectra(
     """The power spectrum of ``array``, ``(Nb, Nc, Nc, n_b)``. Implements M-PS-2D.
 
     ``array`` is ``(N1, N2)``, ``(Nc, N1, N2)`` or ``(Nb, Nc, N1, N2)``, real, NaN at its missing
-    pixels; ``J``, ``Jmin`` and ``n_bins`` set the bins (``spec_spectrum_bins``), ``method`` the
-    estimator (``spec_spectrum_method``), ``cross_matrix`` the pairs c1 ≤ c2 (every pair by
+    pixels; ``J``, ``Jmin`` and ``n_bins`` set the bins (``spec_spectrum_bins_2d``), ``method`` the
+    estimator (``spec_spectrum_method_2d``), ``cross_matrix`` the pairs c1 ≤ c2 (every pair by
     default, OP-94). With x̂ = FFT2(x) / √(N1 N2) on the full plane and N_pix = N1 N2:
 
     - ``fft``: P(k) = (1/N_k) Σ_{round(|**k**|)=k} Re(x̂_{c1}(**k**) conj(x̂_{c2}(**k**))), then
@@ -289,13 +289,13 @@ def spec_spectra(
     ``ValueError``.
 
     Only the real part of the cross spectra is computed (OP-19). Returns ``PS``, ``method`` (the
-    estimator used) and ``bins`` (the result of ``spec_spectrum_bins``).
+    estimator used) and ``bins`` (the result of ``spec_spectrum_bins_2d``).
     """
-    x = _promote(array)
+    x = _promote_2d(array)
     nb, nc, n1, n2 = x.shape
-    bins = spec_spectrum_bins((n1, n2), J, Jmin, n_bins)
+    bins = spec_spectrum_bins_2d((n1, n2), J, Jmin, n_bins)
     missing = np.isnan(x)
-    chosen = spec_spectrum_method(bool(missing.any()), pbc, method)
+    chosen = spec_spectrum_method_2d(bool(missing.any()), pbc, method)
     if chosen in ("fft", "pbc_mask") and missing.any():
         raise ValueError(
             f"the data have missing pixels, which the estimator {chosen!r} does not accept "
@@ -304,7 +304,7 @@ def spec_spectra(
     pairs = _pairs(cross_matrix, nc)
     n_max, n_b = bins["N_max"], bins["n_bins"]
     windows, norm, n_modes = bins["windows"], bins["norm"], bins["n_modes"]
-    index = _radial_index(n1, n2)
+    index = _radial_index_2d(n1, n2)
     n_pix = n1 * n2
 
     # The observed pixels O, valid in every batch element and channel; then each map with its
@@ -347,11 +347,11 @@ def spec_spectra(
         band = np.fft.ifft2(x_hat * root, norm="ortho").real  # f_b, (Nb, Nc, N1, N2)
         weight: Array
         if chosen == "pbc_mask":
-            weight = _hard_mask(n1, n2, int(bins["borders"][b]))
+            weight = _hard_mask_2d(n1, n2, int(bins["borders"][b]))
         elif chosen == "nan_mask":
             weight = observed
         else:  # pbc_nan_mask
-            weight = _hard_mask(n1, n2, int(bins["borders"][b])) * observed
+            weight = _hard_mask_2d(n1, n2, int(bins["borders"][b])) * observed
         if chosen == "pbc_nan_mask" and not weight.any():
             raise ValueError(
                 f"bin {b}: no observed pixel lies inside its border of {bins['borders'][b]} "

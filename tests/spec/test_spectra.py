@@ -75,7 +75,7 @@ def test_bins_equal_the_fixture(name: str) -> None:
     windows, Z_b and the borders β_b of each configuration of ``spectrum_2d``."""
     config, arrays = _configs("spectrum_2d")[name], _arrays("spectrum_2d")
     options = {key: config[key] for key in SPECTRUM_OPTIONS if key in config}
-    bins = spec.spec_spectrum_bins(tuple(config["shape"]), **options)
+    bins = spec.spec_spectrum_bins_2d(tuple(config["shape"]), **options)
     n_max = bins["N_max"]
     scalars = np.array(
         [
@@ -104,7 +104,7 @@ def test_spectra_equal_the_fixture(name: str) -> None:
     config, arrays = _configs("spectrum_2d")[name], _arrays("spectrum_2d")
     options = {key: config[key] for key in SPECTRUM_OPTIONS if key in config}
     field = arrays[f"{name}_field"]
-    auto = spec.spec_spectra(field, config["pbc"], **options, cross_matrix=np.eye(config["Nc"]))
+    auto = spec.spec_spectra_2d(field, config["pbc"], **options, cross_matrix=np.eye(config["Nc"]))
     assert auto["method"] == config["auto"]
     assert auto["method"] == spec.METHODS[int(arrays[f"{name}_auto_method"][0])]
     assert_parity(auto["PS"], arrays[f"{name}_auto"])
@@ -112,7 +112,7 @@ def test_spectra_equal_the_fixture(name: str) -> None:
     for method in spec.METHODS:
         key = f"{name}_method_{method}"
         if key in arrays:
-            out = spec.spec_spectra(field, config["pbc"], **options, method=method)
+            out = spec.spec_spectra_2d(field, config["pbc"], **options, method=method)
             assert_parity(out["PS"], arrays[key])
             compared += 1
     assert compared == (2 if np.isnan(field).any() else 4)
@@ -147,10 +147,12 @@ def test_statistics_with_the_spectrum_equal_the_fixture(name: str) -> None:
         other, 2, pbc, mask, config["J"], 4, norm="ref", ref=reference, **options
     )
 
-    method = spec.spec_spectrum_method(mask is not None, pbc, config.get("spectrum_method", "auto"))
+    method = spec.spec_spectrum_method_2d(
+        mask is not None, pbc, config.get("spectrum_method", "auto")
+    )
     assert method == spec.METHODS[int(arrays[f"{name}_ps_method"][0])]
     x, _ = planar.spec_data(target, 2, J, mask, pbc)
-    raw = spec.spec_spectra(x, pbc, J, Jmin, config.get("n_bins"), method, cross_matrix)
+    raw = spec.spec_spectra_2d(x, pbc, J, Jmin, config.get("n_bins"), method, cross_matrix)
     assert raw["bins"]["n_bins"] == n_bins
     assert_parity(raw["PS"], arrays[f"{name}_raw_PS"])
 
@@ -206,7 +208,7 @@ def test_spectrum_is_computed_after_the_standardisation(masked: bool) -> None:
     )
     x, invalid = planar.spec_data(field, 2, 3, mask, pbc)
     standardized, _, _ = planar.spec_standardize(x, 2, invalid)
-    assert_parity(out["PS"], spec.spec_spectra(standardized, pbc)["PS"])
+    assert_parity(out["PS"], spec.spec_spectra_2d(standardized, pbc)["PS"])
 
 
 # ---------------------------------------------------------------------- the Bessel function J₀
@@ -268,18 +270,18 @@ def _observed_on_the_edge() -> NDArray[np.float64]:
     ("call", "message"),
     [
         pytest.param(
-            lambda: spec.spec_spectra(np.zeros((2, 32, 31)), True), "not even", id="odd-size"
+            lambda: spec.spec_spectra_2d(np.zeros((2, 32, 31)), True), "not even", id="odd-size"
         ),
         pytest.param(
-            lambda: spec.spec_spectrum_bins((32, 32), J=3, Jmin=2), "J_min", id="Jmin-too-large"
+            lambda: spec.spec_spectrum_bins_2d((32, 32), J=3, Jmin=2), "J_min", id="Jmin-too-large"
         ),
         pytest.param(
-            lambda: spec.spec_spectra(np.where(np.eye(16) > 0, np.nan, 1.0), True, method="fft"),
+            lambda: spec.spec_spectra_2d(np.where(np.eye(16) > 0, np.nan, 1.0), True, method="fft"),
             "missing pixels",
             id="nan-with-fft",
         ),
         pytest.param(
-            lambda: spec.spec_spectra(np.zeros((16, 16)), None),  # type: ignore[arg-type]
+            lambda: spec.spec_spectra_2d(np.zeros((16, 16)), None),  # type: ignore[arg-type]
             "pbc",
             id="pbc-none",
         ),
@@ -301,17 +303,17 @@ def _observed_on_the_edge() -> NDArray[np.float64]:
             id="spectrum-of-1d-data",
         ),
         pytest.param(
-            lambda: spec.spec_spectra(_disjoint_maps(), True),
+            lambda: spec.spec_spectra_2d(_disjoint_maps(), True),
             "no pixel is valid in every batch element and channel",
             id="no-observed-pixel",
         ),
         pytest.param(
-            lambda: spec.spec_spectra(_disjoint_maps(), False),
+            lambda: spec.spec_spectra_2d(_disjoint_maps(), False),
             "no pixel is valid in every batch element and channel",
             id="no-observed-pixel-open",
         ),
         pytest.param(
-            lambda: spec.spec_spectra(_observed_on_the_edge(), False),
+            lambda: spec.spec_spectra_2d(_observed_on_the_edge(), False),
             "no observed pixel lies inside its border",
             id="null-bin-of-pbc-nan-mask",
         ),
