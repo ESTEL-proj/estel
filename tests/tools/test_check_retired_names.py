@@ -1,14 +1,22 @@
-"""tools/check_retired_names.py fails when a retired public name comes back."""
+"""tools/check_retired_names.py: retired public names stay out, and the rule of names of Part I,
+§2.4.1 holds, through the table of renamed names (task T7.2, #193).
+
+Each tree below is a small git repository, since the tool reads the files git tracks.
+"""
 
 from __future__ import annotations
 
+import subprocess
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
 
-from check_retired_names import check
+from check_retired_names import check, run
 
 from .conftest import REPO, run_tool, write
+
+# ------------------------------------------------------------------ retired public names (R-A12)
 
 PART4 = """# Part IV
 ## 21. Review
@@ -37,8 +45,14 @@ def _private():
     """STL's DataClass and store_ref may be named here."""
 '''
 
+PART2 = """# Part II
+| T4.1 | P4 | `SpectrumOperator`, built as `STOperator` |
+| T4.6 | P4 | The spectrum within `STOperator` only; `SpectrumOperator` removed |
+"""
+
 GOOD = {
     "docs/transfer/part4.md": PART4,
+    "docs/transfer/part2.md": PART2,
     "docs/maths.md": MATHS,
     "AGENTS.md": '# AGENTS\nUse `norm="self"`.\n',
     "src/estel/__init__.py": "from ._data import Data\n",
@@ -46,9 +60,13 @@ GOOD = {
 }
 
 
+@pytest.mark.slow
 def test_repository_passes() -> None:
+    """Slow: the tool reads every file of the repository (about 2 s); `make check-tools` runs it
+    on every pull request anyway."""
     result = run_tool("check_retired_names.py", "--root", str(REPO))
     assert result.returncode == 0, result.stderr
+    assert "OK" in result.stdout
 
 
 def test_allowed_uses_pass(tmp_path: Path) -> None:
@@ -89,6 +107,12 @@ def test_allowed_uses_pass(tmp_path: Path) -> None:
             "load_ref",
             id="public-docstring",
         ),
+        pytest.param(
+            {"docs/transfer/part2.md": PART2 + "| T5.1 | P5 | Uses `SpectrumOperator` |\n"},
+            "docs/transfer/part2.md:4",
+            "SpectrumOperator",
+            id="spectrum-operator-in-another-row",
+        ),
     ],
 )
 def test_retired_name_fails(tmp_path: Path, change: dict[str, str], where: str, found: str) -> None:
@@ -96,3 +120,232 @@ def test_retired_name_fails(tmp_path: Path, change: dict[str, str], where: str, 
     hits = check(tmp_path)
     assert [(h.where, h.found) for h in hits] == [(where, found)]
     assert "Use `" in hits[0].message()
+
+
+# ------------------------------------------------------------------ the rule of names (§2.4.1)
+
+BASE = {
+    "src/estel/__init__.py": "",
+    "src/estel/data/__init__.py": "",
+    "src/estel/data/_healpix.py": "def stencils_healpix():\n    return 0\n",
+    "src/estel/scattering/__init__.py": "",
+    "src/estel/scattering/_loop.py": "from estel.data._healpix import stencils_healpix\n",
+    "docs/guide.md": "Cartesian grids, single-domain data; the benchmark case `planar-periodic`.\n",
+    "changes/1.patch.md": "History: the planar data of `_loop_tp`.\n",
+    "pyproject.toml": (
+        '[project]\ndependencies = ["numpy>=2"]\n'
+        '[tool.importlinter]\nroot_packages = ["estel"]\n'
+        '[[tool.importlinter.contracts]]\nid = "c"\ntype = "forbidden"\n'
+        'source_modules = ["estel.scattering"]\nforbidden_modules = ["numpy", "estel_rust"]\n'
+    ),
+}
+
+
+def repository(root: Path, files: Mapping[str, str | None]) -> None:
+    """Write ``files`` (None: left out) under ``root`` and track them in a new git repository."""
+    write(root, {rel: text for rel, text in files.items() if text is not None})
+    for command in (["git", "init", "-q"], ["git", "add", "-A"]):
+        subprocess.run(command, cwd=root, check=True, capture_output=True)
+
+
+def names(root: Path, files: Mapping[str, str | None], **options: bool) -> tuple[int, str]:
+    repository(root, {**BASE, **files})
+    status, lines = run(root, **options)
+    return status, "\n".join(lines)
+
+
+def table(*rows: str) -> dict[str, str]:
+    return {"tools/renamed_names.toml": "row = [\n" + ",\n".join(rows) + "\n]\n"}
+
+
+def row(old: str, new: str, task: str = "T7.6", *, done: bool = False, kind: str = "rename") -> str:
+    flag = "true" if done else "false"
+    return f'{{ old = "{old}", new = "{new}", kind = "{kind}", task = "{task}", done = {flag} }}'
+
+
+def test_names_that_follow_the_rule_pass(tmp_path: Path) -> None:
+    status, output = names(tmp_path, {})
+    assert status == 0, output
+
+
+@pytest.mark.parametrize(
+    ("files", "expected"),
+    [
+        pytest.param(
+            {"src/estel/data/_cartesian.py": "def healpix_stencils():\n    pass\n"},
+            "rule 1",
+            id="rule1-order",
+        ),
+        pytest.param(
+            {"src/estel/data/_cartesian.py": "class DataHEALPix:\n    pass\n"},
+            "rule 2",
+            id="rule2-form-class",
+        ),
+        pytest.param(
+            {"src/estel/data/_cartesian.py": "def conv_1D():\n    pass\n"},
+            "rule 2",
+            id="rule2-form-function",
+        ),
+        pytest.param(
+            {"src/estel/scattering/_values.py": "class X:\n    scales_tp = 1\n"},
+            "rule 2",
+            id="rule2-retired-field",
+        ),
+        pytest.param({"docs/guide.md": "Call `spec_hpx` here.\n"}, "rule 2", id="rule2-in-text"),
+        pytest.param(
+            {"tests/data/test_x.py": "def test_planar_data_are_refused():\n    pass\n"},
+            "rule 10",
+            id="rule10-test-name",
+        ),
+        pytest.param(
+            {"src/estel/wavelets/_healpix_bank.py": "X = 1\n"}, "rule 1", id="rule1-module-path"
+        ),
+        pytest.param(
+            {
+                "src/estel/data/_healpix.py": "def stencils():\n    return 0\n",
+                "src/estel/scattering/_loop.py": "from estel.data._healpix import stencils\n",
+            },
+            "rule 3",
+            id="rule3-import",
+        ),
+        pytest.param(
+            {
+                "src/estel/data/_healpix.py": "def stencils():\n    return 0\n",
+                "src/estel/scattering/_loop.py": "from estel.data import _healpix\n"
+                "x = _healpix.stencils()\n",
+            },
+            "rule 3",
+            id="rule3-through-the-module",
+        ),
+        pytest.param({"docs/guide.md": "See M-CONV-HPX.\n"}, "rule 9", id="rule9-retired"),
+        pytest.param({"docs/guide.md": "See M-LP2.\n"}, "rule 9", id="rule9-digits"),
+        pytest.param(
+            {"docs/guide.md": "See M-MASK-TENSORPROD-BLOCK.\n"}, "rule 9", id="rule9-order"
+        ),
+        pytest.param({"docs/guide.md": "On planar data.\n"}, "rule 10", id="rule10-prose"),
+        pytest.param({"docs/guide.md": "A single geometry.\n"}, "rule 10", id="rule10-phrase"),
+        pytest.param({"tests/x.py": 'CASES = ["planar-wide"]\n'}, "rule 10", id="rule10-label"),
+    ],
+)
+def test_a_violation_with_no_row_fails(
+    tmp_path: Path, files: dict[str, str], expected: str
+) -> None:
+    status, output = names(tmp_path, files)
+    assert status == 1
+    assert expected in output
+    assert "needs a row" in output
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        pytest.param(
+            {"tests/data/test_x.py": "def test_healpix_data_are_refused():\n    pass\n"},
+            id="test-names-are-sentences",
+        ),
+        pytest.param(
+            {
+                "tests/data/test_healpix.py": "from estel.data._healpix import stencils\n",
+                "src/estel/data/_healpix.py": "def stencils():\n    return 0\n",
+            },
+            id="rule3-inside-its-geometry",
+        ),
+        pytest.param({"docs/guide.md": "A planar grid (STL's word).\n"}, id="rule10-stl-quote"),
+        pytest.param(
+            {"docs/guide.md": "See M-S1, M-W1-TENSORPROD, M-DATA-HEALPIX.\n"}, id="rule9-good-ids"
+        ),
+        pytest.param({"tools/x.py": 'HEALPIX_ANALYSE_VERSION = "1"\n'}, id="rule7-package"),
+        pytest.param(
+            {"src/estel/wavelets/_pixels_healpix.py": "def nest2xyf():\n    pass\n"},
+            id="rule7-healpix-convention",
+        ),
+        pytest.param(
+            {
+                "tests/conftest.py": "import pytest\n\n\n@pytest.fixture\n"
+                "def healpix_backend():\n    pass\n"
+            },
+            id="rule3-fixture",
+        ),
+    ],
+)
+def test_allowed_names_pass(tmp_path: Path, files: dict[str, str]) -> None:
+    status, output = names(tmp_path, files)
+    assert status == 0, output
+
+
+def test_a_row_not_done_is_reported(tmp_path: Path) -> None:
+    files = {"src/estel/data/_cartesian.py": "def healpix_stencils():\n    pass\n"}
+    rows = table(row("estel.data._cartesian:healpix_stencils", "stencils_healpix", "T7.4"))
+    status, output = names(tmp_path, {**files, **rows})
+    assert status == 0, output
+    assert "T7.4: 1 rows to rename, 1 occurrences reported" in output
+    _, report = names(tmp_path, {**files, **rows}, report=True)
+    assert "src/estel/data/_cartesian.py:1" in report
+
+
+def test_a_row_done_fails_while_its_old_name_occurs(tmp_path: Path) -> None:
+    files = {
+        "src/estel/data/_cartesian.py": "def stencils_healpix():\n    pass\n",
+        "docs/guide.md": "Call `healpix_stencils`.\n",
+    }
+    rows = table(row("estel.data._cartesian:healpix_stencils", "stencils_healpix", done=True))
+    status, output = names(tmp_path, {**files, **rows})
+    assert status == 1
+    assert "docs/guide.md:1" in output
+    assert "its row is done" in output
+    status, output = names(
+        tmp_path, {**files, "docs/guide.md": "Call `stencils_healpix`.\n", **rows}
+    )
+    assert status == 0, output
+
+
+def test_a_name_comes_back_only_after_its_rename_row_is_done(tmp_path: Path) -> None:
+    files = {"src/estel/wavelets/_operator.py": "class WaveletPlan:\n    pass\n"}
+    rename = row(
+        "estel.wavelets._operator:WaveletPlan", "WaveletPlanSingleDomain", "T7.5", done=True
+    )
+    back = row("estel.wavelets._operator:WaveletPlan", "root", "T7.5", kind="reintroduce")
+    status, output = names(tmp_path, {**files, **table(rename, back)})
+    assert status == 1  # the old name occurs: its reintroduction is not done
+    done_back = back.replace("done = false", "done = true")
+    status, output = names(tmp_path, {**files, **table(rename, done_back)})
+    assert status == 0, output
+    early = rename.replace("done = true", "done = false")
+    status, output = names(tmp_path, {**files, **table(early, done_back)})
+    assert status == 1
+    assert "before its rename row is done" in output
+
+
+def test_a_prose_row_follows_its_renamed_file(tmp_path: Path) -> None:
+    files = {"src/estel/data/_cartesian.py": '"""Planar data."""\n'}
+    rows = table(
+        row("estel.data._planar", "estel.data._cartesian", "T7.4", done=True),
+        row("src/estel/data/_planar.py#planar", "by hand", "T7.11"),
+    )
+    status, output = names(tmp_path, {**files, **rows})
+    assert status == 0, output
+
+
+def test_strict_fails_while_a_row_is_not_done(tmp_path: Path) -> None:
+    rows = table(row("estel.data._healpix:x", "y"))
+    assert names(tmp_path, rows)[0] == 0
+    status, output = names(tmp_path, rows, strict=True)
+    assert status == 1
+    assert "not done" in output
+
+
+@pytest.mark.parametrize(
+    ("module", "fails"),
+    [
+        pytest.param("estel.scattering", False, id="exists"),
+        pytest.param("estel_rust", False, id="reserved"),
+        pytest.param("estel.statistics", True, id="lost"),
+        pytest.param("polars", True, id="no-dependency"),
+    ],
+)
+def test_the_contracts_lose_no_module(tmp_path: Path, module: str, fails: bool) -> None:
+    pyproject = BASE["pyproject.toml"].replace('"estel_rust"', f'"{module}"')
+    status, output = names(tmp_path, {"pyproject.toml": pyproject})
+    assert (status == 1) == fails, output
+    if fails:
+        assert module in output

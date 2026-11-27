@@ -18,7 +18,7 @@ RUN ?= uv run --locked
         maths-ids retired-names identifiers orientations workflows register register-check \
         test test-fast test-torch test-jax test-fast-torch test-fast-jax \
         test-spec version-impact clean-worktrees parity-image parity parity-fixtures container-runtime bench \
-        docs
+        docs prove
 
 # Backends the tests run on (Part I, §3.1). CI runs one per job: make test-fast TEST_BACKENDS=torch
 TEST_BACKENDS ?= torch jax
@@ -109,7 +109,9 @@ maths-ids:
 	$(RUN) python tools/check_maths_ids.py
 
 # Public names retired by a renaming task stay out of the specification, AGENTS.md and the
-# docstrings of public names (Part IV, §22.5, R-A12); the list is in the tool.
+# docstrings of public names (Part IV, §22.5, R-A12); the list is in the tool. And the rule of names
+# of Part I, §2.4.1, through the table tools/renamed_names.toml (phase P7, T7.2): a name that
+# breaks it fails unless its row names the task that renames it (--report lists them).
 retired-names:
 	$(RUN) python tools/check_retired_names.py
 
@@ -220,6 +222,16 @@ DOCS_BUILD := docs/user/_build
 
 docs:
 	$(RUN) --group docs sphinx-build -W --keep-going -b html docs/user $(DOCS_BUILD)/html
+
+# The proof of phase P7 (task T7.2; tools/prove_unchanged.py): the outputs of a fixed set of cases
+# on origin/main and on the working tree, bitwise equal, on CPU with one thread, both backends,
+# float32 and float64; plan dumps, files and function bodies compared modulo the table. Minutes,
+# outside CI. Exit 0: bitwise equal; 1: within the parity tolerance; 2: beyond it. One case:
+# make prove PROVE_ARGS="--case 2d-periodic"; another base: PROVE_ARGS="--base <ref>"
+PROVE_ARGS ?=
+
+prove:
+	$(RUN) python tools/prove_unchanged.py $(PROVE_ARGS)
 
 # Runs in CI on pull requests; locally: make version-impact BASE=origin/main PR=12
 BASE ?= origin/main
