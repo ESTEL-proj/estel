@@ -492,18 +492,27 @@ MODULE_ROW = table(
             True,
             id="its-qualified-path",
         ),
+        pytest.param(
+            {
+                "src/estel/data/_tensor_prod.py": "X = 1\n",
+                "src/estel/wavelets/_operator.py": '"""The blocks, in ``_tensor_prod.py``."""\n',
+            },
+            True,
+            id="its-file-name-in-its-own-package",
+        ),
     ],
 )
 def test_a_module_row_done_leaves_the_file_name_of_another_module(
     tmp_path: Path, files: dict[str, str], fails: bool
 ) -> None:
     """A renamed module's file name alone, `_tensor_prod.py`, may cite another module of that
-    name, here `data/_tensor_prod.py`: it fails only while no other module has that name."""
+    name, here `data/_tensor_prod.py`: it fails while no other module has that name, and always
+    in the files of its own package, whose siblings cite it that way."""
     module = {"src/estel/wavelets/_operator_tensor_prod.py": "Y = 1\n"}
     status, output = names(tmp_path, {**module, **files, **MODULE_ROW})
     assert status == int(fails), output
     if fails:
-        assert "docs/guide.md:1" in output
+        assert "docs/guide.md:1" in output or "src/estel/wavelets/_operator.py:1" in output
 
 
 def test_prose_names_that_are_no_words_are_matched_outside_backticks(tmp_path: Path) -> None:
