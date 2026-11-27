@@ -201,7 +201,7 @@ def test_wavelets_and_data_may_use_the_geometry_hooks(tmp_path: Path) -> None:
         pytest.param(
             "src/estel/statistics/_statistics.py",
             "low = getattr(data, '_lowpass')(x, plan, block)\n",
-            "go through it (`estel.wavelets._operator`",
+            "go through one (`WaveletOperatorSingleDomain` in `estel.wavelets._operator`",
             id="hook-lowpass-getattr",
         ),
     ],
