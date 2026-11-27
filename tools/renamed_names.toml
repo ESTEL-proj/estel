@@ -10,7 +10,7 @@
 #   new   the new name: in the same module unless qualified; for a split, the new modules;
 #   kind  rename, split, move (to another module), reintroduce (the old name back with a new
 #         meaning, once its rename row is done: rule 6);
-#   task  the task of phase P7 that renames it (T7.3 to T7.11);
+#   task  the task of phase P7 that renames it (T7.3 to T7.11; T7.12 for the IDs it settles);
 #   done  false until its task is merged: the task sets it to true in its own pull request;
 #   note  optional: where the name comes from, or why.
 #
@@ -217,8 +217,6 @@ row = [
     { old = "M-DEF-TP", new = "M-DEF-TENSORPROD", kind = "rename", task = "T7.10", done = false },
     { old = "M-DOWN-HPX", new = "M-DOWN-HEALPIX", kind = "rename", task = "T7.10", done = false },
     { old = "M-IDX-TP", new = "M-IDX-TENSORPROD", kind = "rename", task = "T7.10", done = false },
-    { old = "M-ISO2", new = "", kind = "rename", task = "T7.10", done = false, note = "rule 9: digits outside S1 to S4 and W1; open question on #193" },
-    { old = "M-LP2", new = "", kind = "rename", task = "T7.10", done = false, note = "rule 9: digits outside S1 to S4 and W1; open question on #193" },
     { old = "M-LP34", new = "", kind = "rename", task = "T7.10", done = false, note = "rule 9: digits outside S1 to S4 and W1; open question on #193" },
     { old = "M-MASK-HPX", new = "M-MASK-HEALPIX", kind = "rename", task = "T7.10", done = false },
     { old = "M-NORM-TP", new = "M-NORM-TENSORPROD", kind = "rename", task = "T7.10", done = false },
@@ -324,4 +322,10 @@ row = [
     { old = "tests/tools/test_check_maths_ids.py#planar", new = "Cartesian or single-domain, by hand (rule 10)", kind = "rename", task = "T7.11", done = false, note = "prose" },
     { old = "tools/check_maths_ids.py#planar", new = "Cartesian or single-domain, by hand (rule 10)", kind = "rename", task = "T7.11", done = false, note = "prose" },
     { old = "tools/stl_parity/cases/synthesis_2d.py#planar", new = "Cartesian or single-domain, by hand (rule 10)", kind = "rename", task = "T7.11", done = false, note = "prose" },
+  # T7.12: the IDs of docs/maths_step2.md that break rule 9 by their digit ("second version";
+  # decision on #193, point 1). Their new names are Pablo Richard's to choose: if he names them
+  # before T7.12, the task in progress renames them and takes these rows; otherwise T7.12 writes
+  # a dated, commented exemption for these two IDs only, and the tool is strict on the rest.
+    { old = "M-ISO2", new = "", kind = "rename", task = "T7.12", done = false, note = "rule 9: a digit outside S1 to S4 and W1; an ID of docs/maths_step2.md, named by Pablo Richard (decision on #193)" },
+    { old = "M-LP2", new = "", kind = "rename", task = "T7.12", done = false, note = "rule 9: a digit outside S1 to S4 and W1; an ID of docs/maths_step2.md, named by Pablo Richard (decision on #193)" },
 ]

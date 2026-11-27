@@ -219,6 +219,7 @@ def test_names_that_follow_the_rule_pass(tmp_path: Path) -> None:
         ),
         pytest.param({"docs/guide.md": "See M-CONV-HPX.\n"}, "rule 9", id="rule9-retired"),
         pytest.param({"docs/guide.md": "See M-LP2.\n"}, "rule 9", id="rule9-digits"),
+        pytest.param({"docs/guide.md": "See M-TENSORPROD.\n"}, "rule 9", id="rule9-geometry-alone"),
         pytest.param(
             {"docs/guide.md": "See M-MASK-TENSORPROD-BLOCK.\n"}, "rule 9", id="rule9-order"
         ),

@@ -412,7 +412,7 @@ class Row:
 
 
 KINDS = frozenset({"rename", "split", "move", "reintroduce"})
-TASKS = frozenset(f"T7.{n}" for n in range(3, 12))
+TASKS = frozenset(f"T7.{n}" for n in range(3, 13))
 
 
 def load_table(root: Path) -> tuple[list[Row], list[str]]:
@@ -430,7 +430,7 @@ def load_table(root: Path) -> tuple[list[Row], list[str]]:
         if row.kind not in KINDS:
             errors.append(f"{TABLE}: row {number} ({row.old}): kind is one of {sorted(KINDS)}")
         if row.task not in TASKS:
-            errors.append(f"{TABLE}: row {number} ({row.old}): task is one of T7.3 to T7.11")
+            errors.append(f"{TABLE}: row {number} ({row.old}): task is one of T7.3 to T7.12")
         rows.append(row)
     olds = [(r.old, r.kind) for r in rows]
     for old, kind in sorted({o for o in olds if olds.count(o) > 1}):
@@ -676,6 +676,8 @@ def _maths_id_problems(identifier: str) -> list[str]:
     parts = identifier.split("-")[1:]
     problems = []
     geometric = [p in ID_GEOMETRIES or p in ID_RETIRED for p in parts]
+    if parts and all(geometric):
+        problems.append("a geometry alone is no topic: the ID names its topic first")
     for part in parts:
         if part in ID_RETIRED:
             problems.append(f"`-{part}` is written `-{ID_RETIRED[part]}`")
