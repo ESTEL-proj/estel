@@ -224,7 +224,7 @@ def test_the_kernels_of_the_blocks_are_those_of_the_cartesian_operators(
     ).plan.bank()
     np.testing.assert_array_equal(operator.plan.blocks[block].bank(), plain)
     np.testing.assert_array_equal(
-        backend.to_numpy(operator.filters[block].kernels),
+        backend.to_numpy(operator.filters[block]._conv_tables(0)),
         backend.to_numpy(backend.asarray(plain, COMPLEX[dtype])),
     )
 
@@ -266,7 +266,7 @@ def test_the_orientation_axes_follow_the_channels_in_block_order(
     both = operator.apply(first, 0, block=1, level=(0, 0))
     assert tuple(both.shape) == (n_batch, n_channels, l_0, l_1, *spatial)
     xp = backend.xp
-    banks = [f.kernels for f in operator.filters]
+    banks = [f._conv_tables(0) for f in operator.filters]
     by_block_0 = product._conv(product.array, banks[0], 0, block=0)  # (Nb, L₀, Nc, ...)
     flat = xp.reshape(by_block_0, (n_batch, l_0 * n_channels, *spatial))
     by_block_1 = product._conv(flat, banks[1], 0, block=1)  # (Nb, L₁, L₀·Nc, ...)

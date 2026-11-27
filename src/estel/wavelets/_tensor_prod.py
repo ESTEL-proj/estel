@@ -6,7 +6,8 @@ Internal, like :class:`~estel.wavelets._operator.WaveletOperator`. A tensor prod
 d = (d₀, …, d_{B-1}): the field downsampled d_a times along block a (M-NOT-TP). Each block has
 the static part and the arrays of a planar wavelet operator, built for its geometry, its sizes
 and its ``pbc`` (:class:`~estel.wavelets._operator.WaveletPlanCartesian`,
-:class:`~estel.wavelets._operator.WaveletFiltersCartesian`); the operator of the tensor product
+:class:`~estel.wavelets._operator.WaveletFiltersCartesian`), a ``WaveletPlan`` and its
+``WaveletFilters``; the operator of the tensor product
 holds them in block order and reads the arrays of each block through the hooks of its filters
 (``_conv_tables``, ``_down_tables``), never through a field of one geometry, and applies them
 along the axes of each block, through the hooks of ``DataTensorProd``, which dispatch to the
@@ -57,7 +58,8 @@ from ..data._cartesian import Data1D
 from ..data._tensor_prod import DataTensorProd
 from ._banks import KERNEL_SIZE, _check_size
 from ._operator import (
-    WaveletFiltersCartesian,
+    WaveletFilters,
+    WaveletPlan,
     WaveletPlanCartesian,
     _check_scales,
     _check_wavelet,
@@ -83,9 +85,10 @@ def default_block_orientations(geometry: type[Data]) -> int:
 
 
 @dataclass(frozen=True, eq=False)
-class WaveletPlanTensorProd:
-    """The static part of the wavelet operator of a tensor product: the plans of its blocks,
-    in block order, and the axes of each block. NumPy only, immutable and hashable; two plans
+class WaveletPlanTensorProd(WaveletPlan):
+    """The static part of the wavelet operator of a tensor product, a
+    :class:`~estel.wavelets._operator.WaveletPlan`: the plans of its blocks, in block order, and
+    the axes of each block. NumPy only, immutable and hashable; two plans
     are equal when they were built from the same parameters and the same static metadata of
     the data."""
 
@@ -273,7 +276,7 @@ def _check_block_orientations(value: object, geometry: type[Data], what: str, a:
 
 def build_wavelet_filters_tensor_prod(
     plan: WaveletPlanTensorProd, backend_name: str, dtype: FloatDType, device: Any
-) -> tuple[WaveletFiltersCartesian, ...]:
+) -> tuple[WaveletFilters, ...]:
     """The arrays of each block of ``plan``: its wavelet bank and its smoothing kernel, on the
     backend ``backend_name``, cast once to ``dtype`` on ``device``."""
     return tuple(b._build_filters(backend_name, dtype, device) for b in plan.blocks)
@@ -310,7 +313,7 @@ class TensorProdWaveletOperator:
 
     _data: DataTensorProd
     _plan: WaveletPlanTensorProd
-    _filters: tuple[WaveletFiltersCartesian, ...] | None
+    _filters: tuple[WaveletFilters, ...] | None
 
     def __init__(
         self,
@@ -334,7 +337,7 @@ class TensorProdWaveletOperator:
         self,
         data: DataTensorProd,
         plan: WaveletPlanTensorProd,
-        filters: tuple[WaveletFiltersCartesian, ...] | None,
+        filters: tuple[WaveletFilters, ...] | None,
     ) -> None:
         object.__setattr__(self, "_data", data)
         object.__setattr__(self, "_plan", plan)
@@ -348,7 +351,7 @@ class TensorProdWaveletOperator:
         cls,
         data: Data,
         plan: WaveletPlanTensorProd,
-        filters: tuple[WaveletFiltersCartesian, ...] | None = None,
+        filters: tuple[WaveletFilters, ...] | None = None,
     ) -> TensorProdWaveletOperator:
         """The operator of a static part and its arrays, bound to ``data``, a
         ``DataTensorProd`` with the static metadata ``plan`` was built from: its class checked
@@ -370,7 +373,7 @@ class TensorProdWaveletOperator:
         return self._plan
 
     @property
-    def filters(self) -> tuple[WaveletFiltersCartesian, ...] | None:
+    def filters(self) -> tuple[WaveletFilters, ...] | None:
         """The arrays of each block, or ``None`` for an operator bound to its static part
         only."""
         return self._filters
@@ -528,7 +531,7 @@ class TensorProdWaveletOperator:
         out = self._data._downsample(flat, weights, level[a], block=a)
         return xp.reshape(out, (*lead, *tuple(out.shape[2:])))
 
-    def _arrays(self, function: str) -> tuple[WaveletFiltersCartesian, ...]:
+    def _arrays(self, function: str) -> tuple[WaveletFilters, ...]:
         if self._filters is None:
             raise ValueError(
                 f"TensorProdWaveletOperator.{function}: this operator holds its static part "

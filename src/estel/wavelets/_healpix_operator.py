@@ -2,9 +2,9 @@
 maths.md §4; task T5.5, issue #166).
 
 :class:`WaveletPlanHealpix` is a :class:`~estel.wavelets._operator.WaveletPlanSingleDomain`,
-beside the ``WaveletPlanCartesian`` of 1D and 2D data, and :class:`WaveletFiltersHealpix` offers
-the hooks of ``WaveletFiltersCartesian``: ``WaveletOperator`` and the ``STPlan`` reach them
-through the same hooks as the Cartesian ones (``_build_filters``, ``_conv_tables``,
+beside the ``WaveletPlanCartesian`` of 1D and 2D data, and :class:`WaveletFiltersHealpix` is a
+``WaveletFilters``, beside ``WaveletFiltersCartesian``: ``WaveletOperator`` and the ``STPlan``
+reach them through the same hooks as the Cartesian ones (``_build_filters``, ``_conv_tables``,
 ``_down_tables``, ``border``, ``bank``), with no branch on the geometry at the call sites;
 ``build_wavelet_plan`` chooses the plan once, when it is built.
 
@@ -65,6 +65,7 @@ from ._healpix_geometry import (
 )
 from ._operator import (
     History,
+    WaveletFilters,
     WaveletPlanSingleDomain,
     _read_only,
     _register_filters,
@@ -121,7 +122,7 @@ class PlanTablesHealpix(NamedTuple):
 
 
 @dataclass(frozen=True, eq=False)
-class WaveletFiltersHealpix:
+class WaveletFiltersHealpix(WaveletFilters):
     """The arrays of the wavelet operator of HEALPix data, on the operator's backend and dtype:
     the tables of every level, and the maps of each downsampling step. A pytree whose leaves are
     its arrays, in the order of its fields (``_operator._register_filters``)."""

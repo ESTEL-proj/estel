@@ -17,12 +17,22 @@ functions:
   each scale is computed, the levels and their shapes, how the low-pass filter is realised, the
   masks and reweighting maps of the data (``estel.data._masks``), and the rules of borders and
   masks.
-* :class:`WaveletFiltersCartesian`, the arrays, held by the ``STFilters``: the wavelet bank, the
-  smoothing kernel and the maps of each downsampling step, on the operator's backend and dtype.
+* :class:`WaveletFilters`, the arrays, held by the ``STFilters``: the wavelet bank, or the tables
+  of the level, the smoothing kernel, or the tables of the decimation, and the maps of each
+  downsampling step, on the operator's backend and dtype.
 * :class:`WaveletOperator`, which binds the two to data, read for their geometry and backend
   only: :meth:`WaveletOperator.apply` and :meth:`WaveletOperator.downsample` are the pure
   functions the loop calls, on maps, scales and levels, and
   :meth:`WaveletOperator.mean_weights` gives the plan the weights of its means.
+
+The plans and the filters follow the tree of geometries (Part I, §2.3.1). :class:`WaveletPlan`,
+abstract, is the root of the plans: :class:`WaveletPlanSingleDomain`, abstract, with its leaves
+:class:`WaveletPlanCartesian` and ``_healpix_operator.WaveletPlanHealpix``, and
+``_tensor_prod.WaveletPlanTensorProd``, which holds the plans of its blocks.
+:class:`WaveletFilters`, abstract, is the root of the filters of every single-domain geometry,
+:class:`WaveletFiltersCartesian` and ``_healpix_operator.WaveletFiltersHealpix``; a tensor product
+holds one per block. Code that takes any plan or any filters names the root, and reads the
+filters only through their hooks; an abstract class cannot be built.
 
 The code proper to each geometry stays in the hooks of its ``Data`` subclass and in the NumPy
 functions that build its tables. Only this module calls the hooks of filtering and
@@ -48,7 +58,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass, field, fields
 from numbers import Integral
-from typing import Any, Literal, TypeVar, cast
+from typing import Any, ClassVar, Literal, Self, TypeVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -204,11 +214,43 @@ class MeanWeights:
         return "full" if whole else "slice"
 
 
+# ---------------------------------------------------------------------- the abstract classes
+
+
+def _refuse_abstract(cls: type, family: str) -> None:
+    """Raise when ``cls`` is one of the abstract classes of the wavelets: those that set
+    ``_abstract`` in their own body (Part I, §2.3.1)."""
+    if cls.__dict__.get("_abstract", False):
+        raise TypeError(
+            f"{cls.__name__} is an abstract class of the {family} (Part I, §2.3.1) and cannot be "
+            "built: build an operator, estel.STOperator(data, ...) or "
+            "estel.STOperatorTensorProd(data, ...), which builds those of the geometry of its "
+            "data."
+        )
+
+
+class WaveletPlan(ABC):
+    """The static part of a wavelet operator, of any geometry, held by the ``STPlan``
+    (Part I, §2.3.1): abstract, the root of the wavelet plans. Its children are
+    :class:`WaveletPlanSingleDomain`, abstract, and ``_tensor_prod.WaveletPlanTensorProd``,
+    which holds the plans of its blocks. Every plan is NumPy only, frozen and hashable; two
+    plans are equal, and hash equal, when their ``_key`` are."""
+
+    __slots__ = ()
+
+    _abstract: ClassVar[bool] = True
+    _key: tuple[Any, ...]
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> Self:
+        _refuse_abstract(cls, "wavelet plans")
+        return super().__new__(cls)
+
+
 # ---------------------------------------------------------------------- the static part
 
 
 @dataclass(frozen=True, eq=False)
-class WaveletPlanSingleDomain(ABC):
+class WaveletPlanSingleDomain(WaveletPlan):
     """The static part of a wavelet operator of single-domain data, held by the ``STPlan``
     (Part II, §12.6; Part I, §2.3.1): abstract, the fields and the rules shared by every
     single-domain plan, the low-pass filter included (LF6). Its leaves are
@@ -219,6 +261,8 @@ class WaveletPlanSingleDomain(ABC):
     are equal, and hash equal, when they were built from the same parameters and the same
     static metadata of the data (geometry, spatial shape, ``pbc``, mask).
     """
+
+    _abstract: ClassVar[bool] = True
 
     geometry: type[Data]
     """The geometry of the data, the Data subclass the plan was built for."""
@@ -290,7 +334,7 @@ class WaveletPlanSingleDomain(ABC):
     @abstractmethod
     def _build_filters(
         self, backend_name: str, dtype: FloatDType, device: Any, tables: Any = None
-    ) -> Any:
+    ) -> WaveletFilters:
         """The arrays of this plan on the backend ``backend_name``, cast once to ``dtype`` on
         ``device``: a hook, so that the operator and the ``STPlan`` build the filters of every
         geometry with one call (Cartesian: :func:`build_wavelet_filters`; HEALPix:
@@ -551,8 +595,46 @@ def _wavelet_plan(
 # ---------------------------------------------------------------------- the arrays
 
 
+class WaveletFilters(ABC):
+    """The arrays of a wavelet operator of one single-domain geometry, held by the ``STFilters``
+    (Part II, §12.6; Part I, §2.3.1): abstract, the root of the wavelet filters,
+    :class:`WaveletFiltersCartesian` and ``_healpix_operator.WaveletFiltersHealpix``; a tensor
+    product holds a tuple of them, one per block. The operators read them only through the
+    hooks below, and the maps of each downsampling step. Each leaf is a frozen dataclass, a
+    pytree whose leaves are its arrays (:func:`_register_filters`)."""
+
+    __slots__ = ()
+
+    _abstract: ClassVar[bool] = True
+
+    field_down: Mapping[int, tuple[Any, Any]]
+    """Per level d but the last, the ``(valid, reweight)`` maps of the field from d to d+1, or
+    no entry without missing values (``WaveletPlanSingleDomain.downsample_maps(d)``)."""
+    modulus_down: Mapping[tuple[int, int], tuple[Any, Any]]
+    """Per ``(d, j)``, d a level but the last and j a scale computed at d or before, the maps
+    of first-layer data convolved at j from d to d+1, or no entry without missing values
+    (``WaveletPlanSingleDomain.downsample_maps(d, (j,))``)."""
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> Self:
+        _refuse_abstract(cls, "wavelet filters")
+        return super().__new__(cls)
+
+    @abstractmethod
+    def _conv_tables(self, level: int) -> Any:
+        """The tables of ``Data._conv`` at ``level``."""
+
+    @abstractmethod
+    def _down_tables(self, level: int) -> Any:
+        """The tables of the downsampling step from ``level`` to ``level + 1``."""
+
+    @property
+    @abstractmethod
+    def _any_array(self) -> Any:
+        """An array of the operator's dtype, which gives the filters' backend and dtype."""
+
+
 @dataclass(frozen=True, eq=False)
-class WaveletFiltersCartesian:
+class WaveletFiltersCartesian(WaveletFilters):
     """The arrays of the wavelet operator of 1D and 2D data, and of the Cartesian blocks of a
     tensor product, held by the ``STFilters`` (Part II, §12.6): backend arrays in the operator's
     dtype, built once by :func:`build_wavelet_filters`. A pytree whose leaves are its arrays, in
@@ -571,9 +653,7 @@ class WaveletFiltersCartesian:
     of first-layer data convolved at j from d to d+1, or no entry without missing values
     (``WaveletPlanSingleDomain.downsample_maps(d, (j,))``)."""
 
-    # The hooks the operator, and the operator of a tensor product, read the arrays through,
-    # shared with the filters of HEALPix (``_healpix_operator.WaveletFiltersHealpix``), whose
-    # tables differ from level to level.
+    # The hooks of WaveletFilters: the same tables at every level.
 
     def _conv_tables(self, level: int) -> Any:
         """The tables of ``Data._conv`` at ``level``: the bank, the same at every level."""
@@ -685,7 +765,7 @@ class WaveletOperator:
 
     _data: Data
     _plan: WaveletPlanSingleDomain
-    _filters: WaveletFiltersCartesian | None
+    _filters: WaveletFilters | None
 
     def __init__(
         self,
@@ -701,7 +781,7 @@ class WaveletOperator:
         self._bind(data, plan, filters)
 
     def _bind(
-        self, data: Data, plan: WaveletPlanSingleDomain, filters: WaveletFiltersCartesian | None
+        self, data: Data, plan: WaveletPlanSingleDomain, filters: WaveletFilters | None
     ) -> None:
         object.__setattr__(self, "_data", data)
         object.__setattr__(self, "_plan", plan)
@@ -715,7 +795,7 @@ class WaveletOperator:
         cls,
         data: Data,
         plan: WaveletPlanSingleDomain,
-        filters: WaveletFiltersCartesian | None = None,
+        filters: WaveletFilters | None = None,
     ) -> WaveletOperator:
         """The operator of a static part and its arrays, bound to ``data``, which must have
         the static metadata ``plan`` was built from: no validation and no conversion, so that
@@ -730,7 +810,7 @@ class WaveletOperator:
         return self._plan
 
     @property
-    def filters(self) -> WaveletFiltersCartesian | None:
+    def filters(self) -> WaveletFilters | None:
         """The arrays, or ``None`` for an operator bound to its static part only."""
         return self._filters
 
@@ -859,7 +939,7 @@ class WaveletOperator:
         out = self._data._downsample(flat, weights, level)
         return xp.reshape(out, (*lead, *tuple(out.shape[2:])))
 
-    def _arrays(self, function: str) -> WaveletFiltersCartesian:
+    def _arrays(self, function: str) -> WaveletFilters:
         if self._filters is None:
             raise ValueError(
                 f"WaveletOperator.{function}: this operator holds its static part only. Bind "
