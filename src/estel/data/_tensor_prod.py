@@ -286,10 +286,11 @@ def _check_blocks(blocks: object) -> tuple[type[DataCartesian], ...]:
         raise ValueError(f"DataTensorProd(blocks=[]): pass at least one block, {example}.")
     for index, block in enumerate(blocks):
         # The capability is read in the body of the class itself, never inherited: Data2D and
-        # Data1D, and neither DataCartesian nor a subclass of them (Part I, §2.3.1).
+        # Data1D, and neither DataCartesian nor a subclass of them (Part I, §2.3.1). Any class
+        # of data may declare it (LF9: DataHealpix).
         accepted = (
             isinstance(block, type)
-            and issubclass(block, DataCartesian)
+            and issubclass(block, Data)
             and block.__dict__.get("_block_tensor_prod", False) is True
         )
         if not accepted:

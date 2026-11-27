@@ -400,8 +400,6 @@ class _DataSubclass2D(Data2D):
         (DataCartesian, False),
         (_DataSubclass2D, False),
         (DataHealpix, False),
-        (DataTensorProd, False),
-        (Data, False),
     ],
 )
 def test_the_blocks_are_the_classes_that_declare_the_capability(

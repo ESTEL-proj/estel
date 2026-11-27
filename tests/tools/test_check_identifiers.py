@@ -80,7 +80,10 @@ def repository(root: Path, files: Mapping[str, str | None]) -> None:
         subprocess.run(command, cwd=root, check=True, capture_output=True)
 
 
+@pytest.mark.slow
 def test_repository_passes() -> None:
+    """Slow: the tool reads every file of the repository (about 1.1 s of CPU, over the budget
+    of 1 s); `make check-tools` runs it on every pull request anyway."""
     result = run_tool("check_identifiers.py", "--root", str(REPO))
     assert result.returncode == 0, result.stderr
     assert "OK" in result.stdout
