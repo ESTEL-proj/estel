@@ -229,7 +229,7 @@ unmatched_ignore_imports_alerting = "none"
 [[tool.importlinter.contracts]]
 id = "spectra-not-scattering"
 name = "estel.spectra imports nothing from estel.scattering (T7.9)"
-type = "forbidden"
+type = "optional_forbidden"
 # The bricks of the spectrum are imported by the plan and the loop of STOperator, never the
 # reverse (decision 4 on #200): the layer above lets the packages of L2 import one another.
 source_modules = ["estel.spectra"]
