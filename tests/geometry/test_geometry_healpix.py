@@ -304,8 +304,9 @@ def test_masks_built_by_batches_equal_one_batch(monkeypatch: pytest.MonkeyPatch)
 @pytest.mark.parametrize("sky", ["full", "disc"])
 def test_kernel_folded_into_the_stencils(sky: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """The kernel folded into the stencils (task T5.7): each row reads its distinct pixels
-    once, with Σ W[p] w[p, m], as real pairs sharing one row of the index; the convolution equals the stencils then the
-    kernel to rounding, and a fold by batches (7 rows) equals one batch, bit for bit."""
+    once, with Σ W[p] w[p, m], as real pairs sharing one row of the index; the convolution
+    equals the stencils then the kernel to rounding, and a fold by batches (7 rows) equals one
+    batch, bit for bit."""
     depth = 2
     ids = None if sky == "full" else _disc(depth, 1.4, 0.5, 0.9)
     tables = stencils_healpix(ids, depth)
