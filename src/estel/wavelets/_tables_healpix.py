@@ -273,12 +273,12 @@ def _bind_support(
     size, divides by ``max(sum, 1e-12)``, and so returns values set by the rounding of the
     interpolation weights. Everywhere else, and on the full sky, the result is STL's to rounding.
 
-    Returns the positions in ``ids`` (0 where absent), the weights, and the stencil points that
-    had no remaining neighbour.
-
     The neighbours are looked up in ``ids`` once. Contiguous ``ids`` (the full sky, or a level
     whose pixels form one range) need no search: a position is an offset from ``ids[0]``. The
     neighbours that replace an empty stencil point are those of its centre, already looked up.
+
+    Returns the positions in ``ids`` (0 where absent), the weights, and the stencil points that
+    had no remaining neighbour.
     """
     n_ids = ids.size
     if int(ids[-1]) - int(ids[0]) == n_ids - 1:  # strictly increasing: one range of pixels

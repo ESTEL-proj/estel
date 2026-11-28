@@ -327,17 +327,17 @@ def test_kernel_folded_into_the_stencils(sky: str, monkeypatch: pytest.MonkeyPat
 
 
 @pytest.mark.maths("M-CONV-HEALPIX")
-@pytest.mark.parametrize("sky", ["disc", "face", "full"])
+@pytest.mark.parametrize("sky", ["disc", "half_face", "full"])
 def test_partial_sky_rule(sky: str) -> None:
     """The rule decided on issue #26: a neighbour of weight below 1e-12 counts as
     absent, the remaining weights sum to 1 exactly, and a stencil point without a remaining
-    neighbour reads the stencil centre: the pixel itself, with weight 1. On a disc the
-    neighbours are searched in ``ids``; on one base face (pixels 256 to 511) and on the full sky,
-    contiguous, they are found by their offset: each kept neighbour is the pixel it names."""
+    neighbour reads the stencil centre: the pixel itself, with weight 1. On a disc, half a base
+    face (pixels 256 to 383, whose neighbours include pixel 384) and the full sky, each kept
+    neighbour is the pixel it names."""
     depth = 4
     ids = {
         "disc": _disc(depth, 1.4, 0.5, 0.3),
-        "face": np.arange(256, 512, dtype=np.int64),
+        "half_face": np.arange(256, 384, dtype=np.int64),
         "full": np.arange(12 * 4**depth, dtype=np.int64),
     }[sky]
     index, weight = _stencil_interpolation(ids, depth, 4, 5)
