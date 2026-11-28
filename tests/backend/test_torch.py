@@ -30,13 +30,19 @@ def test_satisfies_the_protocol() -> None:
 @pytest.mark.parametrize("max_iter", [1, 2, 3, 7, 25])
 @pytest.mark.parametrize("seed", range(5))
 def test_lbfgs_is_one_torch_step(max_iter: int, seed: int, dtype: DType) -> None:
-    """Same iterates, bit for bit, and as many iterations as a single ``LBFGS.step``."""
+    """Same iterates, bit for bit, and as many iterations as a single ``LBFGS.step``; ``fun``
+    evaluated once per point the single step evaluates, although the driver runs one step per
+    iteration, each opening at the point the previous one accepted (finding P6-01 of the final
+    review). The single step itself may evaluate a point twice, when a tiny step leaves it
+    unchanged in float32."""
     torch_dtype = {"float32": torch.float32, "float64": torch.float64}[dtype]
     generator = torch.Generator().manual_seed(seed)
     a = torch.randn(12, 6, generator=generator, dtype=torch_dtype)
     b = torch.randn(12, generator=generator, dtype=torch_dtype)
+    points: list[torch.Tensor] = []
 
     def fun(x: torch.Tensor) -> torch.Tensor:
+        points.append(x.detach().clone())
         return (torch.sin(a @ x - b) ** 2).sum() + 0.1 * (x**4).sum()
 
     settings: dict[str, Any] = {
@@ -56,11 +62,14 @@ def test_lbfgs_is_one_torch_step(max_iter: int, seed: int, dtype: DType) -> None
         return loss
 
     optimizer.step(closure)  # type: ignore[no-untyped-call]
+    distinct = [p for i, p in enumerate(points) if not any(torch.equal(p, q) for q in points[:i])]
+    points.clear()
     result = TorchBackend().lbfgs(
         fun, torch.zeros(6, dtype=torch_dtype), max_iter=max_iter, **settings
     )
     assert torch.equal(result.x, x.detach())
     assert result.losses.shape == (optimizer.state[x]["n_iter"],)
+    assert len(points) == len(distinct)
 
 
 def test_lbfgs_state_is_numpy_and_resumes_bit_for_bit(tmp_path: Any) -> None:
