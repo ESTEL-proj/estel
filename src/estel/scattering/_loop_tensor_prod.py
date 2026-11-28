@@ -37,33 +37,39 @@ read.
 matrix without a copy; the orientations of the blocks then come in reverse block order. The
 means, small arrays, are put in the C order of the blocks before they are gathered.
 
-**Into the layout.** The sums of S3 and S4 of j3 are read from the Gram products by one
-``take`` each, of the chunks of their segment (``SecondLayerScale.s3_rows``), divided by their
-per-chunk denominators, and the S4 chunks are packed with their real diagonal
-(``statistics._layout.pack``); every table grows with the chunks, never with the coefficients.
+**Into the layout.** The step from the Gram products to the chunks of the buffer is shared
+with the loop of single-domain data (``_loop.gram_chunk_sums``): the sums of S3 and S4 of j3
+are read from the products, those of the chunks of their segment (``SecondLayerScale.s3_rows``,
+``s4_rows``), divided by their per-chunk denominators, and the S4 chunks are packed with their
+real diagonal (``_loop.compact_buffer``, ``statistics._layout.pack``); every table grows with
+the chunks, never with the coefficients.
 Nothing is written in place, and nothing depends on array values.
 """
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Any
 
 from ..backend import _registry
 from ..backend._protocol import Backend
 from ..data._base import Data
 from ..data._moments import modulus
-from ..statistics._layout import gather_tensor_prod, pack
+from ..statistics._layout import gather_tensor_prod
 from ..wavelets._operator_tensor_prod import WaveletOperatorTensorProd
 from . import _loop
 from ._filters import STFiltersTensorProd
 from ._loop import (
+    GramRows,
     ScatteringValues,
     _divide_level,
+    compact_buffer,
     field_moments,
-    first_layer_sums,
+    first_layer_means,
+    gram_chunk_sums,
     gram_sums,
 )
-from ._tensor_prod import FirstLayerScale, LoopTensorProd, ScaleTensorProd, SecondLayerScale
+from ._tensor_prod import LoopTensorProd, ScaleTensorProd
 
 if TYPE_CHECKING:
     from ._plan import STPlanTensorProd
@@ -105,32 +111,37 @@ def values_tensor_prod(
             centred = w - xp.reshape(mean, (*tuple(mean.shape), *(1,) * len(axes)))
             w = xp.astype(centred, _complex_of(backend, w))
         u = modulus(w)
-        floats = _first_layer_means(backend, plan, info, w, u, axes)
+        window = None if info.window is None else tuple(slice(a, b) for a, b in info.window)
+        floats = first_layer_means(
+            backend, w, u, window, info.denominator, plan.pairs, info.pairs, info.orientations, axes
+        )
         s12 = {name: [*s12[name], floats[name]] for name in s12}
         if not any(j == n for j, n in zip(scale, plan.J, strict=True)):
             band = {**band, scale: w}
             moduli = {**moduli, scale: u}
 
-    # The second layer, every wavelet scale j3 in lexicographic order.
-    s3: list[Any] = []
-    s4: list[Any] = []
+    # The second layer, every wavelet scale j3 in lexicographic order: its sums, one global
+    # sum (the hook of distributed runs), then the division.
+    s34: dict[str, list[Any]] = {"S3": [], "S4": []}
     for j3, cross, gram in _second_layer_grams(backend, wavelets, plan, moduli, band, filters):
         second = loop.second(j3)
-        three, four = _second_layer_means(backend, plan, second, filters, cross, gram)
-        s3, s4 = [*s3, three], [*s4, four]
+        rows = GramRows(
+            second.s3_rows,
+            filters.s3_denominators[j3],
+            filters.s4_rows[j3],
+            filters.s4_denominators[j3],
+        )
+        n_arms = len(second.arms)
+        sums = gram_chunk_sums(backend, cross, gram, rows, plan.L, n_arms, plan.n_channels, False)
+        for item, value in zip(sums, _divide_level(backend, sums, _loop._global_sum), strict=True):
+            s34 = {**s34, item.family: [*s34[item.family], value]}
 
-    n_batch = int(x.shape[0])
-    s4_dense = xp.concat(s4, axis=1)
-    s4_floats = pack(backend, s4_dense, gather_tensor_prod(plan), filters.s4_pack)
-    buffer = xp.concat(
-        [
-            *moments,
-            *s12["S1"],
-            *s12["S2"],
-            *(xp.reshape(item, (n_batch, -1)) for item in s3),
-            s4_floats,
-        ],
-        axis=1,
+    buffer = compact_buffer(
+        backend,
+        {"moments": moments, **s12, **s34},
+        math.prod(plan.L),
+        gather_tensor_prod(plan),
+        filters.s4_pack,
     )
     return ScatteringValues(buffer=buffer, mean_pre_std=mean_pre_std, std_pre_std=std_pre_std)
 
@@ -176,53 +187,6 @@ def _first_layer(
         return out
 
     return stage(0, (), (0,) * n_blocks, x)
-
-
-def _first_layer_means(
-    backend: Backend,
-    plan: STPlanTensorProd,
-    info: FirstLayerScale,
-    w: Any,
-    u: Any,
-    axes: tuple[int, ...],
-) -> dict[str, Any]:
-    """The divided S1 and S2 means of one scale, as the floats of their segments: the chunks
-    of the channel pairs in the order of the buffer, the orientations of each chunk in the C
-    order of the blocks, an auto chunk real, a cross chunk complex as (re, im)."""
-    xp = backend.xp
-    n_batch, n_blocks = int(w.shape[0]), plan.n_blocks
-    reverse = info.orientations[::-1]
-    n_o = int(_prod(reverse))
-    spatial = tuple(int(n) for n in w.shape[len(w.shape) - len(axes) :])
-    flat_w = xp.reshape(w, (n_batch, n_o, plan.n_channels, *spatial))
-    flat_u = xp.reshape(u, (n_batch, n_o, plan.n_channels, *spatial))
-    window = None if info.window is None else tuple(slice(a, b) for a, b in info.window)
-    pending = first_layer_sums(flat_w, flat_u, window, info.denominator, plan.pairs, axes)
-    divided = _divide_level(backend, pending, _loop._global_sum)
-    pairs = plan.pairs
-    order = [
-        *(("S1", (c, c)) for c in pairs.auto),
-        *(("S1", p) for p in pairs.cross),
-        *(("S2", (c, c)) for c in pairs.auto),
-        *(("S2", p) for p in pairs.cross),
-    ]
-    found = dict(zip(order, divided, strict=True))
-    # From the reverse block order of the loop to the C order of the blocks.
-    to_c = tuple(range(n_blocks - 1, -1, -1))
-
-    def ordered(value: Any, is_complex: bool) -> Any:
-        parts = (2,) if is_complex else ()
-        grid = xp.reshape(value, (n_batch, *reverse, *parts))
-        tail = tuple(1 + n_blocks + i for i in range(len(parts)))
-        moved = xp.permute_dims(grid, (0, *(1 + a for a in to_c), *tail))
-        return xp.reshape(moved, (n_batch, -1))
-
-    return {
-        name: xp.concat(
-            [ordered(found[(name, pair)], pair[0] != pair[1]) for pair in info.pairs], axis=1
-        )
-        for name in ("S1", "S2")
-    }
 
 
 # ---------------------------------------------------------------------- second layer
@@ -331,83 +295,6 @@ def _leaf(
         first += n_axes
     cross, gram = gram_sums(v, w, info.s3_rows.shape[0] > 0, info.s4_rows.shape[0] > 0)
     return j3, cross, gram
-
-
-def _second_layer_means(
-    backend: Backend,
-    plan: STPlanTensorProd,
-    info: SecondLayerScale,
-    filters: STFiltersTensorProd,
-    cross: Any,
-    gram: Any,
-) -> tuple[Any, Any]:
-    """The divided S3 and S4 means of the segments of j3, from its Gram products: S3 as
-    ``(Nb, n3, L², 2)`` and S4 as ``(Nb, n4, L³, 2)``, (re, im), the chunks in the order of the
-    buffer and the orientations of each chunk in the C order of the blocks (l1, l2, l3, each
-    with one axis per block)."""
-    xp = backend.xp
-    n_blocks, nc = plan.n_blocks, plan.n_channels
-    n_batch = int(cross.shape[0] if cross is not None else gram.shape[0])
-    n_arms = len(info.arms)
-    lrev = plan.L[::-1]
-    n_o = int(_prod(plan.L))
-    b = n_blocks
-
-    def c_order(first: int) -> tuple[int, ...]:
-        # The axes first … first + B - 1 hold one orientation per block, in reverse order.
-        return tuple(first + b - 1 - i for i in range(b))
-
-    sums: list[Any] = []
-    shapes: list[tuple[int, ...]] = []
-    if cross is not None:
-        # [Nb, l3 (B, reversed), arm, l2 (B, reversed), c1, c2] -> [Nb, arm, c1, c2, l2, l3]
-        grid = xp.reshape(cross, (n_batch, *lrev, n_arms, *lrev, nc, nc))
-        moved = xp.permute_dims(
-            grid, (0, b + 1, 2 * b + 2, 2 * b + 3, *c_order(b + 2), *c_order(1))
-        )
-        rows = xp.reshape(moved, (n_batch, n_arms * nc * nc, n_o * n_o))
-        taken = xp.take(rows, filters.s3_rows[info.j3], axis=1)
-        sums.append(backend.complex_to_real_pairs(taken))
-        shapes.append((int(info.s3_rows.shape[0]), n_o * n_o, 2))
-    if gram is not None:
-        # [Nb, l3, arm1, l1, c1, arm2, l2, c2] -> [Nb, arm1, c1, arm2, c2, l1, l2, l3]
-        grid = xp.reshape(gram, (n_batch, *lrev, n_arms, *lrev, nc, n_arms, *lrev, nc))
-        moved = xp.permute_dims(
-            grid,
-            (
-                0,
-                b + 1,
-                2 * b + 2,
-                2 * b + 3,
-                3 * b + 4,
-                *c_order(b + 2),
-                *c_order(2 * b + 4),
-                *c_order(1),
-            ),
-        )
-        rows = xp.reshape(moved, (n_batch, (n_arms * nc) ** 2, n_o**3))
-        taken = xp.take(rows, filters.s4_rows[info.j3], axis=1)
-        sums.append(backend.complex_to_real_pairs(taken))
-        shapes.append((int(info.s4_rows.shape[0]), n_o**3, 2))
-    # Sums, then their global sum (the hook of distributed runs), then the division.
-    flat = [xp.reshape(s, (n_batch, -1)) for s in sums]
-    total = _loop._global_sum(xp.concat(flat, axis=1))
-    out: list[Any] = []
-    offset = 0
-    denominators = [filters.s3_denominators[info.j3], filters.s4_denominators[info.j3]]
-    if cross is None:
-        denominators = denominators[1:]
-    for shape, denominator in zip(shapes, denominators, strict=False):
-        size = int(_prod(shape))
-        part = xp.reshape(total[:, offset : offset + size], (n_batch, *shape))
-        out.append(part / xp.reshape(denominator, (1, -1, 1, 1)))
-        offset += size
-    empty3 = xp.zeros((n_batch, 0, n_o * n_o, 2), dtype=total.dtype)
-    if cross is None:
-        return empty3, out[0]
-    if gram is None:
-        return out[0], xp.zeros((n_batch, 0, n_o**3, 2), dtype=total.dtype)
-    return out[0], out[1]
 
 
 # ---------------------------------------------------------------------- helpers
