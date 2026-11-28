@@ -105,12 +105,17 @@ def _instance(name: str) -> Backend:
 
 
 def set_backend(name: str) -> None:
-    """Set the default backend: ``"torch"`` (the default) or, experimental, ``"jax"``.
+    """Set the default backend.
 
     Operators record the backend when they are built; changing it later does not affect them.
     Selecting ``"jax"`` imports JAX (``pip install 'estel[jax]'``) and warns, at every call,
     that the JAX backend is experimental. If float64 was asked for, the backend gets it now;
     if a default device was set, it must exist on the backend. On any error, nothing changes.
+
+    Parameters
+    ----------
+    name : {"torch", "jax"}
+        ``"torch"`` (the default) or, experimental, ``"jax"``.
     """
     global _current
     if not isinstance(name, str) or name not in _MODULES:

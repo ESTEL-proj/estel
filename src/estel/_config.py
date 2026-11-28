@@ -22,14 +22,18 @@ _dtype: FloatDType = DEFAULT_DTYPE
 
 
 def set_default_dtype(dtype: Literal["float32", "float64"]) -> None:
-    """Set the default floating dtype of operators and data: ``"float32"`` (the default) or
-    ``"float64"``.
+    """Set the default floating dtype of operators and data.
 
     ``"float64"`` enables float64 on the current backend and on every backend selected later:
     on JAX it switches ``jax_enable_x64`` on, and raises ``RuntimeError`` if JAX already ran in
     float32 in this process (call it at set-up, or set ``JAX_ENABLE_X64=1``). Going back to
     ``"float32"`` leaves JAX's 64-bit mode on; every computation still runs in float32. On any
     error, nothing changes.
+
+    Parameters
+    ----------
+    dtype : {"float32", "float64"}
+        ``"float32"`` (the default) or ``"float64"``.
     """
     global _dtype
     if dtype not in DTYPES:
@@ -43,13 +47,18 @@ def set_default_dtype(dtype: Literal["float32", "float64"]) -> None:
 
 
 def set_default_device(device: str) -> None:
-    """Set the default device of operators and data: ``"cpu"``, ``"cuda"`` or ``"cuda:N"``.
+    """Set the default device of operators and data.
 
     Until it is called, the default is ``"cuda"`` if the current backend has a CUDA device,
     ``"cpu"`` otherwise. The device is checked against the current backend now,
     and again by ``set_backend``; one that does not exist raises ``ValueError`` listing the
     devices available. ESTEL keeps this default itself and never changes the backend's own
     (``torch.set_default_device``, JAX's default device).
+
+    Parameters
+    ----------
+    device : str
+        ``"cpu"``, ``"cuda"`` or ``"cuda:N"``.
     """
     _registry.set_device(device)
 

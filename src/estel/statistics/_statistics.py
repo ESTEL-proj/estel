@@ -195,8 +195,8 @@ class STStatistics:
     # ------------------------------------------------------------------ reading
 
     def full_grid(self, family: str) -> Any:
-        """The tensor of ``family`` (``"mean"``, ``"var"``, ``"S1"`` … ``"S4"``, ``"PS"``) in its
-        full grid shape, NaN where no coefficient exists (Part II, §12.7).
+        """The tensor of ``family`` in its full grid shape, NaN where no coefficient exists
+        (Part II, §12.7).
 
         Without reduction or selection the shapes are: ``(Nb, Nc)`` for mean and var,
         ``(Nb, Nc, Nc, J, L)`` for S1 and S2, ``(Nb, Nc, Nc, J, J, L, L)`` for S3,
@@ -208,6 +208,11 @@ class STStatistics:
         On the statistics of a tensor product, each scale and orientation axis is one axis per
         block (maths.md M-S-TENSORPROD), and a view over 2 GiB, batch included, is refused: read the
         statistics with ``to_vector``, or ``select`` a family and channels first.
+
+        Parameters
+        ----------
+        family : str
+            ``"mean"``, ``"var"``, ``"S1"`` … ``"S4"`` or ``"PS"``.
         """
         grid = self._grid(family)
         if self._plan.geometry._geometry == "tensor_prod":
@@ -261,15 +266,20 @@ class STStatistics:
         """The statistics restricted to ``family`` and along the named axes of ``index``
         (Part II, §12.7).
 
-        ``family`` is a family name (``"S3"``) or a sequence of names; ``None`` keeps every
-        family. Each keyword of ``index`` is an axis name with an integer, which drops the axis,
-        or a slice or a sequence of integers, which keeps it; the integers are positions along
-        the axis as it is now. ``channel=(a, b)`` is shorthand for ``c1=a, c2=b``: it returns
-        every family of that pair, the power spectrum included. A family that does not have
-        every named axis is left out of the result: ``select(j3=2)`` returns S3 and S4
-        restricted to j3 = 2, without mean, var, S1, S2 or PS, and ``select(bin=0)`` the power
-        spectrum alone. An axis that no selected
-        family has raises an error listing the valid names.
+        A family that does not have every named axis is left out of the result:
+        ``select(j3=2)`` returns S3 and S4 restricted to j3 = 2, without mean, var, S1, S2 or
+        PS, and ``select(bin=0)`` the power spectrum alone. An axis that no selected family has
+        raises an error listing the valid names.
+
+        Parameters
+        ----------
+        family : str, sequence of str or None
+            A family name (``"S3"``) or a sequence of names; ``None`` keeps every family.
+        **index : int, slice or sequence of int
+            Each keyword is an axis name with an integer, which drops the axis, or a slice or a
+            sequence of integers, which keeps it; the integers are positions along the axis as
+            it is now. ``channel=(a, b)`` is shorthand for ``c1=a, c2=b``: it returns every
+            family of that pair, the power spectrum included.
         """
         names = self._family_names(family)
         index = _expand_channel(index)
@@ -330,9 +340,12 @@ class STStatistics:
         part is kept (OP-37: the imaginary part of the cross-channel terms is dropped). Mean and
         var give one real value each.
 
-        ``mask_st`` is an optional boolean array of the length of this vector:
-        True keeps a coefficient. It drops coefficients found unreliable by a boolean test; in
-        a synthesis it is computed once on the target and reused at every iteration.
+        Parameters
+        ----------
+        mask_st : array_like or None
+            An optional boolean array of the length of this vector: True keeps a coefficient.
+            It drops coefficients found unreliable by a boolean test; in a synthesis it is
+            computed once on the target and reused at every iteration.
         """
         backend = self._backend_object()
         xp = backend.xp
@@ -401,22 +414,28 @@ class STStatistics:
         """The statistics reduced by the selected reductions, applied in the order of maths.md
         M-NORM: ``iso``, then ``angular_fourier``, then ``scale_cosine``. Returns new statistics.
 
-        * ``iso`` (M-RED-ISO): S1 and S2 averaged over the orientations, S3 and S4 averaged
-          over the first orientation at fixed orientation differences modulo L.
-        * ``angular_fourier`` (M-RED-ANG): an orthonormal DFT over the
-          orientation axes of S3 and S4 (over the orientation differences after ``iso``),
-          keeping the first ``angular_harmonics`` harmonics, between 1 and L; all L by default
-          (OP-17). It is allowed without ``iso``.
-        * ``scale_cosine`` (M-RED-SCALE), which needs ``iso``:
-          the scales of S3 and S4 reparametrised as ``(j1, a, b)`` with ``j2 = j1 + a``,
-          ``j3 = j1 + b`` and ``0 ≤ a ≤ b < dj``, an orthonormal DCT-II along j1, the first
-          ``scale_harmonics`` harmonics kept. ``scale_harmonics`` and ``dj`` lie between 1 and
-          J, and are J by default.
-
         The power spectrum passes through every reduction unchanged (maths.md §1.9,
         "Reductions"): statistics that hold it alone come back as they are. Reduce once, with
         every reduction wanted: reduced statistics are not reduced again.
         The reductions are not defined on the statistics of a tensor product: they raise.
+
+        Parameters
+        ----------
+        iso : bool
+            M-RED-ISO: S1 and S2 averaged over the orientations, S3 and S4 averaged over the
+            first orientation at fixed orientation differences modulo L.
+        angular_fourier : bool
+            M-RED-ANG: an orthonormal DFT over the orientation axes of S3 and S4 (over the
+            orientation differences after ``iso``), keeping the first ``angular_harmonics``
+            harmonics. It is allowed without ``iso``.
+        angular_harmonics : int or None
+            The harmonics ``angular_fourier`` keeps, between 1 and L; all L by default (OP-17).
+        scale_cosine : bool
+            M-RED-SCALE, which needs ``iso``: the scales of S3 and S4 reparametrised as
+            ``(j1, a, b)`` with ``j2 = j1 + a``, ``j3 = j1 + b`` and ``0 ≤ a ≤ b < dj``, an
+            orthonormal DCT-II along j1, the first ``scale_harmonics`` harmonics kept.
+        scale_harmonics, dj : int or None
+            Between 1 and J, and J by default.
         """
         if self._plan.geometry._geometry == "tensor_prod":
             raise ValueError(
@@ -507,14 +526,26 @@ class STStatistics:
         """Write the statistics to ``path``, an ``.npz`` archive in the versioned format of
         ``estel.io``: the arrays, and a JSON document with the schema version, the reference
         counters, the plan's parameters, the layout and the reductions applied. Read it back
-        with :meth:`STStatistics.load`."""
+        with :meth:`STStatistics.load`.
+
+        Parameters
+        ----------
+        path : str or os.PathLike
+            The file to write.
+        """
         arrays, content = self._payload()
         _schema.write(path, _schema.STATISTICS_FORMAT, arrays, content)
 
     @staticmethod
     def load(path: str | os.PathLike[str]) -> STStatistics:
         """Read statistics written by :meth:`save`, on the current backend, in the dtype they
-        were saved in. The plan is rebuilt from the saved parameters."""
+        were saved in. The plan is rebuilt from the saved parameters.
+
+        Parameters
+        ----------
+        path : str or os.PathLike
+            The file to read.
+        """
         arrays, content = _schema.read(path, _schema.STATISTICS_FORMAT)
         return _from_payload(arrays, content)
 

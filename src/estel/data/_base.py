@@ -264,14 +264,19 @@ class Data:
     def with_array(self, new_array: Any) -> Data:
         """A new object with ``new_array`` in place of the array, and the same metadata.
 
-        Data objects are never updated in place. ``new_array`` must be an array of the same
-        backend with the shape of :attr:`shape`; it is used as it is, without a copy and
-        without looking at its values, so this works inside traced and differentiated code.
+        Data objects are never updated in place.
 
         For a ``DataTensorProd``, the new array must hold no NaN: tensor products have no
         missing values in ESTEL 1.0.0 (LF8), and their constructor, which refuses a NaN, is the
         only place where values are looked at; a NaN given here makes every statistic NaN
         (maths.md OP-80).
+
+        Parameters
+        ----------
+        new_array : array
+            An array of the same backend with the shape of :attr:`shape`; it is used as it is,
+            without a copy and without looking at its values, so this works inside traced and
+            differentiated code.
         """
         _registry.check_backend(self._backend, new_array, owner=f"this {type(self).__name__}")
         if _registry.backend_of(new_array) is None:
@@ -293,8 +298,11 @@ class Data:
     def copy(self, empty: bool = False) -> Data:
         """A new object with a copy of the array, and the same metadata.
 
-        With ``empty=True`` the array of the copy is filled with zeros: a data object always
-        holds an array of its shape.
+        Parameters
+        ----------
+        empty : bool
+            With ``empty=True`` the array of the copy is filled with zeros: a data object always
+            holds an array of its shape.
         """
         xp = _registry.backend_named(self._backend).xp
         array = xp.zeros_like(self._array) if empty else xp.asarray(self._array, copy=True)
