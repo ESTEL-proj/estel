@@ -275,21 +275,25 @@ def _bind_support(
 
     Returns the positions in ``ids`` (0 where absent), the weights, and the stencil points that
     had no remaining neighbour.
+
+    The neighbours are looked up in ``ids`` once. Contiguous ``ids`` (the full sky, or a level
+    whose pixels form one range) need no search: a position is an offset from ``ids[0]``. The
+    neighbours that replace an empty stencil point are those of its centre, already looked up.
     """
     n_ids = ids.size
-
-    def lookup(idx: NDArray[np.int64]) -> tuple[NDArray[np.int64], NDArray[np.bool_]]:
-        pos = np.minimum(np.searchsorted(ids, idx), n_ids - 1)
-        found: NDArray[np.bool_] = np.asarray(ids[pos] == idx)
-        return pos, found
-
-    _, found = lookup(index)
+    if int(ids[-1]) - int(ids[0]) == n_ids - 1:  # strictly increasing: one range of pixels
+        pos = index - ids[0]
+        found: NDArray[np.bool_] = (pos >= 0) & (pos < n_ids)
+    else:
+        pos = np.minimum(np.searchsorted(ids, index), n_ids - 1)
+        found = np.asarray(ids[pos] == index)
     present = found & (weight >= SUPPORT_THRESHOLD_HEALPIX)
     empty: NDArray[np.bool_] = ~np.asarray(present.any(axis=-1))  # (L, N, P)
     centre = (kernel_size // 2) * (kernel_size + 1)
-    index = np.where(empty[..., None], index[:, :, centre : centre + 1], index)
-    weight = np.where(empty[..., None], weight[:, :, centre : centre + 1], weight)
-    pos, found = lookup(index)
+    at_centre = empty[..., None]
+    weight = np.where(at_centre, weight[:, :, centre : centre + 1], weight)
+    pos = np.where(at_centre, pos[:, :, centre : centre + 1], pos)
+    found = np.where(at_centre, found[:, :, centre : centre + 1], found)
     present = found & (weight >= SUPPORT_THRESHOLD_HEALPIX)
     w = np.where(present, weight, 0.0)
     total = w.sum(axis=-1, keepdims=True)
