@@ -327,20 +327,29 @@ def test_kernel_folded_into_the_stencils(sky: str, monkeypatch: pytest.MonkeyPat
 
 
 @pytest.mark.maths("M-CONV-HEALPIX")
-def test_partial_sky_rule() -> None:
+@pytest.mark.parametrize("sky", ["disc", "half_face", "full"])
+def test_partial_sky_rule(sky: str) -> None:
     """The rule decided on issue #26: a neighbour of weight below 1e-12 counts as
     absent, the remaining weights sum to 1 exactly, and a stencil point without a remaining
-    neighbour reads the stencil centre: the pixel itself, with weight 1."""
+    neighbour reads the stencil centre: the pixel itself, with weight 1. On a disc, half a base
+    face (pixels 256 to 383, whose neighbours include pixel 384) and the full sky, each kept
+    neighbour is the pixel it names."""
     depth = 4
-    ids = _disc(depth, 1.4, 0.5, 0.3)
+    ids = {
+        "disc": _disc(depth, 1.4, 0.5, 0.3),
+        "half_face": np.arange(256, 384, dtype=np.int64),
+        "full": np.arange(12 * 4**depth, dtype=np.int64),
+    }[sky]
     index, weight = _stencil_interpolation(ids, depth, 4, 5)
     positions, bound, empty = _bind_support(index, weight, ids, 5)
-    assert empty.any()
+    assert empty.any() == (sky != "full")
     np.testing.assert_allclose(bound.sum(axis=-1), 1.0, rtol=0, atol=1e-15)
     assert np.all((bound == 0) | (bound >= 1e-12))
     np.testing.assert_array_equal(positions[bound == 0], 0)
     absent = ~np.isin(index, ids) | (weight < 1e-12)
     np.testing.assert_array_equal(empty, absent.all(axis=-1))
+    kept = (bound > 0) & ~empty[..., None]
+    np.testing.assert_array_equal(ids[positions[kept]], index[kept])
     pixel = np.broadcast_to(np.arange(ids.size)[None, :, None], empty.shape)
     reads_itself = (bound * (positions == pixel[..., None])).sum(axis=-1)
     np.testing.assert_allclose(reads_itself[empty], 1.0, atol=1e-12)
