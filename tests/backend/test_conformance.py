@@ -706,6 +706,23 @@ class TestSparse:
         batched = backend.gather_weighted(x, 1, index, weight, batch_rows=batch_rows)
         np.testing.assert_array_equal(backend.to_numpy(batched), whole)
 
+    @pytest.mark.parametrize("post", [(), (2,)])
+    def test_gather_weighted_shared_index_compiled(
+        self, backend: Backend, dtype: DType, post: tuple[int, ...]
+    ) -> None:
+        """An index shared by the Q entries of a row (finding P5-01 of the final review) gives
+        the values of NumPy inside a compiled program too, with and without axes after the
+        gathered one. Two leading axes and 48 x 16 entries, as the HEALPix convolution has:
+        there XLA on CPU miscompiled the broadcast form in float32 under ``jax.jit``."""
+        rng = np.random.default_rng(29)
+        index = rng.integers(0, 16, size=(48, 1, 16))
+        x, weight = draw((1, 3, 16, *post), dtype, 30), draw((48, 2, 16), dtype, 31)
+        compiled = backend.jit(
+            lambda a, w: backend.gather_weighted(a, 2, index_array(backend, index), w)
+        )
+        y = compiled(backend.asarray(x, dtype), backend.asarray(weight, dtype))
+        assert_close(backend, y, np_gather_weighted(x, 2, index, weight), dtype)
+
     def test_gather_weighted_rejects(self, backend: Backend, dtype: DType) -> None:
         x = backend.asarray(np.ones((3, 4)), dtype)
         index = index_array(backend, np.zeros((2, 1, 3), dtype=int))
