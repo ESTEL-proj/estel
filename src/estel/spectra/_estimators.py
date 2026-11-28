@@ -315,10 +315,11 @@ def estimate_fft_2d(
 def _bands_2d(
     backend: Backend, x: Any, filters: SpectrumEstimatorFilters2D, shape: tuple[int, int]
 ) -> Any:
-    """The band maps f_b of every map: ``(Nb, Nc, n_b, N₁, N₂)``."""
+    """The band maps f_b of every map: ``(Nb, n_b, Nc, N₁, N₂)``, the bin before the channel, so
+    that the Gram product of :func:`_band_sums_2d` needs no copy."""
     xp = backend.xp
     spectrum = xp.fft.rfft2(x, norm="ortho")
-    return xp.fft.irfft2(spectrum[:, :, None] * filters.modes, s=shape, norm="ortho")
+    return xp.fft.irfft2(spectrum[:, None] * filters.modes[:, None], s=shape, norm="ortho")
 
 
 def _filled_2d(backend: Backend, x: Any, filters: SpectrumEstimatorFilters2D, n_valid: int) -> Any:
@@ -339,12 +340,22 @@ def _band_sums_2d(
     filters: SpectrumEstimatorFilters2D,
     pairs: tuple[tuple[int, int], ...],
 ) -> Any:
+    """Σ_n P_b(n) f_{b,c₁}(n) f_{b,c₂}(n) for each pair of ``pairs``: ``(Nb, n_pairs, n_b)``. In
+    the Gram form, as the second layer (Part III, §19.3): per batch element and bin, one matrix
+    product of the weighted band maps of every channel with the band maps, ``(Nc, Nc)``, then
+    the entries of ``pairs``; no copy of the band maps per pair."""
     xp = backend.xp
-    shape = (int(x.shape[-2]), int(x.shape[-1]))
-    bands = _bands_2d(backend, x, filters, shape)
-    first, second = _pair_index(backend, pairs, filters.pixels)
-    products = xp.take(bands, first, axis=1) * xp.take(bands, second, axis=1)
-    return xp.sum(products * filters.pixels, axis=(-2, -1))  # (Nb, n_pairs, n_b)
+    n1, n2 = int(x.shape[-2]), int(x.shape[-1])
+    n_batch, n_channels = int(x.shape[0]), int(x.shape[1])
+    n_bins = int(filters.pixels.shape[0])
+    bands = _bands_2d(backend, x, filters, (n1, n2))  # (Nb, n_b, Nc, N1, N2)
+    weighted = xp.reshape(bands * filters.pixels[:, None], (n_batch, n_bins, n_channels, -1))
+    rows = xp.reshape(bands, (n_batch, n_bins, n_channels, -1))
+    gram = xp.matmul(weighted, xp.permute_dims(rows, (0, 1, 3, 2)))  # (Nb, n_b, Nc, Nc)
+    flat = np.array([c1 * n_channels + c2 for c1, c2 in pairs], dtype=np.int64)
+    index = constant(backend, flat, filters.pixels, "int32")
+    found = xp.take(xp.reshape(gram, (n_batch, n_bins, -1)), index, axis=2)
+    return xp.permute_dims(found, (0, 2, 1))  # (Nb, n_pairs, n_b)
 
 
 def estimate_pbc_mask_2d(
