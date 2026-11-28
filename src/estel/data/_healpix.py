@@ -64,15 +64,17 @@ class ConvTablesHealpix(NamedTuple):
     The convolution is ``gather_weighted`` with ``index`` and ``weight``, then the product with
     ``kernel``: the stencils ``(L, Npix, K², 4)`` (stencil point, neighbour) and the kernel of
     M-WAV-HEALPIX as real pairs ``(K², 2)``; or, as the wavelet operator builds them since task
-    T5.7, the kernel folded into the tables, ``(L, Npix, 2, M)`` (real and imaginary parts, the
-    M distinct pixels a row reads), and the identity ``(2, 2)``.
+    T5.7, the kernel folded into the tables, weights ``(L, Npix, 2, M)`` (real and imaginary
+    parts, the M distinct pixels a row reads), the index ``(L, Npix, 1, M)`` shared by both
+    parts, and the identity ``(2, 2)``.
     """
 
     index: Any
     """The positions of the pixels read, in the pixels of the level, int32,
-    ``(L, Npix, Q, M)``: gauge, pixel, then (Q, M) as above."""
+    ``(L, Npix, Q, M)``, or ``(L, Npix, 1, M)`` shared by the Q entries of a row: gauge,
+    pixel, then (Q, M) as above."""
     weight: Any
-    """Their weights, real, of the operator's dtype, the shape of ``index``."""
+    """Their weights, real, of the operator's dtype, ``(L, Npix, Q, M)``."""
     kernel: Any
     """The real product applied after the gather, ``(Q, 2)``: the kernel of M-WAV-HEALPIX as real
     pairs, or the identity when it is folded into the tables."""
@@ -422,11 +424,11 @@ def _stencil_rows(backend: Any, x: Any, tables: ConvTablesHealpix, pixels: slice
     :data:`_STENCIL_BATCH_ROWS`, inside ``gather_weighted`` (task T5.7)."""
     xp = backend.xp
     index, weight = tables.index[:, pixels], tables.weight[:, pixels]
-    n_l, n, q, m = (int(s) for s in index.shape)
+    n_l, n, q, m = (int(s) for s in weight.shape)
     z = backend.gather_weighted(
         x,
         -1,
-        xp.reshape(index, (n_l * n, q, m)),
+        xp.reshape(index, (n_l * n, int(index.shape[2]), m)),
         xp.reshape(weight, (n_l * n, q, m)),
         batch_rows=_STENCIL_BATCH_ROWS,
     )  # (..., L · n, Q)

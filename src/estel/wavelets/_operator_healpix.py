@@ -349,10 +349,10 @@ def build_wavelet_filters_healpix(
             kernel_size=plan.kernel_size,
         )
         index, weight = _fold_kernel(found, kernel, dtype)
-        shape = (plan.L, plan.level_shapes[level][0], *index.shape[1:])
+        rows = (plan.L, plan.level_shapes[level][0])
         return ConvTablesHealpix(
-            index=backend.asarray(index.reshape(shape), "int32", device),
-            weight=backend.asarray(weight.reshape(shape), dtype, device),
+            index=backend.asarray(index.reshape(*rows, *index.shape[1:]), "int32", device),
+            weight=backend.asarray(weight.reshape(*rows, *weight.shape[1:]), dtype, device),
             kernel=identity,
         )
 
@@ -385,10 +385,12 @@ def _fold_kernel(
     """The stencils of a level with the kernel folded in (task T5.7, trial 4): for each row
     (gauge, pixel), the K² · 4 entries merged into the distinct pixels they read, each with
     Σ W[p] · w[p, m] over its entries, as real pairs (Part I, §3.1, rule 6). Returns ``index``
-    and ``weight`` of shape ``(L · Npix, 2, M)``, M the largest number of distinct pixels of a
-    row, the rows padded with weight 0: the real part on the first entry of the second axis,
-    the imaginary part on the second, the same pixels on both. ``gather_weighted`` then gives
-    the convolution as real pairs at once; the values change by rounding only (M-CONV-HEALPIX).
+    of shape ``(L · Npix, 1, M)`` and ``weight`` of shape ``(L · Npix, 2, M)``, M the largest
+    number of distinct pixels of a row, the rows padded with weight 0: the real part on the
+    first entry of the second axis of ``weight``, the imaginary part on the second, both
+    reading the one row of ``index``, which ``gather_weighted`` gathers once (finding P5-01 of
+    the final review). It then gives the convolution as real pairs at once; the values change
+    by rounding only (M-CONV-HEALPIX).
     The sums are made in float64, by batches of :data:`_FOLD_BATCH` rows, each stored in
     ``dtype``, the operator's, then joined: the weights are cast once."""
     rows, q, m = tables.index.shape
@@ -421,7 +423,7 @@ def _fold_kernel(
         pairs = np.stack(
             [np.bincount(slots, values.real, n * width), np.bincount(slots, values.imag, n * width)]
         ).astype(dtype)  # (2, n · width)
-        found_index = np.broadcast_to(pixels.astype(np.int32).reshape(n, 1, width), (n, 2, width))
+        found_index = pixels.astype(np.int32).reshape(n, 1, width)
         return found_index, pairs.reshape(2, n, width).transpose(1, 0, 2)
 
     parts = [fold(part) for part in batches]
