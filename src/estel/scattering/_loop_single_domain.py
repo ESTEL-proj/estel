@@ -32,12 +32,14 @@ STL does not compute (j1 > j2, about half of it): they are not read. Every value
 to the order of the sums. The convolutions and the downsamplings are those of the wavelet operator
 (``WaveletOperatorSingleDomain.apply``, ``downsample``; Part I, §2.3): the loop sees levels, maps
 and weights, and does not depend on the geometry. Nothing is written in place (Part I, §3.1,
-rule 1): every step returns a new array, the divided sums of each level are collected in a
-list, in the order of ``statistics._layout.loop_sums_single_domain``, and one static gather,
-built in NumPy with the plan (``statistics._layout.loop_gather_single_domain``), concatenates them,
-chunk by chunk, into the compact buffer at the end (Part III, §19.3, §19.9): no full-grid
-tensor is written in the computation (review rule X5). The loops run over scales, levels and
-channel pairs, as STL's, never over pixels or orientations.
+rule 1): every step returns a new array. The step from the Gram products to the chunks of the
+buffer is the one of tensor products (``_loop.gram_chunk_sums``): the S3 and S4 chunks of j3
+are read from the products by one slice per arm and one ``take``, with the rows of its chunks,
+built in NumPy with the plan (``statistics._layout.gather_single_domain``); the S1 and S2 chunks
+of a scale are put in the order of the buffer (``_loop.first_layer_floats``); and the families
+are concatenated at the end, S4 packed with its real diagonal (``_loop.compact_buffer``; Part
+III, §19.3, §19.9): no full-grid tensor is written in the computation (review rule X5). The
+loops run over scales, levels and channel pairs, as STL's, never over pixels or orientations.
 
 **Sums, then division.** Every mean is a weighted sum over the pixels divided by a denominator
 of the plan (M-MEAN). The loop takes the sums of a level, stacks them, passes them once to the
@@ -59,20 +61,20 @@ from ..backend._protocol import Backend
 from ..data._base import Data
 from ..data._moments import modulus
 from ..spectra._estimators import spectrum_floats_2d
-from ..statistics._layout import (
-    gather_loop_single_domain,
-    loop_gather_single_domain,
-    spectrum_pairs,
-)
+from ..statistics._layout import GatherSingleDomain, gather_single_domain, spectrum_pairs
 from ..wavelets._operator import WaveletOperatorSingleDomain
 from . import _loop
 from ._filters import STFiltersSingleDomain, window_single_domain
 from ._loop import (
+    GramRows,
     ScatteringValues,
     _divide_level,
     _Sum,
+    compact_buffer,
     field_moments,
+    first_layer_floats,
     first_layer_sums,
+    gram_chunk_sums,
     gram_sums,
 )
 
@@ -115,7 +117,9 @@ def values_single_domain(
         plan.standardize,
     )
     field = x  # at full resolution, after the standardisation: the field of the spectrum
-    divided: list[Any] = []  # the divided sums of each level, as real (Nb, n) arrays
+    gather = gather_single_domain(plan)
+    families: dict[str, list[Any]] = {"moments": [], "S1": [], "S2": [], "S3": [], "S4": []}
+    pieces: list[tuple[str, int]] = [("moments", len(pending))]  # what pending holds, in order
 
     moduli: dict[int, Any] = {}  # U_{j2} x of every scale computed so far, at the current level
     for level in plan.levels:
@@ -128,29 +132,24 @@ def values_single_domain(
             if j3 in plan.first_layer:
                 weights = window_single_domain(plan.first_layer[j3], filters.first_layer[j3])
                 denominator = plan.first_layer[j3].denominator
-                pending.extend(first_layer_sums(w, u, weights, denominator, pairs, axes))
+                found = first_layer_sums(w, u, weights, denominator, pairs, axes)
+                pending, pieces = [*pending, *found], [*pieces, ("first", len(found))]
 
             if j3 in plan.second_layer:
-                pending.extend(_second_layer(backend, wavelets, plan, filters, j3, moduli, w))
+                found = _second_layer(backend, wavelets, plan, filters, j3, moduli, w)
+                pending, pieces = [*pending, *found], [*pieces, ("second", len(found))]
 
-        divided.extend(_divide_level(backend, pending, total))
-        pending = []
+        families = _collect(backend, plan, gather, families, pieces, pending, total)
+        pending, pieces = [], []
 
         if level < plan.levels[-1]:
             x = wavelets.downsample(x, level)
             moduli = {j2: wavelets.downsample(u2, level, (j2,)) for j2, u2 in moduli.items()}
 
-    # One static gather from the sums, in the order of loop_sums_single_domain, to the compact
-    # buffer (Part III, §19.3, §19.9), chunk by chunk: no full-grid tensor inside the computation
-    # (review rule X5).
-    gather = loop_gather_single_domain(plan)
-    if len(divided) != gather.n_sums:
-        raise RuntimeError(
-            f"the scattering loop of estel.STOperator produced {len(divided)} sums where its "
-            f"plan expects {gather.n_sums}, an internal inconsistency of ESTEL: report it as a "
-            "bug, with the shape of the data, J, L and cross_matrix."
-        )
-    buffer = gather_loop_single_domain(backend, divided, gather, filters.gather)
+    # The families concatenated in the order of the buffer (Part III, §19.3, §19.9), the S4
+    # chunks packed with their real diagonal: no full-grid tensor inside the computation (review
+    # rule X5).
+    buffer = compact_buffer(backend, families, plan.L, gather.s4, filters.s4_pack)
     if plan.spectrum is not None and filters.spectrum is not None:
         # The power spectrum, the last floats of the buffer (maths.md §1.9, M-FLAT; task T4.1),
         # with the estimators of spectra._estimators, on the field after the standardisation.
@@ -165,6 +164,36 @@ def values_single_domain(
     )
 
 
+def _collect(
+    backend: Backend,
+    plan: STPlanSingleDomain,
+    gather: GatherSingleDomain,
+    families: dict[str, list[Any]],
+    pieces: list[tuple[str, int]],
+    pending: list[_Sum],
+    total: Any,
+) -> dict[str, list[Any]]:
+    """``families`` with the means of one level added: its sums ``pending`` divided once
+    (``_loop._divide_level``, one global sum), then read piece by piece (``pieces``: mean and
+    var, the S1 and S2 of a scale, the S3 and S4 of a scale j3), each into its family."""
+    divided = _divide_level(backend, pending, total)
+    offset = 0
+    for kind, n in pieces:
+        part, items = divided[offset : offset + n], pending[offset : offset + n]
+        offset += n
+        if kind == "moments":
+            families = {**families, "moments": [*families["moments"], *part]}
+        elif kind == "first":
+            floats = first_layer_floats(backend, part, plan.pairs, gather.first_pairs, (plan.L,))
+            families = {
+                name: [*v, floats[name]] if name in floats else v for name, v in families.items()
+            }
+        else:
+            for item, value in zip(items, part, strict=True):
+                families = {**families, item.family: [*families[item.family], value]}
+    return families
+
+
 def _second_layer(
     backend: Backend,
     wavelets: WaveletOperatorSingleDomain,
@@ -174,9 +203,9 @@ def _second_layer(
     moduli: dict[int, Any],
     w: Any,
 ) -> list[_Sum]:
-    """The sums of the S3 and S4 means of scale ``j3``, at the level of ``j3``, in the order of
-    STL's loop (for j2, S3 then, for j1, S4; the channel pairs inside), as two Gram products
-    (M-GRAM).
+    """The sums of the S3 and S4 means of scale ``j3``, at the level of ``j3``, from two Gram
+    products (M-GRAM), the chunks of the segments of j3 in the order of the buffer
+    (``_loop.gram_chunk_sums``).
 
     ``moduli`` holds U_{j2} at the level of j3, ``(Nb, L, Nc, *spatial)``, for every j2 ≤ j3, and
     ``w`` is the band map W_{j3} x, ``(Nb, L, Nc, *spatial)``: every map has the orientation
@@ -184,7 +213,7 @@ def _second_layer(
     """
     xp = backend.xp
     maps = plan.second_layer[j3]
-    pairs, n_channels, L = plan.pairs, plan.n_channels, plan.L  # noqa: N806
+    n_channels, L = plan.n_channels, plan.L  # noqa: N806
     # The moduli of the scales j2 ≤ j3, stacked (real, 1/(2L) of the second layer), then one
     # convolution: ψ_{l3} ⋆ U_{j2} x, (Nb, L3, j2, L2, Nc, *spatial), l3 leading.
     arms = xp.stack([moduli[j2] for j2 in maps.arms], axis=1)
@@ -194,8 +223,6 @@ def _second_layer(
     with_s3 = any((j2, j3) in plan.s3 for j2 in maps.arms)
     with_s4 = any(key[2] == j3 for key in plan.s4)
     n_batch, n_arms = int(v.shape[0]), len(maps.arms)
-    row = {j2: position for position, j2 in enumerate(maps.arms)}
-    grid = (n_batch, L, n_arms, L, n_channels)
     if windows is not None:
         # Each map is zero outside its own window: a pair is then summed over the
         # intersection of its two windows, STL's window for that pair.
@@ -209,29 +236,10 @@ def _second_layer(
         with_s3,
         with_s4,
     )
-    if cross is not None:
-        cross = xp.reshape(cross, (*grid, n_channels))  # [Nb, l3, j2, l2, c1, c2]
-    if gram is not None:
-        gram = xp.reshape(gram, (*grid, *grid[2:]))  # [Nb, l3, j1, l1, c1, j2, l2, c2]
-    sums: list[_Sum] = []
-    for j2 in maps.arms:
-        if cross is not None and (j2, j3) in plan.s3:
-            denominator = plan.s3[(j2, j3)].denominator
-            sums.extend(
-                # (Nb, L3, L2) -> (Nb, L2, L3)
-                _Sum("S3", xp.permute_dims(cross[:, :, row[j2], :, c1, c2], (0, 2, 1)), denominator)
-                for c1, c2 in pairs.ordered
-            )
-        for j1 in range(j2 + 1):
-            if gram is not None and (j1, j2, j3) in plan.s4:
-                denominator = plan.s4[(j1, j2, j3)].denominator
-                sums.extend(
-                    # (Nb, L3, L1, L2) -> (Nb, L1, L2, L3)
-                    _Sum(
-                        "S4",
-                        xp.permute_dims(gram[:, :, row[j1], :, c1, row[j2], :, c2], (0, 2, 3, 1)),
-                        denominator,
-                    )
-                    for c1, c2 in pairs.ordered
-                )
-    return sums
+    rows = GramRows(
+        gather_single_domain(plan).s3_rows[j3],
+        filters.s3_denominators[j3],
+        filters.s4_rows[j3],
+        filters.s4_denominators[j3],
+    )
+    return gram_chunk_sums(backend, cross, gram, rows, (L,), n_arms, n_channels, True)

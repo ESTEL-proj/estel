@@ -29,7 +29,7 @@ from numpy.typing import NDArray
 from .._config import FloatDType
 from ..backend import _registry
 from ..spectra._estimators import SpectrumEstimatorFilters2D, build_spectrum_filters_2d
-from ..statistics._layout import ChunkTables, gather_tensor_prod, loop_gather_single_domain
+from ..statistics._layout import ChunkTables, gather_single_domain, gather_tensor_prod
 from ..wavelets._operator import MeanWeights, WaveletFilters
 from ..wavelets._operator_tensor_prod import build_wavelet_filters_tensor_prod
 from ._tensor_prod import ScaleTensorProd
@@ -61,12 +61,16 @@ class _FilterFieldsSingleDomain(NamedTuple):
     ``None`` when every window is the whole grid (maths_step2.md M-GRAM). S3 and S4 need no
     other weights: each mean is a Gram product of windowed maps, divided by the denominator
     of the plan."""
-    gather: tuple[Any, ...]
-    """The integer arrays of the static gather from the divided sums of the loop, in the order
-    of ``statistics._layout.loop_sums_single_domain``, to the compact buffer of the statistics:
-    for each kind of chunk the loop computes complex and the buffer stores with real entries, the
-    floats kept (int32; ``statistics._layout.loop_gather_single_domain``; Part III, §19.3,
-    §19.9; task T3.7)."""
+    s3_denominators: Mapping[int, Any]
+    """Per scale j3 of ``plan.second_layer``, the denominators of the chunks of its S3
+    segment, in the order of the buffer, in the operator's dtype (their rows, static, are read
+    from ``statistics._layout.gather_single_domain``; Part III, §19.3, §19.9; task T3.7)."""
+    s4_rows: Mapping[int, Any]
+    """Per j3, the rows of its S4 Gram product that are the chunks of its segment (int32)."""
+    s4_denominators: Mapping[int, Any]
+    """Per j3, their denominators."""
+    s4_pack: ChunkTables
+    """The tables of the packing of S4 into its floats (``statistics._layout.pack``)."""
     spectrum: SpectrumEstimatorFilters2D | None = None
     """The static arrays of the 2D power spectrum (maths.md §1.9; task T4.1), or ``None``
     without it."""
@@ -140,6 +144,10 @@ def build_filters_single_domain(
     def boolean(a: NDArray[Any]) -> Any:
         return backend.asarray(np.asarray(a, dtype=bool), "bool", device)
 
+    def index(a: NDArray[Any]) -> Any:
+        return backend.asarray(np.asarray(a).astype(np.int32), "int32", device)
+
+    gather = gather_single_domain(plan)
     return STFiltersSingleDomain(
         wavelets=plan.wavelets._build_filters(backend_name, dtype, device, tables),
         valid=None if plan.mask is None else boolean(~plan.mask),
@@ -149,10 +157,10 @@ def build_filters_single_domain(
             j3: real(np.stack(maps.windows)) if maps.windows else None
             for j3, maps in plan.second_layer.items()
         },
-        gather=tuple(
-            backend.asarray(take.astype(np.int32), "int32", device)
-            for take in loop_gather_single_domain(plan).takes
-        ),
+        s3_denominators={j3: real(d) for j3, d in gather.s3_denominators.items()},
+        s4_rows={j3: index(rows) for j3, rows in gather.s4_rows.items()},
+        s4_denominators={j3: real(d) for j3, d in gather.s4_denominators.items()},
+        s4_pack=(index(gather.s4.within), index(gather.s4.kinds), index(gather.s4.starts)),
         spectrum=None
         if plan.spectrum is None
         else build_spectrum_filters_2d(plan.spectrum, plan.mask, backend, dtype, device),
@@ -172,10 +180,9 @@ class _FilterFieldsTensorProd(NamedTuple):
     ``(n_arms, *shape of the block)``, or ``None`` (``SecondLayerScale.arm_crops``)."""
     band_crops: dict[ScaleTensorProd, tuple[Any, ...]]
     """Per wavelet scale j3, per block, the crop of the band map, or ``None``."""
-    s3_rows: dict[ScaleTensorProd, Any]
-    """Per j3, the rows of the S3 sums that are the chunks of its segment (int32)."""
     s3_denominators: dict[ScaleTensorProd, Any]
-    """Per j3, their denominators, in the operator's dtype."""
+    """Per j3, the denominators of the chunks of its S3 segment, in the operator's dtype (their
+    rows, static, are read from the plan: ``SecondLayerScale.s3_rows``)."""
     s4_rows: dict[ScaleTensorProd, Any]
     s4_denominators: dict[ScaleTensorProd, Any]
     s4_pack: ChunkTables
@@ -218,7 +225,6 @@ def build_filters_tensor_prod(
         wavelets=build_wavelet_filters_tensor_prod(plan.wavelets, backend_name, dtype, device),
         arm_crops={s.j3: tuple(real(c) for c in s.arm_crops) for s in second},
         band_crops={s.j3: tuple(real(c) for c in s.band_crops) for s in second},
-        s3_rows={s.j3: index(s.s3_rows) for s in second},
         s3_denominators={s.j3: real(s.s3_denominators) for s in second},
         s4_rows={s.j3: index(s.s4_rows) for s in second},
         s4_denominators={s.j3: real(s.s4_denominators) for s in second},
