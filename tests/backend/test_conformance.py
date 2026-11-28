@@ -19,8 +19,6 @@ from __future__ import annotations
 
 import itertools
 import math
-import subprocess
-import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -30,7 +28,6 @@ import numpy as np
 import pytest
 
 from estel.backend._protocol import Backend, DType
-from tests._backends import BACKENDS, backend_name
 
 # The L0 conformance suite runs in both dtypes in the fast tier (precision against NumPy
 # float64, dtype propagation through every primitive) and on JAX (Part I, §5.4).
@@ -124,13 +121,6 @@ def np_scatter(
     grid = np.full((*batch, math.prod(shape)), fill, dtype=values.dtype)
     grid[..., np.ravel_multi_index(tuple(index), shape)] = values
     return grid.reshape(*batch, *shape)
-
-
-def np_gather(grid: NDArray, index: list[NDArray]) -> NDArray:
-    d = len(index)
-    shape = grid.shape[grid.ndim - d :]
-    flat = np.ravel_multi_index(tuple(index), shape)
-    return grid.reshape(*grid.shape[: grid.ndim - d], -1)[..., flat]
 
 
 def pairs(z: NDArray) -> NDArray:
@@ -308,12 +298,6 @@ LINEAR_CASES = [
             v, [index_array(b, i) for i in GRID_INDEX], (3, 4), fill=0.0
         ),
         lambda v, dt: np_scatter(v, GRID_INDEX, (3, 4), 0.0),
-    ),
-    Linear(
-        "gather-from-grid",
-        (2, 3, 4),
-        lambda b, g, dt: b.gather_from_grid(g, [index_array(b, i, "int32") for i in GRID_INDEX]),
-        lambda g, dt: np_gather(g, GRID_INDEX),
     ),
     Linear(
         "complex-arithmetic",
@@ -746,13 +730,18 @@ class TestSparse:
         with pytest.raises(ValueError, match="one id per entry"):
             backend.segment_sum(x, 0, index_array(backend, SEG_IDS), 5)
 
-    def test_scatter_fill_and_roundtrip(self, backend: Backend, dtype: DType) -> None:
+    @pytest.mark.parametrize("index_dtype", ["int32", "int64"])
+    def test_scatter_fill_and_roundtrip(
+        self, backend: Backend, dtype: DType, index_dtype: DType
+    ) -> None:
         v = draw((2, 5), dtype, 13)
-        index = [index_array(backend, i) for i in GRID_INDEX]
+        index = [index_array(backend, i, index_dtype) for i in GRID_INDEX]
         grid = backend.scatter_to_grid(backend.asarray(v, dtype), index, (3, 4))
         assert_close(backend, grid, np_scatter(v, GRID_INDEX, (3, 4), np.nan), dtype)
         assert np.isnan(backend.to_numpy(grid)).sum() == 2 * (12 - 5)
-        assert_close(backend, backend.gather_from_grid(grid, index), v, dtype)
+        # Read back at the static positions with plain NumPy indexing: the values, exactly.
+        read = backend.to_numpy(grid)[:, GRID_INDEX[0], GRID_INDEX[1]]
+        np.testing.assert_array_equal(read, v.astype(dtype))
 
     def test_scatter_complex_fill(self, backend: Backend, dtype: DType) -> None:
         cdtype = COMPLEX_OF[dtype]
@@ -774,7 +763,7 @@ class TestSparse:
 
         def f(a: Array) -> Array:
             grid = backend.scatter_to_grid(a, index, (3, 4))
-            return xp.sum(backend.gather_from_grid(grid, index) ** 2)
+            return xp.sum(grid[index[0], index[1]] ** 2)
 
         _, grad = backend.value_and_grad(f)(backend.asarray(v, dtype))
         assert_close(backend, grad, 2 * v, dtype)
@@ -790,8 +779,6 @@ class TestSparse:
             backend.scatter_to_grid(v, [index[0], index_array(backend, [0, 1])], (3, 4))
         with pytest.raises(ValueError, match="0-d"):
             backend.scatter_to_grid(backend.asarray(np.array(1.0), dtype), index[:1], (3,))
-        with pytest.raises(ValueError, match="one per grid axis"):
-            backend.gather_from_grid(backend.asarray(np.ones(4), dtype), index)
 
 
 # ------------------------------------------------------------------ complex values
@@ -1106,23 +1093,6 @@ class TestLbfgs:
                 history_size=5,
                 **common,
             )
-
-
-@pytest.mark.slow
-@pytest.mark.serial
-def test_deterministic_can_be_switched(backend: Backend) -> None:
-    """At set-up, in a fresh process: JAX reads its flag only before it starts (issue #10).
-
-    Slow: the fresh Python process imports the backend, which takes seconds."""
-    module, _, cls = BACKENDS[backend_name()].partition(":")
-    code = (
-        f"from {module} import {cls}\n"
-        f"backend = {cls}()\n"
-        "backend.deterministic(True)\n"
-        "backend.deterministic(False)\n"
-        "backend.deterministic(True)\n"
-    )
-    subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True)
 
 
 # ------------------------------------------------------------------ pytrees (task T2.9)

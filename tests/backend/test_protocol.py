@@ -28,7 +28,6 @@ PRIMITIVES = (
     "gather_weighted",
     "segment_sum",
     "scatter_to_grid",
-    "gather_from_grid",
     "complex_to_real_pairs",
     "real_pairs_to_complex",
     "stop_gradient",
@@ -41,7 +40,6 @@ PRIMITIVES = (
     "jvp",
     "hvp",
     "lbfgs",
-    "deterministic",
 )
 SECTIONS = ("Shapes:", "Dtypes:", "Values:", "Gradients:", "Edge cases:")
 

@@ -384,7 +384,7 @@ class TorchBackend:
         zeros = torch.zeros(shape, dtype=x.dtype, device=x.device)
         return zeros.index_add(ax, segment_ids, x)
 
-    def _flat_index(self, index: Sequence[Any], shape: Sequence[int], n: int | None) -> Any:
+    def _flat_index(self, index: Sequence[Any], shape: Sequence[int], n: int) -> Any:
         coords = [_index(c, f"index[{i}]") for i, c in enumerate(index)]
         if len(coords) != len(shape):
             raise ValueError(
@@ -396,7 +396,7 @@ class TorchBackend:
             raise ValueError(
                 f"the coordinate arrays have shapes {sorted(lengths)}; they must all be (n,)."
             )
-        if n is not None and coords and tuple(coords[0].shape) != (n,):
+        if coords and tuple(coords[0].shape) != (n,):
             raise ValueError(
                 f"the coordinate arrays have length {coords[0].shape[0]}, but values has {n} "
                 "entries on its last axis."
@@ -427,19 +427,6 @@ class TorchBackend:
             (*batch, math.prod(shape)), fill, dtype=values.dtype, device=values.device
         )
         return grid.index_copy(values.ndim - 1, flat, values).reshape(*batch, *shape)
-
-    def gather_from_grid(self, grid: torch.Tensor, index: Sequence[Any]) -> torch.Tensor:
-        grid = _floating(grid, "grid")
-        d = len(index)
-        if d == 0 or d > grid.ndim:
-            raise ValueError(
-                f"index has {d} coordinate arrays for a grid of {grid.ndim} dimensions: give "
-                "one per grid axis, at least one."
-            )
-        shape = grid.shape[grid.ndim - d :]
-        flat = self._flat_index(index, shape, None).to(grid.device)
-        batch = grid.shape[: grid.ndim - d]
-        return torch.index_select(grid.reshape(*batch, -1), len(batch), flat)
 
     # ------------------------------------------------------------ complex values
 
@@ -547,9 +534,6 @@ class TorchBackend:
             tolerance_change=tolerance_change,
             state=state,
         )
-
-    def deterministic(self, enabled: bool) -> None:
-        torch.use_deterministic_algorithms(bool(enabled))
 
     # ------------------------------------------------------------ pytrees
 

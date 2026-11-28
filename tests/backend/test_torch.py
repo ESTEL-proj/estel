@@ -1,10 +1,10 @@
 """What the conformance suite cannot say without naming PyTorch (task T1.2).
 
 The backend-neutral checks are in ``test_conformance.py``; these pin the PyTorch choices of
-Part II, §12.3: ``lbfgs`` is ``torch.optim.LBFGS(line_search_fn="strong_wolfe")``,
-``deterministic`` is ``torch.use_deterministic_algorithms``, keys leave the global random state
-alone, and nothing returned shares memory with an input; ``register_pytree`` registers with
-``torch.utils._pytree``, imported when it is called (task T2.9).
+Part II, §12.3: ``lbfgs`` is ``torch.optim.LBFGS(line_search_fn="strong_wolfe")``, keys
+leave the global random state alone, and nothing returned shares memory with an input;
+``register_pytree`` registers with ``torch.utils._pytree``, imported when it is called
+(task T2.9).
 """
 
 from __future__ import annotations
@@ -88,19 +88,6 @@ def test_lbfgs_state_is_numpy_and_resumes_bit_for_bit(tmp_path: Any) -> None:
     )
     assert torch.equal(second.x, whole.x)
     assert torch.equal(torch.cat([first.losses, second.losses]), whole.losses)
-
-
-@pytest.mark.serial
-def test_deterministic_sets_the_torch_flag() -> None:
-    before = torch.are_deterministic_algorithms_enabled()
-    backend = TorchBackend()
-    try:
-        backend.deterministic(True)
-        assert torch.are_deterministic_algorithms_enabled()
-        backend.deterministic(False)
-        assert not torch.are_deterministic_algorithms_enabled()
-    finally:
-        torch.use_deterministic_algorithms(before)
 
 
 def test_random_normal_leaves_the_global_state_alone(dtype: DType) -> None:

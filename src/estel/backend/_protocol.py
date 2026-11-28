@@ -17,9 +17,9 @@ Every primitive documents, in this order:
 General rules, which every primitive follows unless its docstring says otherwise:
 
 * **Pure and out of place.** No primitive modifies its inputs; outputs never share mutable
-  state with them. Nothing here keeps state between calls, except :meth:`Backend.deterministic`,
-  which sets a process-wide flag, and :meth:`Backend.register_pytree`, which adds to the
-  process-wide pytree registry of the backend's library.
+  state with them. Nothing here keeps state between calls, except
+  :meth:`Backend.register_pytree`, which adds to the process-wide pytree registry of the
+  backend's library.
 * **No silent dtype change.** Floating inputs of one call share one dtype (float32 or float64,
   or the matching complex64 or complex128); a mismatch raises ``TypeError``. The result has
   that dtype unless the docstring says otherwise. No primitive promotes float32 to float64.
@@ -339,26 +339,6 @@ class Backend(Protocol):
         """
         ...
 
-    def gather_from_grid(self, grid: Array, index: Sequence[Array]) -> Array:
-        """Read back the coefficients at the static positions ``index``: the inverse of
-        :meth:`scatter_to_grid`.
-
-        Shapes:
-            ``index`` holds d integer arrays of shape ``(n,)``; ``grid`` has shape
-            ``(*B, *shape)`` with ``len(shape) = d``. The result has shape ``(*B, n)``.
-        Dtypes:
-            Real or complex floating; the result has the dtype of ``grid``.
-        Values:
-            ``y[..., i] = grid[..., index[0][i], …, index[d-1][i]]``, so that
-            ``gather_from_grid(scatter_to_grid(v, index, shape), index) == v``.
-        Gradients:
-            Linear in ``grid``: zero cotangent at the positions not read.
-        Edge cases:
-            Index values are not checked (plan data). Mismatched lengths raise
-            ``ValueError``.
-        """
-        ...
-
     # ------------------------------------------------------------ complex values
 
     def complex_to_real_pairs(self, z: Array) -> Array:
@@ -599,28 +579,6 @@ class Backend(Protocol):
         Edge cases:
             ``x0`` is not modified. ``max_iter < 1``, ``history_size < 1`` or ``max_eval < 1``
             raise ``ValueError``; a ``state`` from another backend raises ``TypeError``.
-        """
-        ...
-
-    def deterministic(self, enabled: bool) -> None:
-        """Switch deterministic algorithms on or off, for the whole process.
-
-        Shapes:
-            Not applicable.
-        Dtypes:
-            Not applicable.
-        Values:
-            When on, repeated runs on the same device and software give bitwise-identical
-            results, and an operation without a deterministic implementation raises an error.
-            ``torch.use_deterministic_algorithms`` in PyTorch;
-            ``--xla_gpu_deterministic_ops=true`` in ``XLA_FLAGS`` in the JAX backend. On in
-            tests.
-        Gradients:
-            Not applicable.
-        Edge cases:
-            Process-wide state: call it at set-up, never inside the computation. XLA reads
-            ``XLA_FLAGS`` only when JAX starts, so on the JAX backend a call that would change
-            the setting after the first JAX array is created raises ``RuntimeError``.
         """
         ...
 
