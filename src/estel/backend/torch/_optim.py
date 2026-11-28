@@ -4,8 +4,13 @@ maths.md M-SYN-LBFGS).
 The driver runs ``LBFGS.step`` one iteration at a time, so that it can record the loss after
 each iteration and hand back a state that resumes the same run (synthesis checkpoints,
 Part II, §12.9). The optimizer keeps its history between steps, so the iterates are those of
-a single ``step`` with ``max_iter`` iterations and ``max_eval`` evaluations. The stopping rules
-are torch's own, checked between iterations:
+a single ``step`` with ``max_iter`` iterations and ``max_eval`` evaluations. Each ``step`` opens
+by evaluating the loss and its gradient at the current iterate, the point the line search of the
+previous step accepted and already evaluated. The driver keeps the points evaluated in the
+current step and in the one before, with their loss and gradient, and serves an evaluation, the
+opening one or the loss read at the end of a run, from them when its point is bitwise one of
+them. The loss and its gradient are thus computed once per point, with the values a single
+``step`` computes. The stopping rules are torch's own, checked between iterations:
 
 * the largest gradient component at the current iterate is at most ``tolerance_grad``;
 * the last step, ``max |t · d|``, is at most ``tolerance_change``;
@@ -40,6 +45,10 @@ _PAIRS = ("old_dirs", "old_stps", "ro")
 # Entries that are a tensor or a Python number, depending on the iteration.
 _NUMBERS = ("t", "H_diag", "prev_loss")
 _COUNTS = ("n_iter", "func_evals")
+
+
+_Evaluation = tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]
+"""A point, the loss there and its gradient (``None`` when ``fun`` does not reach ``x``)."""
 
 
 class _ConvergedError(Exception):
@@ -93,15 +102,41 @@ def lbfgs(
 
     # Loss at each iterate: values[0] at x0, values[i] after iteration i.
     values: list[torch.Tensor] = []
+    # The points evaluated in the current step and in the one before, with their loss and
+    # gradient (see the module docstring): the point a line search accepts is one of its own.
+    current: list[_Evaluation] = []
+    previous: list[_Evaluation] = []
+
+    def evaluated() -> _Evaluation | None:
+        return next((e for e in current + previous if torch.equal(x, e[0])), None)
+
+    def evaluate() -> torch.Tensor:
+        """The loss at ``x``, its gradient in ``x.grad``: computed, or read when ``x`` was
+        evaluated in this step or the one before."""
+        found = evaluated()
+        if found is not None:
+            x.grad = None if found[2] is None else found[2].clone()
+            return found[1]
+        loss = fun(x)
+        loss.backward()  # type: ignore[no-untyped-call]
+        grad = None if x.grad is None else x.grad.detach().clone()
+        current.append((x.detach().clone(), loss.detach(), grad))
+        return loss
+
+    def loss_at_x() -> torch.Tensor:
+        """The loss at ``x``, read when ``x`` was evaluated in this step or the one before."""
+        found = evaluated()
+        return _loss(fun, x) if found is None else found[1].clone()
 
     def closure_for_step() -> Callable[[], torch.Tensor]:
+        previous[:] = current
+        current.clear()
         first_call = True
 
         def closure() -> torch.Tensor:
             nonlocal first_call
             optimizer.zero_grad()
-            loss = fun(x)
-            loss.backward()  # type: ignore[no-untyped-call]
+            loss = evaluate()
             if first_call:
                 first_call = False
                 values.append(loss.detach().clone())
@@ -115,8 +150,9 @@ def lbfgs(
         return closure
 
     # The line search of each iteration may use what is left of the budget, as in a single
-    # step. The evaluation that opens each of our steps re-reads the current iterate and is not
-    # counted, except the first of a new run, which is torch's evaluation at x0.
+    # step. The evaluation that opens each of our steps re-reads the current iterate, kept from
+    # the step before, and is not counted, except the first of a new run, which is torch's
+    # evaluation at x0.
     used = 0
     converged = True  # False when the run stops on max_iter or on the budget
     for iteration in range(max_iter):
@@ -133,18 +169,18 @@ def lbfgs(
         line_search_evals = history["func_evals"] - evals_before - 1
         used += opening + line_search_evals
         if line_search_evals == 0:
-            values.append(_loss(fun, x))
+            values.append(loss_at_x())
             break  # not a descent direction: torch stops without a line search
         step = history["d"].mul(history["t"]).abs().max()
         if float(step) <= tolerance_change:
-            values.append(_loss(fun, x))
+            values.append(loss_at_x())
             break
         if used >= budget:
-            values.append(_loss(fun, x))
+            values.append(loss_at_x())
             converged = False
             break
     else:
-        values.append(_loss(fun, x))
+        values.append(loss_at_x())
         converged = False
     if state is None and not used and values:
         used = 1  # stopped at x0: torch's single step evaluated the loss there once
