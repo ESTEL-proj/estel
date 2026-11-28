@@ -138,6 +138,12 @@ class DataHealpix(Data):
 
     ``DataHealpix(array, mask=None, *, depth=None, cell_ids=None, partition=None)``.
 
+    ``pbc`` is a read-only property, True on a full sky and False with ``cell_ids``.
+
+    ``ndim`` is 1: it counts the spatial axes of the array, and the pixels lie on one axis,
+    though the sphere is a 2D surface. The geometry is tested by its tag, ``_geometry``
+    (``"healpix"``), never by ``ndim``.
+
     Parameters
     ----------
     array : array_like
@@ -157,12 +163,6 @@ class DataHealpix(Data):
         ``cell_ids``, ``pbc`` is False.
     partition : None
         Reserved for step 2 (LF34): ``None`` only.
-
-    ``pbc`` is a read-only property, True on a full sky and False with ``cell_ids``.
-
-    ``ndim`` is 1: it counts the spatial axes of the array, and the pixels lie on one axis,
-    though the sphere is a 2D surface. The geometry is tested by its tag, ``_geometry``
-    (``"healpix"``), never by ``ndim``.
     """
 
     ndim: ClassVar[int] = 1

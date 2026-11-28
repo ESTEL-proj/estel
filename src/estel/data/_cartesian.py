@@ -350,9 +350,17 @@ def nyquist_filter(backend: Backend, x: Any) -> Any:
 class Data2D(DataCartesian):
     """2D data, shape ``(Nb, Nc, N1, N2)``.
 
-    ``Data2D(array, mask=None, *, pbc)``: see :class:`estel.Data` for the parameters.
-    A 2D array is promoted to ``(1, 1, N1, N2)``, a 3D array to ``(1, Nc, N1, N2)``
-    (maths.md M-DATA-2D).
+    ``Data2D(array, mask=None, *, pbc)``.
+
+    Parameters
+    ----------
+    array : array_like
+        As for :class:`estel.Data`. A 2D array is promoted to ``(1, 1, N1, N2)``, a 3D array to
+        ``(1, Nc, N1, N2)`` (maths.md M-DATA-2D).
+    mask : array_like or None
+        As for :class:`estel.Data`.
+    pbc : bool
+        As for :class:`estel.Data`.
     """
 
     ndim: ClassVar[int] = 2
@@ -372,9 +380,18 @@ class Data2D(DataCartesian):
 class Data1D(DataCartesian):
     """1D data, shape ``(Nb, Nc, N)``.
 
-    ``Data1D(array, mask=None, *, pbc)``: see :class:`estel.Data` for the parameters.
-    A 1D array is promoted to ``(1, 1, N)``; a 2D array to ``(1, Nc, N)``, its first axis read
-    as channels, not as a batch (maths.md M-DATA-1D, OP-29).
+    ``Data1D(array, mask=None, *, pbc)``.
+
+    Parameters
+    ----------
+    array : array_like
+        As for :class:`estel.Data`. A 1D array is promoted to ``(1, 1, N)``; a 2D array to
+        ``(1, Nc, N)``, its first axis read as channels, not as a batch (maths.md M-DATA-1D,
+        OP-29).
+    mask : array_like or None
+        As for :class:`estel.Data`.
+    pbc : bool
+        As for :class:`estel.Data`.
     """
 
     ndim: ClassVar[int] = 1

@@ -391,12 +391,9 @@ def synthesize_from_stats(
     """Synthesise ``n_batch`` periodic fields whose statistics match ``stats`` (maths.md
     section 5).
 
-    ``stats`` are the statistics of 2D data or of a full HEALPix sky, computed with
-    ``norm="self"``, not reduced, holding exactly the families ``mean``, ``var``, S1 to S4, and,
-    on 2D data, the power spectrum ``PS`` or not; their normalisation, ``ref_batch_mean`` and
-    standardisation are those the caller chose (M-SYN-TARGET). The spectrum enters the loss if
-    and only if ``stats`` hold it (M-SYN-OPS); to synthesise without it from statistics that
-    hold it, pass ``stats.select(["mean", "var", "S1", "S2", "S3", "S4"])``. The synthesised
+    The spectrum enters the loss if and only if ``stats`` hold it (M-SYN-OPS); to synthesise
+    without it from statistics that hold it, pass
+    ``stats.select(["mean", "var", "S1", "S2", "S3", "S4"])``. The synthesised
     fields are periodic and without missing values, whatever the mask of ``stats`` (LF47); the
     statistics of a partial HEALPix sky are refused (LF47). The running fields have the
     geometry and the static metadata of ``stats`` (their depth, on HEALPix data), and every
@@ -404,15 +401,29 @@ def synthesize_from_stats(
     of bins and J_min, comes from ``stats`` (OP-76); the estimator of the spectrum is ``fft``.
     ``stats`` are not modified (OP-70).
 
-    With ``mean_field=True`` (the default) the loss compares the batch means and is divided by
-    the Nb of ``stats`` (OP-71); with ``mean_field=False``, ``n_batch`` must be that Nb. If
-    ``stats`` were computed with ``standardize=True``, the fields are de-standardised with the
+    If ``stats`` were computed with ``standardize=True``, the fields are de-standardised with the
     removed means and standard deviations, averaged over the batch with ``mean_field``
     (M-SYN-OUT, OP-72); otherwise they are left in the units of the statistics.
 
-    ``init`` is ``None`` or ``"gaussian"`` for a Gaussian start drawn with ``seed``, or an
-    array that broadcasts to ``(n_batch, Nc, *spatial)``. ``running_shape`` is taken on 2D data
-    only (OP-101). The other parameters are those of :func:`synthesize_from_maps`.
+    Parameters
+    ----------
+    stats : STStatistics
+        The statistics of 2D data or of a full HEALPix sky, computed with ``norm="self"``, not
+        reduced, holding exactly the families ``mean``, ``var``, S1 to S4, and, on 2D data, the
+        power spectrum ``PS`` or not; their normalisation, ``ref_batch_mean`` and
+        standardisation are those the caller chose (M-SYN-TARGET).
+    n_batch : int
+        The number of fields synthesised.
+    running_shape : tuple of int or None
+        As for :func:`synthesize_from_maps`; taken on 2D data only (OP-101).
+    init : str, array_like or None
+        ``None`` or ``"gaussian"`` for a Gaussian start drawn with ``seed``, or an array that
+        broadcasts to ``(n_batch, Nc, *spatial)``.
+    mean_field : bool
+        With ``mean_field=True`` (the default) the loss compares the batch means and is divided
+        by the Nb of ``stats`` (OP-71); with ``mean_field=False``, ``n_batch`` must be that Nb.
+    max_iter, history_size, lr, seed, checkpoint_every, checkpoint_dir, resume_from
+        As for :func:`synthesize_from_maps`.
     """
     _refuse_tensor_prod(stats, "synthesize_from_stats", "stats")
     if not isinstance(stats, STStatistics):

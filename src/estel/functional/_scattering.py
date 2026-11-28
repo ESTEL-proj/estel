@@ -59,19 +59,28 @@ def scattering(
     """The scattering statistics of ``data`` (maths.md §1.6 to 1.8, §3): the pure function
     behind ``STOperator.apply`` and ``STOperatorTensorProd.apply``, one function for both.
 
-    ``plan`` and ``filters`` are those of an operator, ``op.plan`` and ``op.filters``; ``data`` has
-    the geometry, spatial shape, ``pbc``, mask and number of channels the plan was built for
-    (for a tensor product, its blocks, their sizes and their ``pbc``), and the backend and dtype
-    of the filters. ``STPlan`` and ``STFilters`` are the types of the plan and filters of
-    either operator: those of a tensor product are their subclasses (task T3.2).
+    ``STPlan`` and ``STFilters`` are the types of the plan and filters of either operator: those
+    of a tensor product are their subclasses (task T3.2).
 
-    ``norm`` is the normalisation (M-NORM): ``"self"`` (the default) normalises the statistics by
-    themselves, ``"ref"`` by the reference of ``ref``, statistics computed with
-    ``norm="self"``, which it requires, and ``"none"`` not at all; ``ref`` is taken with
-    ``norm="ref"`` only. ``ref_batch_mean`` averages the ``norm="self"`` reference over the
-    batch, and is taken with ``norm="self"`` only. With ``"self"`` the reference is part of the
-    computation and gradients flow through it; with ``"ref"`` it is a constant (OP-18). Both are
-    Python values, static under ``jit`` as the plan is.
+    Parameters
+    ----------
+    data : Data
+        Data with the geometry, spatial shape, ``pbc``, mask and number of channels the plan was
+        built for (for a tensor product, its blocks, their sizes and their ``pbc``), and the
+        backend and dtype of the filters.
+    plan, filters : STPlan, STFilters
+        Those of an operator, ``op.plan`` and ``op.filters``.
+    ref : STStatistics or None
+        Statistics computed with ``norm="self"``, which ``norm="ref"`` requires. Taken with
+        ``norm="ref"`` only.
+    norm : {"self", "ref", "none"}
+        The normalisation (M-NORM): ``"self"`` (the default) normalises the statistics by
+        themselves, ``"ref"`` by the reference of ``ref``, and ``"none"`` not at all. With
+        ``"self"`` the reference is part of the computation and gradients flow through it; with
+        ``"ref"`` it is a constant (OP-18). A Python value, static under ``jit`` as the plan is.
+    ref_batch_mean : bool
+        Averages the ``norm="self"`` reference over the batch. Taken with ``norm="self"``
+        only. A Python value, static under ``jit`` as the plan is.
     """
     found, parts = _parts(plan, filters)
     check_normalization(norm, ref_batch_mean)

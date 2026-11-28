@@ -156,8 +156,13 @@ class STOperator:
         """The operator that computed ``stats``: the same plan (geometry, mask or blocks, J, L,
         channels, standardisation), on the current backend and default device, in the dtype of
         ``stats``, holding the reference ``stats`` were normalised with: their own with
-        ``norm="self"``, which ``apply(data, norm="ref")`` then uses (M-NORM). Called on
-        ``STOperatorTensorProd``, it takes the statistics of a tensor product."""
+        ``norm="self"``, which ``apply(data, norm="ref")`` then uses (M-NORM).
+
+        Parameters
+        ----------
+        stats : STStatistics
+            The statistics; called on ``STOperatorTensorProd``, those of a tensor product.
+        """
         name = cls.__name__
         if not isinstance(stats, STStatistics):
             raise TypeError(
@@ -240,21 +245,29 @@ class STOperator:
         """The statistics of ``data`` (maths.md §1.6 to 1.8, §3), as ``STStatistics``, normalised
         as chosen at this call (M-NORM).
 
-        ``data`` must have the geometry, spatial shape, ``pbc``, mask and number of channels of
-        the example the operator was built from (on HEALPix, its ``depth`` and ``cell_ids``; for
-        a tensor product, its blocks, their sizes and ``pbc``), its backend, and its dtype; the
-        batch size may differ.
+        A channel of ``cross_matrix`` without auto statistics has no normalisation scale: its
+        normalised cross statistics are NaN, which the constructor warns of (OP-30).
 
-        ``norm="self"`` (the default) normalises the statistics by themselves; the operator
-        stores their reference, replacing the one it held with a ``UserWarning``, and gradients
-        flow through it. ``norm="ref"`` normalises them by the reference of ``ref``, statistics
-        of the same geometry computed with ``norm="self"``, or else by the one the operator
-        holds, from an earlier ``norm="self"`` call or :meth:`from_statistics`; no gradient flows
-        through it. ``norm="none"`` does not normalise. ``ref`` is taken with ``norm="ref"``
-        only. ``ref_batch_mean=True`` averages the ``norm="self"`` reference over the batch, and
-        is taken with ``norm="self"`` only. A channel of ``cross_matrix`` without auto
-        statistics has no normalisation scale: its normalised cross statistics are NaN, which
-        the constructor warns of (OP-30).
+        Parameters
+        ----------
+        data : Data
+            Data with the geometry, spatial shape, ``pbc``, mask and number of channels of the
+            example the operator was built from (on HEALPix, its ``depth`` and ``cell_ids``; for
+            a tensor product, its blocks, their sizes and ``pbc``), its backend, and its dtype;
+            the batch size may differ.
+        ref : STStatistics or None
+            Statistics of the same geometry computed with ``norm="self"``, whose reference
+            ``norm="ref"`` uses. Taken with ``norm="ref"`` only.
+        norm : {"self", "ref", "none"}
+            ``"self"`` (the default) normalises the statistics by themselves; the operator
+            stores their reference, replacing the one it held with a ``UserWarning``, and
+            gradients flow through it. ``"ref"`` normalises them by the reference of ``ref``,
+            or else by the one the operator holds, from an earlier ``norm="self"`` call or
+            :meth:`from_statistics`; no gradient flows through it. ``"none"`` does not
+            normalise.
+        ref_batch_mean : bool
+            ``True`` averages the ``norm="self"`` reference over the batch. Taken with
+            ``norm="self"`` only.
         """
         name = type(self).__name__
         stats, self._reference = apply_operator(
