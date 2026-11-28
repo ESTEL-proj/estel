@@ -76,12 +76,13 @@ def _tensor(x: Any, what: str) -> torch.Tensor:
 def _gather_rows(
     x: torch.Tensor, ax: int, index: torch.Tensor, weight: torch.Tensor
 ) -> torch.Tensor:
-    """``gather_weighted`` on the rows of ``index`` and ``weight``, checked, at once."""
+    """``gather_weighted`` on the rows of ``index`` and ``weight``, checked, at once; an index
+    shared by the Q entries of a row, ``(P, 1, M)``, is gathered once and broadcast."""
     p, q, m = index.shape
     post = x.shape[ax + 1 :]
     taken = torch.index_select(x, ax, index.reshape(-1))
     taken = taken.reshape(*x.shape[:ax], p, q, m, *post)
-    w = weight.reshape(p, q, m, *([1] * len(post)))
+    w = weight.reshape(p, weight.shape[1], m, *([1] * len(post)))
     return (taken * w).sum(dim=ax + 2)
 
 
@@ -346,10 +347,17 @@ class TorchBackend:
         weight = _real(weight, "weight")
         index = _index(index, "index")
         _same_dtype(("x", x), ("weight", weight))
-        if index.ndim != 3 or index.shape != weight.shape:
+        if (
+            index.ndim != 3
+            or weight.ndim != 3
+            or index.shape[0] != weight.shape[0]
+            or index.shape[2] != weight.shape[2]
+            or index.shape[1] not in (1, weight.shape[1])
+        ):
             raise ValueError(
                 f"index {tuple(index.shape)} and weight {tuple(weight.shape)} must have one "
-                "shape (P, Q, M): a padded CSR stencil."
+                "shape (P, Q, M), or index (P, 1, M) shared by the Q entries of each row: a "
+                "padded CSR stencil."
             )
         ax = _axis(axis, x.ndim)
         rows = int(index.shape[0])

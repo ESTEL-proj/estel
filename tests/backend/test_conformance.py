@@ -149,6 +149,7 @@ class Linear:
 
 
 GW_INDEX = np.random.default_rng(10).integers(0, 7, size=(4, 2, 3))
+GW_INDEX_SHARED = GW_INDEX[:, :1]  # one row of positions shared by its 2 entries (P5-01)
 SEG_IDS = np.array([0, 3, 3, 1, 0, 4, 1, 3])  # segment 2 is empty
 GRID_INDEX = [np.array([0, 2, 1, 2, 0]), np.array([3, 0, 1, 2, 0])]
 
@@ -276,6 +277,23 @@ LINEAR_CASES = [
             _asarray(b, X_GW(dt), dt), -2, index_array(b, GW_INDEX, "int32"), w, batch_rows=3
         ),
         lambda w, dt: np_gather_weighted(X_GW(dt), 1, GW_INDEX, w),
+    ),
+    # An index (P, 1, M) shared by the Q entries of each row (finding P5-01 of the final review).
+    Linear(
+        "gather-weighted-shared-index-in-x",
+        (2, 7, 3),
+        lambda b, x, dt: b.gather_weighted(
+            x, 1, index_array(b, GW_INDEX_SHARED), _asarray(b, GW_WEIGHT(dt), dt), batch_rows=3
+        ),
+        lambda x, dt: np_gather_weighted(x, 1, GW_INDEX_SHARED, GW_WEIGHT(dt)),
+    ),
+    Linear(
+        "gather-weighted-shared-index-in-weight",
+        (4, 2, 3),
+        lambda b, w, dt: b.gather_weighted(
+            _asarray(b, X_GW(dt), dt), -2, index_array(b, GW_INDEX_SHARED, "int32"), w
+        ),
+        lambda w, dt: np_gather_weighted(X_GW(dt), 1, GW_INDEX_SHARED, w),
     ),
     Linear(
         "segment-sum",
@@ -688,11 +706,35 @@ class TestSparse:
         batched = backend.gather_weighted(x, 1, index, weight, batch_rows=batch_rows)
         np.testing.assert_array_equal(backend.to_numpy(batched), whole)
 
+    @pytest.mark.parametrize("post", [(), (2,)])
+    def test_gather_weighted_shared_index_compiled(
+        self, backend: Backend, dtype: DType, post: tuple[int, ...]
+    ) -> None:
+        """An index shared by the Q entries of a row (finding P5-01 of the final review) gives
+        the values of NumPy inside a compiled program too, with and without axes after the
+        gathered one. Two leading axes and 48 x 16 entries, as the HEALPix convolution has:
+        there XLA on CPU miscompiled the broadcast form in float32 under ``jax.jit``."""
+        rng = np.random.default_rng(29)
+        index = rng.integers(0, 16, size=(48, 1, 16))
+        x, weight = draw((1, 3, 16, *post), dtype, 30), draw((48, 2, 16), dtype, 31)
+        compiled = backend.jit(
+            lambda a, w: backend.gather_weighted(a, 2, index_array(backend, index), w)
+        )
+        y = compiled(backend.asarray(x, dtype), backend.asarray(weight, dtype))
+        assert_close(backend, y, np_gather_weighted(x, 2, index, weight), dtype)
+
     def test_gather_weighted_rejects(self, backend: Backend, dtype: DType) -> None:
         x = backend.asarray(np.ones((3, 4)), dtype)
         index = index_array(backend, np.zeros((2, 1, 3), dtype=int))
         with pytest.raises(ValueError, match=r"one\s+shape \(P, Q, M\)"):
             backend.gather_weighted(x, 1, index, backend.asarray(np.ones((2, 1, 2)), dtype))
+        with pytest.raises(ValueError, match=r"index \(P, 1, M\) shared"):  # Q of 2 against 3
+            backend.gather_weighted(
+                x,
+                1,
+                index_array(backend, np.zeros((2, 2, 3), dtype=int)),
+                backend.asarray(np.ones((2, 3, 3)), dtype),
+            )
         with pytest.raises(TypeError, match="int32 or int64"):
             backend.gather_weighted(
                 x,

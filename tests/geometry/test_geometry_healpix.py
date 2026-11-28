@@ -304,17 +304,18 @@ def test_masks_built_by_batches_equal_one_batch(monkeypatch: pytest.MonkeyPatch)
 @pytest.mark.parametrize("sky", ["full", "disc"])
 def test_kernel_folded_into_the_stencils(sky: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """The kernel folded into the stencils (task T5.7): each row reads its distinct pixels
-    once, with Σ W[p] w[p, m], as real pairs; the convolution equals the stencils then the
-    kernel to rounding, and a fold by batches (7 rows) equals one batch, bit for bit."""
+    once, with Σ W[p] w[p, m], as real pairs sharing one row of the index; the convolution
+    equals the stencils then the kernel to rounding, and a fold by batches (7 rows) equals one
+    batch, bit for bit."""
     depth = 2
     ids = None if sky == "full" else _disc(depth, 1.4, 0.5, 0.9)
     tables = stencils_healpix(ids, depth)
     kernel = kernel_weights_healpix(kernel_size=5)
     index, weight = _operator_healpix._fold_kernel(tables, kernel)
     rows, width = tables.index.shape[0], index.shape[-1]
-    assert index.shape == weight.shape == (rows, 2, width)
+    assert index.shape == (rows, 1, width)  # one row of pixels, shared by both parts (P5-01)
+    assert weight.shape == (rows, 2, width)
     assert index.dtype == np.int32
-    np.testing.assert_array_equal(index[:, 0], index[:, 1])
     assert width <= 45 < tables.index.shape[1] * tables.index.shape[2]
     x = np.random.default_rng(0).standard_normal(int(tables.index.max()) + 1)
     expected = (x[tables.index] * tables.weight).sum(axis=-1) @ kernel

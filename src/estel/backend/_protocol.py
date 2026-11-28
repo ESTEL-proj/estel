@@ -254,14 +254,17 @@ class Backend(Protocol):
         §19.6).
 
         Shapes:
-            ``index`` and ``weight`` have the same shape ``(P, Q, M)``: for each output
-            pixel ``p`` and stencil entry ``q``, ``M`` (input position, weight) pairs. The
-            result replaces ``axis`` of ``x`` by the two axes ``(P, Q)``.
+            ``weight`` has the shape ``(P, Q, M)``: for each output pixel ``p`` and stencil
+            entry ``q``, ``M`` (input position, weight) pairs. ``index`` has the same shape,
+            or ``(P, 1, M)``: one set of ``M`` positions per row, shared by its ``Q`` entries,
+            each gathered once (the real and imaginary parts of a complex stencil, as real
+            pairs). The result replaces ``axis`` of ``x`` by the two axes ``(P, Q)``.
         Dtypes:
             ``x`` and ``weight`` are real and share one floating dtype; ``index`` is int32 or
             int64.
         Values:
-            ``y[..., p, q, ...] = Σ_m weight[p, q, m] · x[..., index[p, q, m], ...]``.
+            ``y[..., p, q, ...] = Σ_m weight[p, q, m] · x[..., index[p, q, m], ...]``, with
+            ``index[p, 0, m]`` for every ``q`` when the index is shared.
             Rows with fewer than ``M`` entries are padded with weight 0 and any in-range
             index.
         Gradients:

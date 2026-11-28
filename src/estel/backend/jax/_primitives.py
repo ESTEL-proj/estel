@@ -82,10 +82,19 @@ def _array(x: Any, what: str) -> jax.Array:
 
 
 def _gather_rows(x: jax.Array, ax: int, index: jax.Array, weight: jax.Array) -> jax.Array:
-    """``gather_weighted`` on the rows of ``index`` and ``weight``, checked, at once."""
+    """``gather_weighted`` on the rows of ``index`` and ``weight``, checked, at once; an index
+    shared by the Q entries of a row, ``(P, 1, M)``, is gathered once.
+
+    The shared index is contracted by ``einsum``: under ``jax.jit`` in float32, XLA on CPU
+    (jax 0.10.2) miscompiles the gathered values broadcast along Q, multiplied and summed over
+    M, with errors of the order of the values (finding P5-01 of the final review)."""
     p, q, m = index.shape
     post = x.shape[ax + 1 :]
     taken = jnp.take(x, index.reshape(-1), axis=ax)
+    if q != weight.shape[1]:  # (..., P, M, *post) -> (..., *post, P, M), then (..., P, Q, *post)
+        rows = jnp.moveaxis(taken.reshape(*x.shape[:ax], p, m, *post), (ax, ax + 1), (-2, -1))
+        y = jnp.einsum("...pm,pqm->...pq", rows, weight)
+        return jnp.moveaxis(y, (-2, -1), (ax, ax + 1))
     taken = taken.reshape(*x.shape[:ax], p, q, m, *post)
     w = weight.reshape(p, q, m, *([1] * len(post)))
     return jnp.sum(taken * w, axis=ax + 2)
@@ -390,10 +399,17 @@ class JaxBackend:
         weight = _real(weight, "weight")
         index = _index(index, "index")
         _same_dtype(("x", x), ("weight", weight))
-        if index.ndim != 3 or index.shape != weight.shape:
+        if (
+            index.ndim != 3
+            or weight.ndim != 3
+            or index.shape[0] != weight.shape[0]
+            or index.shape[2] != weight.shape[2]
+            or index.shape[1] not in (1, weight.shape[1])
+        ):
             raise ValueError(
                 f"index {tuple(index.shape)} and weight {tuple(weight.shape)} must have one "
-                "shape (P, Q, M): a padded CSR stencil."
+                "shape (P, Q, M), or index (P, 1, M) shared by the Q entries of each row: a "
+                "padded CSR stencil."
             )
         ax = _axis(axis, x.ndim)
         rows = int(index.shape[0])
