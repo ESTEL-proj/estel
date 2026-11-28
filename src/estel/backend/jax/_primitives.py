@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import importlib
 import math
-import os
 from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass
 from types import ModuleType
@@ -52,8 +51,6 @@ _INDEX = (np.dtype("int32"), np.dtype("int64"))
 # NumPy dtype kinds, from narrowest to widest: asarray may widen the kind, never narrow it.
 _KIND_RANK = {"b": 0, "u": 1, "i": 1, "f": 2, "c": 3}
 _PAD_MODES = ("circular", "replicate", "zeros")
-
-_DETERMINISTIC_FLAG = "--xla_gpu_deterministic_ops"
 
 LBFGS_NOT_PROVIDED = (
     "L-BFGS on the JAX backend arrives in step 2 (LF1), with optax.lbfgs. Run syntheses with "
@@ -199,15 +196,6 @@ def _backends_started(what: str, instead: str) -> bool:
     return bool(started())
 
 
-def _jax_has_started(enabled: bool) -> bool:
-    """Whether JAX has initialised its backends, so that XLA has read ``XLA_FLAGS`` already."""
-    return _backends_started(
-        f"deterministic({bool(enabled)})",
-        f"Set XLA_FLAGS={_DETERMINISTIC_FLAG}={str(bool(enabled)).lower()} in the environment "
-        "before starting Python instead",
-    )
-
-
 def enable_float64() -> None:
     """Switch JAX's 64-bit mode on, for ``estel.set_default_dtype("float64")`` (Part I, §3.1).
 
@@ -238,16 +226,6 @@ def available_devices() -> tuple[str, ...]:
     except RuntimeError:  # no GPU platform in this JAX install
         gpus = []
     return ("cpu", *(f"cuda:{i}" for i in range(len(gpus))))
-
-
-def _flag_value(flags: Sequence[str]) -> bool:
-    """Whether ``XLA_FLAGS`` asks for deterministic GPU operations (the last setting wins)."""
-    value = False
-    for flag in flags:
-        name, _, setting = flag.partition("=")
-        if name == _DETERMINISTIC_FLAG:
-            value = setting.lower() in ("", "true", "1")
-    return value
 
 
 # ------------------------------------------------------------------ the backend
@@ -450,7 +428,7 @@ class JaxBackend:
         zeros = jnp.zeros((num_segments, *moved.shape[1:]), dtype=x.dtype)
         return jnp.moveaxis(zeros.at[segment_ids].add(moved), 0, ax)
 
-    def _flat_index(self, index: Sequence[Any], shape: Sequence[int], n: int | None) -> Any:
+    def _flat_index(self, index: Sequence[Any], shape: Sequence[int], n: int) -> Any:
         coords = [_index(c, f"index[{i}]") for i, c in enumerate(index)]
         if len(coords) != len(shape):
             raise ValueError(
@@ -462,7 +440,7 @@ class JaxBackend:
             raise ValueError(
                 f"the coordinate arrays have shapes {sorted(lengths)}; they must all be (n,)."
             )
-        if n is not None and coords and tuple(coords[0].shape) != (n,):
+        if coords and tuple(coords[0].shape) != (n,):
             raise ValueError(
                 f"the coordinate arrays have length {coords[0].shape[0]}, but values has {n} "
                 "entries on its last axis."
@@ -492,19 +470,6 @@ class JaxBackend:
         batch = values.shape[:-1]
         grid = jnp.full((*batch, math.prod(shape)), fill, dtype=values.dtype)
         return grid.at[..., flat].set(values).reshape(*batch, *shape)
-
-    def gather_from_grid(self, grid: jax.Array, index: Sequence[Any]) -> jax.Array:
-        grid = _floating(grid, "grid")
-        d = len(index)
-        if d == 0 or d > grid.ndim:
-            raise ValueError(
-                f"index has {d} coordinate arrays for a grid of {grid.ndim} dimensions: give "
-                "one per grid axis, at least one."
-            )
-        shape = grid.shape[grid.ndim - d :]
-        flat = self._flat_index(index, shape, None)
-        batch = grid.shape[: grid.ndim - d]
-        return jnp.take(grid.reshape(*batch, -1), flat, axis=len(batch))
 
     # ------------------------------------------------------------ complex values
 
@@ -602,33 +567,6 @@ class JaxBackend:
         state: LbfgsState | None = None,
     ) -> LbfgsResult:
         raise NotImplementedError(LBFGS_NOT_PROVIDED)
-
-    def deterministic(self, enabled: bool) -> None:
-        """Set ``--xla_gpu_deterministic_ops`` in ``XLA_FLAGS``, before JAX starts.
-
-        XLA reads ``XLA_FLAGS`` once, when JAX initialises its backends (at the first array).
-        A call that would change the setting after that raises ``RuntimeError``, since it
-        would have no effect; a call that leaves it unchanged is accepted. On CPU, XLA is
-        deterministic anyway.
-        """
-        flags = os.environ.get("XLA_FLAGS", "").split()
-        if _flag_value(flags) == bool(enabled):
-            return
-        if _jax_has_started(enabled):
-            raise RuntimeError(
-                f"deterministic({bool(enabled)}) came after JAX started its backends, and XLA "
-                "reads XLA_FLAGS only once, so it would have no effect. Call it at set-up, "
-                "before the first JAX array is created, or set "
-                f"XLA_FLAGS={_DETERMINISTIC_FLAG}={str(bool(enabled)).lower()} in the "
-                "environment before starting Python."
-            )
-        others = [f for f in flags if f.partition("=")[0] != _DETERMINISTIC_FLAG]
-        if enabled:
-            others.append(f"{_DETERMINISTIC_FLAG}=true")
-        if others:
-            os.environ["XLA_FLAGS"] = " ".join(others)
-        else:
-            os.environ.pop("XLA_FLAGS", None)
 
     # ------------------------------------------------------------ pytrees
 

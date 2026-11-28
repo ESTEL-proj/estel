@@ -224,7 +224,7 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `conv_axes(x, k, axes, stride=1)` | P | Valid real correlation along the given axes, batched over the others; real only: a complex kernel is applied in L1 by real calls, one with the real and imaginary parts of the kernel stacked on a real map, four on the complex intermediate map of a tensor product (Part I, §3.1, rule 6). Applied directly along a block's axes, without moving them | `_conv_circular`, `_semicomplex_conv_circular` |
 | `gather_weighted(x, axis, index, weight)` | P | `y[..., p, k] = Σ_m weight[p,k,m] · x[..., index[p,k,m]]`: a sparse matrix in padded CSR form, for the static linear maps of the statistics (normalisation, reductions, selection; Part III, §19.6) and for the HEALPix stencils and decimation of step 1. An internal keyword, `batch_rows`, computes the rows by batches, so that the gathered values are never materialised whole (T5.7): the values are those of one batch, exactly on their own and to rounding inside `jax.jit` | `TorchGeometry` |
 | `segment_sum(x, axis, segment_ids, num_segments)` | P | Bin averages, HEALPix parent binning, reductions | bin masks, `_bin_to_parents` |
-| `scatter_to_grid(values, index, shape, fill)` | P | Builds a new array on the complete grid of indices: values at the static positions `index`, `fill` (NaN) everywhere else; out of place. Its inverse, `gather_from_grid(grid, index)`, reads the existing coefficients back. Builds the full-grid views of the statistics on demand, for `full_grid`, from the compact buffer; never called inside the computation (Part I, §3.1.1; Part III, §19.5) | new |
+| `scatter_to_grid(values, index, shape, fill)` | P | Builds a new array on the complete grid of indices: values at the static positions `index`, `fill` (NaN) everywhere else; out of place. Builds the full-grid views of the statistics on demand, for `full_grid`, from the compact buffer; never called inside the computation (Part I, §3.1.1; Part III, §19.5) | new |
 | `complex_to_real_pairs(z)` / `real_pairs_to_complex(r)` | P | Complex values as trailing (re, im) floats, and back | new |
 | `stop_gradient(x)` | P | `x.detach()` / `jax.lax.stop_gradient` | `.detach()` calls |
 | `random_normal(key, shape, dtype)`, `make_key(seed)` | P | Explicit keys on every backend | `torch.randn` in `Synthesis.py` |
@@ -232,7 +232,6 @@ The "Origin" column points to the STL code being ported; "new" means there is no
 | `register_pytree(cls, flatten, unflatten)` | P | Registers a class as a pytree: on JAX through `jax.tree_util`; on PyTorch through `torch.utils._pytree`, imported lazily, with a warning if no such API exists. Used for `Data`, and later `STStatistics` (Part I, §3.1, rule 9) | new |
 | `value_and_grad(fn)`, `vjp`, `jvp`, `hvp` | P | Synthesis and the differentiation tests; `torch.func` / `jax` | `loss.backward()` |
 | `lbfgs(...)` | P | The built-in L-BFGS of each backend: `torch.optim.LBFGS(line_search_fn="strong_wolfe")`; `optax.lbfgs` in step 2; the Rust L-BFGS (`impl="rust"`) when the Rust engine is selected (Part III, §18.2) | `optimize_lbfgs` |
-| `deterministic(enabled)` | P | `torch.use_deterministic_algorithms`; on JAX, `XLA_FLAGS=--xla_gpu_deterministic_ops=true`, set before JAX starts. On in tests | new |
 
 ### 12.4 Data classes
 

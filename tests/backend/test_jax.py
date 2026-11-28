@@ -2,18 +2,15 @@
 
 The backend-neutral checks are in ``test_conformance.py``; these pin the JAX choices: ``jit``
 is ``jax.jit`` and every primitive traces under it (Part I, §3.1); 64-bit dtypes need JAX's
-64-bit mode, which the backend never switches itself; ``deterministic`` sets
-``--xla_gpu_deterministic_ops`` in ``XLA_FLAGS`` before JAX starts, and refuses a change it
-could no longer make; keys work for every seed, whatever the 64-bit mode; ``register_pytree``
-registers with ``jax.tree_util``, so that ``jax.vmap`` maps over the children (task T2.9).
+64-bit mode, which the backend never switches itself; keys work for every seed, whatever the
+64-bit mode; ``register_pytree`` registers with ``jax.tree_util``, so that ``jax.vmap`` maps
+over the children (task T2.9).
 
 Collected only when ``ESTEL_TEST_BACKEND=jax``, which switches the 64-bit mode on at start.
 """
 
 from __future__ import annotations
 
-import os
-import subprocess
 import sys
 from typing import Any
 
@@ -22,7 +19,7 @@ import numpy as np
 import pytest
 
 from estel.backend._protocol import Backend, DType
-from estel.backend.jax._primitives import JaxBackend
+from estel.backend.jax._primitives import JaxBackend, _backends_started
 from tests.backend.test_conformance import (
     LINEAR_CASES,
     Linear,
@@ -138,82 +135,20 @@ def test_lbfgs_names_its_step() -> None:
         )
 
 
-@pytest.mark.slow
-@pytest.mark.serial
-class TestDeterministic:
-    """``--xla_gpu_deterministic_ops`` in ``XLA_FLAGS``, read by XLA once, when JAX starts.
-
-    Slow: each test starts a fresh Python process that imports JAX, which takes seconds."""
-
-    def _run(self, code: str, flags: str | None) -> subprocess.CompletedProcess[str]:
-        env = {k: v for k, v in os.environ.items() if k != "XLA_FLAGS"}
-        if flags is not None:
-            env["XLA_FLAGS"] = flags
-        prelude = (
-            "import os\n"
-            "from estel.backend.jax._primitives import JaxBackend\n"
-            "backend = JaxBackend()\n"
-        )
-        return subprocess.run(
-            [sys.executable, "-c", prelude + code],
-            env=env,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-    def test_sets_and_removes_the_flag_before_jax_starts(self) -> None:
-        result = self._run(
-            "backend.deterministic(True)\n"
-            "print(os.environ['XLA_FLAGS'])\n"
-            "backend.deterministic(False)\n"
-            "print(os.environ['XLA_FLAGS'])\n",
-            "--xla_cpu_enable_fast_math=false",
-        )
-        assert result.returncode == 0, result.stderr
-        assert result.stdout.splitlines() == [
-            "--xla_cpu_enable_fast_math=false --xla_gpu_deterministic_ops=true",
-            "--xla_cpu_enable_fast_math=false",
-        ]
-
-    def test_a_late_change_raises(self) -> None:
-        result = self._run(
-            "backend.asarray(__import__('numpy').ones(2), 'float32')\n"
-            "backend.deterministic(False)\n"  # unchanged: accepted
-            "backend.deterministic(True)\n",
-            None,
-        )
-        assert result.returncode != 0
-        assert "RuntimeError" in result.stderr
-        assert "before the first JAX array is created" in result.stderr
-
-    def test_an_unchanged_setting_is_accepted_late(self) -> None:
-        result = self._run(
-            "backend.asarray(__import__('numpy').ones(2), 'float32')\n"
-            "backend.deterministic(True)\n",
-            "--xla_gpu_deterministic_ops=true",
-        )
-        assert result.returncode == 0, result.stderr
-
-
 @pytest.mark.serial
 @pytest.mark.parametrize("missing", ["module", "function"])
-def test_deterministic_without_the_private_jax_check(
-    missing: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """If JAX drops ``backends_are_initialized``, deterministic says so; the backend still works."""
+def test_without_the_private_jax_check(missing: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """If JAX drops ``backends_are_initialized``, the check that ``enable_float64`` makes says so;
+    the backend still works."""
     import jax._src.xla_bridge as xla_bridge
 
     if missing == "module":
         monkeypatch.setitem(sys.modules, "jax._src.xla_bridge", None)
     else:
         monkeypatch.delattr(xla_bridge, "backends_are_initialized")
-    monkeypatch.delenv("XLA_FLAGS", raising=False)
     backend = JaxBackend()
     with pytest.raises(RuntimeError, match="could not check whether JAX has started"):
-        backend.deterministic(True)
-    assert "XLA_FLAGS" not in os.environ
-    backend.deterministic(False)  # unchanged: needs no check
+        _backends_started('set_default_dtype("float64")', "Set JAX_ENABLE_X64=1 instead")
     assert backend.to_numpy(backend.asarray(np.ones(2), "float32")).sum() == 2.0
 
 

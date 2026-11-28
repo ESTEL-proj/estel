@@ -30,7 +30,7 @@ process-wide. Both dtypes run in the same process: the ``dtype`` fixture is para
 **Passes** (task T0.7): the tests run in parallel, in ``pytest-xdist`` workers
 (``-n auto -m "not serial"``), then, in the full tier, the tests marked ``serial`` alone, in one
 process (``-p no:xdist -m serial``). Mark ``serial`` a test that starts fresh processes or switches
-a process-wide setting, such as ``Backend.deterministic``. The fast tier has no serial pass: a
+a process-wide setting, such as JAX's 64-bit mode. The fast tier has no serial pass: a
 pytest process of its own costs more than its tests.
 """
 
